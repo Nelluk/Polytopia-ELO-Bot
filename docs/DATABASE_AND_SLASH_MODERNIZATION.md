@@ -475,9 +475,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **None. P4.5 accepted game result/management taxonomy
-alignment is complete, integrated, and deployed; wider-beta acceptance is
-pending.**
+Current active unit: **P8.7 native House show/list reads are in progress under
+the temporary Sol omni workflow.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7092,6 +7091,76 @@ Limitations and next action:
   Synchronize only the updated `team` root, restart the guarded beta at the
   clean checkpoint, and publish a wider-beta **WHAT TO TEST** announcement.
 
+### P8.7 — Native House show/list and bounded directory reads
+
+Status: **Implemented locally; integration pending**
+
+Branch/base: `codex/p8-7-house-reads` in the isolated omni worktree from exact
+clean accumulation base `8afd1e1`.
+
+Risk tier: **Tier 2**. This is a public read/presentation and application-
+command capability unit. It changes no database schema or stored data.
+
+Accepted interface and compatibility decisions:
+
+- add public `/house show house:[optional]`; omission infers only one exact
+  requester House role, while explicit values use bounded autocomplete and
+  exact/unique partial matching;
+- add public no-option `/house list` as a simple paginated directory whose
+  requester-bound select opens the loaded House detail and whose controls
+  perform no further database reads;
+- retain `$house HOUSE`, `$houses`, and `$balance` through the production
+  transition. They share the same worker but keep text-oriented prefix output;
+- preserve House emoji/image URL, league tokens, exact-role leadership,
+  active/archived Teams, tier/current Team ELO, active exact-role rosters, and
+  registered player ELO where available;
+- keep public successful cards and refinements transparent, while wrong-
+  guild/channel, inference, lookup, database, publication, requester, and
+  expiry failures remain private for native interactions;
+- assign the existing default-deny `house` capability only to the development
+  guild during the reviewed deployment gate. Do not add a global command or
+  production capability assignment.
+
+Worker and presentation boundaries:
+
+- the event loop freezes guild roles, member display names, IDs, and role-name
+  membership into immutable primitive snapshots;
+- one bounded two-thread reader owns its Peewee connection and loads at most
+  50 Houses, 200 same-guild non-hidden Teams, 5,000 captured members, and 100
+  roster members per Team;
+- Team reads now enforce `Team.guild_id`, correcting the legacy `$houses`
+  prefetch that could associate Teams without a guild boundary;
+- registered player ELO is loaded in one guild-scoped query, and all list/
+  detail navigation is DTO-only after the initial read;
+- native embeds cap leadership text, team fields, and roster text below
+  Discord payload limits, escape mention text, and use only one select row
+  plus a buttons-only navigation row;
+- the worker drains cancellation before releasing the reader, and no live
+  Discord/Peewee/query objects cross the executor boundary.
+
+Focused evidence covers the exact native option shape, retained
+prefixes, frozen snapshots/results, explicit/partial/inferred lookup,
+ambiguity, worker-local connection ownership, same-guild team/roster data,
+event-loop responsiveness, dense detail/list rendering, valid component-row
+layout, requester/expiry behavior, public success/private failure, shared
+prefix routing, and development capability intent. The affected focused suites
+passed 94 tests. Complete offline discovery passed 980 tests with 29
+intentional database-gated skips; compilation and diff checks passed. A
+read-only real-schema case is present behind the unchanged `development` /
+`polytopia_dev` / `polybot_dev` gate and will run only in the authorized
+stopped-beta deployment window.
+
+No compatibility-ledger entry is required because both prefix read workflows
+remain available over the shared bounded service and native output covers the
+same useful information. House create/name/image mutations remain separate
+future units.
+
+Next action: checkpoint code and roadmap evidence separately, integrate, then
+stop only the guarded beta, run the read-only real-schema gate, apply the
+ignored development-only `house` capability and guild-scoped command root,
+restart, and announce the two native reads. No production or global
+synchronization.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -8557,6 +8626,23 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.7 House read workspaces implemented
+
+- Added public `/house show house:[optional]` and no-option `/house list`
+  over one bounded immutable House/Team/roster snapshot, with requester-only
+  list/detail controls and no database reads during refinement.
+- Retained `$house`, `$houses`, and `$balance` through the shared reader while
+  preserving their text-oriented presentation.
+- Enforced same-guild Team loading, worker-local connection ownership,
+  primitive Discord snapshots, cancellation draining, bounded payloads, and
+  public success/private failure behavior.
+- The affected focused suites passed **94 tests**; complete offline discovery
+  passed **980 tests with 29 intentional database-gated skips**. Compilation
+  and diff checks passed.
+- Added the read-only real-schema case behind the unchanged development gate.
+  Integration, capability assignment, guild-only synchronization, beta
+  restart, and announcement remain pending in the approved deployment window.
 
 ### 2026-08-08 — P4.5 game taxonomy alignment integrated and deployed
 

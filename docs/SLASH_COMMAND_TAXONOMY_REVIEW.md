@@ -1016,8 +1016,8 @@ beta lifecycle action is part of this unit.
 | `league_export` | `/league maintenance export` | Redesign staff-only deferred generation |
 | `deactivate_players` | `/league maintenance deactivate` | Preview and confirmation required |
 | `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
-| `house` | `/house show` | Strong candidate |
-| `houses` | `/house list` | Strong candidate |
+| `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
+| `houses` | `/house list` | P8.7 implements a public requester-bound paginated directory/select workspace and retains `$houses`/`$balance` |
 | `house_add` | `/house create` | Split create from alias-selected edits |
 | `house_rename` alias | `/house name` | View by default; optional name edits |
 | `house_image` alias | `/house image` | View by default; optional attachment/URL edits |
@@ -1027,6 +1027,33 @@ The deeper `roster` and `maintenance` paths reserve the short `/league`
 surface for ordinary league participants. They also make destructive batch
 operations harder to invoke accidentally without pretending that nesting is
 a permission control.
+
+#### P8.7 `/house show` and `/house list` implementation state
+
+P8.7 adds the default-deny `house` root with exactly two public reads.
+`/house show house:[optional string]` resolves an explicit exact/unique partial
+House or infers exactly one requester House role. `/house list` has no slash
+arguments and opens a simple public directory with requester-only paging and a
+House select; selecting a result opens the dense loaded detail and Back returns
+to the directory. Controls use only the immutable initial result and never
+requery PostgreSQL.
+
+The event loop captures primitive member IDs, display names, role names, and
+role membership. A bounded worker-local read loads Houses, same-guild visible
+Teams, leadership, tier/current Team ELO, active exact-role rosters, and
+registered player ELO. This corrects the old `$houses` prefetch's missing Team
+guild boundary. Detail/list embeds remain below Discord limits and include
+role/truncation warnings. Successful native output/refinement is public;
+scope/channel/lookup/inference/database/publication/requester/expiry failures
+are private.
+
+`$house HOUSE`, `$houses`, and `$balance` remain registered and use the same
+reader while preserving text-oriented output. No compatibility compromise is
+introduced. House create/name/image mutations remain separate units. The
+existing `house` capability is assigned only through the later explicit
+development-guild deployment gate; no global or production registration is
+part of implementation. The affected focused suites passed 94 tests; complete
+offline discovery passed 980 tests with 29 intentional database-gated skips.
 
 ### Legacy modules outside the modernization target
 
