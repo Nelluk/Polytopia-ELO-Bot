@@ -471,10 +471,10 @@ check:
 - P4.4 implementation/tests checkpoint: `bf56d88` on
   `codex/p4-4-game-logs`, from exact clean base `136ad4d`.
 - pre-existing canonical service-test correction: `4d0994e`.
+- P4.4 accumulation/checklist checkpoint: `7595396`.
 
-Current active unit: **P4.4 permission-aware `/game logs` read workspace
-implemented under the explicitly approved temporary Sol omni workflow;
-stopped-beta database validation, integration, and deployment are pending.**
+Current active unit: **P4.4 permission-aware `/game logs` read workspace is
+integrated and deployed; wider-beta acceptance is pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -3016,7 +3016,8 @@ and global synchronization out of that action.
 
 #### P4.4 — Permission-aware `/game logs` workspace
 
-Status: **Implemented; stopped-beta validation and deployment pending**
+Status: **Complete; integrated, real-schema validated, and deployed;
+wider-beta acceptance pending**
 
 Risk tier: **Tier 2**. This is a bounded read-only database and Components v2
 unit. It changes no schema or audit data.
@@ -3085,10 +3086,38 @@ Validation evidence:
   Discord command apply, beta lifecycle, fixture, production, dependency, or
   sudo operation occurred during implementation.
 
-Next action: complete the approved stopped-beta read-only real-schema gate,
-integrate the two P4.4 checkpoints into the accumulation branch, update only
-the development guild's existing `game` root, restart the guarded beta, and
-post one tester-pinged **WHAT TO TEST** announcement as the terminal action.
+The approved deployment sequence was to complete the stopped-beta read-only
+real-schema gate, integrate the P4.4 checkpoints, update only the development
+guild's existing `game` root, restart the guarded beta, and post one
+tester-pinged **WHAT TO TEST** announcement as the terminal action.
+
+Deployment evidence:
+
+- Fast-forwarded the accumulation branch through evidence checkpoint
+  `456b786`, added the persistent beta checklist, and pushed clean running
+  checkpoint `759539664000218cc310a197289b4e8d3270eab4`.
+- Stopped only `polybot-development-beta@main.service`; its launcher exited
+  cleanly and the host-wide audit found no other development writer.
+- The unchanged database gate verified `development`, `polytopia_dev`,
+  `polybot_dev`, and disabled background/API services. All **27** cases
+  passed except the one intentional operator-fixture round-trip skip. The new
+  P4.4 real-schema read passed and performed no write.
+- Remote inspection found one update—the existing `game` root—in development
+  guild `478571892832206869`. The explicit guild-only apply completed and
+  immediate inspection reported all eight roots unchanged against policy.
+  No global synchronization occurred.
+- Restarted the guarded beta at checkpoint `7595396`; it authenticated as
+  **PolyELO Bot Beta** (`479029527553638401`) with PID `2936219`, and the
+  read-only release-control status succeeded.
+- Posted tester-pinged release `2026-08-08-game-logs` to
+  `todo-and-changelog` as message `1535767569347383376`. Announcement delivery
+  was the terminal deployment action; no later database, command, or beta
+  lifecycle operation occurred.
+
+Next action: collect wider-beta evidence for participant/staff/owner scope,
+search/clear, paging, requester-only controls, disabled mentions, prefix
+parity, and private failures. This acceptance is not a blocker for selecting
+the next bounded offline unit.
 
 ## P5 — Matchmaking lifecycle
 
@@ -8458,6 +8487,18 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P4.4 game-log workspace integrated and deployed
+
+- Completed the approved stopped-beta validation window. The full gated
+  development-database module passed **26 tests plus one intentional fixture
+  skip**, including the new P4.4 read-only real-schema case.
+- Integrated and pushed clean checkpoint `7595396`, updated only the existing
+  `game` root in the one development guild, and verified all eight registered
+  roots match policy with no global synchronization.
+- Restarted the guarded beta as the expected beta application and posted
+  tester-pinged **WHAT TO TEST** release `2026-08-08-game-logs` as message
+  `1535767569347383376`. Wider-beta acceptance remains pending.
 
 ### 2026-08-08 — P4.4 game-log workspace implemented in Sol omni mode
 

@@ -399,7 +399,10 @@ base `136ad4d`):
   service adapters, so no compatibility-ledger entry is needed.
 - Focused/affected validation passed 80 tests and complete offline discovery
   passed 969 tests with 28 intentional gated skips. Read-only real-schema and
-  live beta evidence remain behind the approved deployment gate.
+  live beta evidence subsequently passed: clean accumulation/checklist
+  checkpoint `7595396` updated only the development guild's existing `game`
+  root, the gated schema read passed, the guarded beta authenticated as the
+  expected application, and tester release `2026-08-08-game-logs` posted.
 
 ### Focused game attributes
 
