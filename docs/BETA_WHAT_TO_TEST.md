@@ -54,6 +54,21 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - Team permission checks using `@testers` (staff) and `@Mod` roles
 - `/team show`: explicit and inferred-team lookup, dense roster/ELO card, graph and image display, recent/all-completed activity toggle, missing-role warning, and desktop/mobile layout
 
+## Houses
+
+- `/house list`: browse pages, select a House, return to the list, and verify
+  the controls work on desktop and mobile without reloading or replacing the
+  public workspace.
+- `/house show`: try an explicit House and omit the option when you have one
+  unambiguous House role. Check leadership, active/archived Teams, tiers,
+  current Team ELO, rosters, player ELO, and the House image.
+- Another user must not be able to operate your list/detail controls. Missing
+  exact House or Team roles should produce useful warnings, while lookup,
+  inference, permission, and expired-control failures should stay private.
+- Compare retained `$house HOUSE`, `$houses`, and `$balance` output for the
+  same configured Houses. Report meaningful information missing from either
+  the native cards or legacy text.
+
 ## Squads
 
 - `/squad show` with no ID should return **No eligible squads** promptly on
