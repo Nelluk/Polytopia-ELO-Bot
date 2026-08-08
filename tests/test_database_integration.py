@@ -2771,6 +2771,36 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             0,
         )
 
+    def test_game_log_worker_reads_real_schema_without_writes(self):
+        """Exercise P4.4's bounded read under the unchanged identity gate."""
+
+        from modules import beta_readiness, game_log_workers
+
+        guild_id = beta_readiness.BETA_GUILD_ID
+        before_count = self.models.GameLog.select().count()
+        request = game_log_workers.GameLogRequest(
+            guild_id=guild_id,
+            requester_id=int(self.settings.owner_id),
+            requester_is_staff=True,
+            requester_is_owner=True,
+            key=game_log_workers.GameLogKey(scope='guild'),
+        )
+        result = game_log_workers.read_game_logs(request)
+
+        self.assertEqual(result.key.scope, 'guild')
+        self.assertLessEqual(len(result.rows), game_log_workers.MAX_LOG_ROWS)
+        self.assertTrue(all(
+            row.guild_id in {0, guild_id} for row in result.rows
+        ))
+        returned_ids = tuple(row.log_id for row in result.rows)
+        if returned_ids:
+            protected_count = self.models.GameLog.select().where(
+                self.models.GameLog.id.in_(returned_ids),
+                self.models.GameLog.is_protected == 1,
+            ).count()
+            self.assertEqual(protected_count, 0)
+        self.assertEqual(self.models.GameLog.select().count(), before_count)
+
 
 if __name__ == '__main__':
     unittest.main()

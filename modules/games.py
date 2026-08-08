@@ -36,6 +36,9 @@ from modules import game_name_views
 from modules import game_ping
 from modules import game_ping_views
 from modules import game_ping_workers
+from modules import game_logs
+from modules import game_logs_views
+from modules import game_log_workers
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -2773,6 +2776,98 @@ class polygames(commands.Cog):
             game_id=game_id,
             slash=True,
         )
+
+    @game_group.command(
+        name='logs',
+        description='View permission-aware game audit history.',
+    )
+    @discord.app_commands.describe(
+        game_id='Optional game ID; required for non-staff participants.',
+    )
+    @discord.app_commands.checks.cooldown(
+        1,
+        10.0,
+        key=lambda interaction: interaction.user.id,
+    )
+    async def game_logs_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int | None = None,
+    ):
+        """Publish a public requester-controlled audit-log workspace."""
+
+        await interaction.response.defer(ephemeral=True)
+        access_error = game_logs.native_access_error(
+            interaction.user,
+            interaction.guild.id,
+            interaction.channel_id,
+        )
+        if access_error:
+            return await interaction.followup.send(access_error, ephemeral=True)
+        try:
+            key = game_logs.initial_key(
+                member=interaction.user,
+                game_id=game_id,
+            )
+
+            async def loader(selected_key):
+                request = game_logs.build_request(
+                    member=interaction.user,
+                    guild_id=interaction.guild.id,
+                    key=selected_key,
+                )
+                try:
+                    return await asyncio.wait_for(
+                        game_log_workers.run_game_log_read(request),
+                        timeout=20.0,
+                    )
+                except game_log_workers.GameLogReadError:
+                    raise
+                except asyncio.TimeoutError as exc:
+                    raise game_log_workers.GameLogReadError(
+                        'The audit logs took too long to load. Please try again.'
+                    ) from exc
+                except peewee.PeeweeException as exc:
+                    logger.exception('Database failure reading native game logs')
+                    raise game_log_workers.GameLogReadError(
+                        'The audit logs could not be loaded. Please try again later.'
+                    ) from exc
+                except Exception as exc:
+                    logger.exception('Unexpected native game-log read failure')
+                    raise game_log_workers.GameLogReadError(
+                        'The audit logs could not be loaded. Please try again later.'
+                    ) from exc
+
+            snapshot = await loader(key)
+            requester_id = int(interaction.user.id)
+            permission_snapshot = game_logs.build_request(
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                key=key,
+            )
+            view = game_logs_views.GameLogsWorkspace(
+                requester_id=requester_id,
+                initial_result=snapshot,
+                loader=loader,
+                requester_is_staff=permission_snapshot.requester_is_staff,
+                requester_is_owner=permission_snapshot.requester_is_owner,
+                initial_game_id=game_id,
+            )
+            sender = squad_show_service.public_interaction_sender(interaction)
+            view.message = await sender(
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return view
+        except game_log_workers.GameLogReadError as exc:
+            logger.warning('Native game-log read failed: %s', exc)
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected native game-log read failure')
+            await interaction.followup.send(
+                'The audit logs could not be loaded. Please try again later.',
+                ephemeral=True,
+            )
 
     @game_group.command(
         name='ping',
@@ -5665,7 +5760,7 @@ class polygames(commands.Cog):
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
     async def logs(self, ctx, *, search_term: str = None):
-        """Lists or searches log entries. Non-staff users must provide a game ID for a game they are in.
+        """Lists or searches log entries through the shared bounded reader.
 
          **Examples**
         `[p]logs` - See all recent entries
@@ -5677,55 +5772,15 @@ class polygames(commands.Cog):
         `[p]global_logs` - *Owner only*: Search or list log entries across all bot servers
         """
 
-        if not settings.is_staff(ctx.author):
-            if not search_term or not search_term.strip().isnumeric():
-                return await ctx.send('You do not have permission to view these logs.')
-
-            game = Game.get_or_none((Game.id == int(search_term)) & (Game.guild_id == ctx.guild.id))
-            if not game:
-                return await ctx.send('No matching game was found.')
-
-            is_player, _ = game.has_player(discord_id=ctx.author.id)
-            if not is_player:
-                return await ctx.send('You do not have permission to view these logs.')
-
-        paginated_message_list = []
-
-        search_term = re.sub(r'\b(\d{4,6})\b', r'_\1_', search_term, count=1) if search_term else None
-        # Above finds a 4-6 digit number in search_term and adds underscores around it
-        # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
-        # user IDs
-
-        search_term = re.sub(r'<@[!&]?([0-9]{17,21})>', '\\1', search_term) if search_term else None
-        # replace @Mentions <@272510639124250625> with just the ID 272510639124250625
-
-        negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
-        # look for the first term preceded by a - character
-        if negative_parameter:
-            negative_term = negative_parameter[1]
-            search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
-            negative_title_str = f'\nExcluding entries containing *{negative_term}*'
-        else:
-            negative_term = None
-            negative_title_str = ''
-
-        if search_term:
-            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('_', '')
-        else:
-            title_str = f'All recent log entries{negative_title_str}'
-
-        guild_id = ctx.guild.id
-        if ctx.invoked_with == 'global_logs':
-            if ctx.author.id == settings.owner_id:
-                guild_id = None  # search globally, owner only
-            else:
-                return await ctx.send('Only the bot owner can search global logs.')
-
-        entries = models.GameLog.search(keywords=search_term, negative_keyword=negative_term, guild_id=guild_id)
-        for entry in entries:
-            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
-
-        await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
+        try:
+            return await game_logs.run_prefix(ctx, search_term)
+        except game_log_workers.GameLogReadError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading prefix game logs')
+            return await ctx.send(
+                'The audit logs could not be loaded. Please try again later.'
+            )
 
     async def game_search(self, ctx, mode: str, arg_list):
         target_list = [
