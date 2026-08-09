@@ -40,6 +40,8 @@ import modules.league_draft_cards as league_draft_cards
 import modules.league_draft_cards_workers as league_draft_cards_workers
 import modules.league_trade_price as league_trade_price
 import modules.league_trade_price_workers as league_trade_price_workers
+import modules.league_export as league_export
+import modules.league_export_workers as league_export_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -224,6 +226,12 @@ class league(commands.Cog):
     league_roster_group = discord.app_commands.Group(
         name='roster',
         description='Create league roster announcement cards.',
+        parent=league_group,
+        guild_only=True,
+    )
+    league_maintenance_group = discord.app_commands.Group(
+        name='maintenance',
+        description='Run bounded staff league maintenance tools.',
         parent=league_group,
         guild_only=True,
     )
@@ -1806,6 +1814,52 @@ class league(commands.Cog):
                 ephemeral=True,
             )
 
+    @league_maintenance_group.command(
+        name='export',
+        description='Export confirmed ranked 2v2/3v3 league games as gzip CSV.',
+    )
+    @discord.app_commands.describe(
+        include_logs='Include matching game audit logs in the private export.',
+    )
+    async def league_maintenance_export_slash(
+        self,
+        interaction: discord.Interaction,
+        include_logs: bool = False,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'League exports require a server.', ephemeral=True
+            )
+        error = league_export.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await league_export.run_export(
+                league_export.request(
+                    member=interaction.user,
+                    guild=guild,
+                    include_logs=include_logs,
+                )
+            )
+            await interaction.followup.send(
+                f'Export complete: **{result.game_count:,}** confirmed ranked '
+                f'2v2/3v3 league games.',
+                file=league_export.discord_file(result),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return result
+        except league_export_workers.LeagueExportError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected /league maintenance export failure')
+            await interaction.followup.send(
+                'The league export could not be generated. Try again later.',
+                ephemeral=True,
+            )
+
     @commands.command(usage='', aliases=['trade'])
     @settings.is_staff_check()
     @settings.in_bot_channel_strict()
@@ -1886,47 +1940,31 @@ class league(commands.Cog):
         `[p]league_export logs` Include game logs in the export
         """
 
-        import io
-
         export_logs = arg and arg.lower() == 'logs'
-        # TODO: one query instead of if/else queries
-        if export_logs:
-            query = (models.Game
-                .select(models.Game, peewee.fn.ARRAY_AGG(models.GameLog.message).alias('gamelogs'))
-                .join(models.GameLog, peewee.JOIN.LEFT_OUTER, on=(models.GameLog.message ** peewee.fn.CONCAT('__', models.Game.id, '__%')))
-                .where(
-                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
-                    ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
+        try:
+            async with ctx.typing():
+                result = await league_export.run_export(
+                    league_export.request(
+                        member=ctx.author,
+                        guild=ctx.guild,
+                        include_logs=export_logs,
+                    )
                 )
-                .group_by(models.Game.id)
-                .order_by(models.Game.date)
+        except league_export_workers.LeagueExportError as exc:
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected prefix league-export failure')
+            return await ctx.send(
+                'The league export could not be generated. Try again later.'
             )
-        else:
-            query = (models.Game
-                .select()
-                .where(
-                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
-                    ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
-                )
-                .order_by(models.Game.date)
-            )
-
-        def async_call_export_func():
-
-            filename = utilities.export_game_data_brief(query=query, export_logs=export_logs)
-            return filename
-
-        if query:
-            await ctx.send(f'Exporting {len(query)} game records. This might take over an hour to run. I will ping you once the file is ready.')
-        else:
-            return await ctx.send('No matching games found.')
-
-        async with ctx.typing():
-            filename = await asyncio.get_running_loop().run_in_executor(None, async_call_export_func)
-            with open(filename, 'rb') as f:
-                file = io.BytesIO(f.read())
-            file = discord.File(file, filename=filename)
-            await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
+        await ctx.send(
+            f'{ctx.author.mention}, your export is complete. Wrote '
+            f'**{result.game_count:,}** games to `{result.filename}`.',
+            file=league_export.discord_file(result),
+            allowed_mentions=discord.AllowedMentions(
+                users=True, roles=False, everyone=False
+            ),
+        )
 
     # @discord.app_commands.command(name="bid", description="Bid on a free agent")
     # @discord.app_commands.describe(amount="Amount of FAT to bid", player="The free agent you are bidding on")

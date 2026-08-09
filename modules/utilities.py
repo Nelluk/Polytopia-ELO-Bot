@@ -348,49 +348,103 @@ def export_game_data(query=None):
 
 
 def export_game_data_brief(query, export_logs=False):
-    import csv
-    import gzip
-    # only supports two-sided games, one winner and one loser
-
     filename = 'games_export-brief.csv.gz'
     connect()
-    with gzip.open(filename, mode='wt', encoding='utf-8') as export_file:
-        game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
-        header = ['game_id', 'server', 'season', 'game_name', 'game_type', 'headline', 'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side', 'winning_roster', 'winning_side_elo', 'losing_side', 'losing_roster', 'losing_side_elo', 'map_type']
-        if export_logs:
-            header.append('logs')
-        game_writer.writerow(header)
-
-        for game in query:
-            if len(game.size) != 2:
-                logger.info(f'Skipping export of game {game.id} - this export requires two-sided games.')
-                continue
-            if not game.is_completed or not game.is_confirmed:
-                logger.info(f'Skipping export of game {game.id} - this export completed and confirmed games.')
-                continue
-
-            losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
-            winning_side = game.winner
-            ranked_status = 'Ranked' if game.is_ranked else 'Unranked'
-
-            season_status = game.is_season_game()  # (Season, League) or ()
-            season_str = str(season_status[0]) if season_status else ''
-
-            winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
-            losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
-
-            row = [game.id, settings.guild_setting(game.guild_id, 'display_name'), season_str, game.name, game.size_string(),
-                   game.get_gamesides_string(), ranked_status, str(game.date), str(game.completed_ts),
-                   winning_side.name(), " / ".join(winning_roster), winning_side.elo_strings()[0],
-                   losing_side.name(), " / ".join(losing_roster), losing_side.elo_strings()[0], game.map_type]
-            if export_logs:
-                row.append("\n".join(game.gamelogs))
-
-            game_writer.writerow(row)
+    with open(filename, mode='wb') as export_file:
+        export_file.write(
+            export_game_data_brief_bytes(
+                query=query,
+                export_logs=export_logs,
+            )
+        )
 
     print(f'Game data written to file {filename} in bot.py directory')
     return filename
+
+
+def export_game_data_brief_bytes(query, export_logs=False):
+    """Return the legacy brief game export as deterministic gzip bytes."""
+
+    import csv
+    import gzip
+    import io
+
+    output = io.StringIO(newline='')
+    game_writer = csv.writer(
+        output,
+        delimiter=',',
+        quotechar='"',
+        quoting=csv.QUOTE_MINIMAL,
+    )
+    header = [
+        'game_id', 'server', 'season', 'game_name', 'game_type', 'headline',
+        'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side',
+        'winning_roster', 'winning_side_elo', 'losing_side',
+        'losing_roster', 'losing_side_elo', 'map_type',
+    ]
+    if export_logs:
+        header.append('logs')
+    game_writer.writerow(header)
+
+    for game in query:
+        if len(game.size) != 2:
+            logger.info(
+                'Skipping export of game %s - this export requires '
+                'two-sided games.',
+                game.id,
+            )
+            continue
+        if not game.is_completed or not game.is_confirmed:
+            logger.info(
+                'Skipping export of game %s - this export requires '
+                'completed and confirmed games.',
+                game.id,
+            )
+            continue
+
+        sides = list(game.gamesides)
+        losing_side = sides[0] if sides[1] == game.winner else sides[1]
+        winning_side = game.winner
+        ranked_status = 'Ranked' if game.is_ranked else 'Unranked'
+        season_status = game.is_season_game()
+        season_str = str(season_status[0]) if season_status else ''
+        winning_roster = [
+            f'{player.name} {elo} {tribe}'
+            for player, elo, tribe in winning_side.roster()
+        ]
+        losing_roster = [
+            f'{player.name} {elo} {tribe}'
+            for player, elo, tribe in losing_side.roster()
+        ]
+        row = [
+            game.id,
+            settings.guild_setting(game.guild_id, 'display_name'),
+            season_str,
+            game.name,
+            game.size_string(),
+            game.get_gamesides_string(),
+            ranked_status,
+            str(game.date),
+            str(game.completed_ts),
+            winning_side.name(),
+            ' / '.join(winning_roster),
+            winning_side.elo_strings()[0],
+            losing_side.name(),
+            ' / '.join(losing_roster),
+            losing_side.elo_strings()[0],
+            game.map_type,
+        ]
+        if export_logs:
+            row.append(
+                '\n'.join(
+                    str(message)
+                    for message in getattr(game, 'gamelogs', ())
+                    if message
+                )
+            )
+        game_writer.writerow(row)
+
+    return gzip.compress(output.getvalue().encode('utf-8'), mtime=0)
 
 
 def export_player_data(player_list, member_list):

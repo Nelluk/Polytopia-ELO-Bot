@@ -147,7 +147,10 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in league_group.commands},
-            {'tokens', 'guide', 'mark-active', 'join-novas', 'season', 'free-agents', 'roster'},
+            {
+                'tokens', 'guide', 'mark-active', 'join-novas', 'season',
+                'free-agents', 'roster', 'maintenance',
+            },
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):

@@ -3495,6 +3495,43 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before,
         )
 
+    def test_league_export_reads_real_schema_without_writes(self):
+        """Exercise P8.17's fixed league export scope under the dev gate."""
+
+        import gzip
+        from modules import league_export_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        before = (
+            self.models.Game.select().count(),
+            self.models.GameLog.select().count(),
+            self.models.Player.select().count(),
+        )
+        request = workers.LeagueExportRequest(
+            guild_id=guild_id,
+            requester_id=1,
+            requester_is_staff=True,
+            league_scope=True,
+            include_logs=False,
+            attachment_limit=workers.DEFAULT_ATTACHMENT_LIMIT,
+        )
+        try:
+            result = asyncio.run(workers.run_league_export(request))
+        except workers.LeagueExportEmptyError:
+            result = None
+        if result is not None:
+            self.assertGreater(result.game_count, 0)
+            csv_text = gzip.decompress(result.payload).decode('utf-8')
+            self.assertTrue(csv_text.startswith('game_id,server,season,'))
+        self.assertEqual(
+            (
+                self.models.Game.select().count(),
+                self.models.GameLog.select().count(),
+                self.models.Player.select().count(),
+            ),
+            before,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
