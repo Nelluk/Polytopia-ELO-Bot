@@ -485,7 +485,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P5.14 older incomplete-game purge is implemented and
-validated on `codex/p5-14-incomplete-purge-worker` at `5118aad`; accumulation
+validated on `codex/p5-14-incomplete-purge-worker` through `fad011d`;
+accumulation
 integration and guarded-beta restart are pending. P5.14-A/B/C/D are accepted.
 The task now owns only started incomplete games, preserves the age/season
 matrix, adds two-player warning parity, records successful warnings per
@@ -5044,8 +5045,8 @@ The user accepted P5.14-A/B/C/D as proposed on 2026-08-09. Implementation:
 
 Validation evidence:
 
-- focused P5.14 plus P5.10/unified-deletion coverage: 45 passed;
-- complete offline discovery: 1,289 passed with 53 intentional gated skips;
+- focused P5.14 plus P5.10/unified-deletion coverage: 46 passed;
+- complete offline discovery: 1,290 passed with 53 intentional gated skips;
 - touched-Python compilation and `git diff --check`: passed;
 - stopped only `polybot-development-beta@main.service`, confirmed it inactive,
   and required the host-wide writer audit to report no development writer;
@@ -5059,7 +5060,8 @@ Validation evidence:
   intentional operator-managed fixture round-trip skip. The final targeted
   rerun also passed cleanly after the test harness kept one event loop across
   shared-coordinator calls;
-- implementation/tests checkpoint: `5118aad`.
+- implementation/tests checkpoint: `5118aad`; post-commit failure-containment
+  correction: `fad011d`.
 
 No command, capability, prefix handler, schema, configured task enablement,
 fixture, or production change is included. Development background tasks remain
@@ -10873,13 +10875,14 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Reused the shared frozen deletion effect plan, deleted captured channels for
   every eligible game size post-commit, and isolated exact staff reconciliation
   by game/target without automatic mutation retry.
-- Passed 45 focused tests, 1,289 complete offline tests with 53 gated skips,
+- Passed 46 focused tests, 1,290 complete offline tests with 53 gated skips,
   touched compilation, and diff checks.
 - Stopped only the guarded beta, confirmed the host-wide writer audit clear,
   passed the targeted real-schema commit/rollback/cleanup case, and passed all
   51 runnable complete gated cases with one intentional operator-fixture skip.
-- Recorded implementation/tests checkpoint `5118aad`; accumulation integration,
-  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Recorded implementation/tests checkpoint `5118aad` and final post-commit
+  containment correction `fad011d`; accumulation integration, push, and
+  guarded-beta restart remained pending at this evidence checkpoint.
 - Made no command, capability, schema, fixture, task-enablement, announcement,
   or production change.
 
