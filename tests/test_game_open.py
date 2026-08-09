@@ -935,6 +935,7 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         author_roles=(),
         role_by_id=None,
         named_role=None,
+        run_broadcast=False,
     ):
         role_by_id = role_by_id or {}
         author = SimpleNamespace(
@@ -955,6 +956,9 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
             prefix='$',
             invoked_with=alias,
             send=mock.AsyncMock(),
+            message=SimpleNamespace(
+                jump_url='https://discord.test/channels/300/900/1234'
+            ),
         )
         captured = []
 
@@ -980,6 +984,17 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 'unranked_game_channel': 901,
                 'steam_game_channel': 902,
             }.get(name)
+
+        broadcast_service = mock.AsyncMock(
+            return_value=SimpleNamespace(warnings=())
+        )
+
+        async def publish_result(*args, **kwargs):
+            if run_broadcast and kwargs.get('broadcast') is not None:
+                await kwargs['broadcast']()
+
+        publisher = mock.AsyncMock(side_effect=publish_result)
+        bot = SimpleNamespace(user=SimpleNamespace(id=999))
 
         with mock.patch.object(
             matchmaking.settings,
@@ -1008,17 +1023,22 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             matchmaking.game_open,
             'publish_open_game_result',
-            new=mock.AsyncMock(),
+            new=publisher,
+        ), mock.patch.object(
+            matchmaking.game_broadcast_creation,
+            'create_external_broadcasts',
+            new=broadcast_service,
         ), mock.patch.object(
             matchmaking.utilities,
             'guild_role_by_name',
             return_value=named_role,
         ):
             await self.command.callback(
-                SimpleNamespace(),
+                SimpleNamespace(bot=bot),
                 context,
                 args=args,
             )
+        context.broadcast_service = broadcast_service
         return captured, context
 
     def test_prefix_aliases_and_native_shape(self):
@@ -1103,6 +1123,31 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
             (501, 'The Jets'),
         )
         self.assertIn('Side 2', explicit[0].role_lock_message)
+
+    async def test_prefix_role_lock_uses_primitive_broadcast_service_request(self):
+        role = SimpleNamespace(id=501, name='The Jets')
+        _, context = await self.invoke_prefix_open(
+            'opengame',
+            '1v1 role1="The Jets"',
+            named_role=role,
+            run_broadcast=True,
+        )
+
+        context.broadcast_service.assert_awaited_once()
+        request = context.broadcast_service.await_args.kwargs['request']
+        self.assertEqual(request.game_id, 42)
+        self.assertEqual(request.guild_id, 300)
+        self.assertEqual(
+            request.jump_url,
+            'https://discord.test/channels/300/900/1234',
+        )
+        self.assertEqual(
+            request.role_locks,
+            (
+                matchmaking.game_broadcast_creation_workers
+                .BroadcastRoleSnapshot(501, 'The Jets'),
+            ),
+        )
 
     async def test_prefix_rejects_mixed_and_invalid_role_positions(self):
         role = SimpleNamespace(id=501, name='The Jets')
@@ -1352,16 +1397,12 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 side_effect=peewee.OperationalError('database failure')
             ),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-        ) as load_game, mock.patch.object(
-            matchmaking,
-            'broadcast_team_game_to_server',
+            matchmaking.game_broadcast_creation,
+            'create_external_broadcasts',
             new=mock.AsyncMock(),
         ) as broadcast:
             await self.command.callback(SimpleNamespace(), context, args='1v1')
 
-        load_game.assert_not_called()
         broadcast.assert_not_awaited()
         self.assertTrue(context.send.await_count >= 1)
 

@@ -2852,6 +2852,174 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_external_broadcast_creation_worker_real_schema(self):
+        from modules import game_broadcast_creation_workers as workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        discord_id = 8_516_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        external_server_id = discord_id + 1
+        channel_id = discord_id + 2
+        message_id = discord_id + 3
+        game_id = None
+        team_id = None
+
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'P516 Host {suffix}',
+                polytopia_name=f'P516Host{suffix}',
+            )
+            player = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            )
+            team = self.models.Team.create(
+                name=f'P516 Team {suffix}',
+                guild_id=guild_id,
+                external_server=external_server_id,
+            )
+            team_id = team.id
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=player,
+                expiration=(
+                    datetime.datetime.now() + datetime.timedelta(days=1)
+                ),
+                notes=f'P516 {suffix}',
+                is_pending=True,
+                is_ranked=True,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_id = game.id
+            self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+                required_role_id=discord_id + 10,
+            )
+            self.models.GameSide.create(
+                game=game,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+
+            self.models.db.close()
+            plan_result = asyncio.run(workers.run_build_broadcast_plan(
+                workers.BroadcastPlanRequest(
+                    game_id=game_id,
+                    guild_id=guild_id,
+                    jump_url='https://discord.test/p516',
+                    role_locks=(workers.BroadcastRoleSnapshot(
+                        discord_id + 10,
+                        team.name,
+                    ),),
+                )
+            ))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(plan_result.status, workers.READY)
+            self.assertEqual(len(plan_result.destinations), 1)
+            self.assertEqual(
+                plan_result.destinations[0].external_server_id,
+                external_server_id,
+            )
+
+            target = workers.BroadcastTargetRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                channel_id=channel_id,
+                message_id=message_id,
+            )
+            self.models.db.close()
+            preflight = asyncio.run(
+                workers.run_preflight_broadcast_target(target)
+            )
+            persisted = asyncio.run(
+                workers.run_persist_broadcast_target(target)
+            )
+            duplicate = asyncio.run(
+                workers.run_preflight_broadcast_target(target)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(preflight.status, workers.READY)
+            self.assertEqual(persisted.status, workers.TRACKED)
+            self.assertEqual(duplicate.status, workers.DUPLICATE)
+            self.assertEqual(
+                self.models.TeamServerBroadcastMessage.select().where(
+                    (self.models.TeamServerBroadcastMessage.game == game_id)
+                    & (
+                        self.models.TeamServerBroadcastMessage.channel_id
+                        == channel_id
+                    )
+                    & (
+                        self.models.TeamServerBroadcastMessage.message_id
+                        == message_id
+                    )
+                ).count(),
+                1,
+            )
+
+            game = self.models.Game.get_by_id(game_id)
+            game.is_pending = False
+            game.save()
+            stale_target = workers.BroadcastTargetRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                channel_id=channel_id + 1,
+                message_id=message_id + 1,
+            )
+            self.models.db.close()
+            stale = asyncio.run(
+                workers.run_persist_broadcast_target(stale_target)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(stale.status, workers.STALE)
+            self.assertEqual(
+                self.models.TeamServerBroadcastMessage.select().where(
+                    self.models.TeamServerBroadcastMessage.channel_id
+                    == stale_target.channel_id
+                ).count(),
+                0,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_id is not None:
+                self.models.TeamServerBroadcastMessage.delete().where(
+                    self.models.TeamServerBroadcastMessage.game == game_id
+                ).execute()
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            if team_id is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team_id
+                ).execute()
+            player_ids = tuple(
+                row[0]
+                for row in self.models.Player.select(
+                    self.models.Player.id
+                ).join(self.models.DiscordMember).where(
+                    self.models.DiscordMember.discord_id == discord_id
+                ).tuples()
+            )
+            if player_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids)
+                ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id == discord_id
+            ).execute()
+
     def test_expired_game_purge_discovers_commits_and_rolls_back_real_graph(self):
         from modules import game_expiration_workers
 

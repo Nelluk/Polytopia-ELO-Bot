@@ -6,8 +6,9 @@ import modules.image_storage as image_storage
 import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
-from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
+from modules import game_broadcast_creation
+from modules import game_broadcast_creation_workers
 from modules import game_notes, game_workers
 from modules import game_side
 from modules import game_join_leave, game_join_workers, game_kick_workers
@@ -786,8 +787,31 @@ class matchmaking(commands.Cog):
             )
 
         async def broadcast():
-            opengame = models.Game.load_full_game(game_id=result.game_id)
-            await broadcast_team_game_to_server(ctx, opengame)
+            return await game_broadcast_creation.create_external_broadcasts(
+                bot=self.bot,
+                request=(
+                    game_broadcast_creation.ExternalBroadcastCreationRequest(
+                        game_id=result.game_id,
+                        guild_id=result.guild_id,
+                        jump_url=str(ctx.message.jump_url),
+                        role_locks=tuple(
+                            game_broadcast_creation_workers
+                            .BroadcastRoleSnapshot(
+                                role_id=int(side.required_role_id),
+                                role_name=str(side.required_role_name),
+                            )
+                            for side in result.role_locks
+                            if side.required_role_id
+                            and side.required_role_name
+                        ),
+                        channel_name=(
+                            game_broadcast_creation.channel_name_for_bot(
+                                self.bot
+                            )
+                        ),
+                    )
+                ),
+            )
 
         await game_open.publish_open_game_result(
             result,

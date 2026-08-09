@@ -23,7 +23,7 @@ async def publish_open_game_result(
     *,
     prefix: str,
     send: Callable[[str], Awaitable[object]],
-    broadcast: Callable[[], Awaitable[None]] | None = None,
+    broadcast: Callable[[], Awaitable[object]] | None = None,
     add_completion_reaction: Callable[[object], Awaitable[None]] | None = None,
     presentation: str = 'prefix',
 ) -> None:
@@ -79,7 +79,16 @@ async def publish_open_game_result(
         side.required_role_id for side in result.role_locks
     ):
         try:
-            await broadcast()
+            broadcast_result = await broadcast()
+            for warning in tuple(
+                getattr(broadcast_result, 'warnings', ()) or ()
+            ):
+                await _send_with_reconciliation(
+                    send,
+                    warning,
+                    result.game_id,
+                    'open-game external-broadcast warning',
+                )
         except Exception:
             logger.exception(
                 'Committed open game %s needs Discord broadcast '
