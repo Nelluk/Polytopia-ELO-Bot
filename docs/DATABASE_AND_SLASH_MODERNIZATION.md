@@ -484,10 +484,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.14 older incomplete-game purge is implemented and
-validated on `codex/p5-14-incomplete-purge-worker` through `fad011d`;
-accumulation
-integration and guarded-beta restart are pending. P5.14-A/B/C/D are accepted.
+Current active unit: **No code unit is active. P5.14 older incomplete-game
+purge is complete, integrated, pushed, and loaded by the guarded development
+beta at `fcb7131`. P5.14-A/B/C/D are accepted.
 The task now owns only started incomplete games, preserves the age/season
 matrix, adds two-player warning parity, records successful warnings per
 channel, commits one protected audit plus deletion per game through the ELO
@@ -4913,7 +4912,7 @@ explicitly accepted.
 
 ### P5.14 — Older incomplete-game purge design audit
 
-Status: **Implemented and validated; integration/deployment pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The retained five-hour task in `modules/administration.py` is a second,
 distinct automatic deletion workflow alongside P5.10. It currently waits 15
@@ -5067,6 +5066,32 @@ No command, capability, prefix handler, schema, configured task enablement,
 fixture, or production change is included. Development background tasks remain
 disabled, so loading this code does not execute the automatic purge and offers
 no useful broad-tester smoke or command sync.
+
+Integration/deployment evidence:
+
+- fast-forwarded the complete implementation/evidence sequence through
+  `fcb7131` into `codex/database-slash-modernization` and pushed that exact
+  checkpoint to the approved GitHub origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and the sole writer is PID `3194027`, running from the
+  clean accumulation checkout at exact checkpoint `fcb7131`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup with `--skip_tasks`, and answered the protected
+  local release-control status operation;
+- made no application-command plan/apply/sync because P5.14 changes no command
+  definition or capability;
+- selected the explicit no-announcement route because development background
+  tasks remain disabled, so the purge cannot run and there is no useful tester
+  action. Acceptance is owned by focused and real-schema evidence.
+
+Next action: P5.15 should modernize the retained post-start external-broadcast
+reconciliation currently owned by `Game.update_external_broadcasts`. First
+trace its edit/delete/error semantics, then move broadcast-row reads/writes to
+a bounded worker and keep Discord message edits post-commit. Preserve the
+current start transaction and command interfaces; do not silently delete a
+broadcast row when its Discord update failed without an explicit reconciliation
+policy. An alternate ready unit is the narrower immutable post-commit game-card
+reload used by reaction success paths.
 
 ## P6 — Registration and player preferences
 
@@ -10885,6 +10910,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   guarded-beta restart remained pending at this evidence checkpoint.
 - Made no command, capability, schema, fixture, task-enablement, announcement,
   or production change.
+- Subsequently finalized roadmap evidence at `fcb7131`, fast-forwarded and
+  pushed the accumulation branch, and started only the guarded beta. Its writer
+  audit was clear, PID `3194027` authenticated as the expected beta
+  application, and the protected release-control status operation succeeded.
+- Made no command sync or tester announcement because this disabled background
+  path exposes no tester-facing action in development.
 
 ### 2026-08-09 — P5.14 older incomplete-game purge design audited
 
