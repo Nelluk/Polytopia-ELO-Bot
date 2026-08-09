@@ -42,6 +42,9 @@ import modules.league_trade_price as league_trade_price
 import modules.league_trade_price_workers as league_trade_price_workers
 import modules.league_export as league_export
 import modules.league_export_workers as league_export_workers
+import modules.league_inactivity as league_inactivity
+import modules.league_inactivity_views as league_inactivity_views
+import modules.league_inactivity_workers as league_inactivity_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -1857,6 +1860,49 @@ class league(commands.Cog):
             logger.exception('Unexpected /league maintenance export failure')
             await interaction.followup.send(
                 'The league export could not be generated. Try again later.',
+                ephemeral=True,
+            )
+
+    @league_maintenance_group.command(
+        name='mark-inactive',
+        description='Preview and mark inactive league-server members.',
+    )
+    async def league_maintenance_mark_inactive_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Inactivity maintenance requires a server.', ephemeral=True
+            )
+        error = league_inactivity.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(
+                error,
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await league_inactivity.load_preview(
+                member=interaction.user,
+                guild=guild,
+            )
+            view = league_inactivity_views.InactivityPreviewWorkspace(
+                result=result,
+                requester_id=interaction.user.id,
+                confirmer=league_inactivity.confirm_and_publish,
+            )
+            await league_inactivity_views.publish_private(interaction, view)
+            return result
+        except league_inactivity_workers.LeagueInactivityError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception(
+                'Unexpected /league maintenance mark-inactive failure'
+            )
+            await interaction.followup.send(
+                'The inactivity preview could not be loaded. Try again later.',
                 ephemeral=True,
             )
 

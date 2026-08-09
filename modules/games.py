@@ -23,6 +23,7 @@ from modules import player_registration_workers
 from modules import player_timezone
 from modules import player_timezone_workers
 from modules import player_timezone_values
+from modules import league_inactivity_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
@@ -434,24 +435,44 @@ class polygames(commands.Cog):
             logger.info(f'ELO Ban removed for player {player.id} {player.name}')
             models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role removed.')
 
-        inactive_role = discord.utils.get(before.guild.roles, name=settings.guild_setting(before.guild.id, 'inactive_role'))
-        if inactive_role not in before.roles and inactive_role in after.roles:
-            utilities.connect()
+        inactive_role = discord.utils.get(
+            before.guild.roles,
+            name=settings.guild_setting(before.guild.id, 'inactive_role'),
+        )
+        inactive_applied = (
+            inactive_role is not None
+            and inactive_role not in before.roles
+            and inactive_role in after.roles
+        )
+        inactive_removed = (
+            inactive_role is not None
+            and inactive_role in before.roles
+            and inactive_role not in after.roles
+        )
+        if inactive_applied or inactive_removed:
             try:
-                player = player_query.get()
-            except peewee.DoesNotExist:
-                return
-            logger.info(f'Inactive role added for player {player.id} {player.name}')
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role applied.')
-
-        if inactive_role in before.roles and inactive_role not in after.roles:
-            utilities.connect()
-            try:
-                player = player_query.get()
-            except peewee.DoesNotExist:
-                return
-            logger.info(f'Inactive removed for player {player.id} {player.name}')
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role removed.')
+                recorded = await league_inactivity_workers.record_inactive_role_change(
+                    league_inactivity_workers.InactiveRoleAuditRequest(
+                        guild_id=int(after.guild.id),
+                        member_id=int(after.id),
+                        role_name=str(inactive_role.name),
+                        applied=inactive_applied,
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    'Could not record Inactive role change for guild %s member %s',
+                    after.guild.id,
+                    after.id,
+                )
+            else:
+                if recorded is not None:
+                    logger.info(
+                        'Inactive role %s for member %s in guild %s',
+                        'added' if inactive_applied else 'removed',
+                        after.id,
+                        after.guild.id,
+                    )
 
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:

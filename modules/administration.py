@@ -2196,62 +2196,6 @@ class administration(commands.Cog):
             )
             return await ctx.send('Team server operation failed and rolled back.')
 
-    @commands.command(aliases=['deactivate'])
-    @settings.is_mod_check()
-    @settings.on_polychampions()
-    async def deactivate_players(self, ctx):
-        """*Mods*: Add Inactive role to inactive players
-
-        Apply the 'Inactive' role to any player who has not been activate lately.
-
-        - No games started in the last 60 days
-        - No games currently incomplete
-        - Does not have a protected role (Team Leadership or Mod roles)
-        """
-
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
-                           discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader'),
-                           discord.utils.get(ctx.guild.roles, name='PrOPhEt oF MiDJiWaN')]
-
-        activity_time = (discord.utils.utcnow() + datetime.timedelta(days=-60))
-        if not inactive_role:
-            return await ctx.send('Error loading Inactive role')
-
-        active_players = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
-            (models.Lineup.player == models.Player.id) & (models.Game.guild_id == ctx.guild.id) & (
-                (models.Game.date > activity_time) | (models.Game.is_completed == 0)
-            )
-        ).group_by(models.DiscordMember.discord_id).having(
-            peewee.fn.COUNT(models.Lineup.id) > 0
-        )
-        # players who are in an active game or any game started within 45 days
-
-        list_of_active_player_ids = [p[0] for p in active_players.tuples()]
-
-        defunct_members = []
-        async with ctx.typing():
-            for member in ctx.guild.members:
-                if member.id in list_of_active_player_ids or inactive_role in member.roles:
-                    continue
-                if any(protected_role in member.roles for protected_role in protected_roles):
-                    await ctx.send(f'Skipping inactive member **{member.name}** because they have a protected role.')
-                    logger.debug(f'Skipping inactive member **{member.name}** because they have a protected role.')
-                    continue
-                if member.joined_at > activity_time:
-                    logger.debug(f'Skipping {member.name} since they joined recently.')
-                    continue
-
-                defunct_members.append(member.mention)
-                await member.add_roles(inactive_role, reason='Appeared inactive via deactivate_players command')
-                logger.debug(f'{member.name} is inactive')
-
-        if not defunct_members:
-            return await ctx.send('No inactive members found!')
-
-        members_str = '\n'.join(defunct_members)
-        await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
-
     @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()

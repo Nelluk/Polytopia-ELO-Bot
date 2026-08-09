@@ -3532,6 +3532,108 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before,
         )
 
+    def test_league_inactivity_reads_and_audits_real_schema_safely(self):
+        """Exercise P8.18 selection and exact audit cleanup under the gate."""
+
+        from modules import league_inactivity_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        cutoff = datetime.date.today() - datetime.timedelta(
+            days=workers.ACTIVITY_DAYS
+        )
+        active_lineup = (
+            self.models.Lineup
+            .select(self.models.Lineup)
+            .join(self.models.Game)
+            .where(
+                (self.models.Game.guild_id == guild_id)
+                & (
+                    (self.models.Game.date > cutoff)
+                    | (self.models.Game.is_completed == False)
+                )
+            )
+            .first()
+        )
+        if active_lineup is None:
+            self.skipTest('development database has no recent/incomplete lineup')
+        active_discord_id = int(
+            active_lineup.player.discord_member.discord_id
+        )
+        synthetic_id = 9_000_000_000_000_001
+        now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        old_join = now - 120 * 86400
+        before = (
+            self.models.Player.select().count(),
+            self.models.GameLog.select().count(),
+            self.models.Lineup.select().count(),
+        )
+        request = workers.InactivityPreviewRequest(
+            guild_id=guild_id,
+            requester_id=1,
+            requester_is_mod=True,
+            league_scope=True,
+            now_timestamp=now,
+            inactive_role_id=99,
+            inactive_role_name='Inactive',
+            protected_role_names=('Mod',),
+            missing_protected_role_names=(),
+            members=(
+                workers.InactivityMemberSnapshot(
+                    member_id=active_discord_id,
+                    display_name='Active fixture member',
+                    joined_timestamp=old_join,
+                    role_ids=(),
+                    role_names=(),
+                    is_bot=False,
+                    is_owner=False,
+                ),
+                workers.InactivityMemberSnapshot(
+                    member_id=synthetic_id,
+                    display_name='Synthetic inactive candidate',
+                    joined_timestamp=old_join,
+                    role_ids=(),
+                    role_names=(),
+                    is_bot=False,
+                    is_owner=False,
+                ),
+            ),
+        )
+        result = asyncio.run(workers.run_inactivity_preview(request))
+        self.assertNotIn(active_discord_id, result.candidate_ids)
+        self.assertIn(synthetic_id, result.candidate_ids)
+        self.assertEqual(
+            (
+                self.models.Player.select().count(),
+                self.models.GameLog.select().count(),
+                self.models.Lineup.select().count(),
+            ),
+            before,
+        )
+
+        audit_log_id = asyncio.run(workers.record_inactive_role_change(
+            workers.InactiveRoleAuditRequest(
+                guild_id=guild_id,
+                member_id=active_discord_id,
+                role_name='Inactive',
+                applied=True,
+            )
+        ))
+        self.assertIsNotNone(audit_log_id)
+        try:
+            audit = self.models.GameLog.get_by_id(audit_log_id)
+            self.assertEqual(int(audit.guild_id), guild_id)
+            self.assertIn('Inactive', audit.message)
+        finally:
+            self.models.GameLog.delete_by_id(audit_log_id)
+        self.assertEqual(
+            (
+                self.models.Player.select().count(),
+                self.models.GameLog.select().count(),
+                self.models.Lineup.select().count(),
+            ),
+            before,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
