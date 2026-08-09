@@ -367,7 +367,7 @@ would become unavailable if a prefix is retired.
 
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
-| C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`; integration/deployment pending |
+| C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`, integrated/deployed at `a42ca7d` |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -477,10 +477,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.9 native House creation is implemented and locally
-green under the temporary Sol omni workflow; integration and the approved
-stopped-beta deployment gate are next. P8.8 wider-beta acceptance remains
-pending.**
+Current active unit: **P8.9 native House creation is integrated and deployed
+under the temporary Sol omni workflow; wider-beta acceptance is pending.
+Native `/league tokens` is the next recommended bounded design unit.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7257,7 +7256,7 @@ and recorded below.
 
 ### P8.9 — Native House creation
 
-Status: **Implemented locally; integration and deployment pending**
+Status: **Complete; integrated and deployed to the development beta**
 
 Branch/base: `codex/p8-9-house-create` in the isolated omni worktree from
 exact clean accumulation base `c2e3110`.
@@ -7307,12 +7306,20 @@ Validation evidence:
   and complete suite passed with asyncio debug timing; no P8.9 code touches
   that executor;
 - touched-file compilation and `git diff --check`: passed;
-- one unchanged-gate real-schema audit-failure rollback plus successful-create
-  cleanup test is present and deferred to the approved stopped-beta window.
+- the stopped-beta development gate passed 30 tests with one intentional
+  retained-fixture skip, including the P8.9 audit-failure rollback and exact
+  successful-create cleanup case;
+- the unit was integrated with checklist checkpoint `a42ca7d` and pushed;
+- the explicit development-guild apply updated only `house`; all nine roots
+  then inspected unchanged, with no create/removal/global operation;
+- the guarded beta restarted cleanly at full checkpoint
+  `a42ca7da34e2f3653b317beb5f48b616d5d59580` and authenticated as PolyELO Bot
+  Beta `479029527553638401`;
+- minor release `2026-08-08-house-create` posted once without a tester ping to
+  `todo-and-changelog` as message `1535814588317302815`.
 
-Next action: integrate the implementation/evidence checkpoints, update the
-wider-beta checklist, then use the stopped-writer database and guild-only
-`house` update gates before restart and announcement.
+Next action: collect wider-beta acceptance while designing `/league tokens`
+or selecting another independent bounded unit.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8779,6 +8786,26 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.9 native House creation integrated and deployed
+
+- Fast-forwarded implementation `7063801` and evidence `a0b03d1` into the
+  accumulation branch, updated the beta checklist, and pushed clean checkpoint
+  `a42ca7d` before the stopped-writer window.
+- Stopped only `polybot-development-beta@main.service`; the host-wide audit
+  found no development beta writer. The unchanged `development` /
+  `polytopia_dev` / `polybot_dev` suite passed 30 tests with one intentional
+  retained-fixture skip. P8.9 proved audit failure leaves no House and a
+  successful House/audit row can be cleaned exactly.
+- The guild-only apply updated only the existing `house` root in guild
+  `478571892832206869`; post-apply inspection found all nine roots unchanged
+  and no create, removal, or global operation.
+- Restarted the guarded beta at full checkpoint
+  `a42ca7da34e2f3653b317beb5f48b616d5d59580`, verified PolyELO Bot Beta
+  `479029527553638401`, and passed release-control status.
+- Posted minor **WHAT TO TEST** release `2026-08-08-house-create` once without
+  a tester ping as message `1535814588317302815`. No production or global
+  operation occurred.
 
 ### 2026-08-08 — P8.9 native House creation implemented locally
 

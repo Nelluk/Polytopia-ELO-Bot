@@ -1103,8 +1103,11 @@ without an adapter under compatibility entry C-016.
 
 Implementation/tests checkpoint `7063801` passed 34 focused tests, 117 broader
 affected tests, and complete offline discovery with 997 passed and 31
-intentional skips under asyncio debug timing. The real-schema commit/rollback
-gate and beta deployment remain pending.
+intentional skips under asyncio debug timing. The stopped-beta development
+gate later passed 30 tests with one retained-fixture skip. The unit was
+integrated at checklist checkpoint `a42ca7d`, synchronized by updating only
+the development-guild `house` root, and deployed through minor release
+`2026-08-08-house-create`.
 
 ### Legacy modules outside the modernization target
 
