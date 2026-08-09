@@ -484,14 +484,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.9 join-message/reaction routing is implemented and
-validated on `codex/p5-9-reaction-adapter` from exact clean accumulation base
-`dfedbdd`; integration/deployment is in progress.
+Current active unit: **No code unit is active. P5.9 join-message/reaction
+routing is complete, integrated, pushed, and running on the guarded
+development beta at `68966c0`.
 Regex parsing remains on the event loop while Game existence/pending/guild and
 related-external-server reads move to one bounded worker-local immutable
 snapshot. The three message/reaction listeners continue to route mutations
 through the existing shared join/leave workers. No command, permission,
-capability, taxonomy, schema, or prefix change is included.**
+capability, taxonomy, schema, or prefix change was included, so no command sync
+or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4437,7 +4438,7 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ### P5.9 — Join-message and reaction routing snapshot
 
-Status: **Implemented and validated; integration/deployment in progress**
+Status: **Complete; integrated, pushed, and running on the development beta**
 
 The retained join-message seeder plus raw reaction add/remove listeners parse a
 game ID and synchronously load `Game` and related external-server `Team` rows
@@ -4491,6 +4492,20 @@ Validation evidence:
 - no writer-containing integration test, database mutation, fixture change,
   or stopped-writer window was used;
 - implementation/tests checkpoint: `4fec4e3`.
+
+Integration/deployment evidence:
+
+- committed roadmap validation evidence as `68966c0`, fast-forwarded the clean
+  unit branch into `codex/database-slash-modernization`, and pushed that exact
+  checkpoint to the approved GitHub origin;
+- restarted only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear, it authenticated as PolyELO Bot Beta
+  `479029527553638401`, and startup completed without a reaction-read error;
+- the guarded beta release-control status operation completed successfully;
+- made no application-command plan/apply/sync because this unit changes no
+  command definition or capability;
+- selected the explicit no-announcement route because this internal lookup
+  boundary has no useful new tester action.
 
 Next action after integration/deployment: perform P5.10 as a read-only design
 audit of the retained expired-pending-game purge. Resolve whether each game is
@@ -10312,9 +10327,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Ran only the new read-only real-schema case alongside the active guarded
   beta; it passed the unchanged development/database/role/service gates and
   wrote no audit row or fixture.
-- Recorded implementation/tests checkpoint `4fec4e3`. Integration, push, and
-  guarded beta restart remain; no command sync or tester announcement is
-  required.
+- Recorded implementation/tests checkpoint `4fec4e3` and evidence/integrated
+  running-code checkpoint `68966c0`.
+- Fast-forwarded and pushed the accumulation branch, restarted only the
+  guarded development beta, verified expected identity/startup/release-control
+  health, made no command sync, and posted no tester announcement because the
+  routing read boundary has no useful new smoke action.
 
 ### 2026-08-09 — P8.24 automatic league role reconciliation validated
 
