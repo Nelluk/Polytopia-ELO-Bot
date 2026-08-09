@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.19b Nova graduation is
-complete, integrated, pushed, and loaded by the guarded beta at `c8e8ecc`.
-P5.19c final started-card and announcement migration is next. P5.19a
+Current active unit: **P5.19c final started-card and announcement migration is
+locally validated on `codex/p5-19c-final-start-publisher` from exact clean
+deployed accumulation checkpoint `87da298` and is pending integration. P5.19b Nova graduation is complete,
+integrated, pushed, and loaded by the guarded beta at `c8e8ecc`. P5.19a
 started-game channel creation is complete, integrated,
 pushed, and loaded by the guarded beta at `389acf7`. P5.19-A/B/C/D are
 accepted. P5.18 post-kick game-card presentation is complete, integrated,
@@ -5959,6 +5960,31 @@ workflow. P5.19c remains separate and next.
   No one presentation failure may suppress later committed effects; and
 - remove the last `Game.load_full_game()` and live-model image/channel/Nova
   dependencies from `publish_start_result()` only after P5.19a/b land.
+
+Implementation began on `codex/p5-19c-final-start-publisher` from exact clean
+deployed accumulation checkpoint `87da298` after completion of P5.19a/b. The
+bounded unit freezes the remaining announcement/season predicates in the
+committed start result, reuses exactly one immutable game-detail card read, and
+keeps every post-commit Discord effect independently reconcilable.
+
+Implemented and locally validated at implementation/tests checkpoint
+`8bf801a`. `publish_start_result()` no longer calls `Game.load_full_game()`,
+`Game.embed()`, or the live-model image sender. The authoritative start worker
+freezes ranked state, side sizes, league season/tier/playoff values, first-side
+hidden-team state, and the legacy uncaught-season predicate. Public roster text
+uses the committed mention order, while exactly one bounded neutral detail-card
+load supplies the accepted dense classic card and attachment.
+
+Announcement text, card load/send, announcement-reference persistence,
+started-channel creation, season warnings, league-channel refresh, Nova
+graduation, and final confirmation are independently best effort. Focused and
+affected validation passed 170 tests; complete offline discovery passed 1,349
+tests with 55 intentional gated skips. The two reused real-schema seams passed,
+and the complete stopped-writer `development` / `polytopia_dev` / `polybot_dev`
+suite passed 54 tests with one intentional operator-fixture skip. The first
+targeted run exposed only a fixture expectation that assumed the committed team
+was visible; it was corrected to compare the frozen value with the actual
+committed team. No data residue or production/code defect resulted.
 
 The existing announcement-reference worker remains in scope as the accepted
 bounded persistence seam; this audit does not add an outbox. Each implementation
@@ -11809,6 +11835,35 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.19c immutable start publisher validated
+
+- Extended the authoritative start result with frozen ranked, side-size,
+  season/tier/playoff, hidden-team, and uncaught-season facts while the worker
+  still owned the committed graph.
+- Removed the last event-loop `Game.load_full_game()` / `Game.embed()` /
+  live-model image path from the shared start publisher. Exactly one bounded
+  immutable detail-card read now produces the accepted dense classic card for
+  native `/game start`, the pending-card Start action, `$start`, and
+  `$startgame`.
+- Preserved configured announcement routing, committed roster order,
+  prefix/native card guidance, announcement-reference persistence, season and
+  hidden-team warnings, league refresh, channel creation, Nova follow-up, and
+  final confirmation. Each post-commit effect now continues after unrelated
+  presentation failures with public reconciliation.
+- Affected validation passed **170 tests**. Complete offline discovery passed
+  **1,349 tests with 55 intentional gated skips**; compilation and
+  `git diff --check` passed.
+- Stopped only the guarded development beta and confirmed the writer audit
+  clear. The start-result and immutable-detail real-schema seams passed; the
+  complete gated `development` / `polytopia_dev` / `polybot_dev` suite passed
+  **54 tests with one intentional operator-fixture skip**. A data-dependent
+  test expectation was corrected without changing runtime code or leaving
+  residue.
+- Recorded implementation/tests checkpoint `8bf801a`. Integration, push, and
+  guarded restart remain pending at this evidence checkpoint. No command
+  apply/sync, schema, capability, dependency, production, or sudo action is
+  required.
 
 ### 2026-08-09 — P5.19b Nova graduation worker validated
 
