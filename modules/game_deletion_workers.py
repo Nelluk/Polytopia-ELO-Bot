@@ -216,7 +216,9 @@ def _mentions(game) -> tuple[str, ...]:
         return ()
 
 
-def _broadcast_targets(game) -> tuple[DeletionBroadcastTarget, ...]:
+def freeze_broadcast_targets(game) -> tuple[DeletionBroadcastTarget, ...]:
+    """Return primitive external-message targets before deleting a game."""
+
     targets = []
     try:
         broadcasts = tuple(game.broadcasts)
@@ -332,13 +334,13 @@ def build_effect_plan(
             if state != PENDING else ()
         ),
         broadcast_targets=(
-            _broadcast_targets(game)
+            freeze_broadcast_targets(game)
             if state == PENDING else ()
         ),
     )
 
 
-def _delete_pending_records(game) -> None:
+def delete_pending_records(game) -> None:
     """Delete a pending graph without invoking the ELO-aware model helper."""
 
     for lineup in tuple(getattr(game, 'lineup', ()) or ()):
@@ -388,7 +390,7 @@ def delete_pending_game(request: DeletionRequest) -> PendingDeletionResult:
                     'pending game.'
                 ),
             )
-            _delete_pending_records(game)
+            delete_pending_records(game)
             return PendingDeletionResult(
                 game_id=plan.game_id,
                 recalculated=False,

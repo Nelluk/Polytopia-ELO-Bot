@@ -2781,6 +2781,269 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_expired_game_purge_discovers_commits_and_rolls_back_real_graph(self):
+        from modules import game_expiration_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        marker = f'P510 expired-purge {suffix}'
+        id_base = 9_510_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        host_discord_id = id_base
+        target_discord_id = id_base + 1
+        now = datetime.datetime.now()
+        game_ids = set()
+
+        def make_game(label, *, expiration, full):
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=host_player,
+                expiration=expiration,
+                name=label,
+                notes=label,
+                is_pending=True,
+                is_ranked=True,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_ids.add(game.id)
+            first_side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            second_side = self.models.GameSide.create(
+                game=game,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=first_side,
+                player=host_player,
+            )
+            if full:
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=second_side,
+                    player=target_player,
+                )
+            return game
+
+        try:
+            host_member = self.models.DiscordMember.create(
+                discord_id=host_discord_id,
+                name=f'P510 Host {suffix}',
+                polytopia_name=f'P510Host{suffix}',
+            )
+            target_member = self.models.DiscordMember.create(
+                discord_id=target_discord_id,
+                name=f'P510 Target {suffix}',
+                polytopia_name=f'P510Target{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+            )
+            target_player = self.models.Player.create(
+                discord_member=target_member,
+                guild_id=guild_id,
+                name=target_member.name,
+            )
+            open_game = make_game(
+                f'{marker} open',
+                expiration=now - datetime.timedelta(hours=1),
+                full=False,
+            )
+            grace_game = make_game(
+                f'{marker} grace',
+                expiration=now - datetime.timedelta(days=2),
+                full=True,
+            )
+            rollback_game = make_game(
+                f'{marker} rollback',
+                expiration=now - datetime.timedelta(days=4),
+                full=True,
+            )
+            broadcast = self.models.TeamServerBroadcastMessage.create(
+                game=open_game,
+                channel_id=9_510_001,
+                message_id=9_510_002,
+            )
+
+            self.models.db.close()
+            discovered = asyncio.run(
+                game_expiration_workers.run_discover_expired_game_ids(
+                    game_expiration_workers.ExpiredGameDiscoveryRequest(
+                        guild_id=guild_id,
+                        as_of=now,
+                    )
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIn(open_game.id, discovered.game_ids)
+            self.assertIn(rollback_game.id, discovered.game_ids)
+            self.assertNotIn(grace_game.id, discovered.game_ids)
+
+            self.models.db.close()
+            committed = asyncio.run(
+                game_expiration_workers.run_purge_expired_game(
+                    game_expiration_workers.ExpiredGamePurgeRequest(
+                        game_id=open_game.id,
+                        guild_id=guild_id,
+                        as_of=now,
+                        announcement_channel_id=9_510_003,
+                    )
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(committed.status, game_expiration_workers.PURGED)
+            self.assertEqual(
+                committed.effect_plan.broadcast_targets,
+                (
+                    game_expiration_workers.game_deletion_workers
+                    .DeletionBroadcastTarget(
+                        broadcast.channel_id,
+                        broadcast.message_id,
+                    ),
+                ),
+            )
+            self.assertIsNone(self.models.Game.get_or_none(id=open_game.id))
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(str(open_game.id))
+                    & self.models.GameLog.message.contains(
+                        'Reconciliation targets:'
+                    )
+                    & (self.models.GameLog.is_protected == True)
+                ).count(),
+                1,
+            )
+
+            original_delete_instance = self.models.Lineup.delete_instance
+            deleted_lineups = []
+
+            def delete_one_then_fail(lineup, *args, **kwargs):
+                deleted_lineups.append(lineup.id)
+                result = original_delete_instance(lineup, *args, **kwargs)
+                if len(deleted_lineups) == 1:
+                    raise peewee.OperationalError(
+                        'P5.10 injected purge rollback'
+                    )
+                return result
+
+            with mock.patch.object(
+                self.models.Lineup,
+                'delete_instance',
+                new=delete_one_then_fail,
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'purge rollback',
+                ):
+                    asyncio.run(
+                        game_expiration_workers.run_purge_expired_game(
+                            game_expiration_workers.ExpiredGamePurgeRequest(
+                                game_id=rollback_game.id,
+                                guild_id=guild_id,
+                                as_of=now,
+                                announcement_channel_id=9_510_003,
+                            )
+                        )
+                    )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(deleted_lineups)
+            self.assertIsNotNone(
+                self.models.Game.get_or_none(id=rollback_game.id)
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == rollback_game.id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(str(rollback_game.id))
+                    & self.models.GameLog.message.contains(
+                        'Reconciliation targets:'
+                    )
+                ).count(),
+                0,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(game_ids):
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            temporary_member_ids = tuple(
+                member_id
+                for (member_id,) in self.models.DiscordMember.select(
+                    self.models.DiscordMember.id
+                ).where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, target_discord_id)
+                    )
+                ).tuples()
+            )
+            self.models.Player.delete().where(
+                self.models.Player.discord_member.in_(temporary_member_ids)
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            ).execute()
+            for game_id in sorted(game_ids):
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.startswith(f'__{game_id}__')
+                ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.DiscordMember.select().where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, target_discord_id)
+                    )
+                ).count(),
+                0,
+            )
+            for game_id in sorted(game_ids):
+                self.assertEqual(
+                    self.models.GameLog.select().where(
+                        self.models.GameLog.message.startswith(
+                            f'__{game_id}__'
+                        )
+                    ).count(),
+                    0,
+                )
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 
