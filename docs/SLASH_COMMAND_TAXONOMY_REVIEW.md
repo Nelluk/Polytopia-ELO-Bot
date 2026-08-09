@@ -1150,7 +1150,10 @@ No Components surface or compatibility-ledger gap is introduced. Local
 validation passed 38 focused tests and complete offline discovery at 1,029
 tests with 33 intentional database skips. The stopped-beta development suite
 then passed 32 tests with one retained-fixture skip, including exact P8.11
-Player-upsert cleanup; guild-only deployment remains pending.
+Player-upsert cleanup. The one-root guild-only apply and durable-beta restart
+completed at `1e52f73`; tester-pinged release
+`2026-08-08-league-user-commands` is live and wider-beta acceptance remains
+pending.
 
 ### Legacy modules outside the modernization target
 

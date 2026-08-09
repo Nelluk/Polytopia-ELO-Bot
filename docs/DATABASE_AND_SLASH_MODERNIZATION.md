@@ -478,12 +478,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.11 small league user commands are Implemented and
-development-database validated on
-`codex/p8-11-league-user-commands` under the temporary Sol omni workflow.
-`/league guide`, `/league mark-active`, and `/league join-novas` are locally
-green; accumulation integration, guild-only apply, restart, and wider-beta
-publication remain.**
+Current active unit: **P8.11 small league user commands are integrated and
+deployed under the temporary Sol omni workflow. `/league guide`,
+`/league mark-active`, and `/league join-novas` are now owned by the wider
+tester pool. P8.12 `/league season` is the next recommended bounded design
+unit.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7405,8 +7404,7 @@ is retained as a day-to-day convenience before implementation.
 
 ### P8.11 — Small league user commands
 
-Status: **Implemented and development-database validated; integration and
-deployment pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-11-league-user-commands` from exact clean accumulation
 checkpoint `1e87233`.
@@ -7461,9 +7459,29 @@ Validation evidence:
   passed **32 tests with one intentional retained-fixture skip**. The P8.11
   test passed and left no temporary Player or DiscordMember rows.
 
-Next action: checkpoint the database evidence, integrate the unit into the
-accumulation branch, inspect/apply the guild-only command-tree delta, restart,
-and add the three commands to wider-beta testing.
+Integration/deployment evidence:
+
+- implementation `95863d0`, roadmap/checklist `453b801`, and database evidence
+  `1e52f73` were fast-forwarded into and pushed on
+  `codex/database-slash-modernization`;
+- remote inspection planned exactly one root update (`league`), with the
+  other nine roots unchanged and no create/removal/global operation. The
+  guild-only apply completed and post-inspection showed all ten roots
+  unchanged;
+- the durable beta restarted at full checkpoint
+  `1e52f73071ec3fc9fa4c116dde2bfa00a46a417d` and authenticated as PolyELO Bot
+  Beta `479029527553638401`;
+- the live readiness inventory verified the tester role, The Novas, Inactive,
+  and Mod roles. Exact House Leader/Co-Leader roles are absent from the beta
+  guild, so live cross-member testing uses Mod while offline coverage proves
+  all three accepted role names;
+- tester-pinged release `2026-08-08-league-user-commands` posted once to
+  `todo-and-changelog` as message `1535831344481964062`.
+
+Next action: collect wider-beta P8.11 acceptance while designing P8.12
+`/league season` as a bounded worker-backed read. Preserve `$season` initially
+unless the implementation review finds that the native workspace completely
+supersedes its compact optional-season usage.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8952,6 +8970,23 @@ component refinements that do not require command re-registration.
   cleaned up exactly.
 - No Discord command apply, production, dependency, or sudo action occurred.
   Integration and deployment remain the next gate.
+
+### 2026-08-08 — P8.11 integrated and deployed
+
+- Fast-forwarded and pushed P8.11 through `1e52f73` on the accumulation
+  branch after the complete stopped-beta database gate passed.
+- Remote command inspection showed one `league` root update, nine unchanged
+  roots, and no create/removal/global operation. Guild-only apply and
+  post-inspection completed with all ten roots matching.
+- Restarted the durable beta at full checkpoint `1e52f73`; it authenticated as
+  the expected beta application with background/API tasks still disabled.
+- Confirmed live tester, The Novas, Inactive, and Mod roles before tester
+  delivery. The beta guild has no exact House Leader/Co-Leader roles, so that
+  part of the targeting matrix remains offline-covered and Mod-live-testable.
+- Delivered tester-pinged release `2026-08-08-league-user-commands` once to
+  `todo-and-changelog`, message `1535831344481964062`.
+- No production checkout/service/database, global command sync, dependency,
+  or sudo action occurred. Wider-beta acceptance now owns P8.11.
 
 ### 2026-08-08 — P8.10 league-token workspace integrated and deployed
 
