@@ -1209,6 +1209,10 @@ Configuration/GameLog work to worker-local reads and atomic transitions.
 Buttons remain a later optional usability experiment rather than a condition
 of the `/league free-agents post` conversion.
 
+P8.13b checkpoints `a357f93`, `5ba0195`, and `bdd8057` are integrated and the
+durable beta is running the code checkpoint. No application-command sync was
+needed because this unit changes only the retained reaction backend.
+
 ### Legacy modules outside the modernization target
 
 | Module / current behavior | Native home | Disposition / note |

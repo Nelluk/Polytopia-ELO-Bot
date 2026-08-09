@@ -480,9 +480,9 @@ check:
 
 Current active unit: **P8.13b retains the Free Agent reaction interface while
 moving its signup, open/close, and conclude database work behind bounded
-worker-local operations. It is implemented locally under the temporary Sol
-omni workflow and awaits final validation/integration/deployment. P8.13 and
-P8.12 remain deployed with wider-beta acceptance pending.**
+worker-local operations. It is integrated and deployed under the temporary
+Sol omni workflow and now belongs to the wider tester pool. P8.13 and P8.12
+remain deployed with wider-beta acceptance pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7643,7 +7643,7 @@ taxonomized `/league roster promote|trade` presentation unit.
 
 ### P8.13b — Free Agent reaction lifecycle workers
 
-Status: **Validated locally; integration and deployment pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-13b-free-agent-reactions` from exact clean accumulation
 checkpoint `41ca7ed11618e7743f6fc1c0321d38f20ea46725`.
@@ -7699,9 +7699,25 @@ Local validation evidence:
   toggle, leave-audit, closed-join rejection, forced rollback, conclusion
   reset without Configuration-row deletion, and exact temporary cleanup.
 
-Next action: integrate the reviewed checkpoints into the accumulation branch,
-push, restart the guarded beta without command synchronization, and publish a
-targeted reaction-lifecycle test request.
+Integration/deployment evidence:
+
+- implementation `a357f93`, initial evidence `5ba0195`, and stopped-beta
+  database checkpoint `bdd8057` were fast-forwarded into and pushed on
+  `codex/database-slash-modernization`;
+- no slash registration or capability changed, so no Discord command-tree
+  synchronization was performed;
+- the guarded durable beta restarted from exact clean code checkpoint
+  `bdd8057a6d7496896f3785cf2ac6486372d2c48f` and authenticated as PolyELO
+  Bot Beta `479029527553638401` with background/API tasks disabled;
+- tester-pinged release `2026-08-08-free-agent-reactions` posted once to
+  `todo-and-changelog` as message `1535851726605656094`. Its checklist works
+  with an existing active disposable post or a newly created `bot-spam` post
+  and assigns acceptance to the wider tester pool.
+
+Next action: collect wider-beta P8.13/P8.13b acceptance while beginning the
+already taxonomized `/league roster promote|trade` presentation unit. A later
+button experiment remains optional and should preserve or explicitly replace
+the reaction roster/count value.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9189,6 +9205,11 @@ component refinements that do not require command re-registration.
   commit/rollback/cleanup case then passed in the stopped-writer gate as part
   of **33 passing tests with one retained-fixture skip**. It left no temporary
   Configuration or GameLog rows.
+- Fast-forwarded and pushed checkpoints `a357f93`, `5ba0195`, and `bdd8057`;
+  no command synchronization was needed because the public interface did not
+  change. Restarted the guarded beta at `bdd8057a` and posted tester-pinged
+  release `2026-08-08-free-agent-reactions` once as message
+  `1535851726605656094`.
 
 ### 2026-08-08 — P8.13 Free Agent composer validated locally
 
