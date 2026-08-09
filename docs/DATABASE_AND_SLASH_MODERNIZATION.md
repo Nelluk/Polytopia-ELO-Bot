@@ -485,11 +485,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.20 is complete, integrated,
+Current active unit: **P4.6 immutable metadata presentation is Implemented on
+`codex/p4-6-immutable-metadata-presentation` from exact clean accumulation
+checkpoint `49c09d9`. It preserves all existing command registrations,
+permissions, visibility, and mutation workers while replacing post-commit
+live Peewee card reloads shared by side, notes, map, name, and tribe with the
+established immutable detail-card reader. P5.20 is complete, integrated,
 pushed, and loaded by the guarded beta through `e78601b`; P5 is closed with
-its two shared seams explicitly owned by the P4 immutable metadata-presentation
-and P6 shared registration-check backlogs. The next recommended bounded unit
-is the P4 immutable metadata-presentation cleanup described below. P5.19c final
+its remaining shared registration seam owned by P6. P5.19c final
 started-card and announcement
 migration is complete, integrated, pushed, and loaded by the guarded beta at
 `064d84a`. P5.19b Nova graduation is complete,
@@ -3279,6 +3282,58 @@ Next action: collect wider-beta acceptance for the nested result/manage paths,
 ranked rename, unconfirmed search replacement, permission parity, and Discord
 client-cache recovery. This acceptance does not block selecting the next
 bounded offline unit.
+
+#### P4.6 — Immutable metadata post-commit presentation
+
+Status: **Implemented; pending accumulation integration and guarded beta restart**
+
+Risk tier: **Tier 2 presentation/database-read cleanup**. No command schema,
+mutation transaction, permission, or intended Discord visibility changes.
+
+Branch/base: `codex/p4-6-immutable-metadata-presentation` from exact clean
+accumulation checkpoint `49c09d9`.
+
+Accepted boundary:
+
+- replace live post-commit `Game.load_full_game()` / `Game.embed()` usage in
+  game side, notes, map, name, and tribe presentation with one shared adapter
+  over the established bounded immutable game-detail reader and classic card
+  renderer;
+- preserve each command's current announcement refresh ordering, card
+  destination, prefix/native guidance, public success and reconciliation
+  wording, and independently observable Discord effects;
+- keep every current slash and prefix registration and all permission checks;
+- pass only primitive game/guild/requester/channel/presentation values into
+  the bounded read, and never pass a live Peewee model across the worker
+  boundary; and
+- add no application-command apply/sync, schema, fixture, or production work.
+
+The unit is complete when all five presenters use the immutable path, focused
+fault and ordering coverage proves database failure cannot become a success
+effect, complete offline discovery passes, and the clean branch is integrated,
+pushed, and loaded by the guarded beta through an ordinary restart.
+
+Implementation evidence:
+
+- checkpoint `09ef8a6` adds the shared immutable presenter and migrates side,
+  notes, map, name, and tribe post-commit presentation to one bounded
+  game-detail snapshot and classic renderer;
+- game-name channel renames are derived from the same frozen snapshot, so no
+  live Peewee game or side reaches Discord channel reconciliation;
+- focused metadata/detail/taxonomy validation passed **197 tests**; complete
+  offline discovery passed **1,355 tests with 55 intentional gated skips**;
+  touched compilation and `git diff --check` passed; and
+- complete discovery exposed a pre-existing random CLI failure when a
+  URL-safe beta-feedback report ID began with `-`. Narrow checkpoint
+  `6ca57df` prefixes newly generated IDs with an alphanumeric character and
+  adds regression coverage; the isolated feedback suite passed **13 tests**
+  before the clean complete-suite rerun.
+
+No transaction, permission, slash schema, fixture, or database schema changed.
+The real-schema gate is deferred because the unit reuses the already validated
+read-only game-detail worker without changing its query, DTO, or connection
+boundary. No compatibility-ledger entry is required because every command and
+visible workflow is preserved.
 
 ## P5 — Matchmaking lifecycle
 
@@ -11957,6 +12012,26 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P4.6 immutable metadata presentation implemented
+
+- Replaced the five remaining metadata presenters' live post-commit
+  `Game.load_full_game()` / `Game.embed()` path with a shared adapter over the
+  bounded immutable game-detail reader and classic renderer.
+- Preserved announcement/card destinations, prefix/native guidance, success
+  visibility, effect ordering, and independent reconciliation warnings.
+- Rebuilt game-name side/central channel renames from frozen primitive
+  snapshot values, including external side-guild routing.
+- Added focused coverage for primitive load inputs, immutable announcement
+  edits, dense-card sends, channel renames, and source-level exclusion of live
+  model reload/render calls across all five presenters.
+- Passed 197 focused/affected tests and complete offline discovery at 1,355
+  tests with 55 gated skips. Compilation and `git diff --check` passed.
+- Fixed the unrelated but real beta-feedback CLI edge exposed by complete
+  discovery: generated report IDs can no longer begin with `-`.
+- Recorded implementation checkpoints `09ef8a6` and `6ca57df`. Next: commit
+  this evidence, integrate into the accumulation branch, push, and restart the
+  guarded beta without application-command synchronization.
 
 ### 2026-08-09 — P5.20 integrated, deployed, and P5 closed
 
