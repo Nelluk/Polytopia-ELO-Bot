@@ -4248,6 +4248,53 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.DiscordMember.id == member_id
                 ).execute()
 
+    def test_league_channel_cache_reads_real_schema_without_writes(self):
+        """Exercise the bounded P8.23 cache loader on PostgreSQL."""
+
+        from modules import league_channel_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        eligible_team_ids = tuple(
+            int(team_id)
+            for (team_id,) in (
+                self.models.Team
+                .select(self.models.Team.id)
+                .where(
+                    (self.models.Team.guild_id == guild_id)
+                    & (self.models.Team.is_hidden == False)
+                )
+                .order_by(self.models.Team.id)
+                .tuples()
+            )
+        )
+        expected = ()
+        if eligible_team_ids:
+            expected = tuple(
+                int(channel_id)
+                for (channel_id,) in (
+                    self.models.GameSide
+                    .select(self.models.GameSide.team_chan)
+                    .join(self.models.Game)
+                    .where(
+                        (self.models.GameSide.team_chan.is_null(False))
+                        & (self.models.GameSide.game.guild_id == guild_id)
+                        & (self.models.GameSide.game.is_confirmed == False)
+                        & (self.models.GameSide.team.in_(eligible_team_ids))
+                    )
+                    .order_by(self.models.GameSide.id)
+                    .limit(workers.MAX_LEAGUE_TEAM_CHANNELS + 1)
+                    .tuples()
+                )
+            )
+
+        self.models.db.close()
+        result = asyncio.run(workers.run_load_league_team_channels(
+            workers.LeagueChannelCacheRequest(guild_id=guild_id)
+        ))
+        self.models.db.connect(reuse_if_open=True)
+        self.assertEqual(result.guild_id, guild_id)
+        self.assertEqual(result.channel_ids, expected)
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 

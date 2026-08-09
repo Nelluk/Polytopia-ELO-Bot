@@ -48,6 +48,7 @@ import modules.league_inactivity_workers as league_inactivity_workers
 import modules.league_inactive_kick as league_inactive_kick
 import modules.league_inactive_kick_views as league_inactive_kick_views
 import modules.league_inactive_kick_workers as league_inactive_kick_workers
+import modules.league_channel_workers as league_channel_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -302,7 +303,9 @@ class league(commands.Cog):
         draft_state = await league_free_agents_workers.run_load_draft_state(guild_id)
         self.announcement_message = draft_state.announcement_message_id
 
-        populate_league_team_channels()
+        await refresh_league_team_channels(
+            settings.server_ids['polychampions']
+        )
 
         # global league_guild
         # league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
@@ -2543,21 +2546,21 @@ async def auto_grad_novas(guild, game, output_channel = None):
             await output_channel.send(grad_announcement)
 
 
-def populate_league_team_channels():
-    # maintain a list of channel IDs associated with PolyChamps team games
-    global league_team_channels
-    league_teams = models.Team.select(models.Team.id).where(
-        (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0)
-    )
-    query = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
-        (models.GameSide.team_chan.is_null(False)) &
-        (models.GameSide.game.guild_id == settings.server_ids['polychampions']) &
-        (models.GameSide.game.is_confirmed == 0) &
-        (models.GameSide.team.in_(league_teams))
-    ).tuples()
+async def refresh_league_team_channels(guild_id: int):
+    """Replace the process-local league channel cache after a bounded read."""
 
-    league_team_channels = [tc[0] for tc in query]
-    logger.debug(f'updating league_team_channels, len {len(league_team_channels)}')
+    global league_team_channels
+    result = await league_channel_workers.run_load_league_team_channels(
+        league_channel_workers.LeagueChannelCacheRequest(
+            guild_id=int(guild_id),
+        )
+    )
+    league_team_channels = list(result.channel_ids)
+    logger.debug(
+        'updating league_team_channels for guild %s, len %s',
+        result.guild_id,
+        len(league_team_channels),
+    )
     return len(league_team_channels)
 
 

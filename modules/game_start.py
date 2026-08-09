@@ -429,7 +429,9 @@ async def publish_start_result(
 
         try:
             if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
-                league.populate_league_team_channels()
+                await league.refresh_league_team_channels(
+                    settings.server_ids['polychampions']
+                )
         except Exception as exc:
             await _safe_effect_warning(
                 send,

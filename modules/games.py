@@ -70,7 +70,7 @@ from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
-from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
+from modules.league import auto_grad_novas, refresh_league_team_channels, get_team_leadership
 import modules.league as league
 from itertools import groupby
 import logging
@@ -6238,7 +6238,9 @@ async def post_newgame_messaging(
             f're-`{ctx.prefix}start`.'
         )
     if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
-        populate_league_team_channels()
+        await refresh_league_team_channels(
+            settings.server_ids['polychampions']
+        )
 
     await auto_grad_novas(ctx.guild, game, destination)
 
