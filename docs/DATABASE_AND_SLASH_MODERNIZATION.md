@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.15 post-start external-broadcast reconciliation is
-implemented and validated at `c54a9c5`; integration, push, and guarded-beta
-restart remain pending. P5.15-A/B/C/D are accepted. Exact primitive targets
+Current active unit: **No code unit is active. P5.15 post-start
+external-broadcast reconciliation is complete, integrated, pushed, and loaded
+by the guarded development beta at `6e76932`. P5.15-A/B/C/D are accepted.
+Exact primitive targets
 are frozen in the start transaction, Discord updates are idempotent and
 post-commit, successful or confirmed-absent targets finalize through bounded
 worker-local persistence, and uncertain failures retain their rows for a
@@ -5103,7 +5104,7 @@ reload used by reaction success paths.
 
 ### P5.15 — Post-start external-broadcast reconciliation design audit
 
-Status: **Implemented and validated; integration/deployment pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 `TeamServerBroadcastMessage` is the tracking table for open-game messages
 posted into external team servers. A row is created after the Discord message
@@ -5259,11 +5260,30 @@ change is included. No application-command synchronization or broad-tester
 announcement is useful because the beta keeps background tasks disabled and
 the command interface did not change.
 
-Next action: commit this evidence separately, fast-forward the reviewed unit
-into `codex/database-slash-modernization`, push the approved accumulation
-branch, and restart only the guarded development beta. No command-tree apply
-is needed. Record the separate external-message-send/row-create boundary as a
-later P5.16 candidate.
+Integration/deployment evidence:
+
+- committed implementation/tests as `c54a9c5` and separate roadmap evidence as
+  `6e76932`, then fast-forwarded and pushed the exact integrated checkpoint to
+  the approved accumulation branch;
+- restarted only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and PID `3222742` runs from the clean accumulation
+  checkout at `6e76932`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup with `--skip_tasks`, and passed protected local
+  release-control status;
+- made no application-command plan/apply/sync because no command definition or
+  capability changed;
+- selected the explicit no-announcement route because the only newly scheduled
+  retry path is disabled in the development profile and no tester-facing
+  workflow changed.
+
+Next action: P5.16 should perform a read-only design audit of the creation-side
+external-broadcast boundary in `broadcast_team_game_to_server`: Discord send
+currently precedes a synchronous event-loop tracking-row insert, so database
+failure can leave an untracked external invitation. Resolve whether to use
+post-send worker persistence plus delete-on-persistence-failure, or a richer
+reconciliation record, before implementation. The alternate ready unit is the
+narrower immutable post-commit game-card reload used by reaction success paths.
 
 The preceding design-audit stage made no implementation, test, database,
 Discord, beta, task-configuration, schema, dependency, or production change.
@@ -11085,6 +11105,10 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   push, and guarded-beta restart remained pending at this evidence checkpoint.
 - Made no command, capability, schema, fixture, creation-side, deletion-side,
   dependency, announcement, or production change.
+- Subsequently integrated and pushed exact checkpoint `6e76932`, restarted
+  only the guarded beta, and verified its clear writer preflight, PID `3222742`,
+  expected beta identity, `--skip_tasks` startup, and protected release-control
+  status. No command apply or tester announcement was needed.
 
 ### 2026-08-09 — P5.15 post-start broadcast reconciliation audited
 
