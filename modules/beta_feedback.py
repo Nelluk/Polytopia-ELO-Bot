@@ -566,7 +566,10 @@ def _profile_checkpoint(profile: RuntimeProfile | None) -> str | None:
 
 
 def _new_report_id() -> str:
-    return secrets.token_urlsafe(18).rstrip('=')
+    # Keep generated IDs safe as standalone command-line option values.  A
+    # raw URL-safe token may begin with ``-``, which argparse interprets as a
+    # new option when an operator runs ``--report-id ID``.
+    return f'r{secrets.token_urlsafe(18).rstrip("=")}'
 
 
 def _report_id_is_safe(report_id: str) -> bool:

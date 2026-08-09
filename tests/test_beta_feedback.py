@@ -87,6 +87,7 @@ class FeedbackStoreTests(unittest.TestCase):
         self.assertEqual(report.record['schema_version'], beta_feedback.SCHEMA_VERSION)
         self.assertEqual(report.record['git_checkpoint'], 'checkpoint-abc')
         self.assertRegex(report.report_id, r'^[A-Za-z0-9_-]{20,}$')
+        self.assertTrue(report.report_id[0].isalnum())
         paths = report.paths
         self.assertEqual(stat.S_IMODE(paths.root.stat().st_mode), 0o700)
         self.assertEqual(stat.S_IMODE(paths.attachments_root.stat().st_mode), 0o700)
