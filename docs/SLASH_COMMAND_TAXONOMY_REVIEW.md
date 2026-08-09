@@ -1198,6 +1198,11 @@ fails. `$newfreeagent` remains as a compact operational fallback over the same
 service pending native beta acceptance. The reaction listeners themselves
 retain their legacy behavior and are outside this creation-focused unit.
 
+Implementation `0ffa36d`, evidence `b02ff7b`, and stopped-beta checkpoint
+`8f8fb89` are integrated. The explicit development-guild apply updated only
+the existing `/league` root, and tester-pinged wider-beta release
+`2026-08-08-free-agent-post` is live.
+
 ### Legacy modules outside the modernization target
 
 | Module / current behavior | Native home | Disposition / note |

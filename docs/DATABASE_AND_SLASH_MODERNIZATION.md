@@ -478,10 +478,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.13 `/league free-agents post` is implemented under
-the temporary Sol omni workflow and is awaiting the stopped-beta database,
-integration, guild-sync, and wider-beta deployment gates. P8.12 `/league
-season` remains deployed and owned by the wider tester pool.**
+Current active unit: **P8.13 `/league free-agents post` is integrated and
+deployed under the temporary Sol omni workflow and is now owned by the wider
+tester pool. P8.12 `/league season` remains deployed with acceptance pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7562,7 +7561,7 @@ remains a crucial operational fallback.
 
 ### P8.13 — Free Agent signup announcement composer
 
-Status: **Validated locally; integration and deployment pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-13-free-agent-post` from exact clean accumulation
 checkpoint `c4fd8f65a942de5ba778c6cfc149ae0a23ed6dcf`.
@@ -7619,10 +7618,27 @@ Local validation evidence:
   signup pointer back, and removed its exact temporary rows;
 - touched-file compilation and `git diff --check`: passed.
 
-Next action: fast-forward the reviewed commits into the accumulation branch,
-push that branch, update only the development guild's `/league` root, restart
-the guarded beta from the clean integrated checkpoint, and publish the
-reviewed wider-beta test request.
+Integration/deployment evidence:
+
+- implementation `0ffa36d`, roadmap/checklist `b02ff7b`, and stopped-beta
+  validation `8f8fb89` were fast-forwarded into and pushed on
+  `codex/database-slash-modernization`;
+- remote inspection planned exactly one update to the existing `league` root,
+  with the other nine roots unchanged and no create, removal, or global
+  operation. The explicit development-guild apply converged to zero changes;
+- the guarded durable beta restarted from clean runtime checkpoint
+  `8f8fb8965ef292106f8b1a3255fdfbaf85c4ef5a` and authenticated as PolyELO
+  Bot Beta `479029527553638401` with background/API tasks disabled;
+- the bounded readiness inventory verified the exact Mod, Nova Grad, The
+  Novas, Free Agent, and testers roles plus the disposable `bot-spam` channel;
+- tester-pinged release `2026-08-08-free-agent-post` was posted once to
+  `todo-and-changelog` as message `1535843244326260787`. Wider-beta acceptance
+  owns the native composer, duplicate protection, all three reactions, and
+  non-Mod denial.
+
+Next action: collect wider-beta P8.13 acceptance while selecting either the
+bounded listener-side Free Agent lifecycle modernization or the already
+taxonomized `/league roster promote|trade` presentation unit.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9109,7 +9125,15 @@ component refinements that do not require command re-registration.
   exact cleanup evidence under `development` / `polytopia_dev` /
   `polybot_dev`.
 - Implementation checkpoint `0ffa36d` and initial roadmap/checklist checkpoint
-  `b02ff7b` remain on the clean unit branch pending accumulation integration.
+  `b02ff7b`, followed by stopped-beta evidence `8f8fb89`, were fast-forwarded
+  into and pushed on the accumulation branch.
+- Remote command inspection and apply updated only the existing `league` root
+  in development guild `478571892832206869`; post-inspection was converged and
+  no global operation occurred.
+- Restarted the guarded beta at exact code checkpoint `8f8fb896`; it
+  authenticated as the expected beta application. Tester-pinged release
+  `2026-08-08-free-agent-post` posted once as message
+  `1535843244326260787` after role/channel readiness passed.
 
 ### 2026-08-08 — P8.12 integrated and deployed
 
