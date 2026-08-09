@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from io import BytesIO
+import logging
+
 import discord
 
 from modules import components_v2, player_registration_workers, player_workers
+
+
+logger = logging.getLogger(__name__)
 
 
 PAGE_SIZE = 6
 SECTIONS = (
     ('overview', 'Overview'),
     ('ratings', 'Ratings'),
+    ('analytics', 'Analytics'),
     ('recent', 'Recent games'),
     ('incomplete', 'Incomplete'),
     ('completed', 'Completed'),
@@ -18,6 +26,11 @@ SECTIONS = (
     ('teams', 'Team & squads'),
 )
 SECTION_LABELS = dict(SECTIONS)
+
+
+def _response_is_done(interaction: discord.Interaction) -> bool:
+    value = getattr(interaction.response, 'is_done', False)
+    return bool(value() if callable(value) else value)
 
 
 def _game_rows(
@@ -79,6 +92,13 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         initial_section: str = 'overview',
         completed_filter: str = 'all',
         can_edit: bool = False,
+        history_graph_loader: Callable[
+            [
+                player_workers.PlayerWorkspaceSnapshot,
+                str,
+            ],
+            Awaitable[player_workers.PlayerHistoryGraph],
+        ] = player_workers.run_player_history_graph,
         timeout: float = 300.0,
     ):
         super().__init__(requester_id=requester_id, timeout=timeout)
@@ -87,6 +107,9 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.completed_filter = completed_filter
         self.season_filter = 'all'
         self.can_edit = can_edit
+        self.history_era = 'current'
+        self.history_graph_loader = history_graph_loader
+        self.history_graphs: dict[str, player_workers.PlayerHistoryGraph] = {}
         self.rebuild()
 
     @property
@@ -103,10 +126,97 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         return components_v2.page_count(self.rows, PAGE_SIZE)
 
     async def _select_section(self, interaction: discord.Interaction) -> None:
-        self.section = self.section_select.values[0]
+        selected = self.section_select.values[0]
+        if selected == 'analytics':
+            await self._show_analytics(interaction, era=self.history_era)
+            return
+        self.section = selected
         self.page_index = 0
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=self, attachments=[])
+
+    async def _private_error(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+    ) -> None:
+        if _response_is_done(interaction):
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+
+    def history_graph_files(self) -> list[discord.File]:
+        graph = self.history_graphs.get(self.history_era)
+        if graph is None or not graph.png_bytes:
+            return []
+        return [
+            discord.File(
+                BytesIO(graph.png_bytes),
+                filename=graph.filename,
+            )
+        ]
+
+    async def _show_analytics(
+        self,
+        interaction: discord.Interaction,
+        *,
+        era: str,
+    ) -> None:
+        if era not in {'current', 'all_time'}:
+            await self._private_error(
+                interaction,
+                'Choose current-reset or all-time ELO history.',
+            )
+            return
+        previous = (self.section, self.history_era, self.page_index)
+        deferred = False
+        try:
+            graph = self.history_graphs.get(era)
+            if graph is None:
+                if not _response_is_done(interaction):
+                    await interaction.response.defer()
+                    deferred = True
+                graph = await self.history_graph_loader(self.snapshot, era)
+                self.history_graphs[era] = graph
+            self.section = 'analytics'
+            self.history_era = era
+            self.page_index = 0
+            self.rebuild()
+            if deferred or _response_is_done(interaction):
+                await interaction.edit_original_response(
+                    view=self,
+                    attachments=self.history_graph_files(),
+                )
+            else:
+                await interaction.response.edit_message(
+                    view=self,
+                    attachments=self.history_graph_files(),
+                )
+        except Exception:
+            logger.exception(
+                'Could not render player analytics for requester %s target %s',
+                self.requester_id,
+                self.snapshot.discord_id,
+            )
+            self.section, self.history_era, self.page_index = previous
+            self.rebuild()
+            message = (
+                'Could not render the player analytics. Run `/player show` '
+                'again or retry this section.'
+            )
+            if deferred:
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await self._private_error(interaction, message)
+
+    async def _select_history_era(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        await self._show_analytics(
+            interaction,
+            era=self.history_era_select.values[0],
+        )
 
     async def _select_result(self, interaction: discord.Interaction) -> None:
         self.completed_filter = self.result_select.values[0]
@@ -181,6 +291,54 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'`{snapshot.local_all_time_peak}` peak\n'
                 f'**All-time global:** `{snapshot.global_all_time}` · '
                 f'`{snapshot.global_all_time_peak}` peak'
+            )
+        if self.section == 'analytics':
+            if snapshot.discord_id == self.requester_id:
+                matchup = (
+                    'View another member with `/player show` to compare your '
+                    'confirmed ranked local 1v1 record.'
+                )
+            elif snapshot.head_to_head is None:
+                matchup = (
+                    'No requester comparison is available. The requester may '
+                    'not be registered in this server.'
+                )
+            elif snapshot.head_to_head.total_games == 0:
+                matchup = (
+                    f'No confirmed ranked local 1v1 games between '
+                    f'<@{snapshot.head_to_head.requester_discord_id}> and '
+                    f'<@{snapshot.head_to_head.target_discord_id}>.'
+                )
+            else:
+                matchup = (
+                    f'<@{snapshot.head_to_head.requester_discord_id}> '
+                    f'**{snapshot.head_to_head.requester_wins}** – '
+                    f'**{snapshot.head_to_head.target_wins}** '
+                    f'<@{snapshot.head_to_head.target_discord_id}> '
+                    f'({snapshot.head_to_head.total_games} games)'
+                )
+            era = (
+                'Current-reset'
+                if self.history_era == 'current'
+                else 'All-time'
+            )
+            local_points = sum(
+                getattr(point, f'{self.history_era}_elo') is not None
+                for point in snapshot.local_history
+            )
+            global_points = sum(
+                getattr(point, f'{self.history_era}_elo') is not None
+                for point in snapshot.global_history
+            )
+            bounded = (
+                '\n-# History is bounded to the newest 500 points per scope.'
+                if snapshot.history_truncated else ''
+            )
+            return (
+                f'## {era} ELO history\n'
+                f'**{snapshot.guild_display_name}:** {local_points} points · '
+                f'**Global:** {global_points} points{bounded}\n\n'
+                f'## Your local 1v1 record\n{matchup}'
             )
         if self.section == 'teams':
             squads = (
@@ -277,6 +435,41 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             )
             self.season_select.callback = self._select_season
             components.append(discord.ui.ActionRow(self.season_select))
+        if self.section == 'analytics':
+            self.history_era_select = discord.ui.Select(
+                placeholder='ELO history era',
+                options=[
+                    discord.SelectOption(
+                        label='Current-reset ELO',
+                        value='current',
+                        default=self.history_era == 'current',
+                    ),
+                    discord.SelectOption(
+                        label='All-time ELO',
+                        value='all_time',
+                        default=self.history_era == 'all_time',
+                    ),
+                ],
+            )
+            self.history_era_select.callback = self._select_history_era
+            components.append(discord.ui.ActionRow(self.history_era_select))
+            graph = self.history_graphs.get(self.history_era)
+            if graph is not None and graph.png_bytes:
+                components.extend([
+                    discord.ui.Separator(
+                        spacing=discord.SeparatorSpacing.small,
+                    ),
+                    discord.ui.MediaGallery(
+                        discord.MediaGalleryItem(
+                            f'attachment://{graph.filename}',
+                            description=(
+                                'Current-reset ELO history'
+                                if self.history_era == 'current'
+                                else 'All-time ELO history'
+                            ),
+                        ),
+                    ),
+                ])
         if self.section in ('recent', 'incomplete', 'completed', 'season'):
             previous = discord.ui.Button(
                 label='Previous',

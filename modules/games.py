@@ -2270,6 +2270,7 @@ class polygames(commands.Cog):
         request = player_workers.PlayerWorkspaceRequest(
             guild_id=interaction.guild.id,
             discord_id=target.id,
+            requester_discord_id=interaction.user.id,
         )
         try:
             snapshot = await self._load_player_workspace(request)
@@ -2441,6 +2442,7 @@ class polygames(commands.Cog):
             guild_id=ctx.guild.id,
             discord_id=ctx.author.id if not args else None,
             player_query=args,
+            requester_discord_id=ctx.author.id,
         )
         async with ctx.typing():
             await self._send_player_workspace(
@@ -3726,6 +3728,7 @@ class polygames(commands.Cog):
             request = player_workers.PlayerWorkspaceRequest(
                 guild_id=ctx.guild.id,
                 player_query=args,
+                requester_discord_id=ctx.author.id,
             )
             try:
                 snapshot = await self._load_player_workspace(request)
@@ -3771,6 +3774,7 @@ class polygames(commands.Cog):
             guild_id=ctx.guild.id,
             discord_id=ctx.author.id if not args else None,
             player_query=args,
+            requester_discord_id=ctx.author.id,
         )
         try:
             snapshot = await self._load_player_workspace(request)
@@ -3822,6 +3826,7 @@ class polygames(commands.Cog):
             guild_id=ctx.guild.id,
             discord_id=ctx.author.id if not args else None,
             player_query=args,
+            requester_discord_id=ctx.author.id,
         )
         try:
             snapshot = await self._load_player_workspace(request)

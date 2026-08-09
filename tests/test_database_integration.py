@@ -687,6 +687,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             player_workers.PlayerWorkspaceRequest(
                 guild_id=guild_id,
                 discord_id=player.discord_member.discord_id,
+                requester_discord_id=player.discord_member.discord_id,
             )
         ))
         self.assertEqual(result.player_id, player.id)
@@ -694,6 +695,20 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertIsInstance(result.games, tuple)
         for row in result.games:
             self.assertIsInstance(row, player_workers.PlayerGameRow)
+        self.assertIsInstance(result.local_history, tuple)
+        self.assertIsInstance(result.global_history, tuple)
+        for point in (*result.local_history, *result.global_history):
+            self.assertIsInstance(point, player_workers.PlayerRatingPoint)
+        graph = asyncio.run(player_workers.run_player_history_graph(
+            result,
+            'current',
+        ))
+        self.assertIsInstance(graph, player_workers.PlayerHistoryGraph)
+        if any(
+            point.current_elo is not None
+            for point in (*result.local_history, *result.global_history)
+        ):
+            self.assertTrue(graph.png_bytes.startswith(b'\x89PNG\r\n\x1a\n'))
 
     def test_player_registration_worker_commits_and_rolls_back_real_graph(self):
         from modules import player_registration_workers

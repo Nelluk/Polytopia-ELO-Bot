@@ -3,6 +3,8 @@
 import asyncio
 from contextlib import AbstractContextManager
 import dataclasses
+import datetime
+import inspect
 import time
 from types import SimpleNamespace
 import unittest
@@ -70,6 +72,37 @@ def snapshot(discord_id=100):
         global_rank=8,
         global_ranked_count=100,
         games=rows,
+        guild_display_name='PolyChampions',
+        local_history=(
+            player_workers.PlayerRatingPoint(
+                completed_at=datetime.datetime(2026, 1, 1, 12, 0),
+                game_id=1,
+                current_elo=1400,
+                all_time_elo=1430,
+            ),
+            player_workers.PlayerRatingPoint(
+                completed_at=datetime.datetime(2026, 2, 1, 12, 0),
+                game_id=2,
+                current_elo=1450,
+                all_time_elo=1490,
+            ),
+        ),
+        global_history=(
+            player_workers.PlayerRatingPoint(
+                completed_at=datetime.datetime(2026, 1, 2, 12, 0),
+                game_id=3,
+                current_elo=1460,
+                all_time_elo=1480,
+            ),
+        ),
+        head_to_head=player_workers.PlayerHeadToHead(
+            requester_discord_id=100,
+            requester_name='Requester',
+            requester_wins=3,
+            target_discord_id=discord_id,
+            target_name='Nelluk',
+            target_wins=2,
+        ) if discord_id != 100 else None,
     )
 
 
@@ -150,6 +183,79 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertTrue(all(item.disabled for item in controls))
 
+    @staticmethod
+    def analytics_interaction():
+        state = {'done': False}
+
+        async def defer():
+            state['done'] = True
+
+        return SimpleNamespace(
+            response=SimpleNamespace(
+                is_done=lambda: state['done'],
+                defer=mock.AsyncMock(side_effect=defer),
+                edit_message=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+
+    async def test_analytics_renders_lazily_and_caches_each_era(self):
+        loader = mock.AsyncMock(side_effect=(
+            player_workers.PlayerHistoryGraph('current.png', b'current'),
+            player_workers.PlayerHistoryGraph('all.png', b'all'),
+        ))
+        target = snapshot(discord_id=200)
+        view = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=target,
+            history_graph_loader=loader,
+        )
+
+        first = self.analytics_interaction()
+        view.section_select._values = ['analytics']
+        await view._select_section(first)
+        self.assertEqual(view.section, 'analytics')
+        self.assertEqual(view.to_components()[0]['type'], 17)
+        self.assertLessEqual(view.total_children_count, 40)
+        loader.assert_awaited_once_with(target, 'current')
+        first.edit_original_response.assert_awaited_once()
+        self.assertEqual(
+            first.edit_original_response.await_args.kwargs['attachments'][0].filename,
+            'current.png',
+        )
+        self.assertIn('**3** – **2**', view._body())
+
+        second = self.analytics_interaction()
+        view.history_era_select._values = ['all_time']
+        await view._select_history_era(second)
+        self.assertEqual(loader.await_count, 2)
+        self.assertEqual(view.history_era, 'all_time')
+
+        third = self.analytics_interaction()
+        view.history_era_select._values = ['current']
+        await view._select_history_era(third)
+        self.assertEqual(loader.await_count, 2)
+        third.response.edit_message.assert_awaited_once()
+
+    async def test_analytics_failure_is_private_and_preserves_public_view(self):
+        loader = mock.AsyncMock(side_effect=RuntimeError('render failed'))
+        view = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=snapshot(discord_id=200),
+            history_graph_loader=loader,
+        )
+        interaction = self.analytics_interaction()
+        view.section_select._values = ['analytics']
+        await view._select_section(interaction)
+        self.assertEqual(view.section, 'overview')
+        interaction.followup.send.assert_awaited_once_with(
+            mock.ANY,
+            ephemeral=True,
+        )
+        interaction.edit_original_response.assert_not_awaited()
+
 
 class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_worker_connection_ownership_and_immutable_result(self):
@@ -194,6 +300,16 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
                 'search',
                 return_value=[],
             ),
+            mock.patch.object(
+                player_workers,
+                '_rating_history',
+                return_value=((), False),
+            ),
+            mock.patch.object(
+                player_workers,
+                '_head_to_head',
+                return_value=None,
+            ),
         ):
             result = player_workers.load_player_workspace(
                 player_workers.PlayerWorkspaceRequest(
@@ -206,6 +322,44 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             result.local_elo = 1
         connection.__enter__.assert_called_once()
         connection.__exit__.assert_called_once()
+
+    def test_graph_renderer_is_owned_bounded_and_immutable(self):
+        source = inspect.getsource(
+            player_workers.render_player_history_graph
+        )
+        self.assertNotIn('pyplot', source)
+        self.assertNotIn('graph.png', source)
+        graph = player_workers.render_player_history_graph(
+            snapshot(),
+            'current',
+        )
+        self.assertTrue(graph.png_bytes.startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertIn('player-1-current-', graph.filename)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            graph.png_bytes = b'changed'
+
+    async def test_cancelled_graph_render_drains_before_returning(self):
+        original = player_workers.render_player_history_graph
+        finished = asyncio.Event()
+
+        def slow(snapshot_value, era):
+            time.sleep(0.05)
+            finished_loop.call_soon_threadsafe(finished.set)
+            return player_workers.PlayerHistoryGraph('slow.png', b'graph')
+
+        finished_loop = asyncio.get_running_loop()
+        player_workers.render_player_history_graph = slow
+        try:
+            task = asyncio.create_task(
+                player_workers.run_player_history_graph(snapshot(), 'current')
+            )
+            await asyncio.sleep(0.005)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertTrue(finished.is_set())
+        finally:
+            player_workers.render_player_history_graph = original
 
     async def test_slow_worker_does_not_block_event_loop(self):
         original = player_workers.load_player_workspace
@@ -292,6 +446,7 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
             ):
                 await command.callback(cog, interaction, member)
             self.assertEqual(requests[0].discord_id, expected)
+            self.assertEqual(requests[0].requester_discord_id, 100)
             interaction.response.defer.assert_awaited_once()
             kwargs = interaction.edit_original_response.await_args.kwargs
             self.assertEqual(set(kwargs), {'view'})
@@ -356,7 +511,10 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
             side_effect=player_workers.PlayerNotFound('not one player')
         )
         cog.game_search = mock.AsyncMock()
-        ctx = SimpleNamespace(guild=SimpleNamespace(id=300))
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=SimpleNamespace(id=100),
+        )
         await command.callback(cog, ctx, args='Nelluk Ronin 2v2')
         cog.game_search.assert_awaited_once_with(
             ctx=ctx,
