@@ -1014,8 +1014,8 @@ beta lifecycle action is part of this unit.
 | `draft` | `/league roster draft` | P8.15 typed member/exact-Team card with legacy Drafter/Helper/Mod/owner parity; `$draft` retired because native covers its full grammar |
 | `tradeprice`, `playerprice` alias | `/league roster price` | P8.16 public typed member/optional ending-season read with confirmed legacy formula, transparent three-season/leadership inputs, worker-local non-upserting lookup, and both hidden prefix names retired |
 | `league_export` | `/league maintenance export` | P8.17 staff-only optional-logs private gzip attachment, bounded worker-local read and in-memory generation; `$league_export [logs]` retained through the same worker during beta |
-| `deactivate_players` | `/league maintenance deactivate` | Preview and confirmation required |
-| `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
+| `deactivate_players` | `/league maintenance mark-inactive` | P8.18 proposal: Mod-only private preview, refreshed confirmation, bounded Discord role application, public attributed result; retire the unsafe immediate prefix path |
+| `kick_inactive` | `/league maintenance kick-inactive` | P8.19 proposal: defer until member-removal database cleanup is worker-backed; then use a refreshed private preview, typed destructive confirmation, bounded kick/reconciliation, and retire the unsafe prefix path |
 | `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
 | `houses` | `/house list` | P8.7 implements a public requester-bound paginated directory/select workspace and retains `$houses`/`$balance` |
 | `house_add` | `/house create` | P8.9 Mod-only atomic House/audit creation; legacy prefix fully retired; exact Discord role remains a separate staff step |

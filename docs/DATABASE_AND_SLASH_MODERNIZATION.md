@@ -482,9 +482,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.17 native `/league maintenance export` is
-implemented, integrated, and deployed to the development guild; staff beta
-acceptance is pending.**
+Current active unit: **P8.18 legacy inactivity review is complete and the
+bounded `/league maintenance mark-inactive` proposal is ready for approval.
+P8.17 staff beta acceptance remains pending.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8031,6 +8031,119 @@ league maintenance, explicitly settle candidate selection, preview,
 confirmation, permission, Discord-role side effects, and post-commit
 reconciliation for `deactivate_players` and `kick_inactive` as separate units.
 
+### P8.18 — Mark inactive members
+
+Status: **Proposed; implementation approval pending**
+
+Legacy investigation found that `$deactivate_players` / `$deactivate` is not
+a database deactivation. It immediately adds the configured Discord Inactive
+role to members and performs no preview or confirmation. Candidates are every
+non-recent guild member who:
+
+- joined at least 60 days ago;
+- has no game started in the invoking guild during the last 60 days;
+- has no incomplete game in that guild;
+- does not already have the Inactive role; and
+- lacks one of five hard-coded protected roles.
+
+The command is Mod-only and league-guild-only. It scans and mutates live
+Discord members sequentially, stops on the first unhandled Discord failure,
+and can therefore leave an unexplained partial result. It excludes neither
+bots nor other special accounts explicitly. Every role application also
+triggers the existing `on_member_update` listener, whose inactive-role audit
+query/write currently runs synchronously on the event loop.
+
+Recommended P8.18 contract:
+
+- use `/league maintenance mark-inactive`, matching the existing
+  `/league mark-active` language;
+- preserve the Mod-or-owner and league-guild boundary; Helpers cannot run it;
+- preserve the 60-day current-guild activity rule and incomplete-game
+  protection, while explicitly excluding bots and the bot owner;
+- centralize the protected-role names as an inactivity policy, covering Mod,
+  Team Recruiter, Team Leader, Team Co-Leader, and the existing legacy custom
+  protected role; show policy/missing-role warnings in the preview;
+- privately defer and load a frozen guild-member/role snapshot plus a bounded,
+  worker-local database activity result;
+- present a private requester-bound paginated preview with candidate reasons
+  and counts for active, recent-join, already-inactive, protected, and omitted
+  members;
+- on Confirm, recapture roles/membership and rerun the database selection. If
+  the candidate set changed, refresh the preview and require confirmation
+  again rather than applying a stale plan;
+- apply at most 100 deterministic candidates per run, continue after
+  individual Discord failures, and report successes/failures/skips rather
+  than pretending the operation is atomic;
+- publish one public no-ping completion identifying the actor and result
+  counts, with detailed failure/reconciliation information private to the
+  requester;
+- move the inactive-role audit branch of `on_member_update` to a bounded
+  worker-local database write so a batch of role events does not block the
+  Discord loop; and
+- retire `$deactivate_players` and `$deactivate` when the native workflow is
+  deployed, because retaining an immediate unconfirmed mutation path defeats
+  the safety improvement.
+
+The development profile currently configures `inactive_role` as `None`.
+Before beta acceptance, create or select the exact development Inactive role
+and set its development-only configuration value. This is a test-environment
+gate, not a production change.
+
+### P8.19 — Remove inactive members from the guild
+
+Status: **Investigated; blocked on listener hardening and policy approval**
+
+Legacy `$kick_inactive` is also Mod-only and league-guild-only, ignores its
+declared free-form argument, and immediately kicks members with the Inactive
+role. Its effective candidate rules are:
+
+- an unregistered member older than 7 days may be kicked; or
+- a registered member older than 30 days may be kicked if their
+  account-wide `DiscordMember.games_played(in_days=60)` query finds no tracked
+  game on any server;
+- any role outside hard-coded starter and historic Team-role lists protects
+  the member.
+
+The query counts tracked games, not only confirmed/ranked “ELO games” as the
+legacy help claims. The hard-coded Team list dates to 2020 and is no longer a
+reliable guild policy. The command has no preview, confirmation, candidate
+bound, per-member exception handling, or coherent audit for unregistered
+members. A failed DM or kick can abort the batch after earlier removals.
+Database Player/DiscordMember history is intentionally retained.
+
+More importantly, every kick triggers `on_member_remove`. That listener runs
+Peewee reads/writes on the event loop and deletes pending-game Lineups for the
+departing member. A manually assigned Inactive role can therefore expose
+older pending/incomplete records to side effects that the kick command itself
+does not preview. P8.19 must not be implemented as a thin slash adapter.
+
+Recommended prerequisites and contract:
+
+1. Extract `on_member_remove` lookup/cleanup into a bounded worker-local
+   connection and preserve its current pending-lineup cleanup and incomplete-
+   game notification semantics.
+2. Use `/league maintenance kick-inactive`, Mod-or-owner and league-guild
+   only; retire `$kick_inactive` when native deployment occurs.
+3. Derive exact Team-role eligibility from current guild-scoped Team records,
+   keep a small explicit starter-role policy, and protect every unrecognized,
+   managed, staff, leadership, or bot role by default.
+4. Preserve the 7/30/60-day thresholds initially, but describe the second
+   rule accurately as “no tracked games.” Block anyone with a current pending
+   or incomplete game in the league guild regardless of age.
+5. Show a private paginated preview with a reason for every candidate and
+   exclusion; recalculate before execution and require a typed confirmation
+   such as `KICK <count>` for the refreshed set.
+6. Cap a single operation at 25 members, attempt notification without making
+   DM failure fatal, continue through individual kick failures, and keep
+   database audit/reconciliation after Discord effects rather than inside a
+   transaction spanning Discord awaits.
+7. Publish only the attributed aggregate result; keep member-level failure
+   and reconciliation details private to the requester.
+
+No automatic/scheduled purge is proposed. P8.19 should begin only after
+P8.18 beta acceptance and explicit approval of the role policy and preserved
+7/30/60-day thresholds.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9528,6 +9641,25 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — Legacy inactivity maintenance investigated
+
+- Verified that `$deactivate_players` only assigns a Discord role and that
+  `$kick_inactive` only removes guild members; neither deactivates or deletes
+  Player/DiscordMember history.
+- Recorded the exact legacy activity, join-age, role, permission, and
+  account-wide game-history rules, including stale help text and hard-coded
+  2020 Team-role policy.
+- Found that bulk role assignment triggers synchronous database work in
+  `on_member_update`, while every kick triggers synchronous
+  `on_member_remove` reads and possible pending-Lineup deletion.
+- Proposed P8.18 as a bounded preview/revalidation/role-application unit with
+  the inactive audit branch moved off-loop. Kept P8.19 separate and blocked it
+  on member-removal worker extraction plus destructive-policy approval.
+- Recorded the development-only acceptance gate: `inactive_role` is currently
+  unset in `server_settings_dev.py`.
+- No command, runtime, Discord, database, fixture, production, dependency, or
+  service change occurred.
 
 ### 2026-08-09 — P8.17 native league export implemented and validated
 
