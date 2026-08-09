@@ -7483,8 +7483,8 @@ supersedes its compact optional-season usage.
 
 ### P8.12 — League season records
 
-Status: **Implemented and offline-validated; stopped-beta database gate,
-integration, guild-only apply, and wider-beta deployment pending**
+Status: **Database-validated; integration, guild-only apply, and wider-beta
+deployment pending**
 
 Branch/base: `codex/p8-12-league-season` from exact clean accumulation
 checkpoint `9e62fdc`.
@@ -7524,8 +7524,14 @@ Validation evidence:
 - touched-file compilation and `git diff --check`: passed;
 - a read-only real-schema case is present behind the unchanged
   `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` identity gate.
-  It verifies the bounded guild-scoped query and unchanged Game, GameSide,
-  Team, and GameLog counts. It remains pending the approved stopped-beta gate.
+  After stopping only the durable beta, the complete suite passed **33 tests
+  with one intentional retained-fixture skip**. The P8.12 case verified the
+  bounded guild-scoped query and unchanged Game, GameSide, Team, and GameLog
+  counts;
+- an identity-asserted read found no league-season rows in the beta guild.
+  Wider-beta testing can validate the Seasons 1–2 historical path and the
+  empty result immediately; normal-season record/paging acceptance requires
+  later owned fixture data or naturally recorded development league games.
 
 No compatibility-ledger entry is required because the full prefix command and
 aliases remain available through the shared worker path.
@@ -9015,8 +9021,14 @@ component refinements that do not require command re-registration.
   and tier-ID regressions plus a gated read-only real-schema case.
 - Validation passed 50 focused/adjacent tests and complete offline discovery
   at 1,042 tests with 34 intentional gated skips; compilation and diff checks
-  passed. No database, beta, Discord, production, dependency, or sudo action
-  occurred during implementation.
+  passed.
+- Stopped only the durable development beta and ran the unchanged
+  development/`polytopia_dev`/`polybot_dev` gate: 33 tests passed with one
+  intentional retained-fixture skip. The P8.12 read-only case passed with no
+  row-count changes. The beta guild currently has zero league-season rows, so
+  ordinary-season/paging acceptance remains data-limited.
+- No Discord command apply, production, dependency, or sudo action occurred.
+  Integration and deployment remain the next gate.
 
 ### 2026-08-08 — P8.11 small league user commands implemented
 

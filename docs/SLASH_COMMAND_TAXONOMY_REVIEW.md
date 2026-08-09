@@ -1171,7 +1171,10 @@ local aggregate replaces per-tier event-loop reads and explicitly scopes data
 to the invoking league/test guild. Local validation passed 50 focused and
 adjacent tests and complete offline discovery at 1,042 tests with 34
 intentional database skips. A gated read-only real-schema case remains for the
-approved stopped-beta integration window.
+approved stopped-beta integration window. That gate subsequently passed as
+part of 33 tests with one retained-fixture skip; the beta guild currently has
+no ordinary league-season rows, so live acceptance of nonhistorical records
+and paging remains fixture/data-limited.
 
 ### Legacy modules outside the modernization target
 
