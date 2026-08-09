@@ -3131,6 +3131,48 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertEqual(protected_count, 0)
         self.assertEqual(self.models.GameLog.select().count(), before_count)
 
+    def test_league_season_worker_reads_real_schema_without_writes(self):
+        """Exercise P8.12's one-query snapshot under the identity gate."""
+
+        from modules import beta_readiness, league_season_workers
+
+        guild_id = beta_readiness.BETA_GUILD_ID
+        before_counts = (
+            self.models.Game.select().count(),
+            self.models.GameSide.select().count(),
+            self.models.Team.select().count(),
+            self.models.GameLog.select().count(),
+        )
+        request = league_season_workers.LeagueSeasonRequest(
+            guild_id=guild_id,
+            requester_id=int(self.settings.owner_id),
+            season=None,
+            league_scope=True,
+            channel_allowed=True,
+            tier_labels=tuple(
+                (int(number), str(name))
+                for number, name in self.settings.league_tiers
+            ),
+        )
+        result = league_season_workers.load_league_season(request)
+
+        self.assertEqual(result.guild_id, guild_id)
+        self.assertIsNone(result.season)
+        self.assertLessEqual(
+            sum(len(tier.teams) for tier in result.tiers),
+            league_season_workers.MAX_SEASON_ROWS,
+        )
+        self.assertTrue(all(tier.teams for tier in result.tiers))
+        self.assertEqual(
+            (
+                self.models.Game.select().count(),
+                self.models.GameSide.select().count(),
+                self.models.Team.select().count(),
+                self.models.GameLog.select().count(),
+            ),
+            before_counts,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

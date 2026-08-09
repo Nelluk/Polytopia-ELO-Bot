@@ -25,6 +25,9 @@ import modules.house_show_workers as house_show_workers
 import modules.league_tokens as league_tokens
 import modules.league_tokens_views as league_tokens_views
 import modules.league_tokens_workers as league_tokens_workers
+import modules.league_season as league_season
+import modules.league_season_views as league_season_views
+import modules.league_season_workers as league_season_workers
 import modules.league_user_commands as league_user_commands
 import modules.league_user_workers as league_user_workers
 import modules.models as models
@@ -866,6 +869,59 @@ class league(commands.Cog):
                 ephemeral=True,
             )
 
+    @league_group.command(
+        name='season',
+        description='Show team records for one league season or all seasons.',
+    )
+    @discord.app_commands.describe(
+        season='Season number; omit for all recorded seasons.',
+    )
+    async def league_season_slash(
+        self,
+        interaction: discord.Interaction,
+        season: int | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'League season records require a server.', ephemeral=True
+            )
+        error = league_season.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        request = league_season.build_request(
+            member=interaction.user,
+            guild_id=guild.id,
+            channel_id=interaction.channel_id,
+            season=season,
+        )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await league_season_workers.run_league_season(request)
+            view = league_season_views.LeagueSeasonWorkspace(
+                result=result,
+                requester_id=interaction.user.id,
+            )
+            await league_season_views.publish(interaction, view)
+        except league_season_views.LeagueSeasonPublicationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except league_season_workers.LeagueSeasonError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /league season')
+            await interaction.followup.send(
+                'League season records could not be loaded.', ephemeral=True
+            )
+        except Exception:
+            logger.exception('Unexpected failure in /league season')
+            await interaction.followup.send(
+                'League season output could not be completed.', ephemeral=True
+            )
+
     @commands.command()
     @settings.on_polychampions()
     async def imalive(self, ctx, *, member: discord.Member = None):
@@ -1454,35 +1510,24 @@ class league(commands.Cog):
             except ValueError:
                 return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 13`')
 
-        if season and (season == 1 or season == 2):
-            return await ctx.send('Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
-                '**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
-        
-        if season:
-            title = f'Season {season} Records'
-        else:
-            title = f'League Records - All Seasons'
-
-        tiers_list = models.Game.polychamps_tiers_by_season(season=season)  # List of league_tiers that had games in the given season
-        output = [f'__**{title}**__']
-        for tier in tiers_list:
-
-            tier_name = settings.tier_lookup(tier)[1]
-
-            if season is not None and season <= 16 and tier_name == "Gold":
-                tier_name = "Pro"
-            elif season is not None and season <= 16 and tier_name == "Silver":
-                tier_name = "Jr"
-
-            output.append(f'\n__**{tier_name} Tier**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`')
-            season_records = models.Team.polychamps_tier_records(league_tier=tier, league_season=season)
-            for sr in season_records:
-                team_str = f'{sr.emoji} {sr.name}\n'
-                line = f'{team_str}`{str(sr.regular_season_wins) + "W":.<3} {str(sr.regular_season_losses) + "L":.<3} {str(sr.regular_season_incomplete) + "I":.<3} - {str(sr.post_season_wins) + "W":.<3} {str(sr.post_season_losses) + "L":.<3} {sr.post_season_incomplete}I`'
-                output.append(line.replace(".", "\u200b "))
-
+        request = league_season.build_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id,
+            season=season,
+        )
         async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content='\n'.join(output))
+            try:
+                result = await league_season_workers.run_league_season(request)
+            except league_season_workers.LeagueSeasonError as exc:
+                return await ctx.send(str(exc))
+            except peewee.PeeweeException:
+                logger.exception('Database failure in prefix season command')
+                return await ctx.send('League season records could not be loaded.')
+            await utilities.buffered_send(
+                destination=ctx,
+                content=league_season.legacy_text(result),
+            )
 
 
     @commands.command(aliases=['joinnovas'])
