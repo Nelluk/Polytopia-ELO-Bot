@@ -82,6 +82,23 @@ This is the running wider-beta checklist—not just the newest release. Please u
   same configured Houses. Report meaningful information missing from either
   the native cards or legacy text.
 
+## League
+
+- `/league tokens` with no options: verify the public workspace lists all
+  configured House balances, Recent changes opens the audit history, paging
+  works, and selecting a House opens only that House's balance/history.
+- `/league tokens house:HOUSE` should open the same House-specific view
+  directly. Another user must not be able to operate your controls; expired,
+  invalid, and ambiguous selections should fail privately.
+- As a Helper/staff-level tester, use `amount` with an optional `note` on a
+  development House and then restore its original balance. Both committed
+  updates should be public, identify the actor, appear newest-first in history,
+  and never duplicate after a publication error. Non-staff may read but must
+  not update.
+- The retired `$tokens` command should no longer be available. `/league
+  tokens` deliberately remains usable outside designated bot channels in the
+  configured league/test guild to preserve its prior access behavior.
+
 ## Squads
 
 - `/squad show` with no ID should return **No eligible squads** promptly on
