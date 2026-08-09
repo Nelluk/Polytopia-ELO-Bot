@@ -49,6 +49,7 @@ import modules.league_inactive_kick as league_inactive_kick
 import modules.league_inactive_kick_views as league_inactive_kick_views
 import modules.league_inactive_kick_workers as league_inactive_kick_workers
 import modules.league_channel_workers as league_channel_workers
+import modules.league_role_workers as league_role_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -144,61 +145,50 @@ def get_team_leadership(team):
     # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters} captains {captains}')
     return leaders, coleaders, recruiters, captains
 
-async def update_member_league_roles(member):
-    # TODO: This is not completed - partially completed in order to fix problem of league roles needing refreshing when a team
-    # changes tier or house 
-    # Update member's managed league roles (tier and house roles). This is triggered from on_member_update
-    # if a member's -team- roles are changed, or triggered if the team they are in changes houses/tiers
+def _derived_league_roles(member, result):
+    """Build the post-commit Discord role set from a frozen worker result."""
 
-    logger.debug(f'update_member_league_roles for member {member.name}')
-    team_roles = get_team_roles(member.guild)
-    league_role = discord.utils.get(member.guild.roles, name=league_role_name)
-    player, team = None, None
+    tier_role_names = tuple(
+        f'{tier[1]} Player' for tier in settings.league_tiers
+    )
+    managed_names = set(tier_role_names)
+    managed_names.update(result.managed_house_names)
+    managed_names.add(league_role_name)
+    roles = [role for role in member.roles if role.name not in managed_names]
+    if result.team_id is not None:
+        roles = [role for role in roles if not role.name.startswith('Prefers ')]
 
-    member_team_roles = [x for x in member.roles if x in team_roles]
+    desired_names = []
+    missing_names = []
+    if result.house_name:
+        desired_names.append(result.house_name)
+    if (
+        result.league_tier is not None
+        and 1 <= result.league_tier <= len(tier_role_names)
+    ):
+        desired_names.append(tier_role_names[result.league_tier - 1])
+    elif result.league_tier is not None:
+        missing_names.append(f'configured league tier {result.league_tier}')
+    if result.team_id is not None:
+        desired_names.append(league_role_name)
 
-    tier_roles = get_tier_roles(member.guild)
-    house_roles = get_house_roles(member.guild)
+    for role_name in desired_names:
+        role = discord.utils.get(member.guild.roles, name=role_name)
+        if role is None:
+            missing_names.append(role_name)
+        elif role not in roles:
+            roles.append(role)
+    return roles, tuple(missing_names)
 
-    roles_to_remove = tier_roles + house_roles + [league_role]
-    # Remove all managed league roles, then later will add back those needed 
-    logger.debug(f'update_member_league_roles roles_to_remove: {roles_to_remove}')
 
-    if member_team_roles:
-        if len(member_team_roles) > 1:
-            logger.warning(f'League.update_member_league_roles - more than one team role. Updated based on the first one found')
-        try:
-            player = models.Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
-            team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=member.guild.id)
-            player.team = team
-            player.save()
-            models.PlayerHousePreference.clear_preferences(player.id)
-            house_name = team.house.name if team.house else None
-            team_tier = team.league_tier
-            house_role = discord.utils.get(member.guild.roles, name=house_name) if house_name else None
-            tier_role = tier_roles[team_tier - 1]
-        except exceptions.NoSingleMatch as e:
-            logger.warning(f'League.update_member_league_roles: could not load Player or Team for changing league member {member.display_name}: {e}')
-            house_name, team_tier, house_role, tier_role = None, None, None, None
-
-        roles_to_add = [house_role, tier_role, league_role]
-        roles_to_remove = roles_to_remove + [r for r in member.roles if r.name.startswith('Prefers ')]
-        logger.debug(f'roles_to_add: {roles_to_add}')
-    else:
-        roles_to_add = []  # No team role
-        logger.debug(f'no roles_to_add due to no member_team_roles')
-
-    member_roles = member.roles.copy()
-    member_roles = [r for r in member_roles if r not in roles_to_remove]
-
-    roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
-
-    if roles_to_add:
-        member_roles = member_roles + roles_to_add
-
-    logger.debug(f'Attempting to update member {member.display_name} role set to {member_roles} from old roles {member.roles}')
-    # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
-    await member.edit(roles=member_roles, reason='Refreshing member\'s league roles')
+async def _send_league_role_log(guild, message):
+    try:
+        await utilities.send_to_log_channel(guild, message)
+    except Exception:
+        logger.exception(
+            'Could not send league role reconciliation log in guild %s',
+            guild.id,
+        )
 
 
 class league(commands.Cog):
@@ -271,28 +261,71 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        # Check to see if Team roles changed
-        team_roles = get_team_roles(after.guild)
-        before_member_team_roles = [x for x in before.roles if x in team_roles]
-        member_team_roles = [x for x in after.roles if x in team_roles]
-
-        if before_member_team_roles == member_team_roles:
+        request = league_role_workers.LeagueRoleUpdateRequest(
+            guild_id=int(after.guild.id),
+            member_id=int(after.id),
+            member_description=models.GameLog.member_string(after),
+            before_role_names=tuple(str(role.name) for role in before.roles),
+            after_role_names=tuple(str(role.name) for role in after.roles),
+        )
+        try:
+            result = await league_role_workers.run_league_team_role_update(
+                request
+            )
+        except Exception:
+            logger.exception(
+                'Could not persist league team-role change for guild %s '
+                'member %s',
+                after.guild.id,
+                after.id,
+            )
+            return
+        if not result.changed:
+            return
+        if result.ambiguous:
+            logger.debug(
+                'Member %s has multiple active team roles; abandoning league '
+                'role reconciliation.',
+                after.id,
+            )
+            return
+        if not result.registered:
+            logger.warning(
+                'Could not reconcile team role for unregistered member %s '
+                'in guild %s.',
+                after.id,
+                after.guild.id,
+            )
             return
 
-        if len(member_team_roles) > 1:
-            # If member has two team roles, usually they are in the process of having their roles edited in the UI
-            return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
+        roles, missing_names = _derived_league_roles(after, result)
+        try:
+            await after.edit(
+                roles=roles,
+                reason='Refreshing member\'s league roles',
+            )
+        except Exception as exc:
+            logger.exception(
+                'Committed league team assignment could not reconcile Discord '
+                'roles for guild %s member %s',
+                after.guild.id,
+                after.id,
+            )
+            await _send_league_role_log(
+                after.guild,
+                f':warning: {result.log_message} The database change committed, '
+                f'but derived Discord roles need reconciliation ({exc}).',
+            )
+            return
 
-        await update_member_league_roles(after)
-        # Edit after.roles with Tier/House roles that reflect current Team
-
-        if member_team_roles:
-            log_message = f'{models.GameLog.member_string(after)} had team role **{member_team_roles[0].name}** added.'
-        else:
-            log_message = f'{models.GameLog.member_string(after)} had team role **{before_member_team_roles[0].name}** removed and is teamless.'
-
-        await utilities.send_to_log_channel(after.guild, log_message)
-        models.GameLog.write(guild_id=after.guild.id, message=log_message)
+        await _send_league_role_log(after.guild, result.log_message)
+        if missing_names:
+            await _send_league_role_log(
+                after.guild,
+                f':warning: {result.log_message} The database change committed '
+                'and available roles were refreshed, but these configured roles '
+                f'were missing: {", ".join(missing_names)}.',
+            )
 
     @commands.Cog.listener()
     async def on_ready(self):

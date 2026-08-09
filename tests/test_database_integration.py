@@ -4295,6 +4295,169 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertEqual(result.guild_id, guild_id)
         self.assertEqual(result.channel_ids, expected)
 
+    def test_league_role_reconciliation_commits_and_rolls_back_real_graph(self):
+        """Exercise P8.24's worker-owned team-role persistence graph."""
+
+        from modules import league_role_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex[:12]
+        marker = f'P8.24 role reconciliation {suffix}'
+        discord_id = 9_085_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        house = None
+        team = None
+        member = None
+        player = None
+
+        def transition(*, before=(), after=()):
+            return workers.LeagueRoleUpdateRequest(
+                guild_id=guild_id,
+                member_id=discord_id,
+                member_description=f'**{marker}** (`{discord_id}`)',
+                before_role_names=tuple(before),
+                after_role_names=tuple(after),
+            )
+
+        try:
+            house = self.models.House.create(
+                name=f'P824 House {suffix}',
+                emoji='',
+            )
+            team = self.models.Team.create(
+                guild_id=guild_id,
+                name=f'P824 Team {suffix}',
+                house=house,
+                league_tier=2,
+                is_hidden=False,
+                is_archived=False,
+            )
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'P824 Member {suffix}',
+            )
+            player = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            )
+            self.models.PlayerHousePreference.create(
+                player=player,
+                house=house,
+            )
+            assignment = transition(after=(team.name,))
+
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.24 injected assignment audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'assignment audit failure',
+                ):
+                    asyncio.run(workers.run_league_team_role_update(assignment))
+            self.models.db.connect(reuse_if_open=True)
+            player = self.models.Player.get_by_id(player.id)
+            self.assertIsNone(player.team_id)
+            self.assertEqual(
+                self.models.PlayerHousePreference.select().where(
+                    self.models.PlayerHousePreference.player == player
+                ).count(),
+                1,
+            )
+
+            self.models.db.close()
+            assigned = asyncio.run(
+                workers.run_league_team_role_update(assignment)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(assigned.registered)
+            self.assertEqual(assigned.team_id, int(team.id))
+            self.assertEqual(assigned.house_name, house.name)
+            player = self.models.Player.get_by_id(player.id)
+            self.assertEqual(int(player.team_id), int(team.id))
+            self.assertEqual(
+                self.models.PlayerHousePreference.select().where(
+                    self.models.PlayerHousePreference.player == player
+                ).count(),
+                0,
+            )
+
+            # Preferences chosen after assignment survive becoming teamless.
+            self.models.PlayerHousePreference.create(
+                player=player,
+                house=house,
+            )
+            removal = transition(before=(team.name,))
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.24 injected removal audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'removal audit failure',
+                ):
+                    asyncio.run(workers.run_league_team_role_update(removal))
+            self.models.db.connect(reuse_if_open=True)
+            player = self.models.Player.get_by_id(player.id)
+            self.assertEqual(int(player.team_id), int(team.id))
+
+            self.models.db.close()
+            removed = asyncio.run(
+                workers.run_league_team_role_update(removal)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(removed.registered)
+            self.assertIsNone(removed.team_id)
+            player = self.models.Player.get_by_id(player.id)
+            self.assertIsNone(player.team_id)
+            self.assertEqual(
+                self.models.PlayerHousePreference.select().where(
+                    self.models.PlayerHousePreference.player == player
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker),
+                    self.models.GameLog.guild_id == guild_id,
+                ).count(),
+                2,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            if player is not None:
+                self.models.PlayerHousePreference.delete().where(
+                    self.models.PlayerHousePreference.player == player.id
+                ).execute()
+                self.models.Player.delete().where(
+                    self.models.Player.id == player.id
+                ).execute()
+            if member is not None:
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id == member.id
+                ).execute()
+            if team is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team.id
+                ).execute()
+            if house is not None:
+                self.models.House.delete().where(
+                    self.models.House.id == house.id
+                ).execute()
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 
