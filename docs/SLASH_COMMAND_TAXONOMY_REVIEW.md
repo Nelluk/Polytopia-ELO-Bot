@@ -1082,8 +1082,10 @@ stored URLs remain readable and clearable. C-015 records this parity boundary.
 
 Implementation/tests checkpoint `c86d604` passed 30 focused tests, 113 broader
 affected tests, and complete offline discovery with 992 passed and 30
-intentional gated skips. Development-database and live beta evidence remain
-behind the approved stopped-writer/deployment gate.
+intentional gated skips. The stopped-beta development gate later passed 29
+tests with one retained-fixture skip. The unit was integrated at checklist
+checkpoint `6380b19`, synchronized by updating only the development-guild
+`house` root, and deployed through release `2026-08-08-house-attributes`.
 
 ### Legacy modules outside the modernization target
 

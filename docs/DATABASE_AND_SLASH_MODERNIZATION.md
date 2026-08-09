@@ -366,7 +366,7 @@ would become unavailable if a prefix is retired.
 | C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
 
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
-| C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`; deployment pending |
+| C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -476,9 +476,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.8 native House name/image attributes are implemented
-and locally green under the temporary Sol omni workflow; integration and the
-approved stopped-beta deployment gate are next.**
+Current active unit: **P8.8 native House name/image attributes are integrated
+and deployed under the temporary Sol omni workflow; wider-beta acceptance is
+pending. P8.9 native House creation is the next recommended bounded unit.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -1677,7 +1677,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **Implemented locally; integration and deployment pending**
+Status: **In progress**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -7183,7 +7183,7 @@ acceptance while another bounded unit proceeds.
 
 ### P8.8 — Native House name/image attributes
 
-Status: **In progress**
+Status: **Complete; integrated and deployed to the development beta**
 
 Branch/base: `codex/p8-8-house-attributes` in the isolated omni worktree from
 exact clean accumulation base `b85a950`.
@@ -7238,12 +7238,20 @@ Validation evidence:
   113 passed;
 - complete offline discovery: 992 passed with 30 intentional gated skips;
 - touched-file compilation and `git diff --check`: passed;
-- one unchanged-gate real-schema read plus audit-failure rollback test is
-  present and deferred to the approved stopped-beta deployment window.
+- the stopped-beta gated development suite passed 29 tests with one
+  intentional retained-fixture skip, including the P8.8 real-schema read and
+  forced audit-failure rollback case;
+- the branch was integrated with checklist checkpoint `6380b19` and pushed;
+- the explicit development-guild apply updated only `house`; all nine roots
+  then inspected unchanged, with no create/removal/global operation;
+- the guarded beta restarted cleanly at full checkpoint
+  `6380b1940e19d1464d74c8a74af3fff2f776616d` and authenticated as PolyELO Bot
+  Beta `479029527553638401`;
+- tester-pinged release `2026-08-08-house-attributes` posted once to
+  `todo-and-changelog` as message `1535804396816957540`.
 
-Next action: integrate the implementation and evidence checkpoints, update
-the running beta checklist, then use the approved stopped-writer database and
-guild-only command-update gates before restart and announcement.
+Next action: collect wider-beta acceptance while selecting P8.9 native House
+creation or another independent bounded unit.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8710,6 +8718,26 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.8 House attributes integrated and deployed
+
+- Fast-forwarded implementation `c86d604` and evidence `b5b710c` into the
+  accumulation branch, added the operator-owned checklist, and pushed clean
+  checkpoint `6380b19` before stopping the beta.
+- Stopped only `polybot-development-beta@main.service`; the host-wide guard
+  found no remaining development beta writer. The unchanged development gate
+  passed 29 tests with one intentional operator-fixture skip, including the
+  new House read and forced audit-failure rollback case against
+  `polytopia_dev` as `polybot_dev`.
+- The explicit guild-only command apply updated only the existing `house`
+  root in guild `478571892832206869`; post-apply inspection found all nine
+  roots unchanged and no create, removal, or global operation.
+- Restarted the guarded beta at full checkpoint `6380b1940e19d1464d74c8a74af3fff2f776616d`,
+  verified PolyELO Bot Beta `479029527553638401`, and passed release-control
+  status.
+- Posted tester-pinged **WHAT TO TEST** release
+  `2026-08-08-house-attributes` once to `todo-and-changelog` as message
+  `1535804396816957540`. No production or global operation occurred.
 
 ### 2026-08-08 — P8.8 House attributes implemented locally
 
