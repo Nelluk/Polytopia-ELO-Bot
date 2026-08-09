@@ -484,9 +484,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.11 ranked full-game reminder
-snapshots are complete, integrated, pushed, and loaded by the guarded
-development beta at `a1afd93`. The retained task
+Current active unit: **P5.12 automatic vacant-lobby creation is Implemented and
+validated on `codex/p5-12-vacant-lobbies` at `2043787`, pending accumulation
+integration and guarded-beta restart. The unit preserves configured lobby
+shape/ranking/notes/expiration, `remake_partial` semantics, and captured
+Discord role locks while moving authoritative existence checks plus the
+Game/GameSide/audit creation graph into independently atomic worker-local
+transactions serialized by the pending-game coordinator. Focused, complete
+offline, targeted PostgreSQL, and complete gated development-database
+validation are green with exact cleanup. The guarded beta is stopped for the
+required writer gate; development background tasks remain disabled. P5.11
+ranked full-game reminder snapshots are complete, integrated, pushed, and
+loaded by that beta. The task
 now delegates bounded deterministic discovery and immutable game-card
 snapshotting to a worker-local Peewee read, while guild/member resolution,
 dense rendering, and independent DMs remain post-read. Existing ranked/full,
@@ -4733,6 +4742,70 @@ lobby creation. Because that task creates game graphs, it must capture Discord
 role/member inputs before submission, serialize through the pending-game
 coordinator, use worker-local synchronous transactions, and pass a stopped-beta
 writer gate. The retained older incomplete-game purge remains policy-gated.
+
+### P5.12 — Automatic vacant-lobby creation
+
+Status: **Implemented and validated; accumulation integration and guarded-beta
+restart pending**
+
+The retained minute-cycle task previously loaded all unhosted open games and
+traversed their related Peewee rows on the Discord event loop. It then resolved
+Discord roles while holding a synchronous transaction and directly created the
+Game, audit, and GameSide graph. One malformed configuration, missing model,
+or database failure could terminate the task and prevent every later lobby
+definition from being maintained.
+
+The bounded implementation:
+
+- adds `modules/game_lobby_workers.py` with immutable size/role-lock requests,
+  typed `existing`/`created` results, a worker-local Peewee connection, and one
+  synchronous transaction for authoritative existence recheck plus complete
+  Game/GameLog/GameSide creation;
+- routes every definition through the existing one-thread pending-game
+  coordinator so automatic creation serializes with open/join/leave/kick/start,
+  pending deletion, extension, and automatic expiration writes;
+- preserves exact guild, size display, ranked, notes, expiration, vacant-host,
+  open-capacity, and `remake_partial` matching behavior. A partially occupied
+  lobby counts when `remake_partial` is false; only a completely empty one
+  counts when it is true;
+- captures configured Discord role IDs and current names before worker
+  submission. Missing roles preserve the legacy safe fallback by creating that
+  side unlocked and logging the exact guild/role context;
+- preserves the legacy automatic audit wording, including escaped italic notes
+  and the blank suffix for empty notes;
+- bounds one cycle at 100 configured definitions and processes each
+  independently, so a missing guild, malformed definition, or failed
+  transaction cannot prevent later definitions;
+- reduces `task_create_empty_matchmaking_lobbies` to its unchanged one-minute
+  cadence plus one application-service call, with no direct model or
+  transaction access.
+
+Validation evidence:
+
+- focused P5.12 plus open-game/expiration coverage: 62 active tests passed;
+- complete offline discovery: 1,263 passed with 51 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide development-writer audit to report clear;
+- the targeted P5.12 real-schema test passed under exact `development` /
+  `polytopia_dev` / `polybot_dev` and disabled background/API gates. It proved
+  complete graph/audit creation, repeat-call idempotency, injected GameSide
+  failure rollback, and exact zero-residue cleanup;
+- the complete gated development suite passed all 50 runnable cases with one
+  intentional operator-fixture skip;
+- implementation/tests checkpoint: `2043787`.
+
+No command registration, prefix behavior, permission, schema, fixture,
+capability, Discord publication, background-task configuration, or production
+change is included. Development background tasks remain disabled, so restart
+loads but does not execute automatic lobby creation; no command sync or tester
+announcement is useful.
+
+Next action after integration/deployment: P5.13 can modernize the hourly open-
+game list broadcaster as a bounded read/presentation unit. It should freeze at
+most the displayed pending-game rows on worker-local connections, render
+native `/game join` and `/game show` guidance post-read, and isolate each
+channel send. The older incomplete-game purge remains policy-gated.
 
 ## P6 — Registration and player preferences
 
@@ -10527,6 +10600,29 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.12 automatic vacant-lobby worker validated
+
+- Replaced event-loop unhosted-game selection, relationship traversal, role
+  lookup inside transactions, and direct graph writes with a primitive
+  configuration service and authoritative worker-local transactions.
+- Preserved configured size/ranked/notes/expiration, open-capacity/vacant-host
+  matching, role-lock fallback, audit wording, and both `remake_partial`
+  branches.
+- Serialized every independent existence-check/create operation through the
+  shared pending-game coordinator and contained one definition's failure from
+  later definitions.
+- Passed 62 active focused/adjacent tests, 1,263 complete offline tests with 51
+  gated skips, touched compilation, and diff checks.
+- Stopped only the guarded beta, confirmed the host-wide development writer
+  audit clear, passed the targeted PostgreSQL commit/idempotency/rollback case
+  with exact cleanup, and passed all 50 runnable complete gated cases with one
+  intentional operator-fixture skip.
+- Recorded implementation/tests checkpoint `2043787`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no command, capability, prefix, schema, persistent fixture, Discord
+  publication, background-task configuration, announcement, or production
+  change.
 
 ### 2026-08-09 — P5.11 ranked reminder snapshots validated
 
