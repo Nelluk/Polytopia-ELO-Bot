@@ -129,6 +129,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
   House Co-Leader adjustment applied. A player with no qualifying three-season
   history should fail privately. The retired `$tradeprice` and `$playerprice`
   commands should not appear.
+- `/league maintenance export`: as Helper/staff or above, run once with
+  `include_logs:false` and once with `include_logs:true`. Each invocation
+  should remain private and attach a readable gzip CSV covering the same
+  confirmed ranked 2v2/3v3 league games; the logged version should add a
+  `logs` column. A non-staff attempt must fail privately. Retained
+  `$league_export` and `$league_export logs` should use the same data and
+  attachment format, although their prefix completion remains public.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.

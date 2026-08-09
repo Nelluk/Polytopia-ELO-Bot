@@ -371,7 +371,8 @@ would become unavailable if a prefix is retired.
 | C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
 | C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 integrated and deployed; wider-beta acceptance pending |
 | C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 integrated and deployed at `1714473`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; wider-beta acceptance pending |
-| C-020 `/league roster price` / `$tradeprice` / `$playerprice` | Native pricing uses one typed member plus an optional ending season, preserves the confirmed legacy GalC4 formula/inflation and incomplete-current-game fallback, and publicly discloses the three season tier/W-L/game inputs plus House-leadership adjustment. | Legacy recommendation: **retire** — explicitly approved with the P8.16 design. Both hidden prefix names are removed because typed member/season options cover their useful grammar. The native path remains a broadly accessible league-guild read, matching the old command's effective access rather than treating hidden help status as authorization. | If the pricing policy changes, version the formula and explain the effective version in output; do not restore an event-loop query/upsert prefix implementation. | P8.16 implemented locally at `d209468`; real-schema gate, integration, command apply, and beta acceptance pending |
+| C-020 `/league roster price` / `$tradeprice` / `$playerprice` | Native pricing uses one typed member plus an optional ending season, preserves the confirmed legacy GalC4 formula/inflation and incomplete-current-game fallback, and publicly discloses the three season tier/W-L/game inputs plus House-leadership adjustment. | Legacy recommendation: **retire** — explicitly approved with the P8.16 design. Both hidden prefix names are removed because typed member/season options cover their useful grammar. The native path remains a broadly accessible league-guild read, matching the old command's effective access rather than treating hidden help status as authorization. | If the pricing policy changes, version the formula and explain the effective version in output; do not restore an event-loop query/upsert prefix implementation. | P8.16 integrated and development-guild deployed through `ba7a03d`; wider-beta acceptance pending |
+| C-021 `/league maintenance export` / `$league_export` | Native staff export has one optional `include_logs` Boolean and privately returns the same gzip CSV population/columns as the legacy command. A single conflict-rejecting worker owns its Peewee connection, generates immutable bytes in memory, and enforces game/upload bounds. | Legacy recommendation: **retain** — the low-frequency fallback is inexpensive once delegated to the same worker and remains useful during the beta transition. Native output is private because the bulk dataset and optional audit logs should not be posted publicly; retained prefix output remains channel-visible because message commands cannot deliver ephemeral attachments. No data or grammar is lost if message intent is later retired. | Retire the prefix after native staff acceptance. Add alternate storage/delivery only if a real export exceeds the guild upload limit; do not write shared export filenames or publish bulk logs to a public channel. | P8.17 implemented and real-schema validated at `970045e`; integration/deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -481,9 +482,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.16 native `/league roster price` is integrated,
-pushed, real-schema validated, and deployed to the development guild; wider-
-beta acceptance is pending.**
+Current active unit: **P8.17 native `/league maintenance export` is locally
+implemented, complete-suite and real-schema validated, and ready for
+accumulation integration and development-guild deployment.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -7970,6 +7971,55 @@ read-only `/league maintenance export` conversion. Keep the destructive
 `deactivate_players` and `kick_inactive` workflows separate until their
 preview, confirmation, and reconciliation policy is explicitly reviewed.
 
+### P8.17 — Native league game export
+
+Status: **Implemented and real-schema validated; integration/deployment pending**
+
+The legacy `$league_export [logs]` command is staff-only and exports every
+confirmed ranked 2v2/3v3 game in the configured league guild. It previously
+built a lazy Peewee graph from the event loop, used an unbounded generic
+executor, wrote every request to the shared `games_export-brief.csv.gz`
+filename, and posted the attachment publicly.
+
+P8.17 adds `/league maintenance export include_logs:[optional Boolean]` and
+preserves the exact game population and legacy CSV columns. Native access is
+the same Helper/staff-or-higher league-guild boundary. The interaction defers
+privately and returns the gzip attachment privately; validation, permission,
+empty-result, conflict, upload-size, and database failures also stay private.
+The existing `$league_export` and `logs` grammar remain registered as a
+worker-backed fallback and retain their channel-visible completion output.
+
+One dedicated worker slot rejects a concurrent export promptly, owns the
+Peewee connection, scopes every query by the request guild, caps the result at
+25,000 games, generates deterministic gzip CSV bytes without a filesystem
+write, filters null outer-join log entries, and verifies the compressed bytes
+against the invoking guild's upload limit. Cancellation drains the
+non-cancellable worker before releasing its claim. Frozen primitive request
+and result DTOs cross the event-loop boundary; no Discord or live Peewee
+object does.
+
+Validation evidence:
+
+- focused export/taxonomy coverage: **17 passed**;
+- all affected league suites: **107 passed**;
+- complete offline discovery: **1,113 passed with 39 intentional gated
+  skips**;
+- complete stopped-beta development suite: **38 tests, 37 passed and one
+  retained-fixture round trip skipped intentionally** under exact
+  `development` / `polytopia_dev` / `polybot_dev` identity;
+- direct read-only worker probes generated both real exports from 2 matching
+  development games: 372 compressed bytes without logs and 661 bytes with
+  logs;
+- touched-file compilation and `git diff --check`: passed.
+
+Implementation/tests checkpoint: `970045e`. No schema, database row, fixture,
+production, global command, or dependency change occurred.
+
+Next action: integrate and push P8.17, update only the development guild's
+existing `league` root, restart the guarded beta, and post a non-pinging staff
+**WHAT TO TEST** release because ordinary testers cannot exercise this
+staff-only export.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9467,6 +9517,24 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.17 native league export implemented and validated
+
+- Added staff-only `/league maintenance export include_logs:[optional]` with
+  a private gzip attachment and retained `$league_export [logs]` through the
+  same bounded worker.
+- Preserved the confirmed ranked 2v2/3v3 population and legacy column order;
+  removed event-loop/lazy export work and shared-filename writes.
+- Added one conflict-rejecting worker-local connection, frozen bytes result,
+  deterministic gzip output, 25,000-game bound, invoking-guild upload limit,
+  cancellation drain, and null-log filtering.
+- Focused coverage passed **17**, affected league suites passed **107**, and
+  complete offline discovery passed **1,113 with 39 intentional skips**.
+- The stopped-beta gate ran **38 tests: 37 passed and one retained-fixture
+  round trip skipped intentionally**. Real no-log/log probes each exported 2
+  games without writes (372/661 compressed bytes).
+- Implementation/tests checkpoint: `970045e`. Integration, guild-only apply,
+  beta restart, and staff acceptance remain pending.
 
 ### 2026-08-09 — P8.16 integrated and deployed
 

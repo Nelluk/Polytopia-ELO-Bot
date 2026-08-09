@@ -1013,7 +1013,7 @@ beta lifecycle action is part of this unit.
 | `trade` alias | `/league roster trade` | P8.14 Helper+ typed two-player card with optional text and advanced per-image HTTP(S) override; `$trade` retained over the shared worker |
 | `draft` | `/league roster draft` | P8.15 typed member/exact-Team card with legacy Drafter/Helper/Mod/owner parity; `$draft` retired because native covers its full grammar |
 | `tradeprice`, `playerprice` alias | `/league roster price` | P8.16 public typed member/optional ending-season read with confirmed legacy formula, transparent three-season/leadership inputs, worker-local non-upserting lookup, and both hidden prefix names retired |
-| `league_export` | `/league maintenance export` | Redesign staff-only deferred generation |
+| `league_export` | `/league maintenance export` | P8.17 staff-only optional-logs private gzip attachment, bounded worker-local read and in-memory generation; `$league_export [logs]` retained through the same worker during beta |
 | `deactivate_players` | `/league maintenance deactivate` | Preview and confirmation required |
 | `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
 | `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
