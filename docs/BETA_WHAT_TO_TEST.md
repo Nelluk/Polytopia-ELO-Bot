@@ -136,6 +136,15 @@ This is the running wider-beta checklist—not just the newest release. Please u
   `logs` column. A non-staff attempt must fail privately. Retained
   `$league_export` and `$league_export logs` should use the same data and
   attachment format, although their prefix completion remains public.
+- `/league maintenance mark-inactive`: as a Mod, open the private preview and
+  inspect its candidate/exclusion counts, missing protected-role warnings,
+  paging, and Cancel first. A Helper must be denied privately, and the retired
+  `$deactivate_players`/`$deactivate` names should not run. Use **Confirm only
+  after verifying every displayed candidate is safe to mark in the beta
+  guild**. Confirmation must refresh the plan before applying at most 100
+  roles, continue through individual failures, and post one public no-ping
+  actor-attributed aggregate; member-level failure details stay private.
+  `$kick_inactive` is unchanged and is not part of this test.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.
