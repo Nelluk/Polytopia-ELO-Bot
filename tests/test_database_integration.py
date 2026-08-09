@@ -3216,6 +3216,49 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 1,
             )
 
+            toggled = league_free_agents_workers.transition_draft_state(
+                league_free_agents_workers.DraftTransitionRequest(
+                    guild_id=guild_id,
+                    requester_id=actor_id,
+                    requester_name='P8.13b integration actor',
+                    expected_message_id=700,
+                    expected_channel_id=400,
+                    operation='toggle',
+                )
+            )
+            self.assertTrue(toggled.previous_open)
+            self.assertFalse(toggled.draft_open)
+            self.assertFalse(
+                self.models.Configuration.get(
+                    self.models.Configuration.guild_id == guild_id
+                ).polychamps_draft['draft_open']
+            )
+            league_free_agents_workers.write_signup_audit(
+                league_free_agents_workers.SignupAuditRequest(
+                    guild_id=guild_id,
+                    requester_id=actor_id,
+                    requester_name='P8.13b integration actor',
+                    expected_message_id=700,
+                    expected_channel_id=400,
+                    action='leave',
+                    role_name='Free Agent',
+                )
+            )
+            with self.assertRaises(
+                league_free_agents_workers.FreeAgentPostConflictError
+            ):
+                league_free_agents_workers.write_signup_audit(
+                    league_free_agents_workers.SignupAuditRequest(
+                        guild_id=guild_id,
+                        requester_id=actor_id,
+                        requester_name='P8.13b integration actor',
+                        expected_message_id=700,
+                        expected_channel_id=400,
+                        action='join',
+                        role_name='Free Agent',
+                    )
+                )
+
             with mock.patch.object(
                 self.models.GameLog,
                 'write',
@@ -3240,11 +3283,30 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ).polychamps_draft
             self.assertEqual(config['announcement_message'], 700)
             self.assertEqual(config['announcement_channel'], 400)
+            self.assertFalse(config['draft_open'])
             self.assertEqual(
                 self.models.GameLog.select().where(
                     self.models.GameLog.guild_id == guild_id
                 ).count(),
-                1,
+                3,
+            )
+
+            concluded = league_free_agents_workers.transition_draft_state(
+                league_free_agents_workers.DraftTransitionRequest(
+                    guild_id=guild_id,
+                    requester_id=actor_id,
+                    requester_name='P8.13b integration actor',
+                    expected_message_id=700,
+                    expected_channel_id=400,
+                    operation='conclude',
+                )
+            )
+            self.assertEqual(concluded.operation, 'conclude')
+            self.assertEqual(
+                self.models.Configuration.get(
+                    self.models.Configuration.guild_id == guild_id
+                ).polychamps_draft,
+                self.models.Configuration.draft_config_defaults(),
             )
         finally:
             self.models.GameLog.delete().where(

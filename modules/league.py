@@ -29,6 +29,7 @@ import modules.league_season as league_season
 import modules.league_season_views as league_season_views
 import modules.league_season_workers as league_season_workers
 import modules.league_free_agents as league_free_agents
+import modules.league_free_agent_reactions as league_free_agent_reactions
 import modules.league_free_agents_views as league_free_agents_views
 import modules.league_free_agents_workers as league_free_agents_workers
 import modules.league_user_commands as league_user_commands
@@ -269,11 +270,11 @@ class league(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         utilities.connect()
-        # assume polychampions
-        self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
+        guild_id = settings.server_ids['polychampions']
         if self.bot.user.id == 479029527553638401:
-            # beta bot, using nelluk server to watch for messages
-            self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
+            guild_id = settings.server_ids['test']
+        draft_state = await league_free_agents_workers.run_load_draft_state(guild_id)
+        self.announcement_message = draft_state.announcement_message_id
 
         populate_league_team_channels()
 
@@ -290,26 +291,43 @@ class league(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        channel = payload.member.guild.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
+        member = payload.member
+        if member is None:
+            return logger.warning(
+                'Free Agent reaction add had no guild member for user %s',
+                payload.user_id,
+            )
+        channel = member.guild.get_channel(payload.channel_id)
+        if channel is None:
+            return logger.warning(
+                'Free Agent reaction channel %s is unavailable', payload.channel_id
+            )
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.DiscordException:
+            return logger.warning(
+                'Free Agent reaction message %s could not be loaded',
+                payload.message_id,
+                exc_info=True,
+            )
 
         if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was added to relevant message. Clear it off.
             removal_emoji = self.bot.get_emoji(payload.emoji.id) if payload.emoji.id else payload.emoji.name
 
             try:
-                await message.remove_reaction(removal_emoji, payload.member)
-                logger.debug(f'Removing irrelevant {payload.emoji.name} reaction placed by {payload.member.name} on message {payload.message_id}')
+                await message.remove_reaction(removal_emoji, member)
+                logger.debug(f'Removing irrelevant {payload.emoji.name} reaction placed by {member.name} on message {payload.message_id}')
             except discord.DiscordException as e:
                 logger.debug(f'Unable to remove irrelevant reaction in on_raw_reaction_add(): {e}')
             return
 
         if payload.emoji.name == self.emoji_draft_signup:
-            await self.signup_emoji_clicked(payload.member, channel, message, reaction_added=True)
+            await self.signup_emoji_clicked(member, channel, message, reaction_added=True)
         elif payload.emoji.name == self.emoji_draft_close:
-            await self.close_draft_emoji_added(payload.member, channel, message)
+            await self.close_draft_emoji_added(member, channel, message)
         elif payload.emoji.name == self.emoji_draft_conclude:
-            await self.conclude_draft_emoji_added(payload.member, channel, message)
+            await self.conclude_draft_emoji_added(member, channel, message)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
@@ -322,9 +340,29 @@ class league(commands.Cog):
             return
 
         guild = self.bot.get_guild(payload.guild_id)
+        if guild is None:
+            return
         member = guild.get_member(payload.user_id)
+        if member is None:
+            try:
+                member = await guild.fetch_member(payload.user_id)
+            except discord.DiscordException:
+                return logger.warning(
+                    'Free Agent reaction-remove member %s could not be loaded',
+                    payload.user_id,
+                    exc_info=True,
+                )
         channel = guild.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
+        if channel is None:
+            return
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.DiscordException:
+            return logger.warning(
+                'Free Agent reaction-remove message %s could not be loaded',
+                payload.message_id,
+                exc_info=True,
+            )
 
         if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was removed
@@ -350,6 +388,17 @@ class league(commands.Cog):
             return
 
         free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
+        if free_agent_role is None:
+            try:
+                await member.send(
+                    'The Free Agent role is missing, so the signup cannot be concluded.'
+                )
+            except discord.DiscordException:
+                logger.warning(
+                    'Could not notify moderator %s about missing Free Agent role',
+                    member.id,
+                )
+            return
 
         confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current Free Agent signup. '
             f'{len(free_agent_role.members)} members currently have the Free Agent role. No role changes will result from closing the signup.\n'
@@ -369,131 +418,40 @@ class league(commands.Cog):
             logger.debug('No reaction to confirmation message.')
             return
 
-        result_message_list = [f'Free Agent signup successfully closed by {member.mention}']
-        self.announcement_message = None
-
-        for log_message in result_message_list:
-            models.GameLog.write(guild_id=member.guild.id, message=log_message)
-        await utilities.send_to_log_channel(member.guild, '\n'.join(result_message_list))
-        self.delete_draft_config(member.guild.id)
-
-        try:
-            await message.clear_reactions()
-            new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis signup is concluded. {len(free_agent_role.members)} members are currently Free Agents.'
-            await message.edit(content=new_message)
-        except discord.DiscordException as e:
-            logger.warning(f'Could not clear reactions or edit content in concluded draft message: {e}')
+        await league_free_agent_reactions.conclude_signup(
+            cog=self,
+            member=member,
+            channel=channel,
+            message=message,
+            free_agent_count=len(free_agent_role.members),
+        )
 
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
         logger.debug(f'Draft close reaction added by {member.name} to draft announcement {announce_message_link}')
-        grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
-        novas_role = discord.utils.get(member.guild.roles, name=novas_role_name)
-        free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
-
-        try:
-            await message.remove_reaction(self.emoji_draft_close, member)
-            logger.debug(f'Removing {self.emoji_draft_close} reaction placed by {member.name} on message {message.id}')
-        except discord.DiscordException as e:
-            logger.warning(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
-
-        if not settings.is_mod(member):
-            return
-
-        draft_config = self.get_draft_config(member.guild.id)
-
-        if draft_config['draft_open']:
-            new_message = f'~~{message.content}~~\n{self.draft_closed_message}'
-            log_message = f'Draft status closed by {member.mention}'
-            draft_config['draft_open'] = False
-        else:
-            new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, free_agent_role.mention, draft_config['draft_message'])
-            log_message = f'Draft status opened by {member.mention}'
-            draft_config['draft_open'] = True
-
-        self.save_draft_config(member.guild.id, draft_config)
-        await utilities.send_to_log_channel(member.guild, log_message)
-        try:
-            await message.edit(content=new_message)
-        except discord.DiscordException as e:
-            return logger.error(f'Could not update message in close_draft_emoji_added: {e}')
+        await league_free_agent_reactions.toggle_signup_state(
+            cog=self,
+            member=member,
+            channel=channel,
+            message=message,
+            close_emoji=self.emoji_draft_close,
+            closed_message=self.draft_closed_message,
+            open_format=self.draft_open_format_str,
+            grad_role_name=grad_role_name,
+            novas_role_name=novas_role_name,
+            free_agent_role_name=free_agent_role_name,
+        )
 
     async def signup_emoji_clicked(self, member, channel, message, reaction_added=True):
-
-        draft_opened = self.get_draft_config(member.guild.id)['draft_open']
-        member_message, log_message = '', ''
-        grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
-        # draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
-        free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
-        announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
-        logger.debug(f'Draft signup reaction added by {member.name} to draft announcement {announce_message_link}')
-
-        if reaction_added:
-            if draft_opened and grad_role in member.roles:
-                # An eligible member signing up for the draft
-                try:
-                    await member.add_roles(free_agent_role, reason='Member signed up as Free Agent')
-                except discord.DiscordException as e:
-                    logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
-                    return
-                else:                        
-                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please react to the team emojis in <#1489844936202260710> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you. \n{announce_message_link}'
-                    log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
-            else:
-                # Ineligible signup - either draft is closed or member does not have grad_role
-                try:
-                    await message.remove_reaction(self.emoji_draft_signup, member)
-                    logger.debug(f'Removing {self.emoji_draft_signup} reaction placed by {member.name} on message {message.id}')
-                except discord.DiscordException as e:
-                    logger.warning(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
-                if not draft_opened:
-                    member_message = 'The draft has been closed to new signups - your signup has been rejected.'
-                    logger.debug(f'{member.id}> reacted to the draft but was rejected since it is closed.')
-                else:
-                    member_message = f'Your signup has been rejected. You do not have the **{grad_role.name}** role. Try again once you have met the graduation requirements.'
-                    logger.debug(f'Rejected {member.name} from the draft since they lack the {grad_role.name} role.')
-        else:
-            # Reaction removed
-            if free_agent_role in member.roles:
-                # Removing member from draft, same behavior whether draft is opened or closed
-                try:
-                    await member.remove_roles(free_agent_role, reason='Member removed from Free Agent signup')
-                except discord.DiscordException as e:
-                    logger.error(f'Could not remove Free Agent role in signup_emoji_clicked: {e}')
-                    return
-                else:
-                    member_message = f'You have been removed from the Free Agent list. You can sign back up at the announcement message:\n{announce_message_link}'
-                    log_message = f'{member.mention} ({member.name}) removed their Free Agent reaction and has lost the {free_agent_role.name} role.'
-            else:
-                return
-                # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
-                # f'Add your reaction back to attempt to get the role and sign up for the draft.\n{announce_message_link}')
-                # Fail silently, otherwise a user whose reaction is being rejected will get two PMs
-                # the bot removing the reaction will trigger a second one - currently no way to distinguish a reaction being removed by
-                # the original author or an admin/bot. Could kinda solve by storing timestamp when removing role and ignoring role removal
-                # if it has a nearly-same timestamp
-
-        if log_message:
-            await utilities.send_to_log_channel(member.guild, log_message)
-            models.GameLog.write(guild_id=member.guild.id, message=log_message)
-        if member_message:
-            try:
-                await member.send(member_message)
-            except discord.DiscordException as e:
-                logger.warning(f'Could not message member in signup_emoji_clicked: {e}')
-
-    def get_draft_config(self, guild_id):
-        record, _ = models.Configuration.get_or_create(guild_id=guild_id)
-        return record.polychamps_draft
-
-    def save_draft_config(self, guild_id, config_obj):
-        record, _ = models.Configuration.get_or_create(guild_id=guild_id)
-        record.polychamps_draft = config_obj
-        return record.save()
-
-    def delete_draft_config(self, guild_id):
-        q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
-        return q.execute()
+        await league_free_agent_reactions.handle_signup_reaction(
+            member=member,
+            channel=channel,
+            message=message,
+            reaction_added=bool(reaction_added),
+            signup_emoji=self.emoji_draft_signup,
+            grad_role_name=grad_role_name,
+            free_agent_role_name=free_agent_role_name,
+        )
 
     @commands.command(usage=None)
     # @settings.in_bot_channel_strict()

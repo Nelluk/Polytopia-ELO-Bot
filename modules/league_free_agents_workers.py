@@ -57,6 +57,46 @@ class DraftPersistResult:
     added_message: str
 
 
+@dataclass(frozen=True)
+class DraftTransitionRequest:
+    guild_id: int
+    requester_id: int
+    requester_name: str
+    expected_message_id: int
+    expected_channel_id: int
+    operation: str
+
+
+@dataclass(frozen=True)
+class DraftTransitionResult:
+    guild_id: int
+    requester_id: int
+    announcement_message_id: int
+    announcement_channel_id: int
+    previous_open: bool
+    draft_open: bool
+    added_message: str
+    operation: str
+
+
+@dataclass(frozen=True)
+class SignupAuditRequest:
+    guild_id: int
+    requester_id: int
+    requester_name: str
+    expected_message_id: int
+    expected_channel_id: int
+    action: str
+    role_name: str
+
+
+@dataclass(frozen=True)
+class SignupAuditResult:
+    guild_id: int
+    requester_id: int
+    action: str
+
+
 class FreeAgentPostCoordinator:
     """Nonblocking single-flight guard spanning Discord and database effects."""
 
@@ -198,6 +238,137 @@ def persist_draft_state(request: DraftPersistRequest) -> DraftPersistResult:
     )
 
 
+def _locked_configuration(guild_id: int):
+    try:
+        return (
+            models.Configuration
+            .select()
+            .where(models.Configuration.guild_id == int(guild_id))
+            .for_update()
+            .get()
+        )
+    except models.Configuration.DoesNotExist as exc:
+        raise FreeAgentPostConflictError(
+            'The active Free Agent signup state no longer exists.'
+        ) from exc
+
+
+def _require_expected_state(
+    state: DraftState,
+    *,
+    message_id: int,
+    channel_id: int,
+) -> None:
+    if (
+        state.announcement_message_id != int(message_id)
+        or state.announcement_channel_id != int(channel_id)
+    ):
+        raise FreeAgentPostConflictError(
+            'This reaction belongs to an older Free Agent announcement. '
+            'Use the currently active signup post.'
+        )
+
+
+def transition_draft_state(
+    request: DraftTransitionRequest,
+) -> DraftTransitionResult:
+    """Atomically toggle or conclude the authoritative signup pointer."""
+
+    if request.operation not in {'toggle', 'conclude'}:
+        raise FreeAgentPostError('Unsupported Free Agent state transition.')
+    if min(
+        request.guild_id,
+        request.requester_id,
+        request.expected_message_id,
+        request.expected_channel_id,
+    ) <= 0:
+        raise FreeAgentPostError('Invalid Free Agent transition identity.')
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            record = _locked_configuration(request.guild_id)
+            current = _state(request.guild_id, _config_dict(record))
+            _require_expected_state(
+                current,
+                message_id=request.expected_message_id,
+                channel_id=request.expected_channel_id,
+            )
+            previous_open = bool(current.draft_open)
+            if request.operation == 'toggle':
+                config = _config_dict(record)
+                config['draft_open'] = not previous_open
+                record.polychamps_draft = config
+                resulting_open = not previous_open
+                verb = 'opened' if resulting_open else 'closed'
+            else:
+                record.polychamps_draft = models.Configuration.draft_config_defaults()
+                resulting_open = False
+                verb = 'concluded'
+            record.save(only=[models.Configuration.polychamps_draft])
+            models.GameLog.write(
+                guild_id=int(request.guild_id),
+                message=(
+                    f'Free Agent signup {verb} by '
+                    f'**{request.requester_name}** '
+                    f'(`{int(request.requester_id)}`).'
+                ),
+            )
+
+    return DraftTransitionResult(
+        guild_id=int(request.guild_id),
+        requester_id=int(request.requester_id),
+        announcement_message_id=int(request.expected_message_id),
+        announcement_channel_id=int(request.expected_channel_id),
+        previous_open=previous_open,
+        draft_open=resulting_open,
+        added_message=str(current.added_message),
+        operation=str(request.operation),
+    )
+
+
+def write_signup_audit(request: SignupAuditRequest) -> SignupAuditResult:
+    """Audit a completed Discord role effect after rechecking its pointer."""
+
+    if request.action not in {'join', 'leave'}:
+        raise FreeAgentPostError('Unsupported Free Agent signup action.')
+    if min(
+        request.guild_id,
+        request.requester_id,
+        request.expected_message_id,
+        request.expected_channel_id,
+    ) <= 0:
+        raise FreeAgentPostError('Invalid Free Agent signup audit identity.')
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            record = _locked_configuration(request.guild_id)
+            current = _state(request.guild_id, _config_dict(record))
+            _require_expected_state(
+                current,
+                message_id=request.expected_message_id,
+                channel_id=request.expected_channel_id,
+            )
+            if request.action == 'join' and not current.draft_open:
+                raise FreeAgentPostConflictError(
+                    'The Free Agent signup closed before the role change could be audited.'
+                )
+            verb = 'received' if request.action == 'join' else 'lost'
+            models.GameLog.write(
+                guild_id=int(request.guild_id),
+                message=(
+                    f'**{request.requester_name}** '
+                    f'(`{int(request.requester_id)}`) {verb} the '
+                    f'**{request.role_name}** role through the Free Agent '
+                    'signup announcement.'
+                ),
+            )
+    return SignupAuditResult(
+        guild_id=int(request.guild_id),
+        requester_id=int(request.requester_id),
+        action=str(request.action),
+    )
+
+
 async def _run(function, argument, *, return_after_cancellation: bool = False):
     loop = asyncio.get_running_loop()
     future = loop.run_in_executor(_executor, functools.partial(function, argument))
@@ -234,6 +405,32 @@ async def run_persist_draft_state(
     # whose pointer/audit transaction actually committed.
     return await _run(
         persist_draft_state,
+        request,
+        return_after_cancellation=True,
+    )
+
+
+async def run_transition_draft_state(
+    request: DraftTransitionRequest,
+) -> DraftTransitionResult:
+    # As with initial persistence, a cancelled Discord callback must learn the
+    # transaction's actual result before deciding how to reconcile the public
+    # announcement.
+    return await _run(
+        transition_draft_state,
+        request,
+        return_after_cancellation=True,
+    )
+
+
+async def run_write_signup_audit(
+    request: SignupAuditRequest,
+) -> SignupAuditResult:
+    # A role change has already completed before this audit is submitted.
+    # Drain cancellation and return the known audit result so the caller does
+    # not reinterpret or repeat the Discord effect.
+    return await _run(
+        write_signup_audit,
         request,
         return_after_cancellation=True,
     )
