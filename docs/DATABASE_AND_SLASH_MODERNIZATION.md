@@ -485,13 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P7.15 cancellation cleanup is Implemented and validated
-locally on
-`codex/p7-15-read-cancellation` from exact clean accumulation checkpoint
-`d3bb1c8`; integration is pending. Implementation checkpoint `a9dbf21` makes
-the oldest player/activity/squad leaderboard and game-search submission
-wrappers drain their bounded worker thread before propagating cancellation,
-without changing queries, results, commands, or visibility.** P6.3 asynchronous prefix
+Current active unit: **No code unit is active. P7.15 is Complete, integrated,
+pushed, and running on the guarded development beta through `a247641`; P7 is
+technically Complete. The next recommended unit is a read-only P8.25
+league/administration close-out audit to reconcile the long P8 sequence and
+identify any remaining event-loop database, transaction/effect, or command-
+conversion seam before either closing P8 or selecting one final cleanup.** P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
 `DiscordMember` query used by 18 prefix handlers with a bounded, worker-local
@@ -6589,8 +6588,8 @@ Integration/deployment evidence:
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **Implementation complete; P7.15 integration and guarded runtime load
-pending**
+Status: **Complete; P7.1–P7.15 are integrated and the final cancellation
+cleanup is running on the guarded development beta**
 
 Candidate scope:
 
@@ -8281,7 +8280,7 @@ schema, fixture, or runtime state.
 
 ### P7.15 — Drain the oldest bounded read submissions on cancellation
 
-Status: **Implemented and validated; integration pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 Branch/base: `codex/p7-15-read-cancellation` from exact clean accumulation
 checkpoint `d3bb1c8`.
@@ -8334,6 +8333,22 @@ Implementation evidence:
   run because no query or schema behavior changed. No beta, Discord,
   capability, fixture, production, or dependency action occurred before this
   evidence checkpoint.
+
+Integration/deployment evidence:
+
+- fast-forwarded implementation/tests `a9dbf21` and evidence `a247641` into
+  `codex/database-slash-modernization`, then pushed that exact checkpoint to
+  the approved GitHub origin;
+- restarted only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear, it launched PID `3276345` with `--skip_tasks`, and
+  authenticated as PolyELO Bot Beta `479029527553638401`;
+- the mandatory protected read-only release-control `status` request
+  completed successfully;
+- performed no application-command apply/sync because no command definition
+  changed, and sent no tester announcement because the correction has no
+  intended visible behavior or useful manual smoke action; and
+- marked P7 technically Complete. Wider-beta usability and product acceptance
+  continue under WB1 rather than holding the database/event-loop phase open.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -12240,6 +12255,23 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P7.15 integrated, deployed, and P7 closed
+
+- Fast-forwarded and pushed the accumulation branch through P7.15 evidence
+  checkpoint `a247641` after 13 focused, 129 affected, and 1,368 complete
+  offline tests passed with 56 intentional gated skips.
+- Restarted only the guarded development beta; its prestart writer audit was
+  clear, it authenticated as application `479029527553638401` with PID
+  `3276345`, and the protected release-control status check succeeded.
+- Performed no command apply/sync and sent no tester announcement because the
+  unit changes only cancellation cleanup behind existing interfaces.
+- Marked P7 technically Complete. Existing wider-beta feedback remains under
+  WB1, and the configured-team/history scale limitation remains a measured
+  future performance concern rather than an open P7 correctness unit.
+- Next recommended unit: a read-only P8.25 close-out audit across league and
+  remaining administration workflows, followed by one exact cleanup only if
+  repository evidence finds an active boundary violation.
 
 ### 2026-08-09 — P7.15 cancellation cleanup implemented
 
