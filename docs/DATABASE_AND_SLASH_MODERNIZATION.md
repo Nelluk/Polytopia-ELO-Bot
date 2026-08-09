@@ -484,17 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.24 automatic league
-team-role reconciliation is complete, integrated, pushed, and running on the
-guarded development beta at `ca0931b`. Discord's active team role is
-authoritative. The bounded worker
-atomically reconciles `Player.team`, assignment-time House preferences, and
-the audit row; derived House/tier/League Discord roles are applied only after
-commit. Removing the final active team role now clears the stale database team
-assignment. Complete offline validation, the stopped-beta writer audit, and
-the full gated development PostgreSQL suite are green. No command tree,
-permission, capability, taxonomy, schema, or prefix change was included, so no
-command sync or tester announcement was needed.**
+Current active unit: **P5.9 join-message/reaction routing is implemented and
+validated on `codex/p5-9-reaction-adapter` from exact clean accumulation base
+`dfedbdd`; integration/deployment is in progress.
+Regex parsing remains on the event loop while Game existence/pending/guild and
+related-external-server reads move to one bounded worker-local immutable
+snapshot. The three message/reaction listeners continue to route mutations
+through the existing shared join/leave workers. No command, permission,
+capability, taxonomy, schema, or prefix change is included.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4437,6 +4434,70 @@ Prepared development-beta smoke matrix:
 
 Next action: select the next bounded modernization unit from the accumulation
 branch. Reverify runtime and fixture state before any later beta session.
+
+### P5.9 — Join-message and reaction routing snapshot
+
+Status: **Implemented and validated; integration/deployment in progress**
+
+The retained join-message seeder plus raw reaction add/remove listeners parse a
+game ID and synchronously load `Game` and related external-server `Team` rows
+on the Discord event loop before delegating to the already-modernized shared
+join/leave mutation workers.
+
+Accepted bounded contract:
+
+- keep join-message regex parsing and Discord message/member/channel lookup on
+  the event loop;
+- freeze only a positive game ID into a worker request;
+- load Game existence, pending state, guild ID, and distinct related external-
+  server IDs through a dedicated bounded read executor and worker-local Peewee
+  connection;
+- return an immutable primitive snapshot, fail closed above 500 related
+  external servers, and drain cancellation until a submitted read completes;
+- preserve bot/beta message isolation, local/external-guild routing, emoji
+  seeding/removal, feedback destinations and wording, and the existing shared
+  join/leave mutation requests;
+- contain lookup failures with visible retry guidance for a reacting user and
+  no reaction mutation, while message-seeding failures remain logged no-ops;
+- make no command, permission, capability, taxonomy, schema, prefix, game-rule,
+  or platform-policy change.
+
+Scope boundary: the reaction-success presenter still performs the established
+post-commit `Game.load_full_game()` card reload. Replacing it without changing
+presentation requires a later shared native/prefix/reaction immutable-card
+publisher unit and is deliberately not mixed into this routing lookup change.
+
+Implementation adds `modules/game_reaction_workers.py`, makes message parsing
+pure, and routes all three listeners through the snapshot before existing
+Discord or mutation logic. Required validation includes parser purity, worker
+connection/bounds/responsiveness/cancellation, local and external routing,
+missing/failing reads, existing reaction behavior, complete offline discovery,
+and a targeted gated read-only real-schema case that may run beside the active
+guarded beta.
+
+Validation evidence:
+
+- focused P5.9 parser/worker/listener suite: 10 passed;
+- affected reaction/join/open-game suites: 79 passed;
+- complete offline discovery: 1,230 passed with 48 intentional database-gated
+  skips;
+- touched-Python compilation and `git diff --check`: passed;
+- the single targeted real-schema lookup case passed under the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` identity and disabled
+  background/API gates while the guarded beta remained online;
+- the real-schema test proved existing/missing Game snapshots, pending/guild
+  state, deterministic distinct external-server IDs, and unchanged GameLog row
+  count;
+- no writer-containing integration test, database mutation, fixture change,
+  or stopped-writer window was used;
+- implementation/tests checkpoint: `4fec4e3`.
+
+Next action after integration/deployment: perform P5.10 as a read-only design
+audit of the retained expired-pending-game purge. Resolve whether each game is
+one atomic purge, which database state commits before external-broadcast and
+announcement effects, and how committed-but-unpublished work is retried or
+reconciled. Do not implement that destructive background writer until those
+three policy decisions are accepted.
 
 ## P6 — Registration and player preferences
 
@@ -10231,6 +10292,29 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.9 reaction routing snapshot validated
+
+- Made join-message parsing pure and replaced synchronous event-loop Game and
+  related-Team routing reads in message seeding plus raw reaction add/remove
+  with one frozen primitive request, bounded two-worker read executor, and
+  worker-local connection.
+- Preserved local/external guild routing, bot/beta message isolation, emoji
+  behavior, feedback destinations, and shared authoritative join/leave
+  mutation requests. Lookup failures now give reacting users concise retry
+  guidance; passive message-seeding failures remain logged no-ops.
+- Added a 500-related-server fail-closed bound, deterministic distinct IDs,
+  responsiveness/cancellation draining, parser purity, no-direct-listener-read,
+  and existing reaction-path regressions.
+- Focused coverage passed 10 tests, affected suites passed 79, and complete
+  offline discovery passed 1,230 with 48 gated skips. Compilation and diff
+  checks passed.
+- Ran only the new read-only real-schema case alongside the active guarded
+  beta; it passed the unchanged development/database/role/service gates and
+  wrote no audit row or fixture.
+- Recorded implementation/tests checkpoint `4fec4e3`. Integration, push, and
+  guarded beta restart remain; no command sync or tester announcement is
+  required.
 
 ### 2026-08-09 — P8.24 automatic league role reconciliation validated
 
