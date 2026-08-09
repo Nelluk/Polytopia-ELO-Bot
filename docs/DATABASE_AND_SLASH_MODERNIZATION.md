@@ -371,6 +371,7 @@ would become unavailable if a prefix is retired.
 | C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
 | C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 integrated and deployed; wider-beta acceptance pending |
 | C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 integrated and deployed at `1714473`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; wider-beta acceptance pending |
+| C-020 `/league roster price` / `$tradeprice` / `$playerprice` | Native pricing uses one typed member plus an optional ending season, preserves the confirmed legacy GalC4 formula/inflation and incomplete-current-game fallback, and publicly discloses the three season tier/W-L/game inputs plus House-leadership adjustment. | Legacy recommendation: **retire** — explicitly approved with the P8.16 design. Both hidden prefix names are removed because typed member/season options cover their useful grammar. The native path remains a broadly accessible league-guild read, matching the old command's effective access rather than treating hidden help status as authorization. | If the pricing policy changes, version the formula and explain the effective version in output; do not restore an event-loop query/upsert prefix implementation. | P8.16 implemented locally at `d209468`; real-schema gate, integration, command apply, and beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -485,11 +486,12 @@ deployed with exact Drafter/Helper/Mod/owner parity and `$draft` retired as
 approved. Wider-beta card acceptance awaits an exact-role development Team
 with a stored image.**
 
-The exact GitHub push was subsequently approved and completed. The active
-bounded P4.2d game-tribe executor completion correction is integrated, pushed,
-and loaded by the guarded beta at `1addc54`; the complete offline suite is
-green. P8.16 `/league roster price` has been investigated but remains
-decision-gated rather than implemented.
+The exact GitHub push was subsequently approved and completed. The bounded
+P4.2d game-tribe executor completion correction is integrated, pushed, and
+loaded by the guarded beta at `1addc54`; the complete offline suite is green.
+P8.16 `/league roster price` is now implemented locally with the formula and
+recommended access/inference/transparency decisions accepted; its real-schema
+gate, integration, command apply, and beta deployment remain pending.
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7881,9 +7883,9 @@ executor reliability seam so complete discovery is green again, or review the
 hidden `$tradeprice` behavior before deciding whether P8.16 `/league roster
 price` should become public native functionality.
 
-### P8.16 — Trade-price investigation
+### P8.16 — Native trade price
 
-Status: **Investigated; product decisions required before implementation**
+Status: **Implemented locally; real-schema gate and deployment pending**
 
 The hidden `$tradeprice` / `$playerprice` command is not yet a safe mechanical
 slash conversion:
@@ -7918,18 +7920,48 @@ Recommended P8.16 design, if the formula is still authoritative:
 - retire `$tradeprice` and `$playerprice` without adapters once the native path
   is accepted, because typed member/season options cover their useful grammar.
 
-Decisions required before dispatch:
+Accepted decisions:
 
-1. Confirm that the current formula and 1.21 inflation factor remain official.
-2. Choose visibility: broadly accessible league read (current effective
-   behavior), Helper+, or another explicit role boundary.
-3. Confirm whether default season inference should preserve the incomplete-
-   game fallback or simply use the configured/current league season.
-4. Confirm that the native result should disclose the three-season inputs and
-   leadership adjustment rather than returning only the opaque integer.
+1. The current GalC4 formula and 1.21 inflation factor remain official.
+2. The native command remains a broadly accessible league-guild read,
+   preserving the hidden prefix command's effective access.
+3. Omission preserves the incomplete-current-game fallback; explicit season
+   skips inference.
+4. The public result discloses the three-season inputs and leadership
+   adjustment rather than returning only an opaque integer.
 
-No P8.16 command, database, Discord, or compatibility change was made during
-this investigation.
+Implementation `d209468` adds exactly
+`/league roster price player:<member> season:<optional integer>`. The event
+loop freezes only primitive identity, display, optional season, and exact
+House Leader/House Co-Leader role state. A dedicated two-thread read executor
+owns the Peewee connection, reloads an existing exact guild Player without
+upserting, scopes current-season inference to the league guild, and runs the
+fixed three-season model reads and confirmed formula off-loop. It returns a
+frozen result; no database write or transaction graph exists.
+
+Native validation, lookup, no-history, and database failures remain private.
+Success deletes the private defer placeholder and publishes a public no-ping
+result identifying actor/target, price, chosen/inferred ending season,
+leadership adjustment, and each season's tier/W-L/games. `$tradeprice` and
+`$playerprice` are retired without adapters and recorded in C-020.
+
+Validation evidence:
+
+- focused price/draft/roster/taxonomy tests: **33 passed**;
+- expanded affected league suites: **75 passed**;
+- complete offline discovery: **1,102 passed with 38 intentional gated
+  skips**;
+- touched-file compilation and `git diff --check`: passed.
+
+The read-only real-schema case is present behind the unchanged
+`development` / `polytopia_dev` / `polybot_dev` gate and will run only after
+stopping the guarded beta and confirming no other development writer. No
+PostgreSQL, Discord command-tree, production, dependency, or fixture operation
+occurred during implementation.
+
+Next action: run the approved stopped-beta real-schema gate, integrate and
+push P8.16, update only the development guild's existing `league` root,
+restart the guarded beta, and publish a targeted **WHAT TO TEST** update.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9413,7 +9445,7 @@ bounded worker as native commands.
 
 ### D-045 — Do not canonize the hidden trade-price formula without review
 
-Status: **Pending user/staff decision**
+Status: **Accepted and resolved by P8.16**
 
 P8.16 does not treat hidden `$tradeprice` as an approved public product merely
 because a taxonomy slot exists. Its effective broad access, read-side Player
@@ -9422,7 +9454,28 @@ and undocumented formula must be made explicit before native implementation.
 The recommended native shape and four decision points are recorded in the
 P8.16 section.
 
+The user subsequently confirmed the formula and accepted the recorded native
+recommendations. P8.16 preserves broad league-guild read access and the
+incomplete-game season fallback, adds a transparent breakdown, removes the
+read-side Player upsert/event-loop work, and retires both hidden prefix names.
+
 ## Progress log
+
+### 2026-08-09 — P8.16 native trade price implemented locally
+
+- Confirmed the legacy GalC4 formula/inflation as authoritative and accepted
+  broad league-guild read access, legacy season inference, transparent inputs,
+  and full hidden-prefix retirement.
+- Added `/league roster price player season:[optional]`, frozen request/result
+  DTOs, exact non-upserting Player lookup, guild-scoped season inference, a
+  bounded worker-local connection, and public no-ping formula breakdown.
+- Removed `$tradeprice` and `$playerprice` without adapters and added C-020.
+- Focused suites passed **33**, expanded affected league suites passed **75**,
+  and complete offline discovery passed **1,102 tests with 38 intentional
+  gated skips**. Compilation and diff checks passed.
+- Recorded implementation/tests checkpoint `d209468`; the stopped-beta
+  real-schema gate, integration, command apply, restart, announcement, and
+  wider-beta acceptance remain pending.
 
 ### 2026-08-09 — Game-tribe executor reliability restored and P8.16 investigated
 

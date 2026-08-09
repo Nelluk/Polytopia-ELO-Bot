@@ -122,6 +122,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
   the exact House role exists. Success should be public and identify the
   actor/player/Team; missing registration/image/role and unauthorized use
   should fail privately. The retired `$draft` command should not appear.
+- `/league roster price`: choose a registered player with recent league games,
+  first omitting `season` and then selecting an explicit ending season. Verify
+  the public no-ping result shows the final price, chosen/inferred ending
+  season, three season tier/W-L/game inputs, and whether the House Leader or
+  House Co-Leader adjustment applied. A player with no qualifying three-season
+  history should fail privately. The retired `$tradeprice` and `$playerprice`
+  commands should not appear.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.
