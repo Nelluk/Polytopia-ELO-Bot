@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-04
+Last updated: 2026-08-08
 
 Status: Active
 
@@ -478,11 +478,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.11 small league user commands are integrated and
-deployed under the temporary Sol omni workflow. `/league guide`,
-`/league mark-active`, and `/league join-novas` are now owned by the wider
-tester pool. P8.12 `/league season` is the next recommended bounded design
-unit.**
+Current active unit: **P8.12 `/league season` is in progress under the
+temporary Sol omni workflow. P8.11 remains integrated/deployed and owned by
+the wider tester pool.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7483,6 +7481,60 @@ Next action: collect wider-beta P8.11 acceptance while designing P8.12
 unless the implementation review finds that the native workspace completely
 supersedes its compact optional-season usage.
 
+### P8.12 — League season records
+
+Status: **Implemented and offline-validated; stopped-beta database gate,
+integration, guild-only apply, and wider-beta deployment pending**
+
+Branch/base: `codex/p8-12-league-season` from exact clean accumulation
+checkpoint `9e62fdc`.
+
+Interface and compatibility:
+
+- add public `/league season season:[optional integer]`; omission shows all
+  recorded seasons and a supplied number shows that season;
+- retain `$season` and aliases `$jrseason`, `$ps`, `$js`, and `$seasonjr` over
+  the shared worker/read result because their compact optional-season grammar
+  remains a useful league convenience;
+- preserve the historical Seasons 1–2 note/image and the through-Season-16
+  Pro/Jr names for the Gold/Silver tier IDs;
+- use requester-bound Components v2 Previous/Jump/Next controls only when the
+  public result needs more than one page. Validation, scope, load, and
+  publication failures remain private; successful records are public.
+
+Database and concurrency boundary:
+
+- one frozen request carries primitive guild/requester/season/access values
+  and the configured numeric tier/name mapping;
+- a dedicated bounded two-thread read executor owns one worker-local Peewee
+  connection and performs one grouped aggregate query for regular/postseason
+  wins, losses, and incomplete games across all matching tiers;
+- the query explicitly restricts Games to the invoking league/test guild,
+  nonpending league games, and the requested/all-season filter. This closes a
+  latent cross-guild ambiguity in the old per-tier helper while preserving the
+  intended league record semantics;
+- the immutable result is rendered without further database reads. No
+  Discord/Peewee object crosses the worker boundary, there are no writes, and
+  cancellation drains submitted worker work before returning.
+
+Validation evidence:
+
+- focused P8.12/adjacent league/taxonomy suites: **50 passed**;
+- complete offline discovery: **1,042 passed, 34 intentional gated skips**;
+- touched-file compilation and `git diff --check`: passed;
+- a read-only real-schema case is present behind the unchanged
+  `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` identity gate.
+  It verifies the bounded guild-scoped query and unchanged Game, GameSide,
+  Team, and GameLog counts. It remains pending the approved stopped-beta gate.
+
+No compatibility-ledger entry is required because the full prefix command and
+aliases remain available through the shared worker path.
+
+Next action: perform the approved stopped-beta development database gate,
+integrate the implementation/evidence checkpoints into the accumulation
+branch, update only the development guild's existing `/league` root, restart
+the durable beta, and publish the P8.12 **WHAT TO TEST** request.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -8948,6 +9000,23 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.12 league season records implemented
+
+- Added `/league season season:[optional integer]` and a public paginated
+  Components v2 result while retaining `$season`, `$jrseason`, `$ps`, `$js`,
+  and `$seasonjr` over the same read service.
+- Preserved Seasons 1–2 historical output, legacy Pro/Jr naming through Season
+  16, and the regular/postseason W/L/incomplete record matrix.
+- Replaced per-tier event-loop Peewee reads with one guild-scoped aggregate in
+  a bounded worker-local connection and immutable result DTO.
+- Added focused registration, aliases, permissions, historical behavior,
+  rendering, paging, public/private lifecycle, responsiveness, connection,
+  and tier-ID regressions plus a gated read-only real-schema case.
+- Validation passed 50 focused/adjacent tests and complete offline discovery
+  at 1,042 tests with 34 intentional gated skips; compilation and diff checks
+  passed. No database, beta, Discord, production, dependency, or sudo action
+  occurred during implementation.
 
 ### 2026-08-08 — P8.11 small league user commands implemented
 

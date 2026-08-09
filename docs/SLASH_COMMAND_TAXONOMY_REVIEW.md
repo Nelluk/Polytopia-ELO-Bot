@@ -1007,7 +1007,7 @@ beta lifecycle action is part of this unit.
 | `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
 | `tokens` | `/league tokens` | P8.10 public balance/history workspace; level-5+ atomic updates; prefix fully retired with exact permission parity |
 | `imalive` | `/league mark-active` | P8.11 self-service by default with House Leader/Co-Leader/Mod targeting parity; `$imalive` retained |
-| `season` | `/league season` | Strong candidate |
+| `season` | `/league season` | P8.12 optional integer season/all-seasons public workspace with worker-backed aggregate; `$season` and aliases retained |
 | `novas` | `/league join-novas` | P8.11 worker-checked registration/team eligibility and public post-role success; `$novas`/`$joinnovas` retained |
 | `promote` | `/league roster promote` | Split alias-driven image modes |
 | `trade` alias | `/league roster trade` | Split from promote |
@@ -1154,6 +1154,24 @@ Player-upsert cleanup. The one-root guild-only apply and durable-beta restart
 completed at `1e52f73`; tester-pinged release
 `2026-08-08-league-user-commands` is live and wider-beta acceptance remains
 pending.
+
+#### P8.12 league season records
+
+P8.12 adds `/league season season:[optional integer]` beneath the existing
+guild-scoped `/league` root. Omission loads all recorded seasons; a supplied
+integer selects one season. The public result keeps the dense regular and
+postseason W/L/incomplete matrix and adds requester-bound Components v2
+paging only when the immutable result exceeds one page. Seasons 1–2 retain
+their historical note/image, and Gold/Silver retain their legacy Pro/Jr names
+through Season 16.
+
+`$season`, `$jrseason`, `$ps`, `$js`, and `$seasonjr` remain registered and
+render the classic buffered text from the same result. One bounded worker-
+local aggregate replaces per-tier event-loop reads and explicitly scopes data
+to the invoking league/test guild. Local validation passed 50 focused and
+adjacent tests and complete offline discovery at 1,042 tests with 34
+intentional database skips. A gated read-only real-schema case remains for the
+approved stopped-beta integration window.
 
 ### Legacy modules outside the modernization target
 

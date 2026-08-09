@@ -94,8 +94,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
   Success should add The Novas, remove Newbie when present, and publish an
   attributed confirmation. Unregistered users and existing Team members
   should fail privately without changing roles.
-- Retained `$tutorial`, `$imalive`, `$novas`, and `$joinnovas` should continue
-  to reach the same underlying behavior.
+- `/league season`: omit `season` for all records, select a normal season, and
+  try Season 1 or 2 for the historical result. Verify tier headings,
+  regular/postseason W-L-incomplete counts, public output, and paging/page
+  jump when enough teams are present.
+- Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
+  `$jrseason`, `$ps`, `$js`, and `$seasonjr` should continue to reach the same
+  underlying behavior.
 
 - `/league tokens` with no options: verify the public workspace lists all
   configured House balances, Recent changes opens the audit history, paging
