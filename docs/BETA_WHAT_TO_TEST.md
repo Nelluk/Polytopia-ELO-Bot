@@ -115,6 +115,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
   the trade arrows, then try optional text and one raw URL override. Compare a
   retained `$promote` or `$trade` using a Team/member/raw-URL mix; both prefix
   commands should now require Helper access.
+- `/league roster draft`: as a Drafter, Helper, or Mod, choose a registered
+  member and an exact Team that has both a matching Discord role and stored
+  image. Verify the legacy dense draft-card design, player avatar, Team image,
+  Team-role color, local/global ELO and W-L, and House “selects” heading when
+  the exact House role exists. Success should be public and identify the
+  actor/player/Team; missing registration/image/role and unauthorized use
+  should fail privately. The retired `$draft` command should not appear.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.
