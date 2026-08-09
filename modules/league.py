@@ -45,6 +45,9 @@ import modules.league_export_workers as league_export_workers
 import modules.league_inactivity as league_inactivity
 import modules.league_inactivity_views as league_inactivity_views
 import modules.league_inactivity_workers as league_inactivity_workers
+import modules.league_inactive_kick as league_inactive_kick
+import modules.league_inactive_kick_views as league_inactive_kick_views
+import modules.league_inactive_kick_workers as league_inactive_kick_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -1903,6 +1906,47 @@ class league(commands.Cog):
             )
             await interaction.followup.send(
                 'The inactivity preview could not be loaded. Try again later.',
+                ephemeral=True,
+            )
+
+    @league_maintenance_group.command(
+        name='kick-inactive',
+        description='Preview and remove eligible inactive league members.',
+    )
+    async def league_maintenance_kick_inactive_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Inactive-member removal requires a server.', ephemeral=True
+            )
+        error = league_inactive_kick.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await league_inactive_kick.load_preview(
+                member=interaction.user,
+                guild=guild,
+            )
+            view = league_inactive_kick_views.InactiveKickWorkspace(
+                result=result,
+                requester_id=interaction.user.id,
+                confirmer=league_inactive_kick.confirm_and_publish,
+            )
+            await league_inactive_kick_views.publish_private(interaction, view)
+            return result
+        except league_inactive_kick_workers.InactiveKickError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception(
+                'Unexpected /league maintenance kick-inactive failure'
+            )
+            await interaction.followup.send(
+                'The inactive-member preview could not be loaded. Try again '
+                'later.',
                 ephemeral=True,
             )
 

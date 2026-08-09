@@ -3786,6 +3786,214 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
+        """Exercise P8.19 selection and post-Discord audit under the gate."""
+
+        from modules import league_inactive_kick_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex
+        marker = f'P8.19 kick {suffix}'
+        id_base = 9_081_000_000_000_000 + (uuid.uuid4().int % 1_000_000)
+        unregistered_id = id_base
+        eligible_id = id_base + 1
+        blocked_id = id_base + 2
+        game_ids = []
+        team_id = None
+        discord_ids = (eligible_id, blocked_id)
+
+        def snapshot(member_id, role_name=None):
+            roles = [
+                workers.KickRoleSnapshot(1, '@everyone', False),
+                workers.KickRoleSnapshot(99, 'Inactive', False),
+            ]
+            if role_name:
+                roles.append(workers.KickRoleSnapshot(100, role_name, False))
+            return workers.KickMemberSnapshot(
+                member_id=member_id,
+                display_name=f'{marker} {member_id}',
+                joined_timestamp=(
+                    datetime.datetime.now(datetime.timezone.utc).timestamp()
+                    - 100 * 86400
+                ),
+                roles=tuple(roles),
+                is_bot=False,
+                is_owner=False,
+            )
+
+        try:
+            eligible_member = self.models.DiscordMember.create(
+                discord_id=eligible_id,
+                name=f'P819 Eligible {suffix}',
+                polytopia_name=f'P819Eligible{suffix}',
+            )
+            blocked_member = self.models.DiscordMember.create(
+                discord_id=blocked_id,
+                name=f'P819 Blocked {suffix}',
+                polytopia_name=f'P819Blocked{suffix}',
+            )
+            eligible_player = self.models.Player.create(
+                discord_member=eligible_member,
+                guild_id=guild_id,
+                name=eligible_member.name,
+            )
+            blocked_player = self.models.Player.create(
+                discord_member=blocked_member,
+                guild_id=guild_id,
+                name=blocked_member.name,
+            )
+            team = self.models.Team.create(
+                guild_id=guild_id,
+                name=f'P819 Team {suffix}',
+                is_hidden=False,
+                is_archived=False,
+            )
+            team_id = int(team.id)
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=blocked_player,
+                name=f'{marker} incomplete',
+                notes=marker,
+                is_pending=False,
+                is_completed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[1],
+            )
+            game_ids.append(int(game.id))
+            side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=blocked_player,
+            )
+
+            preview_request = workers.InactiveKickPreviewRequest(
+                guild_id=guild_id,
+                requester_id=1,
+                requester_is_mod=True,
+                league_scope=True,
+                now_timestamp=datetime.datetime.now(
+                    datetime.timezone.utc
+                ).timestamp(),
+                inactive_role_id=99,
+                inactive_role_name='Inactive',
+                starter_role_names=('Newbie',),
+                protected_role_names=('Mod',),
+                members=(
+                    snapshot(unregistered_id),
+                    snapshot(eligible_id, team.name),
+                    snapshot(blocked_id),
+                ),
+            )
+            self.models.db.close()
+            loaded = asyncio.run(workers.run_preview(preview_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                set(loaded.candidate_ids),
+                {unregistered_id, eligible_id},
+            )
+            loaded_rows = {row.member_id: row for row in loaded.decisions}
+            self.assertTrue(loaded_rows[eligible_id].has_team_role)
+            self.assertIn('pending or incomplete', loaded_rows[blocked_id].reason)
+
+            audit_request = workers.InactiveKickAuditRequest(
+                guild_id=guild_id,
+                actor_id=1,
+                actor_description=f'{marker} actor',
+                rows=(
+                    workers.KickAuditRow(unregistered_id, 'Unregistered'),
+                    workers.KickAuditRow(eligible_id, 'Eligible'),
+                ),
+            )
+            self.models.db.close()
+            audit = asyncio.run(workers.record_kicks(audit_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(len(audit.log_ids), 2)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                2,
+            )
+
+            before_failure = self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(marker)
+            ).count()
+            original_write = self.models.GameLog.write
+            calls = 0
+
+            def write_then_fail(*args, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise peewee.OperationalError('P8.19 injected audit failure')
+                return original_write(*args, **kwargs)
+
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=write_then_fail,
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected audit failure',
+                ):
+                    asyncio.run(workers.record_kicks(audit_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                before_failure,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_ids:
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game.in_(game_ids)
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game.in_(game_ids)
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id.in_(game_ids)
+                ).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            player_ids = tuple(
+                row[0]
+                for row in self.models.Player.select(
+                    self.models.Player.id
+                ).join(self.models.DiscordMember).where(
+                    self.models.DiscordMember.discord_id.in_(discord_ids)
+                ).tuples()
+            )
+            if player_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids)
+                ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(discord_ids)
+            ).execute()
+            if team_id is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team_id
+                ).execute()
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

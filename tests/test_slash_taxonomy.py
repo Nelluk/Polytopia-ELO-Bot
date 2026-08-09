@@ -152,6 +152,13 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'free-agents', 'roster', 'maintenance',
             },
         )
+        self.assertEqual(
+            {
+                command.name
+                for command in league_group.get_command('maintenance').commands
+            },
+            {'export', 'mark-inactive', 'kick-inactive'},
+        )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):
         game_group = app_group(games.polygames, 'game')

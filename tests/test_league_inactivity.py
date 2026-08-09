@@ -143,7 +143,7 @@ def league_root():
 
 
 class RegistrationAndCaptureTests(unittest.TestCase):
-    def test_native_shape_retires_only_deactivate_prefix(self):
+    def test_native_shape_retires_legacy_inactivity_prefixes(self):
         command = league_root().get_command('maintenance').get_command(
             'mark-inactive'
         )
@@ -157,7 +157,7 @@ class RegistrationAndCaptureTests(unittest.TestCase):
         self.assertFalse(any(
             'deactivate' in command.aliases for command in prefix.values()
         ))
-        self.assertIn('kick_inactive', prefix)
+        self.assertNotIn('kick_inactive', prefix)
 
     def test_access_is_mod_only_in_league_scope(self):
         actor = SimpleNamespace(id=10)
