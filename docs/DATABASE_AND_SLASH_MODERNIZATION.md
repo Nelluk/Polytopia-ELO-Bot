@@ -368,7 +368,7 @@ would become unavailable if a prefix is retired.
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
 | C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`, integrated/deployed at `a42ca7d` |
-| C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`; stopped-beta schema gate and deployment pending |
+| C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -478,10 +478,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.10 native `/league tokens` is implemented under the
-temporary Sol omni workflow. Offline validation is green; the stopped-beta
-development-database gate, integration, capability assignment, guild apply,
-restart, and wider-beta announcement remain pending.**
+Current active unit: **P8.10 native `/league tokens` is integrated and
+deployed under the temporary Sol omni workflow. The wider tester pool owns
+acceptance. P8.11 `/league mark-active` is the next recommended bounded design
+unit, pending the explicit legacy-prefix decision.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7325,7 +7325,7 @@ or selecting another independent bounded unit.
 
 ### P8.10 — Native league-token workspace
 
-Status: **Implemented; stopped-beta schema gate and deployment pending**
+Status: **Complete; integrated and deployed; wider-beta acceptance pending**
 
 Branch/base: `codex/p8-10-league-tokens` in the isolated omni worktree from
 exact clean accumulation base `2816500`.
@@ -7380,13 +7380,26 @@ Validation evidence:
 - touched-file compilation and `git diff --check`: passed;
 - a real-schema read/commit/audit-failure rollback/exact cleanup test is
   present behind the unchanged development/`polytopia_dev`/`polybot_dev`
-  safety gate and remains deferred until the approved stopped-beta window.
+  safety gate;
+- the stopped-beta gated suite passed 31 tests with one intentional retained-
+  fixture skip. P8.10 proved exact real-schema read, successful commit, forced
+  audit-failure rollback, and restoration/deletion cleanup;
+- integration/checklist checkpoint `90d0ce5` was pushed before deployment;
+- the ignored development policy assigned the existing default-deny `league`
+  capability only to guild `478571892832206869`;
+- remote inspection planned exactly one creation (`league`), with nine roots
+  unchanged and no update/removal. The guild-only apply completed and the
+  post-apply inspection showed all ten roots unchanged, with no global sync;
+- the durable beta restarted cleanly at full checkpoint
+  `90d0ce52c882a665c7bbd51c5b2448adc40990c1`, authenticated as PolyELO Bot
+  Beta `479029527553638401`, and retained background/API disablement;
+- tester-pinged release `2026-08-08-league-tokens` posted once to
+  `todo-and-changelog` as message `1535820983049527336`.
 
-Next action: commit this evidence, integrate the unit into the accumulation
-branch, stop only the durable development beta, run the complete gated suite,
-assign the existing default-deny `league` capability to the development guild,
-apply only that guild's command diff, restart the beta, and post the targeted
-What-to-test announcement.
+Next action: collect wider-beta P8.10 acceptance while designing P8.11
+`/league mark-active`. Preserve the current self-service and House Leader/
+Co-Leader/Mod target permission behavior; decide explicitly whether `$imalive`
+is retained as a day-to-day convenience before implementation.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8853,6 +8866,27 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.10 league-token workspace integrated and deployed
+
+- Integrated implementation `7abfbde` and evidence `3469fc9`, added the
+  tracked wider-beta checklist, and pushed clean checkpoint `90d0ce5` to the
+  accumulation branch.
+- Stopped only the durable development beta and verified no beta writer
+  remained. The unchanged `development`/`polytopia_dev`/`polybot_dev` gated
+  suite passed 31 tests with one intentional operator-fixture skip, including
+  P8.10's successful commit, forced audit rollback, and exact cleanup.
+- Assigned the existing default-deny `league` capability in ignored
+  development settings. Remote inspection showed only `league` to create;
+  guild-only apply created it and left the other nine roots unchanged. The
+  post-apply inspection showed ten unchanged roots, no removals, and no global
+  operation.
+- Restarted the durable beta at full clean checkpoint
+  `90d0ce52c882a665c7bbd51c5b2448adc40990c1`; it authenticated as PolyELO Bot
+  Beta `479029527553638401`.
+- Delivered tester-pinged release `2026-08-08-league-tokens` as announcement
+  message `1535820983049527336`. Wider testers own acceptance; no personal
+  smoke test is required.
 
 ### 2026-08-08 — P8.10 native league-token workspace implemented
 

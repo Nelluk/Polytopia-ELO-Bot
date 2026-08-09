@@ -1128,9 +1128,11 @@ output follows commit and publication failure becomes terminal reconciliation.
 
 `$tokens` is fully retired without an adapter under C-017. Implementation
 checkpoint `7abfbde` passed 14 focused, 60 affected, and 1009 complete offline
-tests with 32 intentional database skips. The stopped-beta real-schema gate,
-development-only `league` capability assignment, guild apply, restart, and
-wider-beta acceptance remain pending.
+tests with 32 intentional database skips. The stopped-beta suite later passed
+31 tests with one retained-fixture skip, the default-deny `league` capability
+was assigned only to the development guild, and the guild-only apply created
+exactly that root while leaving the other nine unchanged. The durable beta is
+running clean checkpoint `90d0ce5`; wider-beta acceptance remains pending.
 
 ### Legacy modules outside the modernization target
 
