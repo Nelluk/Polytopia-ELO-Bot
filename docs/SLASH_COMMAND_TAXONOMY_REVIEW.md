@@ -1019,8 +1019,8 @@ beta lifecycle action is part of this unit.
 | `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
 | `houses` | `/house list` | P8.7 implements a public requester-bound paginated directory/select workspace and retains `$houses`/`$balance` |
 | `house_add` | `/house create` | Split create from alias-selected edits |
-| `house_rename` alias | `/house name` | View by default; optional name edits |
-| `house_image` alias | `/house image` | View by default; optional attachment/URL edits |
+| `house_rename` alias | `/house name` | P8.8 public read/Mod edit; legacy alias retired; names remain required and cannot be cleared |
+| `house_image` alias | `/house image` | P8.8 effective-image read, typed attachment replacement, explicit clear; legacy alias/URL replacement retired |
 | `gtest` | none | Retire/review hidden hard-coded test command |
 
 The deeper `roster` and `maintenance` paths reserve the short `/league`
@@ -1059,6 +1059,31 @@ only `house` capability was assigned and synchronized to guild
 `478571892832206869`, and the running beta now exposes exactly `/house show`
 and `/house list` under that root. No global or production registration was
 performed.
+
+#### P8.8 `/house name` and `/house image` implementation state
+
+P8.8 extends the existing development-only `house` root with two focused
+read-or-edit attributes. Both accept an optional explicit House autocomplete;
+omission infers only one exact requester House role. Reads are public.
+Mutations remain Mod-only, commit the House row and actual-guild attributed
+audit together, and publish actor-attributed success only after commit.
+
+`/house name` accepts an optional replacement but no `clear`: House names are
+required unique identities. It reports that staff must separately rename the
+exact Discord role. `/house image` accepts one typed Discord attachment or
+explicit clear, reads effective local/legacy-URL state, stages normalized PNG
+bytes off-loop, and publishes the file only after the database transaction.
+Post-commit filesystem failure is reconciliation rather than retry.
+
+The explicitly approved legacy decision retires `$house_rename` and
+`$house_image`; `$house_add` remains only for the separate create unit. Direct
+URL replacement is intentionally not carried into native input, while existing
+stored URLs remain readable and clearable. C-015 records this parity boundary.
+
+Implementation/tests checkpoint `c86d604` passed 30 focused tests, 113 broader
+affected tests, and complete offline discovery with 992 passed and 30
+intentional gated skips. Development-database and live beta evidence remain
+behind the approved stopped-writer/deployment gate.
 
 ### Legacy modules outside the modernization target
 

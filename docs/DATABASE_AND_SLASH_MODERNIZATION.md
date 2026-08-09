@@ -366,6 +366,7 @@ would become unavailable if a prefix is retired.
 | C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
 
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
+| C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`; deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -475,8 +476,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **None. P8.7 native House show/list reads are integrated
-and deployed; wider-beta acceptance is pending.**
+Current active unit: **P8.8 native House name/image attributes are implemented
+and locally green under the temporary Sol omni workflow; integration and the
+approved stopped-beta deployment gate are next.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -1675,7 +1677,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **In progress**
+Status: **Implemented locally; integration and deployment pending**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -7179,6 +7181,70 @@ No production capability, global command, production service, production
 checkout, or production database was touched. Next action is wider-beta
 acceptance while another bounded unit proceeds.
 
+### P8.8 — Native House name/image attributes
+
+Status: **In progress**
+
+Branch/base: `codex/p8-8-house-attributes` in the isolated omni worktree from
+exact clean accumulation base `b85a950`.
+
+Risk tier: **Tier 3**. This unit adds ordinary House writes, local image-file
+publication, audit logging, and two new subcommands under the already assigned
+development-only `house` root. It changes no schema.
+
+Accepted interface and compatibility decisions:
+
+- `/house name house:[optional] name:[optional]` reads publicly when `name` is
+  omitted and performs a Mod-only rename when supplied;
+- House names remain required unique identities and therefore do not expose a
+  `clear` option. Successful renames explicitly remind staff that an exact
+  Discord House role must be renamed separately;
+- `/house image house:[optional] image:[optional attachment]
+  clear:[optional Boolean]` reads the effective local/URL image, accepts one
+  validated PNG/JPEG/WebP replacement, and clears only through `clear:true`;
+- explicit House lookups use the bounded existing autocomplete; omission
+  infers only one exact requester House role;
+- reads and committed mutations publish publicly and identify the requester/
+  actor; validation, ambiguity, permission, database, and pre-commit failures
+  remain private;
+- retire `$house_rename` and `$house_image` completely as explicitly approved.
+  Keep `$house_add` only until the separate `/house create` unit.
+
+Worker/transaction/file boundaries:
+
+- reads and writes cross into one bounded worker as frozen primitive values;
+  the worker owns its Peewee connection and reloads the House by ID;
+- Mod, league-scope, channel, expected-name, expected-URL, and expected-local-
+  digest state are checked before the mutation;
+- House state and the actual-guild actor-attributed `GameLog` row commit in one
+  synchronous `db.atomic()` with no Discord await;
+- attachment bytes are downloaded asynchronously, validated/normalized to a
+  bounded PNG off-loop, staged beside the destination, and published only
+  after the database transaction commits;
+- per-House image locking and cancellation draining prevent overlapping file/
+  database publication. A post-commit filesystem failure is terminal
+  reconciliation, never a retryable rollback claim.
+
+Compatibility C-015 records the intentional loss of legacy direct URL
+replacement. Existing stored URLs remain readable and clearable; staff use a
+typed Discord attachment for new native replacements.
+
+Implementation/tests checkpoint: `c86d604`.
+
+Validation evidence:
+
+- focused House-attribute/House-show/taxonomy suite: 30 passed;
+- broader affected House/image/application-policy/beta-operations suite:
+  113 passed;
+- complete offline discovery: 992 passed with 30 intentional gated skips;
+- touched-file compilation and `git diff --check`: passed;
+- one unchanged-gate real-schema read plus audit-failure rollback test is
+  present and deferred to the approved stopped-beta deployment window.
+
+Next action: integrate the implementation and evidence checkpoints, update
+the running beta checklist, then use the approved stopped-writer database and
+guild-only command-update gates before restart and announcement.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -8644,6 +8710,23 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.8 House attributes implemented locally
+
+- Added public `/house name` and `/house image` reads with optional explicit
+  House autocomplete or unambiguous exact-role inference.
+- Added Mod-only actor-attributed rename, validated attachment replacement,
+  and explicit image clear operations. The worker owns its connection and one
+  synchronous House/audit transaction; local-file publication occurs only
+  after commit and reports terminal reconciliation on failure.
+- Retired `$house_rename` and `$house_image` as approved while preserving
+  `$house_add` for the separate House-create unit. C-015 records the native
+  attachment-only boundary and manual exact-role rename requirement.
+- Implementation/tests checkpoint `c86d604` passed 30 focused tests, 113
+  broader affected tests, and complete offline discovery with 992 passed and
+  30 intentional database skips. Compilation and diff checks passed. The new
+  real-schema read/rollback case remains behind the approved stopped-beta
+  deployment gate.
 
 ### 2026-08-08 — P8.7 House reads integrated and deployed
 
