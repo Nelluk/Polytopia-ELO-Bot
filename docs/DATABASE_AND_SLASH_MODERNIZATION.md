@@ -367,6 +367,7 @@ would become unavailable if a prefix is retired.
 
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
+| C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`; integration/deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -476,9 +477,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.8 native House name/image attributes are integrated
-and deployed under the temporary Sol omni workflow; wider-beta acceptance is
-pending. P8.9 native House creation is the next recommended bounded unit.**
+Current active unit: **P8.9 native House creation is implemented and locally
+green under the temporary Sol omni workflow; integration and the approved
+stopped-beta deployment gate are next. P8.8 wider-beta acceptance remains
+pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7250,8 +7252,67 @@ Validation evidence:
 - tester-pinged release `2026-08-08-house-attributes` posted once to
   `todo-and-changelog` as message `1535804396816957540`.
 
-Next action: collect wider-beta acceptance while selecting P8.9 native House
-creation or another independent bounded unit.
+Next action: collect wider-beta acceptance; P8.9 House creation is selected
+and recorded below.
+
+### P8.9 — Native House creation
+
+Status: **Implemented locally; integration and deployment pending**
+
+Branch/base: `codex/p8-9-house-create` in the isolated omni worktree from
+exact clean accumulation base `c2e3110`.
+
+Risk tier: **Tier 3**. This unit adds a House and audit write but no schema or
+Discord-role mutation.
+
+Accepted interface and compatibility decisions:
+
+- `/house create name:<required string>` is Mod-only and league-guild/channel
+  scoped under the existing development-only `house` capability;
+- reuse P8.8's bounded House-name validation and worker executor;
+- preserve the existing global House model: `House` has no `guild_id`, while
+  the invoking development guild is retained on the audit row;
+- publish the actor, stored House name, and ID publicly only after commit;
+- explicitly explain that staff must create one exact matching Discord role
+  separately before role-based membership or omitted-House inference works;
+- retire `$house_add` completely as approved, with no compatibility adapter.
+
+Worker/transaction boundary:
+
+- capture only primitive guild/requester/scope/permission/name/audit values;
+- the worker owns its Peewee connection, rechecks the captured Mod and league/
+  channel scope, and validates the required name;
+- `House.create` and the actual-guild `GameLog` write share one synchronous
+  `db.atomic()`; a duplicate insert or audit failure leaves no House;
+- cancellation drains the shared single-worker House executor; no Discord
+  await occurs inside the transaction;
+- validation, permission, duplicate, database, and pre-commit failures remain
+  private; committed success is public and actor-attributed; publication
+  failure is terminal reconciliation and cannot invite a duplicate retry.
+
+Compatibility C-016 records the prefix retirement and database-only House
+creation boundary.
+
+Implementation/tests checkpoint: `7063801`.
+
+Validation evidence:
+
+- focused House creation/attribute/show/taxonomy suite: 34 passed;
+- broader affected House/image/application-policy/beta-operations suite:
+  117 passed;
+- complete offline discovery under asyncio debug timing: 997 passed with 31
+  intentional database skips;
+- the first ordinary complete run reproduced the already-documented,
+  unchanged game-tribe executor responsiveness timing failure. The exact test
+  and complete suite passed with asyncio debug timing; no P8.9 code touches
+  that executor;
+- touched-file compilation and `git diff --check`: passed;
+- one unchanged-gate real-schema audit-failure rollback plus successful-create
+  cleanup test is present and deferred to the approved stopped-beta window.
+
+Next action: integrate the implementation/evidence checkpoints, update the
+wider-beta checklist, then use the stopped-writer database and guild-only
+`house` update gates before restart and announcement.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8718,6 +8779,23 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.9 native House creation implemented locally
+
+- Added Mod-only `/house create name:<required>` under the existing `house`
+  root and fully retired `$house_add` without an adapter as approved.
+- Reused the P8.8 bounded executor/name validation. The worker owns its
+  connection and commits the globally modelled House plus actual-guild,
+  actor-attributed audit row in one synchronous transaction; public success
+  occurs only after commit and explains the separate exact-role requirement.
+- Implementation/tests checkpoint `7063801` passed 34 focused tests and 117
+  broader affected tests. Complete offline discovery passed 997 tests with 31
+  intentional skips under asyncio debug timing after the first ordinary run
+  reproduced the known unchanged game-tribe timing seam. Compilation and diff
+  checks passed.
+- Added an unchanged-gate real-schema test proving audit failure leaves no
+  House and successful creation/audit can be cleaned exactly. It remains
+  deferred to the approved stopped-beta deployment window.
 
 ### 2026-08-08 — P8.8 House attributes integrated and deployed
 

@@ -1018,7 +1018,7 @@ beta lifecycle action is part of this unit.
 | `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
 | `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
 | `houses` | `/house list` | P8.7 implements a public requester-bound paginated directory/select workspace and retains `$houses`/`$balance` |
-| `house_add` | `/house create` | Split create from alias-selected edits |
+| `house_add` | `/house create` | P8.9 Mod-only atomic House/audit creation; legacy prefix fully retired; exact Discord role remains a separate staff step |
 | `house_rename` alias | `/house name` | P8.8 public read/Mod edit; legacy alias retired; names remain required and cannot be cleared |
 | `house_image` alias | `/house image` | P8.8 effective-image read, typed attachment replacement, explicit clear; legacy alias/URL replacement retired |
 | `gtest` | none | Retire/review hidden hard-coded test command |
@@ -1086,6 +1086,25 @@ intentional gated skips. The stopped-beta development gate later passed 29
 tests with one retained-fixture skip. The unit was integrated at checklist
 checkpoint `6380b19`, synchronized by updating only the development-guild
 `house` root, and deployed through release `2026-08-08-house-attributes`.
+
+#### P8.9 `/house create` implementation state
+
+P8.9 adds exactly one required typed name to the existing `house` root. It is
+Mod-only and restricted to the configured league guild/channel policy. The
+worker reuses the bounded P8.8 House executor, owns its Peewee connection, and
+commits the new globally modelled House plus actual-guild actor-attributed
+audit row in one synchronous transaction. Public success identifies the actor,
+stored name, and House ID only after commit.
+
+The command deliberately does not create a Discord role. Its public result
+instructs staff to create one exact matching role before relying on role-based
+House membership or inferred House selection. `$house_add` is fully retired
+without an adapter under compatibility entry C-016.
+
+Implementation/tests checkpoint `7063801` passed 34 focused tests, 117 broader
+affected tests, and complete offline discovery with 997 passed and 31
+intentional skips under asyncio debug timing. The real-schema commit/rollback
+gate and beta deployment remain pending.
 
 ### Legacy modules outside the modernization target
 
