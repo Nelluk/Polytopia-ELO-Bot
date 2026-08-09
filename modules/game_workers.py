@@ -1492,31 +1492,33 @@ async def run_game_tribe_mutation(
 ) -> GameTribeMutationResult:
     """Submit a tribe mutation and drain a canceled caller safely."""
 
-    loop = asyncio.get_running_loop()
     call = functools.partial(set_game_tribes, request)
     concurrent_future = _game_write_executor.submit(call)
-    future = asyncio.wrap_future(concurrent_future, loop=loop)
-    completed = asyncio.Event()
-    concurrent_future.add_done_callback(
-        lambda _future: loop.call_soon_threadsafe(completed.set)
-    )
     try:
-        return await asyncio.shield(future)
+        # Poll only at an async yield point and retrieve the concurrent result
+        # directly. On some supported Python/event-loop combinations the
+        # callback installed by asyncio.wrap_future can remain pending after
+        # this worker is already complete, which used to strand the caller.
+        while not concurrent_future.done():
+            await asyncio.sleep(0.001)
     except asyncio.CancelledError:
         # A running synchronous transaction cannot be canceled. The service
         # keeps the keyed claim until this worker has drained, including when
         # shutdown or a competing caller delivers cancellation repeatedly.
         task = asyncio.current_task()
-        if task is not None:
-            task.uncancel()
-        while not completed.is_set():
+        while not concurrent_future.done():
+            if task is not None:
+                task.uncancel()
             try:
-                await completed.wait()
+                await asyncio.sleep(0.001)
             except asyncio.CancelledError:
-                if task is not None:
-                    task.uncancel()
-        concurrent_future.result()
+                continue
+        try:
+            concurrent_future.result()
+        except BaseException as exc:
+            raise asyncio.CancelledError from exc
         raise asyncio.CancelledError
+    return concurrent_future.result()
 
 
 def _registered_game_map_requester(requester_id: int) -> bool:
