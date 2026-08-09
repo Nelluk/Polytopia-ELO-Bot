@@ -1,4 +1,4 @@
-"""Focused coverage for P8.8 House name and image attributes."""
+"""Focused coverage for P8.8/P8.9 House attributes and creation."""
 
 import asyncio
 from contextlib import AbstractContextManager
@@ -11,7 +11,6 @@ import unittest
 from unittest import mock
 
 import discord
-from discord.ext import commands
 import peewee
 
 from tests.test_newgame_worker import import_offline_runtime
@@ -115,6 +114,20 @@ def mutation_request(**overrides):
     return workers.HouseAttributeMutationRequest(**values)
 
 
+def creation_request(**overrides):
+    values = dict(
+        guild_id=300,
+        requester_id=10,
+        requester_is_mod=True,
+        league_scope=True,
+        channel_allowed=True,
+        name='New House',
+        requester_description='**Actor** (`10`)',
+    )
+    values.update(overrides)
+    return workers.HouseCreationRequest(**values)
+
+
 class RegistrationTests(unittest.TestCase):
     def test_native_shapes_and_prefix_retirement(self):
         root = next(
@@ -123,7 +136,13 @@ class RegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in root.commands},
-            {'show', 'list', 'name', 'image'},
+            {'show', 'list', 'create', 'name', 'image'},
+        )
+        create = root.get_command('create')
+        self.assertEqual(
+            [(parameter.name, parameter.required, parameter.type)
+             for parameter in create.parameters],
+            [('name', True, discord.AppCommandOptionType.string)],
         )
         name = root.get_command('name')
         self.assertEqual(
@@ -145,10 +164,9 @@ class RegistrationTests(unittest.TestCase):
             ],
         )
         prefix = {command.name: command for command in league.league.__cog_commands__}
-        self.assertIsInstance(prefix['house_add'], commands.Command)
+        self.assertNotIn('house_add', prefix)
         self.assertNotIn('house_rename', prefix)
         self.assertNotIn('house_image', prefix)
-        self.assertEqual(prefix['house_add'].aliases, [])
 
 
 class WorkerTests(unittest.TestCase):
@@ -242,6 +260,45 @@ class WorkerTests(unittest.TestCase):
         self.assertIsNone(house.image_url)
         self.assertEqual(database.atomics, 1)
         audit.assert_called_once()
+
+    def test_creation_is_mod_only_worker_local_atomic_and_audited(self):
+        database = FakeDatabase()
+        house = SimpleNamespace(id=12, name='New House')
+        house_model = SimpleNamespace(create=mock.Mock(return_value=house))
+        game_log = SimpleNamespace(write=mock.Mock())
+        with mock.patch.object(workers.models, 'db', database), mock.patch.object(
+            workers.models, 'House', house_model
+        ), mock.patch.object(workers.models, 'GameLog', game_log):
+            result = workers.create_house(creation_request(name='  New House  '))
+        self.assertEqual(result.house_id, 12)
+        self.assertEqual(result.house_name, 'New House')
+        house_model.create.assert_called_once_with(name='New House')
+        self.assertEqual(database.connections, 1)
+        self.assertEqual(database.atomics, 1)
+        game_log.write.assert_called_once_with(
+            guild_id=300,
+            message=(
+                "**Actor** (`10`) created House 'New House' ID 12 "
+                '(/house create)'
+            ),
+        )
+
+        with self.assertRaises(workers.HouseAttributePermissionError):
+            workers.create_house(creation_request(requester_is_mod=False))
+
+    def test_creation_duplicate_is_private_validation_conflict(self):
+        database = FakeDatabase()
+        house_model = SimpleNamespace(
+            create=mock.Mock(side_effect=peewee.IntegrityError('duplicate'))
+        )
+        with mock.patch.object(workers.models, 'db', database), mock.patch.object(
+            workers.models, 'House', house_model
+        ):
+            with self.assertRaisesRegex(
+                workers.HouseAttributeValidationError,
+                'already exists',
+            ):
+                workers.create_house(creation_request())
 
 
 class AsyncBoundaryTests(unittest.IsolatedAsyncioTestCase):
@@ -389,3 +446,64 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         interaction.followup.send.assert_awaited_once_with(
             'House image operation failed and rolled back.', ephemeral=True
         )
+
+    async def test_create_denies_non_mod_before_defer(self):
+        cog = league.league.__new__(league.league)
+        interaction = self._interaction()
+        command = next(
+            command for command in league.league.__cog_app_commands__
+            if command.name == 'house'
+        ).get_command('create')
+        with mock.patch.object(
+            service,
+            'native_access_error',
+            return_value='You do not have permission to create Houses.',
+        ):
+            await command.callback(cog, interaction, 'New House')
+        interaction.response.send_message.assert_awaited_once_with(
+            'You do not have permission to create Houses.',
+            ephemeral=True,
+        )
+        interaction.response.defer.assert_not_awaited()
+
+    async def test_create_defers_commits_then_publishes_publicly(self):
+        cog = league.league.__new__(league.league)
+        interaction = self._interaction()
+        command = next(
+            command for command in league.league.__cog_app_commands__
+            if command.name == 'house'
+        ).get_command('create')
+        request = creation_request()
+        result = workers.HouseCreationResult(
+            guild_id=300,
+            house_id=12,
+            house_name='New House',
+        )
+        events = []
+        original = interaction.response.defer
+
+        async def defer(**kwargs):
+            events.append('defer')
+            return await original(**kwargs)
+
+        interaction.response.defer = mock.AsyncMock(side_effect=defer)
+        with mock.patch.object(
+            service, 'native_access_error', return_value=None
+        ), mock.patch.object(
+            service, 'build_creation_request', return_value=request
+        ), mock.patch.object(
+            service,
+            'run_creation',
+            new=mock.AsyncMock(
+                side_effect=lambda _request: events.append('commit') or result
+            ),
+        ), mock.patch.object(
+            service,
+            'publish_creation',
+            new=mock.AsyncMock(
+                side_effect=lambda *args, **kwargs: events.append('publish')
+            ),
+        ):
+            loaded = await command.callback(cog, interaction, 'New House')
+        self.assertEqual(loaded, result)
+        self.assertEqual(events, ['defer', 'commit', 'publish'])

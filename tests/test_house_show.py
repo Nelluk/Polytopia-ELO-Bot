@@ -161,7 +161,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertTrue(root.guild_only)
         self.assertEqual(
             {command.name for command in root.commands},
-            {'show', 'list', 'name', 'image'},
+            {'show', 'list', 'create', 'name', 'image'},
         )
         show = root.get_command('show')
         self.assertEqual(

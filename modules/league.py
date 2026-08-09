@@ -839,6 +839,72 @@ class league(commands.Cog):
             )
 
     @house_group.command(
+        name='create',
+        description='Create a new league House.',
+    )
+    @discord.app_commands.describe(
+        name='Required unique House name; create its exact Discord role separately.',
+    )
+    async def house_create_slash(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'House commands require a server.', ephemeral=True
+            )
+        error = house_attributes.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+            mutation=True,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        actor = house_attributes.capture_actor(interaction.user)
+        request = house_attributes.build_creation_request(
+            member=interaction.user,
+            guild_id=guild.id,
+            channel_id=interaction.channel_id,
+            name=name,
+        )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await house_attributes.run_creation(request)
+        except house_attributes_workers.HouseAttributeError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /house create')
+            return await interaction.followup.send(
+                'House creation failed and rolled back.', ephemeral=True
+            )
+        except Exception:
+            logger.exception('Unexpected pre-commit failure in /house create')
+            return await interaction.followup.send(
+                'House creation failed before completion.', ephemeral=True
+            )
+        try:
+            await house_attributes.publish_creation(
+                result,
+                send=house_attributes.public_interaction_sender(interaction),
+                actor=actor,
+            )
+            return result
+        except Exception:
+            logger.exception(
+                'Committed House creation %s could not publish',
+                result.house_id,
+            )
+            return await interaction.followup.send(
+                'The House may have been created, but its public confirmation '
+                'could not be published. An operator must reconcile it before '
+                'retrying.',
+                ephemeral=True,
+            )
+
+    @house_group.command(
         name='name',
         description='View or update a House name.',
     )
@@ -1000,29 +1066,6 @@ class league(commands.Cog):
                 'House image operation failed and rolled back.', ephemeral=True
             )
     
-    @commands.command(usage='house_name')
-    @settings.is_mod_check()
-    async def house_add(self, ctx, *, arg=None):
-        """*Mod*: Create a league House
-        **Example:**
-        `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
-        """
-        args = arg.split() if arg else []
-        if not args:
-            return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
-        
-        house_name = ' '.join(args)
-        try:
-            logger.debug(f'Trying to create a house with name {house_name}')
-            house = models.House.create(name=house_name)
-        except peewee.IntegrityError:
-            return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
-        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
-        return await ctx.send(
-            f'New league House created with name "{house.name}". You can '
-            'add a team to it using `/team house`.'
-        )
-
     @commands.command(hidden=True)
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
@@ -1064,7 +1107,7 @@ class league(commands.Cog):
         `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
         `[p]team_tier ronin gold` - Change league tier of team. Does not impact current or past games from this team.
         
-        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `/house name`
+        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `/house create`, `/house name`
         """
         args = arg.split() if arg else []
         if not args or len(args) != 2:

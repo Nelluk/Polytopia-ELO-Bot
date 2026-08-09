@@ -1084,6 +1084,63 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             0,
         )
 
+    def test_house_creation_worker_commits_and_rolls_back_real_schema(self):
+        """Exercise P8.9 House+audit commit and rollback under the dev gate."""
+
+        from modules import house_attributes_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        house_name = f'P89 {uuid.uuid4().hex}'
+        request = house_attributes_workers.HouseCreationRequest(
+            guild_id=guild_id,
+            requester_id=self.settings.owner_id,
+            requester_is_mod=True,
+            league_scope=True,
+            channel_allowed=True,
+            name=house_name,
+            requester_description='P8.9 integration actor',
+        )
+        try:
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P8.9 audit failure'),
+            ):
+                with self.assertRaises(peewee.OperationalError):
+                    asyncio.run(
+                        house_attributes_workers.run_house_creation(request)
+                    )
+            self.assertEqual(
+                self.models.House.select().where(
+                    self.models.House.name == house_name
+                ).count(),
+                0,
+            )
+
+            result = asyncio.run(
+                house_attributes_workers.run_house_creation(request)
+            )
+            self.assertEqual(result.house_name, house_name)
+            self.assertEqual(
+                self.models.House.select().where(
+                    self.models.House.id == result.house_id
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(house_name)
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(house_name)
+            ).execute()
+            self.models.House.delete().where(
+                self.models.House.name == house_name
+            ).execute()
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 

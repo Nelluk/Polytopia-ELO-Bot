@@ -121,8 +121,34 @@ def build_mutation_request(
     )
 
 
+def build_creation_request(
+    *,
+    member,
+    guild_id: int,
+    channel_id: int | None,
+    name: str | None,
+) -> workers.HouseCreationRequest:
+    return workers.HouseCreationRequest(
+        guild_id=int(guild_id),
+        requester_id=int(member.id),
+        requester_is_mod=_requester_is_mod(member),
+        league_scope=house_show._league_scope(guild_id),
+        channel_allowed=house_show._channel_allowed(
+            member,
+            guild_id,
+            channel_id,
+        ),
+        name=(str(name) if name is not None else None),
+        requester_description=capture_actor(member).identity,
+    )
+
+
 async def run_read(request):
     return await workers.run_house_attribute_read(request)
+
+
+async def run_creation(request):
+    return await workers.run_house_creation(request)
 
 
 async def _run_blocking(function, *args, report_cancellation: bool = False):
@@ -327,6 +353,16 @@ async def publish_mutation(result, *, send, actor) -> None:
             f'{actor.label} cleared the image for House '
             f'**{_display(result.house_name)}**.'
         )
+
+
+async def publish_creation(result, *, send, actor) -> None:
+    await send(
+        f'{actor.label} created House **{_display(result.house_name)}** '
+        f'(ID `{result.house_id}`). Create a Discord role named exactly '
+        f'**{_display(result.house_name)}** before relying on role-based House '
+        'membership or omitted-House inference. Configure its name and image '
+        'later with `/house name` and `/house image`.'
+    )
 
 
 def publication_failure_message(error: HouseImagePublicationError, *, actor) -> str:

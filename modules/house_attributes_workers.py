@@ -96,6 +96,24 @@ class HouseAttributeMutationResult:
     local_image_bytes: bytes | None = None
 
 
+@dataclass(frozen=True)
+class HouseCreationRequest:
+    guild_id: int
+    requester_id: int
+    requester_is_mod: bool
+    league_scope: bool
+    channel_allowed: bool
+    name: str | None
+    requester_description: str
+
+
+@dataclass(frozen=True)
+class HouseCreationResult:
+    guild_id: int
+    house_id: int
+    house_name: str
+
+
 def _validate_scope(request) -> None:
     if not bool(request.league_scope):
         raise HouseAttributePermissionError(
@@ -290,6 +308,41 @@ def mutate_house_attribute(
         )
 
 
+def create_house(request: HouseCreationRequest) -> HouseCreationResult:
+    """Create and audit one globally modelled House atomically."""
+
+    _validate_scope(request)
+    if not request.requester_is_mod:
+        raise HouseAttributePermissionError(
+            'You do not have permission to create Houses.'
+        )
+    name = validate_house_name(request.name)
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                house = models.House.create(name=name)
+            except peewee.IntegrityError as exc:
+                raise HouseAttributeValidationError(
+                    f'A House named **{name}** already exists.'
+                ) from exc
+            house_id = int(house.id)
+            stored_name = str(getattr(house, 'name', name))
+            models.GameLog.write(
+                guild_id=int(request.guild_id),
+                message=(
+                    f'{request.requester_description} created House '
+                    f'{stored_name!r} ID {house_id} (/house create)'
+                ),
+            )
+
+        return HouseCreationResult(
+            guild_id=int(request.guild_id),
+            house_id=house_id,
+            house_name=stored_name,
+        )
+
+
 _house_attribute_executor = ThreadPoolExecutor(
     max_workers=1,
     thread_name_prefix='polybot-house-attribute',
@@ -328,3 +381,7 @@ async def run_house_attribute_read(request):
 
 async def run_house_attribute_mutation(request):
     return await _run_worker(mutate_house_attribute, request, drain_on_cancel=True)
+
+
+async def run_house_creation(request):
+    return await _run_worker(create_house, request, drain_on_cancel=True)
