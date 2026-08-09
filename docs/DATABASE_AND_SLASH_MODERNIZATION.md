@@ -484,10 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.19c final started-card and
-announcement migration is complete, integrated, pushed, and loaded by the
-guarded beta at `064d84a`. A read-only P5 matchmaking close-out audit is the
-recommended next unit before declaring the phase complete. P5.19b Nova graduation is complete,
+Current active unit: **No code unit is active. The read-only P5 matchmaking
+close-out audit is complete on `codex/p5-matchmaking-closeout-audit` from exact
+clean deployed accumulation checkpoint `628298c`; P5.20 prefix target routing
+is the recommended final P5-specific implementation unit, pending the legacy
+`$gameside` retention decision recorded below. P5.19c final started-card and announcement
+migration is complete, integrated, pushed, and loaded by the guarded beta at
+`064d84a`. P5.19b Nova graduation is complete,
 integrated, pushed, and loaded by the guarded beta at `c8e8ecc`. P5.19a
 started-game channel creation is complete, integrated,
 pushed, and loaded by the guarded beta at `389acf7`. P5.19-A/B/C/D are
@@ -6048,6 +6051,69 @@ publisher.
 
 The audit changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
+
+### P5.20 — Matchmaking close-out audit and final prefix routing seam
+
+Status: **Audit complete; implementation decisions pending**
+
+Risk tier: **Audit only**. Any resulting prefix-routing correction is expected
+to be Tier 1/2 read-only adapter work; shared presentation or permission-check
+changes remain separately risked in their owning phases.
+
+The close-out audit inspected every command, listener, component callback, and
+scheduled loop in `modules/matchmaking.py` plus the P5 application services it
+delegates to. Core lifecycle state is now bounded:
+
+| Surface | Current authoritative boundary | Audit result |
+|---|---|---|
+| `$opengame` / `/game open` | atomic open-game worker; external broadcasts reconciled post-commit | bounded |
+| `$join`, `/game join`, Join button, reaction join | shared join worker and immutable post-commit card | bounded except the prefix named-side pre-read |
+| `$leave`, `/game leave`, Leave button, reaction leave | shared leave worker | bounded |
+| `$kick`, `/game manage kick`, Kick control | shared kick worker and immutable post-commit card | bounded apart from the shared prefix registration decorator |
+| `$start`, `/game start`, Start control | two-stage start worker and P5.19 immutable publisher | bounded apart from the shared prefix registration decorator |
+| open-game search/listing | frozen search worker | bounded |
+| join-message/reaction routing | frozen reaction worker | bounded |
+| reminder, vacant-lobby, open-list, expiration, and retained-broadcast loops | dedicated bounded services/workers | bounded |
+
+Two P5-specific synchronous reads remain:
+
+1. `prefix_side_exists()` calls `Game.get_or_none()` and `Game.get_side()` on
+   the event loop to preserve `$join GAME SIDE_NAME` versus third-party member
+   ambiguity. It may run twice for one invocation.
+2. Hidden `$gameside` / `$matchside` / `$sidename` uses the synchronous
+   `PolyMatch` converter, returns a live Peewee `Game`, and performs stale
+   pending/host checks before delegating the actual mutation to the already
+   authoritative game-side worker.
+
+Recommended P5.20 implementation:
+
+- preserve `$join` and its exact named-side/member precedence;
+- replace its repeated live lookup with one bounded worker-local primitive
+  side-token snapshot, then continue through the existing authoritative join
+  mutation worker;
+- retire hidden `$gameside` and its aliases because `/game side` is already the
+  canonical worker-backed interface and the command is not a primary legacy
+  workflow. If retained, replace `PolyMatch` with primitive ID parsing and let
+  the existing game-side worker own all lookup, pending, guild, host/staff, and
+  stale-state checks; and
+- remove `PolyMatch` after its only consumer is retired or converted.
+
+Shared seams found by this audit are real but do not belong in P5.20:
+
+- `models.is_registered_member()` performs a synchronous global
+  `DiscordMember` count on the event loop for 18 prefix handlers across P4,
+  P5, P6, misc, and legacy modules. Track one shared asynchronous registration
+  check/extraction unit; do not duplicate it per command. Authoritative workers
+  continue to revalidate guild-specific Player authority.
+- `game_side.reconcile_game_presentation()` and
+  `game_notes.refresh_game_card()` still reload live Peewee games after commit;
+  equivalent map/name/tribe presenters have the same P4 concern. Track one P4
+  immutable metadata-presentation cleanup using the accepted neutral detail
+  card rather than treating each P5 adapter as a separate fix.
+
+Phase status remains **In progress** until P5.20 is resolved. P5 may then close
+with the two shared seams explicitly owned by the P4/P6 cleanup backlog; they
+must not be silently accepted as completed database modernization.
 
 ## P6 — Registration and player preferences
 
@@ -11842,6 +11908,28 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5 matchmaking close-out audit completed
+
+- Inspected every matchmaking command, reaction/message listener, pending-card
+  adapter, and scheduled lifecycle loop plus its delegated service boundary.
+- Confirmed open, join, leave, kick, start, search, reaction routing,
+  reminders, vacant lobbies, list broadcasts, expiration, and retained
+  broadcast reconciliation now use bounded workers/services with Discord
+  effects outside synchronous transactions.
+- Found exactly two P5-specific synchronous prefix reads: `$join` named-side
+  disambiguation and the hidden `$gameside` converter/prechecks. Recommended
+  one P5.20 unit that preserves `$join`, replaces the repeated side-token read,
+  and retires `$gameside`/aliases unless explicit retention is requested.
+- Recorded two cross-phase seams separately: the synchronous shared
+  `is_registered_member()` decorator used by 18 prefix handlers, and the
+  live-model metadata-card presenters shared by side/notes/map/name/tribe.
+  These require one shared registration-check unit and one P4 immutable
+  metadata-presentation cleanup; neither should be duplicated inside P5.20.
+- No code, test, database, fixture, Discord, beta, command, capability,
+  dependency, schema, production, or sudo action occurred. `git diff --check`
+  passed. P5 remains In progress pending P5.20 and explicit ownership of the
+  two shared cleanup units.
 
 ### 2026-08-09 — P5.19c immutable start publisher validated
 
