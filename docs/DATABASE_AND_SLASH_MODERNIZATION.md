@@ -484,12 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P7.7a read-only player analytics
-restoration is integrated, pushed, and running on the development beta at
-`d9a7258`; wider-beta acceptance is pending. It restores a lazily rendered
-ELO-history view and requester-versus-target local 1v1 summary inside `/player
-show`, without adding slash options or database writes. Trophies, favorite
-tribe, and pre-Moonrise miscellaneous statistics remain deferred under C-002.**
+Current active unit: **P8.20 member-join reconciliation is locally green on
+`codex/p8-20-member-join-reconciliation` from exact clean accumulation
+checkpoint `cf6e398`. It preserves rejoin Player upsert, existing game-channel
+permission restoration, and missing side-channel recreation while moving all
+Peewee work into bounded worker-owned transactions. Offline and stopped-beta
+real-schema validation passed; integration, push, and guarded restart remain
+pending. No command tree changes.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8368,6 +8369,60 @@ Implementation result:
   preview and Cancel; it explicitly forbids destructive confirmation without
   Nelluk designating every listed account disposable.
 
+### P8.20 — Member-join database and channel reconciliation
+
+Status: **Implemented and locally green; integration/deployment pending**
+
+The legacy `on_member_join` listener performs a potentially mutating
+`Player.get_by_discord_id()` lookup plus three Peewee lineup/game queries on
+the Discord event loop. Its missing-channel branch also passes live Peewee
+`Game`/`GameSide` objects into an asynchronous Discord channel-creation method,
+then saves channel IDs around awaited Discord effects. That violates the same
+database/event-loop and transaction/effect boundaries applied elsewhere.
+
+Accepted bounded contract:
+
+- preserve the existing account-wide-DiscordMember-to-local-Player upsert and
+  unregistered-member no-op;
+- preserve restoration of permissions and the public rejoin notice in every
+  relevant existing side/full-game channel;
+- preserve recreation of a missing multi-player side channel, including
+  external-Team and PCPLUS routing, channel-capacity rules, roster greeting,
+  and the existing `live`-game exclusion;
+- freeze channel/game/host/participant metadata as immutable primitive DTOs
+  before returning to the event loop; no live Peewee object crosses the
+  worker boundary;
+- create Discord channels only after the initial worker transaction returns,
+  then persist the created channel ID in a second worker-local transaction
+  with an exact null-channel optimistic claim;
+- if another join event wins the claim or persistence fails, delete only the
+  newly created duplicate/orphan channel. A successful persistence followed
+  by greeting failure remains committed reconciliation, not a database retry;
+- store `team_chan_external_server` relative to the tracked game's guild,
+  correcting the legacy external-server rejoin path that could clear the
+  external marker when the listener fired inside that external guild;
+- retain listener-only behavior with no slash/prefix/taxonomy or application-
+  command registration change.
+
+Implementation adds `modules/member_join_workers.py`, routes
+`on_member_join` through its bounded single-worker executor, and adds focused
+listener/worker plus gated real-schema coverage. Focused member-join coverage
+passed **13 tests**; affected member-join/removal and game channel lifecycle
+coverage passed **50 tests**. Complete offline discovery passed **1,173 tests
+with 43 intentional gated skips**. The guarded beta was stopped cleanly,
+the host-wide audit found no development writer, and the unchanged exact
+`development` / `polytopia_dev` / `polybot_dev` suite ran **42 tests: 41
+passed and one retained-fixture round trip skipped intentionally**. The new
+case proved outer rollback of a local Player upsert, successful upsert,
+immutable side snapshot ordering, external-guild channel attribution,
+optimistic conflict rejection, and exact owned-row cleanup.
+Implementation/tests checkpoint: `90d6495`.
+
+A backend-only deployment needs no command apply/sync. No tester announcement
+is planned because there is no safe, useful broad-tester smoke unless a
+designated account deliberately leaves and rejoins; this disposition will be
+recorded with deployment evidence.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9865,6 +9920,35 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.20 member-join reconciliation implemented locally
+
+- Replaced event-loop `Player.get_by_discord_id()` and lineup/game queries in
+  `on_member_join` with a bounded worker-local connection and one synchronous
+  initial transaction. Unregistered joins remain no-ops; eligible existing
+  account records still create the missing current-guild Player.
+- Returned only frozen channel targets and game/side/host/player snapshots.
+  Existing-channel permission repair and public rejoin notices now begin only
+  after the worker returns successfully; database failure has no Discord
+  effect.
+- Preserved missing multi-player side-channel recreation without passing live
+  Peewee models into Discord code. New channels are claimed by a second
+  worker-local optimistic transaction; races or persistence failures attempt
+  bounded deletion of only the new duplicate/orphan channel before greeting.
+- Corrected external channel attribution to compare the actual channel guild
+  with the tracked game guild, retaining the marker needed by later external-
+  guild rejoin events.
+- Added focused worker/listener tests, cancellation draining for both the
+  initial read and post-Discord channel claim, and a gated real-schema
+  rollback/upsert/snapshot/channel-claim test.
+- Stopped only the guarded development beta, confirmed the host-wide writer
+  audit clear, and passed the full unchanged database suite with **41 passes
+  and one intentional retained-fixture skip**. The initial real-schema failure
+  was a test-fixture guild-Player mismatch; the corrected staged fixture then
+  proved rollback, upsert, side loading, persistence, conflict, and cleanup.
+- Integration, push, guarded restart, and final deployment evidence remain
+  pending. No command definition changed, so no Discord command
+  synchronization is planned. Implementation/tests checkpoint: `90d6495`.
 
 ### 2026-08-09 — P7.7a player analytics restored locally
 
