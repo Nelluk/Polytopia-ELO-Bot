@@ -484,15 +484,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.22 member
-identity/moderation listener persistence is integrated, pushed, and running on
-the guarded development beta at `5c8034b`. Account-wide username metadata,
-guild-local nickname/display metadata, and guild-local ELO-ban state plus each
-audit row now run in bounded worker-owned transactions. Existing global
-`guild_id=0` username audit, guild-local audit, unregistered-member, and
-ban→inactive→nickname sequencing semantics are preserved. The stopped-beta
-real-schema gate passed. No command tree changed, and no command synchronization
-or tester announcement was needed.**
+Current active unit: **P8.23 league team-channel cache loading is Implemented
+and locally green on `codex/p8-23-league-channel-cache` from exact clean
+accumulation checkpoint `b5ef342`; implementation/tests are checkpointed as
+`2dfd78a`. Synchronous startup and post-game cache queries now use a bounded
+read worker with event-loop assignment after success. All three refresh points
+preserve their timing; a failed load preserves the prior cache. Complete
+offline and targeted read-only real-schema validation passed while the beta
+remained online. Integration, push, and restart remain active. No command tree
+changes.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8582,6 +8582,57 @@ Integration/deployment evidence:
 - selected the explicit no-announcement route. These are backend identity and
   moderation event boundaries with no appropriate broad-pool smoke action.
 
+### P8.23 — League team-channel cache loading
+
+Status: **Implemented and locally green; integration/deployment pending**
+
+The process-local `league_team_channels` list is refreshed by
+`populate_league_team_channels()`, which performs synchronous Team/GameSide/Game
+queries on the event loop from three asynchronous paths: league startup, the
+modern game-start post-commit publisher, and retained legacy post-create
+messaging.
+
+Accepted bounded contract:
+
+- replace the synchronous helper with an awaited
+  `refresh_league_team_channels(guild_id)` at all three callers;
+- load only primitive team/channel IDs through a dedicated bounded read worker
+  and worker-local Peewee connection;
+- preserve the existing definition: visible/non-hidden teams in the configured
+  league guild, non-null side channel, unconfirmed game, and matching team;
+- retain archived-team eligibility and duplicate/order behavior except for an
+  explicit deterministic GameSide-ID ordering;
+- fail closed rather than silently truncate above 2,000 channel rows;
+- replace the process-local list only after a complete successful worker result
+  so read failure retains the last known cache;
+- drain cancellation until the submitted read completes;
+- make no database write, transaction, Discord effect, command, permission,
+  capability, taxonomy, schema, or prefix change.
+
+Implementation adds `modules/league_channel_workers.py`, removes the direct
+query helper, awaits the new cache refresh at all callers, and adds focused
+worker/cache/caller plus targeted gated real-schema read coverage. Because the
+unit is strictly read-only, its single gated test may run alongside the durable
+beta; it must not invoke the full writer-containing integration suite while the
+beta is active. Deployment needs a guarded beta restart but no command
+apply/sync or tester announcement.
+
+Validation evidence:
+
+- focused league-channel worker/cache/caller suite: 9 passed;
+- affected startup/game-start/retained-create suites: 69 passed;
+- complete offline discovery: 1,207 passed with 46 intentional gated skips;
+- the single targeted read-only real-schema test passed under the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` identity and disabled
+  background/API gates while the durable beta remained online;
+- no writer-containing integration test, database mutation, fixture change, or
+  stopped-writer window was used;
+- touched-Python compilation and working-tree whitespace checks passed.
+
+Implementation/tests checkpoint: `2dfd78a`. Evidence checkpoint, integration,
+push, guarded beta restart, and final no-sync/no-announcement deployment record
+remain pending.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -10079,6 +10130,26 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.23 league channel cache worker implemented locally
+
+- Replaced synchronous league Team/GameSide/Game cache queries at startup and
+  both post-game paths with one frozen read request, bounded worker-local
+  connection, and event-loop cache assignment after success.
+- Preserved the previous cache on failure, added a fail-closed 2,000-row bound,
+  deterministic side ordering, event-loop responsiveness, and cancellation
+  draining.
+- Added frozen DTO, connection ownership, empty/bounded result, caller-await,
+  startup ordering, cache rollback, and targeted real-schema read coverage.
+- Focused cache coverage passed 9 tests; the affected startup/game-start/
+  retained-create group passed 69. Complete offline discovery passed 1,207
+  tests with 46 intentional gated skips.
+- Ran only the new read-only real-schema case alongside the active beta; it
+  passed the unchanged development/database/role/service gates and matched the
+  current complete cache snapshot without writing any row.
+- Checkpointed implementation/tests as `2dfd78a`. Evidence checkpoint,
+  integration, push, guarded restart, and explicit no-sync/no-announcement
+  deployment evidence remain pending.
 
 ### 2026-08-09 — P8.22 identity/moderation listeners implemented locally
 
