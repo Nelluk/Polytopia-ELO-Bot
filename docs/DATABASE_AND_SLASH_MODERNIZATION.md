@@ -375,7 +375,7 @@ would become unavailable if a prefix is retired.
 | C-021 `/league maintenance export` / `$league_export` | Native staff export has one optional `include_logs` Boolean and privately returns the same gzip CSV population/columns as the legacy command. A single conflict-rejecting worker owns its Peewee connection, generates immutable bytes in memory, and enforces game/upload bounds. | Legacy recommendation: **retain** — the low-frequency fallback is inexpensive once delegated to the same worker and remains useful during the beta transition. Native output is private because the bulk dataset and optional audit logs should not be posted publicly; retained prefix output remains channel-visible because message commands cannot deliver ephemeral attachments. No data or grammar is lost if message intent is later retired. | Retire the prefix after native staff acceptance. Add alternate storage/delivery only if a real export exceeds the guild upload limit; do not write shared export filenames or publish bulk logs to a public channel. | P8.17 implemented, real-schema validated, integrated, and deployed at `a6e71f5`; staff beta acceptance pending |
 | C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remained unchanged through P8.18 and was subsequently retired by the separately governed P8.19/C-023 workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
 | C-023 `/league maintenance kick-inactive` / `$kick_inactive` | Native Mod-only removal privately evaluates every member carrying Inactive, displays an eligible/protected reason for each, refreshes the complete candidate set, requires exact typed `KICK <count>`, and removes at most 25 members per run. Current Team roles and a small starter set are eligible; unknown, managed, staff, leadership, bot, and owner roles/accounts fail closed. | Legacy recommendation: **retire** — explicitly approved. The immediate prefix batch had no preview, used a stale hard-coded Team-role list, aborted on individual failures, and mixed Discord awaits with event-loop database work. Native preserves the effective 7/30/60 thresholds while accurately describing “tracked games,” blocks pending/incomplete league games, treats DM failure as nonfatal, continues kick failures, and records audits only after Discord effects. | Restore no immediate prefix adapter. If thresholds or role policy change, revise the centralized worker, all-reasons preview, refreshed execution, and tests together. Never add scheduled removal without a separate policy and operations review. | P8.19 implemented, real-schema validated, integrated, and development-guild deployed through `958ae90`; bounded Mod acceptance pending |
-| C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; implementation `a46e99a` is locally validated and awaiting accumulation integration/restart |
+| C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; integrated, pushed, and loaded by the guarded beta through `e78601b` |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -485,12 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.20 prefix target routing is In progress on
-`codex/p5-20-prefix-target-routing` from exact clean accumulation checkpoint
-`ecd0ccd`. The approved boundary preserves `$join` named-side/member
-precedence through one bounded worker-local primitive lookup and retires hidden
-`$gameside`, `$matchside`, `$sidename`, and their now-unused `PolyMatch`
-converter. P5.19c final started-card and announcement
+Current active unit: **No code unit is active. P5.20 is complete, integrated,
+pushed, and loaded by the guarded beta through `e78601b`; P5 is closed with
+its two shared seams explicitly owned by the P4 immutable metadata-presentation
+and P6 shared registration-check backlogs. The next recommended bounded unit
+is the P4 immutable metadata-presentation cleanup described below. P5.19c final
+started-card and announcement
 migration is complete, integrated, pushed, and loaded by the guarded beta at
 `064d84a`. P5.19b Nova graduation is complete,
 integrated, pushed, and loaded by the guarded beta at `c8e8ecc`. P5.19a
@@ -887,7 +887,7 @@ this decision does not authorize production deployment or synchronization.
 | P3 | Complete | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
-| P5 | In progress | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
+| P5 | Complete | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | In progress | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
@@ -3282,7 +3282,7 @@ bounded offline unit.
 
 ## P5 — Matchmaking lifecycle
 
-Status: **In progress**
+Status: **Complete**
 
 ### P5.1 — Atomic open-game creation and `/game open`
 
@@ -6056,7 +6056,7 @@ Discord state, beta runtime, schema, dependency, or production behavior.
 
 ### P5.20 — Matchmaking close-out audit and final prefix routing seam
 
-Status: **Implemented and locally validated; accumulation integration pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 Risk tier: **Audit only**. Any resulting prefix-routing correction is expected
 to be Tier 1/2 read-only adapter work; shared presentation or permission-check
@@ -6077,7 +6077,7 @@ delegates to. Core lifecycle state is now bounded:
 | join-message/reaction routing | frozen reaction worker | bounded |
 | reminder, vacant-lobby, open-list, expiration, and retained-broadcast loops | dedicated bounded services/workers | bounded |
 
-Two P5-specific synchronous reads remain:
+The audit found two P5-specific synchronous reads, both resolved by P5.20:
 
 1. `prefix_side_exists()` calls `Game.get_or_none()` and `Game.get_side()` on
    the event loop to preserve `$join GAME SIDE_NAME` versus third-party member
@@ -6126,8 +6126,26 @@ Validation evidence:
 The first targeted selector named the wrong unittest class and failed before
 running a test. It was corrected immediately; the actual targeted case and
 complete gate passed. No schema, fixture, application-command registration,
-capability, or production state changed. Integration and the guarded restart
-remain pending.
+capability, or production state changed.
+
+Integration/deployment result:
+
+- fast-forwarded `codex/database-slash-modernization` through code checkpoint
+  `a46e99a` and evidence checkpoint `e78601b`, then pushed the accumulation
+  branch to the approved GitHub remote;
+- restarted only `polybot-development-beta@main.service` from the clean
+  accumulation checkout, with no application-command apply/sync;
+- authenticated as beta application `479029527553638401`, PID `3267412`, and
+  completed the mandatory read-only release-control `status` check;
+- sent no tester announcement because the slash tree and primary visible
+  workflow are unchanged: this is a prefix-routing implementation detail plus
+  retirement of three hidden, explicitly superseded commands; and
+- left production, schema, fixtures, command capabilities, and global Discord
+  state untouched.
+
+P5 is Complete. Its remaining cross-phase reads are not hidden: P4 owns the
+shared immutable post-commit metadata-card presentation cleanup, and P6 owns
+the shared asynchronous prefix registration-check cleanup.
 
 Shared seams found by this audit are real but do not belong in P5.20:
 
@@ -6142,9 +6160,9 @@ Shared seams found by this audit are real but do not belong in P5.20:
   immutable metadata-presentation cleanup using the accepted neutral detail
   card rather than treating each P5 adapter as a separate fix.
 
-Phase status remains **In progress** until P5.20 is resolved. P5 may then close
-with the two shared seams explicitly owned by the P4/P6 cleanup backlog; they
-must not be silently accepted as completed database modernization.
+P5 is **Complete** after P5.20. The two shared seams remain explicitly owned by
+the P4/P6 cleanup backlog; they are not silently accepted as completed
+database modernization.
 
 ## P6 — Registration and player preferences
 
@@ -11939,6 +11957,24 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.20 integrated, deployed, and P5 closed
+
+- Fast-forwarded and pushed the accumulation branch through `e78601b` after
+  the complete offline and stopped-beta development PostgreSQL gates passed.
+- Restarted only the guarded development beta without application-command
+  synchronization; it authenticated as expected application
+  `479029527553638401`, PID `3267412`, and the release-control health check
+  succeeded.
+- Chose no tester announcement because no slash schema or primary visible
+  workflow changed. The hidden prefix retirement is already recorded in
+  C-024 and `/game side` remains available.
+- Marked P5 Complete. The shared live metadata-card presentation seam remains
+  assigned to P4, and the cross-module registration decorator remains assigned
+  to P6 rather than being silently accepted as P5 debt.
+- Next: select the bounded P4 immutable metadata-presentation cleanup so
+  side/notes/map/name/tribe post-commit cards no longer reload live Peewee
+  models on the event loop.
 
 ### 2026-08-09 — P5.20 prefix target routing implemented and validated
 
