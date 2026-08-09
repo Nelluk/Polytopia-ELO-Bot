@@ -484,9 +484,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.16 external-broadcast
-creation is complete, integrated, pushed, and loaded by the guarded
-development beta at `25ab89a`.**
+Current active unit: **No code unit is active. The P5.17 post-join game-card
+lifecycle audit is complete and implementation is blocked on acceptance of
+P5.17-A/B/C/D below. P5.16 external-broadcast creation is complete,
+integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
+P5.17 found that the remaining synchronous post-commit card reload is shared
+by successful `/game join`, `$join`, and reaction joins, not reaction leave.
+The pending-card Join button already refreshes through the bounded immutable
+game-detail reader. The recommended implementation reuses that reader and the
+accepted dense classic renderer rather than adding a reaction-specific DTO,
+loads one authoritative post-commit snapshot for every direct join, and
+preserves each adapter's existing destinations, prefix/slash guidance,
+visibility, full-game notices, and reconciliation semantics.
 P5.16-A/B/C/D are accepted. Prefix-only role-lock broadcasts now use immutable
 worker-owned planning and persistence, deterministic House routing and
 destination deduplication, pending-state revalidation, per-target isolation,
@@ -5477,6 +5486,116 @@ game-card reload used by reaction success paths. Preserve reaction join/leave
 semantics and public cards while moving the remaining synchronous reload off
 the event loop; first identify whether the reload should share the existing
 game-detail read service or remain a smaller reaction-specific snapshot.
+
+### P5.17 — Post-join game-card lifecycle audit
+
+Status: **Blocked; read-only audit complete and P5.17-A/B/C/D await acceptance**
+
+The initially suspected reaction-success reload is one instance of a wider
+shared presentation gap. After the authoritative join worker commits:
+
+- native `/game join` synchronously calls `Game.load_full_game()` and
+  `Game.embed()` on the event-loop thread before publishing its public card;
+- prefix `$join` performs the same synchronous reload/render before its card
+  and completion output;
+- reaction join performs the same synchronous reload/render before reusing
+  the card for the source-guild full-game announcement and the reaction
+  feedback destination; and
+- reaction leave publishes only its host warning and committed text result.
+  It does not reload or render a card.
+
+The public pending-card Join button is already on the desired side of the
+boundary. It commits through the same join worker with `publish_card=False`,
+then its requester-bound card refresh uses the bounded immutable game-detail
+reader. Therefore a reaction-only snapshot would duplicate a working card
+contract while leaving the slash and prefix direct-join paths blocking.
+
+The existing game-detail service is sufficient for the direct-join card:
+
+- `GameDetailRequest` contains only primitive guild/channel/requester/game
+  IDs;
+- its bounded two-thread reader owns the Peewee connection, reloads the full
+  graph, and returns one frozen `GameDetailSnapshot` covering pending status,
+  sides, lineups, ELO labels, teams, tribes, notes, expiration, creator, host,
+  and balanced draft order;
+- `resolve_display()` performs only event-loop-owned Discord cache and local
+  asset resolution; and
+- `render_classic_game_detail()` preserves the accepted production-style
+  dense card while selecting configured-prefix guidance for prefix/reaction
+  cards and `/game join|start|show` guidance for native slash cards.
+
+The immutable render also removes the direct presenters' dependency on
+`image_storage.send_game_embed(destination, live_game, ...)`. Each destination
+can send the frozen embed/content and obtain a fresh attachment from
+`ClassicGameDetailRender.new_file()`. This matters when a full reaction join
+publishes the same render twice because a Discord file object cannot safely be
+reused after one send.
+
+Required bounded implementation after acceptance:
+
+- add one shared post-join card loader/presenter used by native `/game join`,
+  prefix `$join`, and reaction join. Keep `ReactionGameSnapshot` limited to
+  its current small routing purpose rather than expanding it into a second
+  full-card DTO;
+- load exactly one authoritative game-detail snapshot after the join commits,
+  resolve/render it once, and reuse that immutable render for every applicable
+  destination, creating a fresh file object for each send;
+- pass the authoritative source-game guild to the detail request and display
+  resolver. For an external-server reaction, retain the external channel or
+  member only as the feedback destination; do not mark the source pending
+  game as a cross-guild detail lookup or expose source-guild Discord objects
+  through the worker;
+- preserve adapter-specific behavior: native slash guidance and public
+  followups, configured-prefix guidance for `$join` and reaction cards,
+  prefix full-game/host notices, reaction announcement-channel routing,
+  external reaction DM/channel feedback, reaction-removal rules, inactive-role
+  reconciliation, and existing message ordering;
+- preserve the current commit boundary. Card loading and Discord publication
+  happen only after the join transaction succeeds. A card load/send failure
+  reports the existing public reconciliation warning and never reinterprets
+  or retries the committed join;
+- make the shared game-detail executor drain submitted work before propagating
+  cancellation, matching the repository's other bounded workers. Apply the
+  same finite timeout used by `/game show`; timeout/cancellation must not claim
+  that a committed join rolled back;
+- do not hold the pending-game coordinator or a database transaction across
+  the post-commit read or any Discord send. The card is an authoritative
+  point-in-time snapshot and may include a later committed join/leave, which
+  is preferable to publishing an intentionally stale join-result projection;
+  and
+- leave reaction leave, pending-card Join refresh, kick presentation,
+  commands, permissions, schema, fixtures, and production behavior unchanged.
+  `publish_kick_result()` has the same adjacent synchronous card-reload smell,
+  but it is a separate mutation/presentation unit rather than justification
+  to expand P5.17.
+
+Policy decisions required before implementation:
+
+1. **P5.17-A — Scope:** modernize the shared direct-join presentation boundary
+   for `/game join`, `$join`, and reaction join together. Leave reaction leave
+   and the already-worker-backed pending-card Join refresh unchanged.
+   **Recommended.**
+2. **P5.17-B — Data contract:** reuse `GameDetailSnapshot`,
+   `resolve_display()`, and the accepted classic renderer. Do not enlarge the
+   routing-only `ReactionGameSnapshot` or create another full-card DTO.
+   **Recommended.**
+3. **P5.17-C — Compatibility and reconciliation:** preserve every adapter's
+   current public destination, presentation mode, message ordering, full-game
+   notice, external-server behavior, and public committed-but-unreconciled
+   warning. Load/render once and use a fresh attachment per send; never offer
+   a join retry after commit. **Recommended.**
+4. **P5.17-D — Concurrency and cancellation:** drain the bounded game-detail
+   read on cancellation, retain a finite timeout, and do not hold a lock or
+   transaction over the read/render/Discord effects. Treat the returned card
+   as current committed state rather than an exact projection of only the
+   triggering join. **Recommended.**
+
+The audit changed no code, test, command, capability, database, fixture,
+Discord state, beta runtime, schema, dependency, or production behavior.
+Implementation should add focused parity tests for all three direct adapters,
+one-read/two-send reaction behavior, fresh attachment creation, external
+source-guild display resolution, cancellation draining, and committed-join
+reconciliation failures before complete offline and gated read validation.
 
 ## P6 — Registration and player preferences
 
@@ -11271,6 +11390,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.17 post-join game-card lifecycle audited
+
+- Traced the synchronous post-commit `Game.load_full_game()`/`Game.embed()`
+  boundary through native `/game join`, prefix `$join`, and reaction join.
+  Confirmed that reaction leave has no card reload and that the pending-card
+  Join button already refreshes through the bounded game-detail reader.
+- Verified that the existing immutable `GameDetailSnapshot`, Discord-side
+  display resolver, and accepted dense classic renderer cover the full pending
+  card contract, including prefix/slash guidance, full-game creator guidance,
+  teams, tribes, account names, notes, expiration, and draft order.
+- Recommended one shared post-join card service rather than enlarging the
+  routing-only reaction snapshot or creating a second full-card DTO. One
+  snapshot/render can serve every applicable destination, with a fresh local
+  attachment object per Discord send.
+- Preserved source-guild resolution for external reaction joins, all current
+  destinations/message ordering/visibility, and committed-but-unreconciled
+  warnings. Recommended cancellation draining and a finite read timeout with
+  no lock or transaction across post-commit read/render/Discord effects.
+- Recorded the adjacent synchronous kick-card publisher as a later bounded
+  unit instead of expanding this join-focused implementation.
+- Left implementation blocked on P5.17-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, command, capability, schema, dependency, or
+  production change.
 
 ### 2026-08-09 — P5.16 external-broadcast creation worker validated
 
