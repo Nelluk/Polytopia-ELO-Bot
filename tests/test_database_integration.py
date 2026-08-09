@@ -2675,6 +2675,136 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.Team.id.in_(team_ids)
                 ).execute()
 
+    def test_nova_graduation_worker_reads_real_schema_without_writes(self):
+        from modules import nova_graduation_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex
+        discord_id = 9_150_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        game_ids = []
+        member_id = None
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'P519B Nova {suffix}',
+                polytopia_name=f'P519BNova{suffix}',
+                elo_moonrise=1234,
+            )
+            member_id = int(member.id)
+            player = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            )
+
+            def make_game(*, completed):
+                game = self.models.Game.create(
+                    guild_id=guild_id,
+                    name=f'P519B {suffix}',
+                    notes=f'P519B {suffix}',
+                    is_pending=False,
+                    is_completed=completed,
+                    is_confirmed=completed,
+                    is_ranked=True,
+                    is_mobile=True,
+                    completed_ts=(
+                        datetime.datetime.now() if completed else None
+                    ),
+                    size=[2, 2],
+                )
+                first = self.models.GameSide.create(
+                    game=game,
+                    position=1,
+                    sidename='Alpha',
+                    size=2,
+                )
+                self.models.GameSide.create(
+                    game=game,
+                    position=2,
+                    sidename='Bravo',
+                    size=2,
+                )
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=first,
+                    player=player,
+                )
+                if completed:
+                    game.winner = first
+                    game.save()
+                game_ids.append(int(game.id))
+                return game
+
+            completed_game = make_game(completed=True)
+            incomplete_game = make_game(completed=False)
+            config_count = self.models.Configuration.select().where(
+                self.models.Configuration.guild_id == guild_id
+            ).count()
+            log_count = self.models.GameLog.select().count()
+
+            nova_request = workers.NovaGraduationRequest(
+                game_id=int(incomplete_game.id),
+                guild_id=guild_id,
+                allowed_guild_ids=(guild_id,),
+                participants=(workers.NovaParticipantSnapshot(
+                    discord_id=discord_id,
+                    member_name=member.name,
+                    mention=f'<@{discord_id}>',
+                    has_nova_role=True,
+                    has_grad_role=False,
+                ),),
+            )
+            self.models.db.close()
+            loaded = asyncio.run(
+                workers.run_load_nova_graduation(nova_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+
+            self.assertEqual(len(loaded.candidates), 1)
+            self.assertEqual(loaded.candidates[0].discord_id, discord_id)
+            self.assertEqual(
+                loaded.candidates[0].qualifying_game_ids,
+                (int(incomplete_game.id), int(completed_game.id)),
+            )
+            self.assertEqual(loaded.candidates[0].global_elo, 1234)
+            self.assertEqual(
+                self.models.Configuration.select().where(
+                    self.models.Configuration.guild_id == guild_id
+                ).count(),
+                config_count,
+            )
+            self.assertEqual(self.models.GameLog.select().count(), log_count)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_ids:
+                self.models.Game.update(winner=None).where(
+                    self.models.Game.id.in_(game_ids)
+                ).execute()
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game.in_(game_ids)
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game.in_(game_ids)
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id.in_(game_ids)
+                ).execute()
+            if member_id is not None:
+                self.models.Player.delete().where(
+                    self.models.Player.discord_member == member_id
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id == member_id
+                ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+
     def test_pending_delete_worker_commits_and_rolls_back_real_graph_and_audit(self):
         from modules import game_deletion_workers
 

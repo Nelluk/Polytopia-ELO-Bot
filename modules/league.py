@@ -51,6 +51,7 @@ import modules.league_inactive_kick_workers as league_inactive_kick_workers
 import modules.league_channel_workers as league_channel_workers
 import modules.league_role_workers as league_role_workers
 import modules.models as models
+import modules.nova_graduation as nova_graduation
 import modules.utilities as utilities
 import settings
 from modules import team_attributes as team_attributes_service
@@ -2425,89 +2426,39 @@ class ClearPreferencesButton(Button):
         )
 
 
-async def auto_grad_novas(guild, game, output_channel = None):
-    # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
+async def auto_grad_novas(
+    guild,
+    game,
+    output_channel=None,
+    *,
+    participant_ids=None,
+):
+    """Compatibility adapter over the bounded Nova graduation service."""
 
-    if guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
-        return
-    
-    logger.debug(f'auto_grad_novas for game {game.id}')
-
-    role = discord.utils.get(guild.roles, name=novas_role_name)
-    grad_role = discord.utils.get(guild.roles, name=grad_role_name)
-
-    if not role or not grad_role:
-        logger.warning('Could not load required roles to complete auto_grad_novas')
-        return
-
-    player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
-    for player_id in player_id_list:
-        member = guild.get_member(player_id)
-        if not member:
-            logger.warning(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
-            continue
-
-        if role not in member.roles or grad_role in member.roles:
-            continue  # skip non-novas or people who are already graduates
-
-        logger.debug(f'Checking league graduation status for player {member.name} in auto_grad_novas')
-
-        try:
-            dm = models.DiscordMember.get(discord_id=member.id)
-            player = models.Player.get(discord_member=dm, guild_id=guild.id)
-        except peewee.DoesNotExist:
-            logger.warning(f'Player {member.name} not registered.')
-            continue
-
-        qualifying_games = []
-        has_completed_game = False
-
-        for lineup in player.games_played():
-            game = lineup.game
-            logger.debug(f'Evaluating game {game.id} is_pending {game.is_pending} is_completed {game.is_completed}')
-            if game.smallest_team() > 1:
-                logger.debug('Team game')
-                if not game.is_pending:
-                    qualifying_games.append(str(game.id))
-                if game.is_completed:
-                    has_completed_game = True
-
-        if len(qualifying_games) < 2:
-            logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
-            continue
-    
-        if not has_completed_game:
-            logger.debug(f'Player {player.name} has no completed team games.')
-            continue
-
-        wins, losses = dm.get_record()
-        logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
-
-        try:
-            await member.add_roles(grad_role)
-        except discord.DiscordException as e:
-            logger.error(f'Could not assign league graduation role: {e}')
-            break
-
-        config, _ = models.Configuration.get_or_create(guild_id=guild.id)
-        announce_str = 'Free Agent signups open regularly - pay attention to server announcements for a notification of the next one.'
-        if config.polychamps_draft['draft_open']:
+    if participant_ids is None:
+        participant_ids = tuple(
+            int(lineup.player.discord_member.discord_id)
+            for lineup in game.lineup
+        )
+    outcome = await nova_graduation.run_nova_graduation(
+        guild=guild,
+        game_id=int(game.id),
+        participant_ids=participant_ids,
+        output_channel=output_channel,
+        nova_role_name=novas_role_name,
+        grad_role_name=grad_role_name,
+    )
+    for warning in outcome.warnings:
+        logger.warning('%s', warning)
+        if output_channel is not None:
             try:
-                channel = guild.get_channel(config.polychamps_draft['announcement_channel'])
-                if channel and await channel.fetch_message(config.polychamps_draft['announcement_message']):
-                    announce_str = f'Free Agent signups are currently open in <#{channel.id}>'
-            except discord.NotFound:
-                pass  # Draft signup message no longer exists - assume its been deleted intentionally and closed
-            except discord.DiscordException as e:
-                logger.warning(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
-
-        grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo_moonrise} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
-                f'has met the qualifications and is now a **{grad_role.name}**\n'
-                f'{announce_str}')
-
-        await utilities.send_to_log_channel(guild, grad_announcement)
-        if output_channel:
-            await output_channel.send(grad_announcement)
+                await output_channel.send(warning)
+            except Exception:
+                logger.exception(
+                    'Could not publish Nova reconciliation warning for game %s',
+                    game.id,
+                )
+    return outcome
 
 
 async def refresh_league_team_channels(guild_id: int):

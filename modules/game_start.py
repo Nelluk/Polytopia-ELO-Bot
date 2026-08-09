@@ -12,6 +12,7 @@ from modules import (
     image_storage,
     league,
     models,
+    nova_graduation,
 )
 from modules import exceptions
 
@@ -230,10 +231,11 @@ async def publish_start_result(
 ) -> None:
     """Run all post-commit effects independently over the classic card.
 
-    ``Game.load_full_game`` and the legacy channel-reference writes remain a
-    post-commit compatibility seam.  The transition itself is complete before
-    this function starts; failures here therefore produce reconciliation text
-    and never roll back or suppress later effects.
+    ``Game.load_full_game`` remains a temporary classic-card/season-predicate
+    compatibility seam until P5.19c. Channel and Nova work already consume
+    committed primitive values. The transition itself is complete before this
+    function starts; failures here therefore produce reconciliation text and
+    never roll back or suppress later effects.
     """
 
     send = output_context.send
@@ -499,19 +501,34 @@ async def publish_start_result(
                 error=exc,
             )
 
-        try:
-            await league.auto_grad_novas(guild, game, output_context)
-        except Exception as exc:
-            await _safe_effect_warning(
-                send,
-                game_id=result.game_id,
-                effect='Nova follow-up',
-                error=exc,
-            )
     if not channels_processed:
         # Channel creation is fully represented by the committed primitive
         # plan and must not be suppressed by a classic-card reload failure.
         await publish_frozen_channels()
+
+    try:
+        nova_result = await nova_graduation.run_nova_graduation(
+            guild=guild,
+            game_id=result.game_id,
+            participant_ids=result.participant_ids,
+            output_channel=output_context,
+            nova_role_name=league.novas_role_name,
+            grad_role_name=league.grad_role_name,
+        )
+        for warning in nova_result.warnings:
+            await _safe_public_send(
+                send,
+                warning,
+                game_id=result.game_id,
+                effect='Nova graduation reconciliation',
+            )
+    except Exception as exc:
+        await _safe_effect_warning(
+            send,
+            game_id=result.game_id,
+            effect='Nova follow-up',
+            error=exc,
+        )
 
     await _safe_public_send(
         send,
