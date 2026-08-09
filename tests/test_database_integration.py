@@ -4780,6 +4780,46 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertIsNone(missing.guild_id)
         self.assertEqual(missing.external_server_ids, ())
 
+    def test_game_reminder_worker_reads_real_schema_without_writes(self):
+        """Exercise P5.11 reminder snapshots without fixture mutation."""
+
+        from modules import game_reminder_workers
+
+        candidates = self.models.Game.search_pending(
+            status_filter=1,
+            ranked_filter=1,
+            limit=1,
+        )
+        candidate = candidates[0] if candidates else None
+        if candidate is None:
+            self.skipTest('no existing full ranked pending game is available')
+
+        before_logs = self.models.GameLog.select().count()
+        self.models.db.close()
+        result = asyncio.run(
+            game_reminder_workers.run_load_game_reminders(
+                game_reminder_workers.GameReminderRequest(
+                    as_of=(
+                        datetime.datetime.now()
+                        + datetime.timedelta(days=365)
+                    ),
+                )
+            )
+        )
+        self.models.db.connect(reuse_if_open=True)
+        after_logs = self.models.GameLog.select().count()
+
+        represented = {
+            item.game_id for item in result.items
+        } | set(result.skipped_game_ids)
+        self.assertIn(candidate.id, represented)
+        for reminder in result.items:
+            self.assertTrue(reminder.snapshot.is_pending)
+            self.assertTrue(reminder.snapshot.is_ranked)
+            self.assertEqual(reminder.game_id, reminder.snapshot.game_id)
+            self.assertGreater(reminder.creator_discord_id, 0)
+        self.assertEqual(after_logs, before_logs)
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 

@@ -15,6 +15,7 @@ from modules import game_search_workers
 from modules import game_start, game_start_workers
 from modules import game_reaction_workers
 from modules import game_expiration
+from modules import game_reminders
 import peewee
 import re
 import datetime
@@ -1639,49 +1640,13 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 12)
             logger.debug('Task running: task_dm_game_creators')
-            utilities.connect()
-            full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
-            logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
-            for game in full_games:
-                last_joiner = models.GameLog.search(keywords=f'_{game.id}_ joined', guild_id=game.guild_id, limit=1).first()
-                if last_joiner and last_joiner.message_ts > (datetime.datetime.now() + datetime.timedelta(hours=-12)):
-                    logger.debug(f'Skipping task_dm_game_creators for game {game.id} - most recent joiner joined too recently.')
-                    continue
-
-                guild = self.bot.get_guild(game.guild_id)
-                creating_player = game.creating_player()
-                # TODO: ? only trigger if game is <23hours til expiration
-                if not guild:
-                    logger.error(f'Couldnt load guild ID {game.guild_id}')
-                    continue
-
-                creating_guild_member = guild.get_member(creating_player.discord_member.discord_id)
-                if not creating_guild_member:
-                    logger.warning(f'Couldnt load creator for game {game.id} in server {guild.name}. Maybe they left the server?')
-                    continue
-
-                bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
-                prefix = settings.guild_setting(guild.id, 'command_prefix')
-
-                embed, _ = game.embed(guild=guild, prefix=prefix)
-
-                message = (f'__You have a ranked game on **{guild.name}** that is waiting to be created.__'
-                           f'\nPlease visit the server\'s bot channel at this link: <https://discordapp.com/channels/{guild.id}/{bot_channel}/>'
-                           f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia**, '
-                           f'come back to discord, and use the command __`{prefix}start {game.id} Name of Game`__ to mark the game as started.'
-                           f'\n\nYou can use the command __`{prefix}names {game.id}`__ to get each player\'s in-game name in an easy-to-copy format.'
-                           '\n\n*(I do not respond to DMed commands. You must issue commands in the channel linked above.)*')
-
-                try:
-                    await image_storage.send_game_embed(
-                        creating_guild_member,
-                        game,
-                        embed=embed,
-                        content=message,
-                    )
-                    logger.info(f'Sending reminder DM to {creating_guild_member.name} {creating_guild_member.id} to start game {game.id}')
-                except discord.DiscordException as e:
-                    logger.warning(f'Error DMing creator of waiting game: {e}')
+            try:
+                await game_reminders.send_game_reminders(
+                    bot=self.bot,
+                    as_of=datetime.datetime.now(),
+                )
+            except Exception:
+                logger.exception('Ranked full-game reminder cycle failed.')
 
     async def task_create_empty_matchmaking_lobbies(self):
         # Keep open games list populated with vacant lobbies as specified in settings.lobbies
