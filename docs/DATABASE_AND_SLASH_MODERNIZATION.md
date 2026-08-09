@@ -375,6 +375,7 @@ would become unavailable if a prefix is retired.
 | C-021 `/league maintenance export` / `$league_export` | Native staff export has one optional `include_logs` Boolean and privately returns the same gzip CSV population/columns as the legacy command. A single conflict-rejecting worker owns its Peewee connection, generates immutable bytes in memory, and enforces game/upload bounds. | Legacy recommendation: **retain** — the low-frequency fallback is inexpensive once delegated to the same worker and remains useful during the beta transition. Native output is private because the bulk dataset and optional audit logs should not be posted publicly; retained prefix output remains channel-visible because message commands cannot deliver ephemeral attachments. No data or grammar is lost if message intent is later retired. | Retire the prefix after native staff acceptance. Add alternate storage/delivery only if a real export exceeds the guild upload limit; do not write shared export filenames or publish bulk logs to a public channel. | P8.17 implemented, real-schema validated, integrated, and deployed at `a6e71f5`; staff beta acceptance pending |
 | C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remained unchanged through P8.18 and was subsequently retired by the separately governed P8.19/C-023 workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
 | C-023 `/league maintenance kick-inactive` / `$kick_inactive` | Native Mod-only removal privately evaluates every member carrying Inactive, displays an eligible/protected reason for each, refreshes the complete candidate set, requires exact typed `KICK <count>`, and removes at most 25 members per run. Current Team roles and a small starter set are eligible; unknown, managed, staff, leadership, bot, and owner roles/accounts fail closed. | Legacy recommendation: **retire** — explicitly approved. The immediate prefix batch had no preview, used a stale hard-coded Team-role list, aborted on individual failures, and mixed Discord awaits with event-loop database work. Native preserves the effective 7/30/60 thresholds while accurately describing “tracked games,” blocks pending/incomplete league games, treats DM failure as nonfatal, continues kick failures, and records audits only after Discord effects. | Restore no immediate prefix adapter. If thresholds or role policy change, revise the centralized worker, all-reasons preview, refreshed execution, and tests together. Never add scheduled removal without a separate policy and operations review. | P8.19 implemented, real-schema validated, integrated, and development-guild deployed through `958ae90`; bounded Mod acceptance pending |
+| C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; implementation `a46e99a` is locally validated and awaiting accumulation integration/restart |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -484,11 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. The read-only P5 matchmaking
-close-out audit is complete on `codex/p5-matchmaking-closeout-audit` from exact
-clean deployed accumulation checkpoint `628298c`; P5.20 prefix target routing
-is the recommended final P5-specific implementation unit, pending the legacy
-`$gameside` retention decision recorded below. P5.19c final started-card and announcement
+Current active unit: **P5.20 prefix target routing is In progress on
+`codex/p5-20-prefix-target-routing` from exact clean accumulation checkpoint
+`ecd0ccd`. The approved boundary preserves `$join` named-side/member
+precedence through one bounded worker-local primitive lookup and retires hidden
+`$gameside`, `$matchside`, `$sidename`, and their now-unused `PolyMatch`
+converter. P5.19c final started-card and announcement
 migration is complete, integrated, pushed, and loaded by the guarded beta at
 `064d84a`. P5.19b Nova graduation is complete,
 integrated, pushed, and loaded by the guarded beta at `c8e8ecc`. P5.19a
@@ -6054,7 +6056,7 @@ Discord state, beta runtime, schema, dependency, or production behavior.
 
 ### P5.20 — Matchmaking close-out audit and final prefix routing seam
 
-Status: **Audit complete; implementation decisions pending**
+Status: **Implemented and locally validated; accumulation integration pending**
 
 Risk tier: **Audit only**. Any resulting prefix-routing correction is expected
 to be Tier 1/2 read-only adapter work; shared presentation or permission-check
@@ -6097,6 +6099,35 @@ Recommended P5.20 implementation:
   the existing game-side worker own all lookup, pending, guild, host/staff, and
   stale-state checks; and
 - remove `PolyMatch` after its only consumer is retired or converted.
+
+The user accepted this complete boundary on 2026-08-09, including retirement
+of all three hidden side-edit prefix names. `/game side` remains the canonical
+typed, worker-backed replacement. This unit does not change the slash command
+tree and therefore requires a beta restart but no command apply/sync.
+
+Implementation checkpoint `a46e99a` adds frozen primitive routing request and
+snapshot DTOs, performs exactly one worker-local lookup through the existing
+bounded pending-game coordinator, and leaves the join transaction responsible
+for authoritative side resolution. The adapter retains low-level named-side
+precedence and staff member-name precedence. The hidden prefix command and
+`PolyMatch` are removed; C-024 records the approved compatibility loss.
+
+Validation evidence:
+
+- focused join/side/taxonomy suites: **59 passed**;
+- expanded affected matchmaking/game suites: **173 passed**;
+- complete offline discovery: **1,350 passed, 55 intentional gated skips**;
+- targeted real-schema join/leave and prefix-routing case: **1 passed**;
+- complete gated development PostgreSQL suite: **54 passed, 1 intentional
+  operator-fixture skip**, after confirming `development`, `polytopia_dev`,
+  `polybot_dev`, background tasks disabled, and API disabled;
+- touched compilation and `git diff --check`: passed.
+
+The first targeted selector named the wrong unittest class and failed before
+running a test. It was corrected immediately; the actual targeted case and
+complete gate passed. No schema, fixture, application-command registration,
+capability, or production state changed. Integration and the guarded restart
+remain pending.
 
 Shared seams found by this audit are real but do not belong in P5.20:
 
@@ -11908,6 +11939,24 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.20 prefix target routing implemented and validated
+
+- Replaced `$join`'s repeated event-loop `Game.get_or_none()` / `get_side()`
+  calls with one frozen primitive snapshot loaded on the bounded pending-game
+  executor and a worker-local connection.
+- Preserved low-level named-side precedence and staff member resolution while
+  retaining authoritative side lookup inside the serialized join transaction.
+- Retired hidden `$gameside`, `$matchside`, and `$sidename` plus their sole
+  `PolyMatch` live-model converter with explicit user approval; `/game side`
+  remains the canonical typed service and C-024 records the compromise.
+- Passed 59 focused tests, 173 expanded affected tests, complete offline
+  discovery at 1,350 tests with 55 gated skips, the targeted real-schema case,
+  and all 54 runnable gated development PostgreSQL tests with one intentional
+  fixture-preservation skip. No residue or schema change resulted.
+- Recorded implementation/tests checkpoint `a46e99a`. Next: commit this
+  evidence, integrate into the clean accumulation branch, push, and restart
+  the guarded beta without an application-command apply/sync.
 
 ### 2026-08-09 — P5 matchmaking close-out audit completed
 
