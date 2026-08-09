@@ -4939,6 +4939,38 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 | self.models.GameLog.message.contains(rollback_marker)
             ).execute()
 
+    def test_game_list_broadcast_worker_reads_real_schema_without_writes(self):
+        """Exercise P5.13 frozen broadcast rows without database writes."""
+
+        from modules import game_list_broadcast_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        before_logs = self.models.GameLog.select().count()
+        self.models.db.close()
+        result = asyncio.run(
+            game_list_broadcast_workers.run_load_game_list_broadcast(
+                game_list_broadcast_workers.GameListBroadcastRequest(
+                    guild_id=guild_id,
+                    ranked_filter=2,
+                    as_of=datetime.datetime.now(),
+                )
+            )
+        )
+        self.models.db.connect(reuse_if_open=True)
+        after_logs = self.models.GameLog.select().count()
+
+        self.assertLessEqual(
+            len(result.rows),
+            game_list_broadcast_workers.MAX_BROADCAST_GAMES,
+        )
+        self.assertEqual(result.guild_id, guild_id)
+        for item in result.rows:
+            self.assertGreater(item.game_id, 0)
+            self.assertGreaterEqual(item.players, 0)
+            self.assertGreater(item.capacity, 0)
+            self.assertLessEqual(item.players, item.capacity)
+        self.assertEqual(after_logs, before_logs)
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 

@@ -17,6 +17,7 @@ from modules import game_reaction_workers
 from modules import game_expiration
 from modules import game_reminders
 from modules import game_lobbies
+from modules import game_list_broadcasts
 import peewee
 import re
 import datetime
@@ -1672,62 +1673,14 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(5)
             logger.debug('Task running: task_print_matchlist')
-            utilities.connect()
-            # models.Game.purge_expired_games()
-            for guild in self.bot.guilds:
-                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]
-                if not broadcast_channels:
-                    continue
-
-                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
-                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-
-                for chan in broadcast_channels:
-                    if not chan:
-                        continue
-                    if chan.id == ranked_chan:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=1, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current ranked open games'
-                    elif chan.id == unranked_chan:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=0, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current unranked open games'
-                    else:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=2, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current open games'
-                    if not game_list:
-                        continue
-
-                    pfx = settings.guild_setting(guild.id, 'command_prefix')
-
-                    embed = discord.Embed(title=f'{list_title}\n'
-                        f'Use __`{pfx}join ID`__ to join one or __`{pfx}game ID`__ for more details.')
-                    embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
-                    for game in game_list:
-
-                        notes_str = game.notes if game.notes else '\u200b'
-                        players, capacity = game.capacity()
-                        player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
-
-                        if player_restricted_list and (len(player_restricted_list) >= capacity - 1) and len(game_list) > 15:
-                            # skipping invite-only games IF the games list is large
-                            continue
-
-                        capacity_str = f' {players}/{capacity}'
-                        expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-                        expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-                        creating_player = game.creating_player()
-                        host_name = creating_player.name[:35] if creating_player else '<Vacant>'
-                        ranked_str = '*Unranked*' if not game.is_ranked else ''
-                        ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
-
-                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b', inline=False)
-                    try:
-                        message = await chan.send(embed=embed, delete_after=sleep_cycle)
-                    except discord.DiscordException as e:
-                        logger.warning(f'Error broadcasting game list: {e}')
-                    else:
-                        logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
-                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, chan.id, message.id)]
+            try:
+                await game_list_broadcasts.broadcast_open_game_lists(
+                    bot=self.bot,
+                    as_of=datetime.datetime.now(),
+                    delete_after=sleep_cycle,
+                )
+            except Exception:
+                logger.exception('Open-game list broadcast cycle failed.')
 
             await asyncio.sleep(sleep_cycle)
 
