@@ -7,6 +7,7 @@ import datetime
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -445,6 +446,36 @@ class GameDetailExecutorTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.10)
             self.assertEqual((await task).game_id, 7)
         finally:
+            workers.load_game_detail = original
+
+    async def test_cancelled_read_drains_worker_before_propagating(self):
+        original = workers.load_game_detail
+        started = threading.Event()
+        release = threading.Event()
+
+        def blocked(_request):
+            started.set()
+            release.wait(timeout=2)
+            return snapshot()
+
+        workers.load_game_detail = blocked
+        try:
+            task = asyncio.create_task(workers.run_game_detail(
+                workers.GameDetailRequest(10, 702, 900, 7)
+            ))
+            for _ in range(100):
+                if started.is_set():
+                    break
+                await asyncio.sleep(0.001)
+            self.assertTrue(started.is_set())
+            task.cancel()
+            await asyncio.sleep(0.01)
+            self.assertFalse(task.done())
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        finally:
+            release.set()
             workers.load_game_detail = original
 
 

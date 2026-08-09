@@ -2,15 +2,84 @@
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 import logging
 
 import discord
 
 import settings
-from modules import game_join_workers, game_kick_workers, image_storage, models
+from modules import (
+    game_detail_views,
+    game_detail_workers,
+    game_join_workers,
+    game_kick_workers,
+    image_storage,
+    models,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
+
+
+POST_JOIN_CARD_TIMEOUT_SECONDS = 20.0
+
+
+@dataclass(frozen=True)
+class PostJoinCard:
+    """One immutable, production-style card loaded after a join commits."""
+
+    snapshot: game_detail_workers.GameDetailSnapshot
+    rendered: game_detail_views.ClassicGameDetailRender
+
+
+async def load_post_join_card(
+    *,
+    game_id: int,
+    guild,
+    bot,
+    prefix: str,
+    presentation: str,
+    requester_id: int,
+    channel_id: int = 0,
+) -> PostJoinCard:
+    """Load and render one committed game card without event-loop DB work."""
+
+    request = game_detail_workers.GameDetailRequest(
+        guild_id=int(guild.id),
+        channel_id=int(channel_id or 0),
+        requester_discord_id=int(requester_id),
+        game_id=int(game_id),
+    )
+    snapshot = await asyncio.wait_for(
+        game_detail_workers.run_game_detail(request),
+        timeout=POST_JOIN_CARD_TIMEOUT_SECONDS,
+    )
+    display = game_detail_views.resolve_display(
+        snapshot,
+        guild=guild,
+        bot=bot,
+        prefix=prefix,
+        join_emoji=getattr(settings, 'emoji_join_game', ''),
+        presentation=presentation,
+    )
+    return PostJoinCard(
+        snapshot=snapshot,
+        rendered=game_detail_views.render_classic_game_detail(display),
+    )
+
+
+async def send_post_join_card(destination, card: PostJoinCard, *, content):
+    """Send one immutable card, opening a fresh attachment for this send."""
+
+    kwargs = {
+        'embed': card.rendered.embed,
+        'content': content,
+    }
+    attachment = card.rendered.new_file()
+    if attachment is not None:
+        kwargs['file'] = attachment
+    return await destination.send(**kwargs)
 
 
 def _member_description(member) -> str:

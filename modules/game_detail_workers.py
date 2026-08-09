@@ -596,10 +596,27 @@ def load_game_detail(request: GameDetailRequest) -> GameDetailSnapshot:
 async def run_game_detail(
     request: GameDetailRequest,
 ) -> GameDetailSnapshot:
-    """Submit a bounded game-detail read without blocking Discord."""
+    """Submit a bounded read and drain its thread before cancellation."""
 
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _game_detail_executor,
+    concurrent_future = _game_detail_executor.submit(
         functools.partial(load_game_detail, request),
     )
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError as cancellation:
+        task = asyncio.current_task()
+        while not concurrent_future.done():
+            if task is not None:
+                while task.cancelling():
+                    task.uncancel()
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                continue
+        try:
+            concurrent_future.result()
+        except BaseException:
+            pass
+        raise asyncio.CancelledError from cancellation

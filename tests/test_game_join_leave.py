@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import AbstractContextManager, ExitStack
 from dataclasses import FrozenInstanceError
+import inspect
 import threading
 import unittest
 from unittest import mock
@@ -18,6 +19,17 @@ game_join_workers = import_offline_runtime('modules.game_join_workers')
 game_join_leave = import_offline_runtime('modules.game_join_leave')
 games = import_offline_runtime('modules.games')
 matchmaking = import_offline_runtime('modules.matchmaking')
+
+
+def post_join_card(*, content='card', files=()):
+    return SimpleNamespace(
+        snapshot=SimpleNamespace(game_id=322),
+        rendered=SimpleNamespace(
+            embed=discord.Embed(title='Game 322'),
+            content=content,
+            new_file=mock.Mock(side_effect=tuple(files) or (None,) * 20),
+        ),
+    )
 
 
 class FakeDatabase:
@@ -772,6 +784,95 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         coordinator.executor.shutdown(wait=True)
 
 
+class PostJoinCardServiceTests(unittest.IsolatedAsyncioTestCase):
+    def test_direct_join_presenters_have_no_live_game_reload(self):
+        prefix_join = next(
+            command
+            for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'join'
+        )
+        for callback in (
+            games.polygames._publish_native_join_result,
+            prefix_join.callback,
+            matchmaking.matchmaking.on_raw_reaction_add,
+        ):
+            source = inspect.getsource(callback)
+            self.assertNotIn('Game.load_full_game', source)
+            self.assertIn('load_post_join_card', source)
+
+    async def test_loader_uses_primitive_source_guild_request_and_renderer(self):
+        guild = SimpleNamespace(id=300)
+        bot = SimpleNamespace()
+        loaded_snapshot = SimpleNamespace(game_id=322)
+        display = object()
+        rendered = SimpleNamespace(
+            embed=discord.Embed(title='Game 322'),
+            content='card',
+            new_file=mock.Mock(return_value=None),
+        )
+        with mock.patch.object(
+            game_join_leave.game_detail_workers,
+            'run_game_detail',
+            new=mock.AsyncMock(return_value=loaded_snapshot),
+        ) as run_detail, mock.patch.object(
+            game_join_leave.game_detail_views,
+            'resolve_display',
+            return_value=display,
+        ) as resolve_display, mock.patch.object(
+            game_join_leave.game_detail_views,
+            'render_classic_game_detail',
+            return_value=rendered,
+        ) as render:
+            card = await game_join_leave.load_post_join_card(
+                game_id=322,
+                guild=guild,
+                bot=bot,
+                prefix='!',
+                presentation='prefix',
+                requester_id=200,
+                channel_id=20,
+            )
+
+        request = run_detail.await_args.args[0]
+        self.assertEqual(request.game_id, 322)
+        self.assertEqual(request.guild_id, 300)
+        self.assertEqual(request.channel_id, 20)
+        self.assertEqual(request.requester_discord_id, 200)
+        resolve_display.assert_called_once_with(
+            loaded_snapshot,
+            guild=guild,
+            bot=bot,
+            prefix='!',
+            join_emoji=game_join_leave.settings.emoji_join_game,
+            presentation='prefix',
+        )
+        render.assert_called_once_with(display)
+        self.assertIs(card.snapshot, loaded_snapshot)
+        self.assertIs(card.rendered, rendered)
+
+    async def test_each_destination_gets_a_fresh_attachment(self):
+        first_file = object()
+        second_file = object()
+        card = post_join_card(files=(first_file, second_file))
+        first = SimpleNamespace(send=mock.AsyncMock())
+        second = SimpleNamespace(send=mock.AsyncMock())
+
+        await game_join_leave.send_post_join_card(
+            first,
+            card,
+            content='first',
+        )
+        await game_join_leave.send_post_join_card(
+            second,
+            card,
+            content='second',
+        )
+
+        self.assertIs(first.send.await_args.kwargs['file'], first_file)
+        self.assertIs(second.send.await_args.kwargs['file'], second_file)
+        self.assertEqual(card.rendered.new_file.call_count, 2)
+
+
 class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
     def discord_member(self, *, discord_id=200, name='joiner', guild=None):
         guild = guild or SimpleNamespace(id=300, roles=[])
@@ -905,17 +1006,16 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'get_guild_member',
             new=mock.AsyncMock(return_value=[author]),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
-        ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
+        ) as load_card, mock.patch.object(
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await command.callback(cog, context, '#322', '2')
+        self.assertEqual(load_card.await_args.kwargs['presentation'], 'prefix')
         cog.execute_join.assert_awaited_once()
         self.assertEqual(cog.execute_join.await_args.kwargs['game_id'], 322)
         self.assertEqual(cog.execute_join.await_args.kwargs['side_arg'], '2')
@@ -935,14 +1035,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'get_guild_member',
             new=mock.AsyncMock(side_effect=[[], [author]]),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await command.callback(cog, context, '322', 'Bravo')
@@ -1022,14 +1120,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'remove_inactive_role_after_commit',
             new=mock.AsyncMock(return_value=None),
         ), mock.patch.object(
-            games.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
-        ), mock.patch.object(
-            games.image_storage,
-            'send_game_embed',
+            games.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
+        ) as load_card, mock.patch.object(
+            games.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await command.callback(cog, interaction, 322, None, None)
@@ -1041,6 +1137,7 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         execute_join.assert_awaited_once()
+        self.assertEqual(load_card.await_args.kwargs['presentation'], 'slash')
 
         interaction = SimpleNamespace(
             guild=guild,
@@ -1120,14 +1217,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'get_guild_member',
             new=mock.AsyncMock(return_value=[author]),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, 'card')),
-            ),
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await command.callback(cog, context, '322')
@@ -1169,14 +1264,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'remove_inactive_role_after_commit',
             new=mock.AsyncMock(return_value=None),
         ), mock.patch.object(
-            games.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, 'card')),
-            ),
+            games.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            games.image_storage,
-            'send_game_embed',
+            games.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await cog._publish_native_join_result(
@@ -1361,7 +1454,7 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             side_position=1,
             messages=('Joined',),
             players=1,
-            capacity=2,
+            capacity=1,
             creator_id=100,
             host_id=100,
             remove_inactive_role=False,
@@ -1402,19 +1495,25 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'remove_inactive_role_after_commit',
             new=mock.AsyncMock(return_value=None),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
-        ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
+        ) as load_card, mock.patch.object(
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
-        ):
+        ) as send_card:
             await cog.on_raw_reaction_add(payload)
         execute_join.assert_awaited_once()
         self.assertIs(execute_join.await_args.kwargs['member'], game_member)
+        load_card.assert_awaited_once()
+        self.assertIs(load_card.await_args.kwargs['guild'], game_guild)
+        self.assertEqual(load_card.await_args.kwargs['presentation'], 'prefix')
+        self.assertEqual(send_card.await_count, 2)
+        self.assertIs(
+            send_card.await_args_list[0].args[1],
+            send_card.await_args_list[1].args[1],
+        )
         message.remove_reaction.assert_not_awaited()
 
     async def test_raw_reaction_beta_messages_are_isolated(self):
@@ -1493,14 +1592,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             'guild_setting',
             return_value='$',
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(side_effect=RuntimeError('reaction update failed')),
         ):
             await cog.on_raw_reaction_add(payload)

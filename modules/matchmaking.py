@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands, tasks
 import modules.models as models
 import modules.utilities as utilities
-import modules.image_storage as image_storage
 import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
@@ -474,28 +473,34 @@ class matchmaking(commands.Cog):
             message_list.append(reconciliation)
 
         try:
-            committed_game = models.Game.load_full_game(
-                game_id=result.game_id
-            )
-            embed, content = committed_game.embed(
+            card = await game_join_leave.load_post_join_card(
+                game_id=result.game_id,
                 guild=guild,
+                bot=getattr(self, 'bot', None),
                 prefix=prefix,
+                presentation='prefix',
+                requester_id=result.member_id,
+                channel_id=getattr(announce_channel, 'id', 0),
             )
-            content = f'{content}\n' if content else ''
+            content = (
+                f'{card.rendered.content}\n'
+                if card.rendered.content
+                else ''
+            )
         except Exception:
             logger.exception(
                 'Committed join %s could not reload its game card',
                 result.game_id,
             )
-            committed_game = None
-            embed, content = None, ''
+            card = None
+            content = ''
             message_list.append(
                 f':warning: Game {result.game_id} was joined successfully, '
                 'but its game card could not be reloaded. An operator must '
                 'reconcile the announcement.'
             )
 
-        if result.is_full and committed_game is not None:
+        if result.is_full and card is not None:
             announce_message = (
                 f'Game {result.game_id} is now full and '
                 f'<@{result.creator_id}> should create the game in Polytopia.'
@@ -506,10 +511,9 @@ class matchmaking(commands.Cog):
                     'creator.'
                 )
             try:
-                await image_storage.send_game_embed(
+                await game_join_leave.send_post_join_card(
                     announce_channel,
-                    committed_game,
-                    embed=embed,
+                    card,
                     content=f'{content}{announce_message}',
                 )
             except Exception:
@@ -529,12 +533,11 @@ class matchmaking(commands.Cog):
 
         logger.debug(f'Join by reaction success: {message_str}')
         self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
-        if committed_game is not None:
+        if card is not None:
             try:
-                return await image_storage.send_game_embed(
+                return await game_join_leave.send_post_join_card(
                     feedback_destination,
-                    committed_game,
-                    embed=embed,
+                    card,
                     content=f'{message_str}',
                 )
             except Exception:
@@ -1085,13 +1088,16 @@ class matchmaking(commands.Cog):
         if reconciliation:
             message_list.append(reconciliation)
 
-        committed_game = None
-        embed = content = None
+        card = None
         try:
-            committed_game = models.Game.load_full_game(result.game_id)
-            embed, content = committed_game.embed(
+            card = await game_join_leave.load_post_join_card(
+                game_id=result.game_id,
                 guild=ctx.guild,
+                bot=getattr(self, 'bot', None),
                 prefix=ctx.prefix,
+                presentation='prefix',
+                requester_id=result.member_id,
+                channel_id=getattr(getattr(ctx, 'channel', None), 'id', 0),
             )
         except Exception:
             logger.exception(
@@ -1121,13 +1127,14 @@ class matchmaking(commands.Cog):
                     effect='host-mismatch notice',
                 )
 
-        if committed_game is not None:
+        if card is not None:
             try:
-                await image_storage.send_game_embed(
+                await game_join_leave.send_post_join_card(
                     ctx,
-                    committed_game,
-                    embed=embed,
-                    content=content if result.is_full else None,
+                    card,
+                    content=(
+                        card.rendered.content if result.is_full else None
+                    ),
                 )
             except Exception:
                 logger.exception(

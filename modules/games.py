@@ -3581,15 +3581,17 @@ class polygames(commands.Cog):
         if reconciliation:
             messages.append(reconciliation)
 
-        committed_game = None
-        embed = content = None
+        card = None
         if publish_card:
             try:
-                committed_game = models.Game.load_full_game(result.game_id)
-                embed, content = committed_game.embed(
+                card = await game_join_leave.load_post_join_card(
+                    game_id=result.game_id,
                     guild=interaction.guild,
+                    bot=getattr(self, 'bot', None),
                     prefix=prefix,
                     presentation='slash',
+                    requester_id=result.member_id,
+                    channel_id=getattr(interaction, 'channel_id', 0),
                 )
             except Exception:
                 logger.exception(
@@ -3623,13 +3625,14 @@ class polygames(commands.Cog):
                     effect='host-mismatch notice',
                 )
 
-        if committed_game is not None:
+        if card is not None:
             try:
-                await image_storage.send_game_embed(
+                await game_join_leave.send_post_join_card(
                     interaction.followup,
-                    committed_game,
-                    embed=embed,
-                    content=content if result.is_full else None,
+                    card,
+                    content=(
+                        card.rendered.content if result.is_full else None
+                    ),
                 )
             except Exception:
                 logger.exception(

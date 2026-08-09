@@ -23,6 +23,17 @@ games = import_offline_runtime('modules.games')
 matchmaking = import_offline_runtime('modules.matchmaking')
 
 
+def post_join_card(*, content='card'):
+    return SimpleNamespace(
+        snapshot=SimpleNamespace(game_id=322),
+        rendered=SimpleNamespace(
+            embed=discord.Embed(title='Game 322'),
+            content=content,
+            new_file=mock.Mock(return_value=None),
+        ),
+    )
+
+
 def open_request(
     *,
     level=3,
@@ -1778,16 +1789,16 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             'waiting_for_creator',
             return_value=[],
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=game,
-        ), mock.patch.object(
             matchmaking.settings,
             'guild_setting',
             return_value='$',
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
+        ), mock.patch.object(
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await cog.on_raw_reaction_add(payload)
@@ -1884,14 +1895,12 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             'get_guild_member',
             new=mock.AsyncMock(return_value=[member]),
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(
-                embed=mock.Mock(return_value=(None, None)),
-            ),
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await join_command.callback(cog, context, '322')
@@ -1909,12 +1918,12 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             'guild_setting',
             return_value='$',
         ), mock.patch.object(
-            matchmaking.models.Game,
-            'load_full_game',
-            return_value=game,
+            matchmaking.game_join_leave,
+            'load_post_join_card',
+            new=mock.AsyncMock(return_value=post_join_card()),
         ), mock.patch.object(
-            matchmaking.image_storage,
-            'send_game_embed',
+            matchmaking.game_join_leave,
+            'send_post_join_card',
             new=mock.AsyncMock(),
         ):
             await reaction_cog.on_raw_reaction_add(payload)
