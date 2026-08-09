@@ -321,12 +321,26 @@ async def purge_incomplete_games_for_guild(
         results.append(result)
         if result.summary:
             summaries.append(result.summary)
-        await publish_purge_result(
-            result,
-            bot=bot,
-            guild=guild,
-            staff_channel=staff_channel,
-        )
+        try:
+            await publish_purge_result(
+                result,
+                bot=bot,
+                guild=guild,
+                staff_channel=staff_channel,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected post-commit reconciliation failure for game %s',
+                result.game_id,
+            )
+            await _warn_staff(
+                staff_channel,
+                f'Game {result.game_id} was purged, but its post-commit '
+                'Discord reconciliation stopped unexpectedly. Reconcile its '
+                'announcement/channels manually; do not retry the database '
+                'purge.',
+                game_id=result.game_id,
+            )
 
     await _publish_summary(staff_channel, summaries)
     return tuple(results)

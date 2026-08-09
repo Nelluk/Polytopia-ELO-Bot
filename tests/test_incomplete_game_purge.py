@@ -448,6 +448,40 @@ class IncompletePurgeServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner.await_count, 1)
         self.assertIn('remaining candidates', staff.send.await_args.args[0])
 
+    async def test_unexpected_post_commit_failure_does_not_stop_next_game(self):
+        discovered = workers.IncompleteGameDiscoveryResult((), (71, 72), False)
+        staff = SimpleNamespace(send=mock.AsyncMock())
+        guild = SimpleNamespace(id=10, get_channel=lambda _id: staff)
+        bot = SimpleNamespace()
+        runner = mock.AsyncMock(side_effect=[result(71), result(72)])
+        publisher = mock.AsyncMock(side_effect=[
+            RuntimeError('unexpected publication failure'),
+            None,
+        ])
+        with mock.patch.object(
+            service.settings, 'guild_setting', return_value=900,
+        ), mock.patch.object(
+            service.incomplete_game_purge_workers,
+            'run_discover_incomplete_games',
+            new=mock.AsyncMock(return_value=discovered),
+        ), mock.patch.object(
+            service.incomplete_game_purge_workers,
+            'run_purge_incomplete_game',
+            runner,
+        ), mock.patch.object(
+            service, 'publish_purge_result', publisher,
+        ):
+            actual = await service.purge_incomplete_games_for_guild(
+                bot=bot, guild=guild, as_of=TODAY,
+            )
+        self.assertEqual([item.game_id for item in actual], [71, 72])
+        self.assertEqual(runner.await_count, 2)
+        self.assertEqual(publisher.await_count, 2)
+        self.assertTrue(any(
+            'reconciliation stopped unexpectedly' in call.args[0]
+            for call in staff.send.await_args_list
+        ))
+
     def test_background_task_has_no_direct_database_or_discord_mutation(self):
         source = inspect.getsource(
             administration.administration.task_purge_incomplete,
