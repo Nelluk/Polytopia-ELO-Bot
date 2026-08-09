@@ -103,7 +103,7 @@ class RegistrationAndServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in root.commands},
-            {'tokens', 'guide', 'mark-active', 'join-novas', 'season', 'free-agents'},
+            {'tokens', 'guide', 'mark-active', 'join-novas', 'season', 'free-agents', 'roster'},
         )
         self.assertEqual(root.get_command('guide').parameters, [])
         self.assertEqual(root.get_command('join-novas').parameters, [])

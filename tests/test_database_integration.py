@@ -3329,6 +3329,45 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             0,
         )
 
+    def test_league_roster_card_resolves_team_image_without_writes(self):
+        """Exercise the P8.14 worker-local team-image read under the dev gate."""
+
+        from modules import image_storage, league_roster_cards_workers as workers
+
+        team = next(
+            (
+                row for row in self.models.Team.select().order_by(self.models.Team.id)
+                if image_storage.resolve_image('team', row)
+            ),
+            None,
+        )
+        if team is None:
+            self.skipTest('development database has no team with a stored image')
+        before = (
+            self.models.Team.select().count(),
+            self.models.GameLog.select().count(),
+        )
+        rendered = SimpleNamespace(fp=BytesIO(b'owned-png'), close=mock.Mock())
+        request = workers.RosterCardRequest(
+            guild_id=int(team.guild_id),
+            mode='promote',
+            top_text='PROMOTION',
+            bottom_text=str(team.name),
+            left=workers.ImageSource('url', 'https://example.invalid/player.png'),
+            right=workers.ImageSource('team', str(team.name)),
+            role_colours=(workers.RoleColourSnapshot(str(team.name), '#123456'),),
+        )
+        with mock.patch.object(workers.imgen, 'arrow_card', return_value=rendered):
+            result = workers._render(request)
+        self.assertEqual(result.image_bytes, b'owned-png')
+        self.assertEqual(
+            (
+                self.models.Team.select().count(),
+                self.models.GameLog.select().count(),
+            ),
+            before,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -34,6 +34,8 @@ import modules.league_free_agents_views as league_free_agents_views
 import modules.league_free_agents_workers as league_free_agents_workers
 import modules.league_user_commands as league_user_commands
 import modules.league_user_workers as league_user_workers
+import modules.league_roster_cards as league_roster_cards
+import modules.league_roster_cards_workers as league_roster_cards_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -212,6 +214,12 @@ class league(commands.Cog):
     league_free_agents_group = discord.app_commands.Group(
         name='free-agents',
         description='Manage Free Agent signup announcements.',
+        parent=league_group,
+        guild_only=True,
+    )
+    league_roster_group = discord.app_commands.Group(
+        name='roster',
+        description='Create league roster announcement cards.',
         parent=league_group,
         guild_only=True,
     )
@@ -1574,12 +1582,134 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
+    async def _publish_roster_card(
+        self,
+        interaction: discord.Interaction,
+        request: league_roster_cards_workers.RosterCardRequest,
+    ):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await league_roster_cards.run_roster_card(request)
+            await league_roster_cards.public_interaction_sender(interaction)(
+                league_roster_cards.public_caption(
+                    interaction.user, request.mode
+                ),
+                file=league_roster_cards.discord_file(result),
+            )
+            return result
+        except league_roster_cards_workers.RosterCardError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except (imgen.ImageFetchError, UnidentifiedImageError):
+            logger.exception('Could not fetch or decode a roster-card image')
+            await interaction.followup.send(
+                'One of the images could not be retrieved or decoded. Use a '
+                'direct HTTP(S) image URL or choose another source.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected roster-card rendering failure')
+            await interaction.followup.send(
+                'The roster card could not be generated. Try again later.',
+                ephemeral=True,
+            )
+
+    @league_roster_group.command(
+        name='promote',
+        description='Create a player promotion announcement card.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        player='Player being promoted.',
+        team='Destination team whose stored image is used.',
+        top_text='Optional headline (default: PROMOTION).',
+        bottom_text='Optional footer (default: destination team).',
+        player_image_url='Advanced: direct HTTP(S) override for the player image.',
+        team_image_url='Advanced: direct HTTP(S) override for the team image.',
+    )
+    async def league_roster_promote_slash(
+        self,
+        interaction: discord.Interaction,
+        player: discord.Member,
+        team: str,
+        top_text: str | None = None,
+        bottom_text: str | None = None,
+        player_image_url: str | None = None,
+        team_image_url: str | None = None,
+    ):
+        guild = interaction.guild
+        channel_id = getattr(getattr(interaction, 'channel', None), 'id', None)
+        if guild is None:
+            return await interaction.response.send_message(
+                'Roster cards require a server.', ephemeral=True
+            )
+        error = league_roster_cards.access_error(
+            interaction.user, guild.id, channel_id
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        roster_request = league_roster_cards.request(
+            guild=guild,
+            mode='promote',
+            top_text=(top_text if top_text is not None else 'PROMOTION'),
+            bottom_text=(bottom_text if bottom_text is not None else team),
+            left=league_roster_cards.raw_or_avatar(player_image_url, player),
+            right=league_roster_cards.raw_or_team(team_image_url, team),
+        )
+        return await self._publish_roster_card(interaction, roster_request)
+
+    @league_roster_group.command(
+        name='trade',
+        description='Create a two-player trade announcement card.',
+    )
+    @discord.app_commands.describe(
+        left_player='Player displayed on the left.',
+        right_player='Player displayed on the right.',
+        top_text='Optional headline (default: TRADE).',
+        bottom_text='Optional footer (default: ROSTER UPDATE).',
+        left_image_url='Advanced: direct HTTP(S) override for the left image.',
+        right_image_url='Advanced: direct HTTP(S) override for the right image.',
+    )
+    async def league_roster_trade_slash(
+        self,
+        interaction: discord.Interaction,
+        left_player: discord.Member,
+        right_player: discord.Member,
+        top_text: str | None = None,
+        bottom_text: str | None = None,
+        left_image_url: str | None = None,
+        right_image_url: str | None = None,
+    ):
+        guild = interaction.guild
+        channel_id = getattr(getattr(interaction, 'channel', None), 'id', None)
+        if guild is None:
+            return await interaction.response.send_message(
+                'Roster cards require a server.', ephemeral=True
+            )
+        error = league_roster_cards.access_error(
+            interaction.user, guild.id, channel_id
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        roster_request = league_roster_cards.request(
+            guild=guild,
+            mode='trade',
+            top_text=(top_text if top_text is not None else 'TRADE'),
+            bottom_text=(
+                bottom_text if bottom_text is not None else 'ROSTER UPDATE'
+            ),
+            left=league_roster_cards.raw_or_avatar(left_image_url, left_player),
+            right=league_roster_cards.raw_or_avatar(right_image_url, right_player),
+        )
+        return await self._publish_roster_card(interaction, roster_request)
+
     @commands.command(usage='', aliases=['trade'])
-    # @settings.is_mod_check()
+    @settings.is_staff_check()
     @settings.in_bot_channel_strict()
     async def promote(self, ctx, *, args=None):
         """
-        *Mod:* Generate a trade or promotion image
+        *Helper:* Generate a trade or promotion image
 
         Requires four arguments:
         - Top text (Use "quotation marks" if more than one word. Use 'none' to leave blank.)
@@ -1610,56 +1740,35 @@ class league(commands.Cog):
         top_string = '' if args[0].upper() == 'NONE' else args[0]
         bottom_string = '' if args[1].upper() == 'NONE' else args[1]
 
-        async def arg_to_image_source(image_arg: str, position: int = 0):
-            if image_arg[:4] == 'http':
-                # passed raw image url
-                return image_arg, '#00ff00' if position == 0 else '#ff0000'
-            else:
-                team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
-                if len(team_matches) == 1:
-                    # Passed a team name. Prefer its local image, then its URL.
-                    team_role = utilities.guild_role_by_name(ctx.guild, name=team_matches[0].name, allow_partial=False)
-                    image_source = image_storage.resolve_image('team', team_matches[0])
-                    if not image_source:
-                        raise ValueError(f'Team *{team_matches[0].name}* does not have an image set.')
-                    return image_source, team_role.colour.to_rgb()
-                else:
-                    guild_matches = await utilities.get_guild_member(ctx, image_arg)
-                    if len(guild_matches) == 1:
-                        # passed member mention. use profile picture/avatar
-                        return guild_matches[0].display_avatar.replace(size=512), \
-                            '#00ff00' if position == 0 else '#ff0000'
-                    else:
-                        raise ValueError(f'Cannot convert *{image_arg}* to an image.')
-
         try:
-            left_image, right_arrow_colour = await arg_to_image_source(args[2])
-            right_image, left_arrow_colour = await arg_to_image_source(args[3], position=1)
-        except ValueError as e:
-            return await ctx.send(f'Cannot convert one of your arguments to an image: {e}\nMust be an image URL, member name, or team name.')
-
-        if ctx.invoked_with == 'promote':
-            arrows = [['u', '#00ff00']]
-        else:
-            arrows = [['r', right_arrow_colour], ['l', left_arrow_colour]]
-
-        try:
-            # Image fetching and Pillow rendering are synchronous.  Keep them off
-            # the Discord event loop so a remote host cannot block heartbeats.
-            fs = await asyncio.to_thread(
-                imgen.arrow_card, top_string, bottom_string, left_image,
-                right_image, arrows
+            left = await league_roster_cards.prefix_lookup_source(ctx, args[2])
+            right = await league_roster_cards.prefix_lookup_source(ctx, args[3])
+            mode = 'trade' if ctx.invoked_with.casefold() == 'trade' else 'promote'
+            result = await league_roster_cards.run_roster_card(
+                league_roster_cards.request(
+                    guild=ctx.guild,
+                    mode=mode,
+                    top_text=top_string,
+                    bottom_text=bottom_string,
+                    left=left,
+                    right=right,
+                )
             )
-        except imgen.ImageFetchError as e:
-            logger.warning('Unable to create promotion card: %s', e)
+        except league_roster_cards_workers.RosterCardError as exc:
+            return await ctx.send(str(exc))
+        except imgen.ImageFetchError as exc:
+            logger.warning('Unable to create promotion card: %s', exc)
             return await ctx.send(
                 'Unable to retrieve one of the images. Please try again later '
                 'or use another image URL.'
             )
-        except UnidentifiedImageError as e:
-            logger.warn(f'UnidentifiedImageError: {e}')
-            return await ctx.send(f'Image is formatted incorrectly. Use an image URL that links directly to a file. {e}')
-        await ctx.send(file=fs)
+        except UnidentifiedImageError as exc:
+            logger.warning('UnidentifiedImageError: %s', exc)
+            return await ctx.send(
+                'Image is formatted incorrectly. Use an image URL that links '
+                f'directly to a file. {exc}'
+            )
+        await ctx.send(file=league_roster_cards.discord_file(result))
 
     @commands.command(usage='@Draftee TeamName')
     @settings.draft_check()
