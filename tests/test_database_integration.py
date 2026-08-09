@@ -3634,6 +3634,158 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before,
         )
 
+    def test_member_removal_worker_commits_and_rolls_back_real_graph(self):
+        """Exercise P8.19's departure cleanup on a worker-owned connection."""
+
+        from modules import member_removal_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex
+        marker = f'P8.19 member removal {suffix}'
+        discord_id = 9_080_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        game_ids = []
+
+        def make_game(*, pending):
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=player,
+                expiration=(
+                    datetime.datetime.now() + datetime.timedelta(days=1)
+                ),
+                name=f'{marker} {"pending" if pending else "incomplete"}',
+                notes=marker,
+                is_pending=pending,
+                is_completed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[1],
+            )
+            game_ids.append(int(game.id))
+            side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            lineup = self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=player,
+            )
+            return game, lineup
+
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'P819 Member {suffix}',
+                polytopia_name=f'P819{suffix}',
+            )
+            player = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            )
+            pending_game, pending_lineup = make_game(pending=True)
+            incomplete_game, incomplete_lineup = make_game(pending=False)
+            request = workers.MemberRemovalRequest(
+                guild_id=guild_id,
+                member_id=discord_id,
+                member_description=marker,
+            )
+
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.19 injected audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected audit failure',
+                ):
+                    asyncio.run(workers.run_member_removal(request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNotNone(
+                self.models.Lineup.get_or_none(id=pending_lineup.id)
+            )
+            self.assertIsNotNone(
+                self.models.Lineup.get_or_none(id=incomplete_lineup.id)
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
+
+            self.models.db.close()
+            result = asyncio.run(workers.run_member_removal(request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(result.registered)
+            self.assertEqual(result.pending_game_ids, (pending_game.id,))
+            self.assertEqual(
+                result.incomplete_game_ids,
+                (incomplete_game.id,),
+            )
+            self.assertEqual(result.deleted_pending_count, 1)
+            self.assertIsNone(
+                self.models.Lineup.get_or_none(id=pending_lineup.id)
+            )
+            self.assertIsNotNone(
+                self.models.Lineup.get_or_none(id=incomplete_lineup.id)
+            )
+            audit = self.models.GameLog.get(
+                self.models.GameLog.message.contains(marker)
+            )
+            self.assertEqual(int(audit.guild_id), guild_id)
+            self.assertIn(str(pending_game.id), audit.message)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_ids:
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game.in_(game_ids)
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game.in_(game_ids)
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id.in_(game_ids)
+                ).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            player_ids = tuple(
+                row[0]
+                for row in self.models.Player.select(
+                    self.models.Player.id
+                ).join(self.models.DiscordMember).where(
+                    self.models.DiscordMember.discord_id == discord_id
+                ).tuples()
+            )
+            if player_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids)
+                ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id == discord_id
+            ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

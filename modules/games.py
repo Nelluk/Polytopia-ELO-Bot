@@ -24,6 +24,7 @@ from modules import player_timezone
 from modules import player_timezone_workers
 from modules import player_timezone_values
 from modules import league_inactivity_workers
+from modules import member_removal_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
@@ -365,33 +366,60 @@ class polygames(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-
         try:
-            leaving_player = Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
-        except exceptions.NoSingleMatch:
+            result = await member_removal_workers.run_member_removal(
+                member_removal_workers.MemberRemovalRequest(
+                    guild_id=int(member.guild.id),
+                    member_id=int(member.id),
+                    member_description=models.GameLog.member_string(member),
+                )
+            )
+        except Exception:
+            logger.exception(
+                'Member-removal database cleanup failed for guild %s member %s',
+                member.guild.id,
+                member.id,
+            )
             return
 
-        pending_lineups = Lineup.select().join(Game).where(
-            (Lineup.game.is_pending == 1) & (Lineup.player == leaving_player)
-        )
+        if not result.registered:
+            return
+        if result.deleted_pending_count:
+            logger.info(
+                'Existing ELO player %s %s left guild %s - deleted %s '
+                'pending-game Lineup record(s).',
+                member.display_name,
+                member.id,
+                member.guild.name,
+                result.deleted_pending_count,
+            )
 
-        incomplete_lineups = Lineup.select().join(Game).where(
-            (Lineup.game.is_pending == 0) & (Lineup.game.is_completed == 0) & (Lineup.player == leaving_player)
-        )
-
-        if pending_lineups:
-            for l in pending_lineups:
-                models.GameLog.write(game_id=l.game.id, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game while leaving the server.')
-
-            q = Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
-
-            logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
-
-        if incomplete_lineups and member.guild.id == settings.server_ids['polychampions']:
-            helper_role_name = settings.guild_setting(member.guild.id, 'helper_roles')[0]
+        if (
+            result.incomplete_count
+            and member.guild.id == settings.server_ids['polychampions']
+        ):
+            helper_role_names = (
+                settings.guild_setting(member.guild.id, 'helper_roles') or ()
+            )
+            helper_role_name = (
+                helper_role_names[0] if helper_role_names else None
+            )
             helper_role = discord.utils.get(member.guild.roles, name=helper_role_name)
             helper_mention = helper_role.mention if helper_role else 'Staff'
-            await utilities.send_to_log_channel(member.guild, f'{helper_mention} - {member.mention} ({member.display_name}) left the server and has {len(incomplete_lineups)} incomplete games.')
+            try:
+                await utilities.send_to_log_channel(
+                    member.guild,
+                    f'{helper_mention} - {member.mention} '
+                    f'({member.display_name}) left the server and has '
+                    f'{result.incomplete_count} incomplete games.',
+                )
+            except Exception:
+                logger.exception(
+                    'Committed member-removal cleanup could not notify staff '
+                    'for guild %s member %s',
+                    member.guild.id,
+                    member.id,
+                )
 
     @commands.Cog.listener()
     async def on_user_update(self, before, after):
