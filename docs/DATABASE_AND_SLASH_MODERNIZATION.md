@@ -484,14 +484,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.23 league team-channel cache
-loading is integrated, pushed, and running on the guarded development beta at
-`28aa323`. Synchronous startup and post-game cache queries now use a bounded
-read worker with event-loop assignment after success. All three refresh points
-preserve their timing; a failed load preserves the prior cache. Complete
-offline and targeted read-only real-schema validation passed without stopping
-the beta. No command tree changed, and no command synchronization or tester
-announcement was needed.**
+Current active unit: **P8.24 automatic league team-role reconciliation is
+implemented and validated on `codex/p8-24-league-role-reconciliation` from
+exact clean accumulation base `b148884`; integration/deployment is in
+progress. Discord's active team role is authoritative. The bounded worker
+atomically reconciles `Player.team`, assignment-time House preferences, and
+the audit row; derived House/tier/League Discord roles are applied only after
+commit. Removing the final active team role now clears the stale database team
+assignment. Complete offline validation, the stopped-beta writer audit, and
+the full gated development PostgreSQL suite are green. No command tree,
+permission, capability, taxonomy, schema, or prefix change is included.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8645,6 +8647,69 @@ Integration/deployment evidence:
 - selected the explicit no-announcement route. This is an internal read/cache
   boundary with no meaningful broad-pool smoke action.
 
+### P8.24 — Automatic league team-role reconciliation
+
+Status: **Implemented and validated; integration/deployment in progress**
+
+The retained `league.on_member_update` listener synchronously loads active
+Teams, guild Player state, Houses, and tiers on the Discord event loop. Its
+legacy assignment path writes `Player.team`, clears House preferences, edits
+Discord roles, and only then writes an audit outside the database transaction.
+Its removal path strips derived Discord roles but leaves the old
+`Player.team` value stale.
+
+Accepted bounded contract:
+
+- treat the member's single active Discord team role as authoritative;
+- freeze guild/member IDs, safe member description, and before/after role-name
+  tuples before worker submission; pass no live Discord or Peewee objects;
+- use one dedicated bounded worker, worker-local Peewee connection, and one
+  synchronous transaction for active-team resolution, exact guild Player
+  reload, `Player.team`, assignment-time House-preference clearing, and audit;
+- clear `Player.team` when the final active team role is removed, without
+  erasing preferences on removal;
+- preserve the existing no-op for an intermediate state containing multiple
+  active team roles and the unregistered-member no-op;
+- return only immutable team/House/tier/managed-House data, then replace the
+  derived House/tier/League Discord roles after commit;
+- on Discord reconciliation failure, retain the committed authoritative team
+  assignment and send a staff-visible reconciliation warning;
+- preserve permissions, supported guilds, role semantics, and audit wording;
+- add no command, capability, taxonomy, schema, or prefix change.
+
+Implementation adds `modules/league_role_workers.py`, replaces the listener's
+direct database graph with the bounded worker, and keeps all Discord role/log
+effects after commit. Focused and real-schema rollback/commit coverage must
+prove assignment, removal, preference behavior, ambiguity, cancellation, and
+post-commit failure reporting. Integration remains gated on complete offline
+validation, the stopped-beta host writer audit, and the unchanged full
+development PostgreSQL suite.
+
+Validation evidence:
+
+- focused P8.24 worker/listener suite: 11 passed;
+- affected league-role/inactivity/cache/member-identity suites: 47 passed;
+- complete offline discovery: 1,219 passed with 47 intentional database-gated
+  skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and the host-wide writer audit found no development `bot.py --skip_tasks`
+  writer;
+- full gated development PostgreSQL suite: 45 passed with one intentional
+  retained-fixture/operator skip after verifying `development`,
+  `polytopia_dev`, `polybot_dev`, and disabled background/API services;
+- the P8.24 real-schema case proved assignment and removal commit, audit-failure
+  rollback of both transitions, assignment-time preference clearing, removal-
+  time preference preservation, and exact cleanup;
+- implementation/tests checkpoint: `d0326af`.
+
+Known limitation: cancellation drains any submitted transaction before
+propagating cancellation. If shutdown cancellation arrives after submission,
+the database transaction may finish without a Discord-role reconciliation in
+that terminating process; the next Discord team-role change or an explicit
+future repair operation can reconcile it. No new always-on repair sweep is
+added in this bounded unit.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -10142,6 +10207,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.24 automatic league role reconciliation validated
+
+- Replaced the league member-update listener's event-loop Team/Player/House
+  reads and split writes with one frozen primitive request, bounded single
+  worker, worker-local connection, and synchronous assignment/audit
+  transaction.
+- Made the single active Discord team role authoritative: assignment updates
+  `Player.team` and clears obsolete House preferences; removing the last team
+  role clears the formerly stale database assignment without erasing current
+  preferences; multiple-team intermediate states remain no-ops.
+- Applied derived House/tier/League roles only after commit, retained unrelated
+  and team roles, and added staff-visible warnings for failed or incomplete
+  Discord reconciliation.
+- Focused coverage passed 11 tests, affected suites passed 47, and complete
+  offline discovery passed 1,219 with 47 gated skips. Compilation and diff
+  checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  and passed 45 of 45 runnable gated development PostgreSQL cases with one
+  intentional operator-fixture skip. The new case proved both commit paths and
+  injected audit-failure rollback.
+- Recorded implementation/tests checkpoint `d0326af`. Integration and guarded
+  beta restart are the remaining actions; no command apply/sync or broad
+  tester announcement is required.
 
 ### 2026-08-09 — P8.23 league channel cache worker implemented locally
 
