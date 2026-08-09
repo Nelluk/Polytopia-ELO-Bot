@@ -481,18 +481,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.16 native `/league roster price` is locally green,
-real-schema validated against owned league-season fixtures, and ready for
-accumulation integration and development-guild deployment.**
+Current active unit: **P8.16 native `/league roster price` is integrated,
+pushed, real-schema validated, and deployed to the development guild; wider-
+beta acceptance is pending.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
 loaded by the guarded beta at `1addc54`; the complete offline suite is green.
-P8.16 `/league roster price` is now implemented locally with the formula and
+P8.16 `/league roster price` is integrated and deployed with the formula and
 recommended access/inference/transparency decisions accepted. Its stopped-
 beta real-schema gate passed after the owned result fixtures were given
-deterministic Season 3/4, Tier 1 metadata; integration, command apply, and beta
-deployment remain pending.
+deterministic Season 3/4, Tier 1 metadata. Only the development guild's
+existing `league` root changed; the other nine roots remained unchanged and
+post-apply inspection converged to zero differences.
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7886,7 +7887,7 @@ price` should become public native functionality.
 
 ### P8.16 — Native trade price
 
-Status: **Implemented and real-schema validated; integration/deployment pending**
+Status: **Integrated and deployed; wider-beta acceptance pending**
 
 The hidden `$tradeprice` / `$playerprice` command is not yet a safe mechanical
 slash conversion:
@@ -7964,9 +7965,10 @@ beta a deterministic successful formula case and exercises the preserved
 fallback without adopting or creating unrelated data. No production,
 dependency, schema, global-command, or unowned-fixture operation occurred.
 
-Next action: integrate and push P8.16, update only the development guild's
-existing `league` root, restart the guarded beta, and publish a targeted
-**WHAT TO TEST** update.
+Next action: collect wider-beta P8.16 acceptance while scoping P8.17 as the
+read-only `/league maintenance export` conversion. Keep the destructive
+`deactivate_players` and `kick_inactive` workflows separate until their
+preview, confirmation, and reconciliation policy is explicitly reviewed.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9465,6 +9467,26 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.16 integrated and deployed
+
+- Fast-forwarded P8.16 implementation `d209468`, evidence `50464b2`, owned-
+  fixture support `c9108c9`, and database evidence `ba7a03d` into
+  `codex/database-slash-modernization`, then pushed the exact accumulation
+  branch to the approved GitHub origin.
+- Remote inspection planned exactly one development-guild update to the
+  existing `league` root. Explicit guild-only apply changed that root; the
+  other nine roots were unchanged, no root was created/removed, no global
+  synchronization existed, and post-inspection reported zero differences.
+- Restarted the guarded service at clean checkpoint
+  `ba7a03d3842ab15e220a35c5d31d0a2e1120a341`; it authenticated as PolyELO
+  Bot Beta `479029527553638401` with background tasks/API/Bullet disabled.
+- Tester-pinged release `2026-08-09-trade-price` posted once to
+  `todo-and-changelog` as message `1535969260432658462`. It asks testers to
+  exercise inferred Season 4→3 fallback, explicit Season 3, transparent
+  formula inputs/leadership, no-history failure, and retired prefix names.
+- Production, global command state, dependencies, and unowned data remained
+  untouched. Wider-beta acceptance remains open.
 
 ### 2026-08-09 — P8.16 real-schema and fixture gate passed
 
