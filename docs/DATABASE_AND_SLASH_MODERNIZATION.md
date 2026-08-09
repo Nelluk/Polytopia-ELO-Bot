@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.18 post-kick game-card
-presentation is complete, integrated, pushed, and loaded by the guarded beta
-at `e79ab1c`. P5.18-A/B/C/D are accepted.
+Current active unit: **No code unit is active. P5.19 shared post-start
+lifecycle has been audited read-only and awaits acceptance of
+P5.19-A/B/C/D. P5.18 post-kick game-card presentation is complete, integrated,
+pushed, and loaded by the guarded beta at `e79ab1c`. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
@@ -5824,6 +5825,142 @@ state, renders the card, resolves announcement routing, and supplies later
 channel/role effects from that model. Determine the smallest immutable result
 and card boundary before implementation rather than assuming P5.18's card-only
 reuse is sufficient.
+
+The audit changed no code, test, command, capability, database, fixture,
+Discord state, beta runtime, schema, dependency, or production behavior.
+
+### P5.19 — Shared post-start lifecycle audit
+
+Status: **Audited read-only; implementation sequence blocked on
+P5.19-A/B/C/D**
+
+All three start adapters share the same post-commit publisher:
+
+- direct native `/game start`;
+- the requester-bound Start action on a pending `/game show` card; and
+- prefix `$start` / `$startgame`.
+
+Their two-stage preflight/final worker boundary is already sound. The final
+worker serializes against other pending-game mutations, owns its Peewee
+connection, revalidates the participant set and permissions, and commits
+Player/Side/Squad/Game/league-field/GameLog changes in one synchronous
+transaction. `StartResult` contains frozen IDs, mentions, warnings, participant
+IDs, and P5.15 external-broadcast targets. The external-broadcast consumer and
+announcement-reference write are already bounded worker services.
+
+The remaining post-commit compatibility seam is substantially wider than a
+card reload. `game_start.publish_start_result()` synchronously reloads one live
+`Game` on the event-loop thread and retains it across:
+
+1. season-state lookup, classic card rendering, roster announcement text, and
+   announcement-channel publication;
+2. `Game.create_game_channels()`, which lazily traverses Peewee sides, lineups,
+   players, teams, and hosts between Discord awaits, then writes Discord
+   channel IDs back through the event-loop database connection;
+3. season-name and hidden-team warning predicates;
+4. the already-worker-backed league-channel cache refresh predicate; and
+5. `league.auto_grad_novas()`, which performs per-player Peewee lookups,
+   games-played traversal, record calculation, and `Configuration.get_or_create`
+   on the event loop around Discord role and message effects.
+
+A failed live-game reload currently suppresses channel creation, season
+predicates, league refresh, and Nova follow-up even though those effects should
+be independently reconcilable after the start commit. Replacing only
+`Game.embed()` with P5.18's card helper would leave the blocking reload and the
+more serious Discord/database interleaving intact.
+
+The existing immutable components cover most of the replacement:
+
+- `GameDetailSnapshot` and the neutral post-commit card loader provide the
+  accepted dense started card, frozen roster/team/season fields, bounded
+  worker-local reads, timeout, and cancellation drain;
+- the final start transaction already owns the exact final sides, teams,
+  lineups, name, notes, host, and league fields needed to freeze channel and
+  announcement plans into `StartResult` without another pre-effect query;
+- `member_join_workers` establishes the correct create -> optimistic
+  worker-persist -> greet ordering and compensating deletion when a Discord
+  side channel cannot be claimed; and
+- `league.refresh_league_team_channels()` is already backed by the bounded
+  P8.23 loader.
+
+The remaining work should be three separately reviewable implementation
+units, all under this accepted audit:
+
+#### P5.19a — Started-game channel creation
+
+- freeze primitive game/side/player/team/host/external-guild channel plans in
+  the authoritative start result while the worker owns the committed graph;
+- preserve the configured-category, external-team-server, PCPLUS, channel
+  capacity, team-size, central-channel, naming, roster greeting, and partial
+  success behavior;
+- create each Discord channel on the event loop, then claim its exact GameSide
+  or Game channel field through a worker-local optimistic transaction;
+- if the claim conflicts or persistence fails, best-effort delete the newly
+  created untracked channel. If compensation is uncertain, report the exact
+  game/guild/channel for operator reconciliation;
+- greet only a successfully claimed channel, isolate targets, and never hold a
+  Peewee transaction or the pending-game coordinator across a Discord await;
+  and
+- retain the member-rejoin channel service unchanged unless a tiny shared DTO
+  can be extracted without broadening the unit.
+
+#### P5.19b — Nova graduation follow-up
+
+- capture current-guild Nova/graduate role membership as immutable Discord
+  facts for only the started participants;
+- perform one bounded worker-owned eligibility read that preserves the current
+  two qualifying non-pending team games, at least one completed team game,
+  global ELO/W-L, and draft-announcement wording;
+- replace read-side `Configuration.get_or_create()` with a non-writing read and
+  default state; no read command should create configuration rows;
+- return frozen candidate/result text, then add Discord roles and publish logs
+  on the event loop with per-candidate isolation and committed-effect warnings;
+  and
+- preserve the current PolyChampions/test-guild scope, role names, threshold,
+  broad behavior, and absence of a new command or schema.
+
+#### P5.19c — Final started-card and announcement publisher
+
+- reuse the neutral post-commit game-card loader for exactly one authoritative
+  immutable detail snapshot and the accepted classic renderer;
+- derive ranked/season roster announcement text, season warnings, and the
+  league-cache refresh predicate from frozen `StartResult`/snapshot values;
+- preserve configured announcement-channel routing, native versus prefix card
+  guidance, public warnings, announcement-reference persistence, effect order,
+  and the final tracked-for-ELO confirmation;
+- make card load/send, announcement text, channels, season warnings, league
+  refresh, Nova follow-up, and final confirmation independently best effort.
+  No one presentation failure may suppress later committed effects; and
+- remove the last `Game.load_full_game()` and live-model image/channel/Nova
+  dependencies from `publish_start_result()` only after P5.19a/b land.
+
+The existing announcement-reference worker remains in scope as the accepted
+bounded persistence seam; this audit does not add an outbox. Each implementation
+unit should add focused fault/race/cancellation coverage. P5.19a and P5.19b need
+new gated real-schema plan/read/persistence tests; P5.19c can reuse the existing
+start-transition and game-detail real-schema seams. Run each through complete
+offline discovery, and batch stopped-writer PostgreSQL validation when
+convenient without weakening the gate. None changes command registrations or
+capabilities, so deployment requires a guarded restart but no slash apply.
+
+Policy decisions required before implementation:
+
+1. **P5.19-A — Sequence and scope:** implement three bounded units in order:
+   channel creation (P5.19a), Nova graduation (P5.19b), then final card and
+   announcement migration (P5.19c). Preserve all three start adapters and do
+   not combine this with unrelated game commands. **Recommended.**
+2. **P5.19-B — Channel reliability:** freeze channel plans in the start result,
+   use create/optimistic-persist/greet ordering, and compensate an unclaimed
+   Discord channel by deletion. Preserve routing and partial-success rules.
+   **Recommended.**
+3. **P5.19-C — Nova behavior:** preserve current eligibility and guild/role
+   semantics while moving all database work into one bounded non-writing
+   worker; isolate Discord role/publication outcomes per candidate.
+   **Recommended.**
+4. **P5.19-D — Final presentation:** reuse the accepted immutable detail/card
+   contract, preserve public ordering and announcement persistence, and make
+   every post-commit effect independent before removing the live model reload.
+   **Recommended.**
 
 The audit changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
@@ -11621,6 +11758,27 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.19 shared post-start lifecycle audited
+
+- Traced native `/game start`, the pending-card Start action, and prefix
+  `$start` / `$startgame` through their shared committed publisher.
+- Confirmed the transition worker, P5.15 external-broadcast consumer,
+  announcement-reference persistence, and P8.23 league-cache loader are
+  already bounded; the remaining live `Game` spans card/announcement,
+  channel creation, season predicates, and Nova follow-up.
+- Identified `Game.create_game_channels()` as a mixed Peewee/Discord/write
+  lifecycle and `league.auto_grad_novas()` as an event-loop N+1/read-side
+  configuration-write lifecycle, not mere card-rendering details.
+- Recommended three reviewable units: frozen channel planning with optimistic
+  persistence/compensation, bounded non-writing Nova eligibility, then the
+  final immutable card/announcement migration that removes the live reload.
+- Preserved every start interface, channel-routing and partial-success rule,
+  Nova threshold, public effect order, warning/reconciliation behavior, and
+  announcement-reference persistence. No command apply or schema is needed.
+- Left implementation blocked on P5.19-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, command, capability, schema, dependency, or
+  production change.
 
 ### 2026-08-09 — P5.18 immutable post-kick cards validated
 
