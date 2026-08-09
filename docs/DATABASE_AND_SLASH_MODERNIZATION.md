@@ -484,9 +484,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. The P5.17 post-join game-card
-lifecycle audit is complete and implementation is blocked on acceptance of
-P5.17-A/B/C/D below. P5.16 external-broadcast creation is complete,
+Current active unit: **No code unit is active. P5.17 post-join game-card
+presentation is implemented and fully validated; integration, push, and the
+guarded-beta restart remain pending. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
 P5.17 found that the remaining synchronous post-commit card reload is shared
 by successful `/game join`, `$join`, and reaction joins, not reaction leave.
@@ -5489,7 +5489,7 @@ game-detail read service or remain a smaller reaction-specific snapshot.
 
 ### P5.17 — Post-join game-card lifecycle audit
 
-Status: **Blocked; read-only audit complete and P5.17-A/B/C/D await acceptance**
+Status: **Implemented and validated; integration/deployment pending**
 
 The initially suspected reaction-success reload is one instance of a wider
 shared presentation gap. After the authoritative join worker commits:
@@ -5590,12 +5590,55 @@ Policy decisions required before implementation:
    as current committed state rather than an exact projection of only the
    triggering join. **Recommended.**
 
-The audit changed no code, test, command, capability, database, fixture,
+The user accepted P5.17-A/B/C/D as proposed on 2026-08-09. Implementation is
+in progress on `codex/p5-17-post-join-card` from exact accepted audit
+checkpoint `1bc64d2`.
+
+The audit stage changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
-Implementation should add focused parity tests for all three direct adapters,
-one-read/two-send reaction behavior, fresh attachment creation, external
-source-guild display resolution, cancellation draining, and committed-join
-reconciliation failures before complete offline and gated read validation.
+
+Accepted implementation:
+
+- adds one shared `PostJoinCard` loader/sender in `game_join_leave`. It submits
+  a primitive `GameDetailRequest` through the existing bounded reader, resolves
+  Discord labels/assets on the event loop, and renders the accepted dense
+  classic card without returning a live Peewee model;
+- routes native `/game join`, prefix `$join`, and reaction join through that
+  shared loader. Source-guild identity is preserved for external reaction
+  joins, and each adapter retains its slash/prefix presentation, public
+  destination, message ordering, full-game/host notices, reaction behavior,
+  inactive-role reconciliation, and committed-join warning policy;
+- loads and renders once per direct join. A full reaction join reuses the same
+  immutable card for announcement and feedback while opening a fresh local
+  attachment for each send;
+- removes the now-unused live-game image sender import from matchmaking. The
+  pending-card Join refresh, reaction leave, and adjacent kick publisher are
+  unchanged; and
+- makes the shared game-detail executor drain its thread before propagating
+  cancellation. Post-join loading retains the existing 20-second finite
+  timeout, and no pending-game claim or transaction crosses the read/render or
+  Discord effects.
+
+Validation evidence:
+
+- focused game-detail/join/open/reaction coverage: **107 passed**;
+- complete offline discovery: **1,324 passed, 54 intentional database-gated
+  skips**;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the targeted existing game-detail real-schema case passed **1/1** under
+  exact `development` / `polytopia_dev` / `polybot_dev` and disabled
+  background/API gates; and
+- the complete gated development suite passed **52 runnable cases**, with one
+  intentional operator-fixture preservation skip. No fixture cleanup is
+  required.
+
+Implementation/tests checkpoint: `54b2251`. No command, capability, schema,
+fixture, task, dependency, or production behavior changed. Application-command
+synchronization and a broad tester announcement are unnecessary; after
+integration the guarded beta needs only a restart onto the clean accumulation
+checkpoint.
 
 ## P6 — Registration and player preferences
 
@@ -11390,6 +11433,29 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.17 immutable post-join cards validated
+
+- Accepted P5.17-A/B/C/D and added one shared immutable game-detail card path
+  for `/game join`, `$join`, and reaction join while leaving reaction leave
+  and the already-modernized pending-card refresh unchanged.
+- Reused the accepted dense classic renderer and source-guild display
+  resolution, preserving every adapter's prefix/slash guidance, destinations,
+  ordering, full-game notices, external routing, and public reconciliation.
+- Loaded/rendered once per direct join and created a fresh local attachment
+  for every Discord send, including the two-destination full reaction path.
+- Added cancellation draining to the shared bounded detail reader and retained
+  a 20-second timeout without holding a coordinator claim or transaction over
+  the post-commit read/render/Discord effects.
+- Passed 107 focused tests and 1,324 complete offline tests with 54 intentional
+  gated skips; touched compilation and diff checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed the targeted game-detail real-schema case 1/1, and passed all 52
+  runnable complete gated cases with one intentional operator-fixture skip.
+- Recorded implementation/tests checkpoint `54b2251`; integration, push, and
+  guarded-beta restart remained pending at this evidence checkpoint. No
+  command apply, announcement, schema, fixture, dependency, or production
+  action was performed.
 
 ### 2026-08-09 — P5.17 post-join game-card lifecycle audited
 
