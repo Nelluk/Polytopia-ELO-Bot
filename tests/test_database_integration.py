@@ -2448,6 +2448,18 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertIsNotNone(first_result.channel_plan)
             self.assertEqual(first_result.channel_plan.game.id, first_game.id)
             self.assertEqual(first_result.channel_plan.side_targets, ())
+            self.assertTrue(first_result.is_ranked)
+            self.assertEqual(first_result.side_sizes, (1, 1))
+            self.assertIsNone(first_result.league_season)
+            committed_first_side = self.models.GameSide.get(
+                (self.models.GameSide.game == first_game.id)
+                & (self.models.GameSide.position == 1)
+            )
+            self.assertEqual(
+                first_result.first_side_team_hidden,
+                bool(committed_first_side.team.is_hidden),
+            )
+            self.assertFalse(first_result.uncaught_season_game)
             self.assertIn(
                 f'Side **{host_player.name[:30]}**',
                 first_result.channel_plan.roster_names,

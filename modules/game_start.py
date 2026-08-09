@@ -7,9 +7,9 @@ import logging
 import settings
 from modules import (
     game_broadcasts,
+    game_join_leave,
     game_start_channels,
     game_start_workers,
-    image_storage,
     league,
     models,
     nova_graduation,
@@ -229,14 +229,7 @@ async def publish_start_result(
     bot_guilds,
     presentation: str = 'prefix',
 ) -> None:
-    """Run all post-commit effects independently over the classic card.
-
-    ``Game.load_full_game`` remains a temporary classic-card/season-predicate
-    compatibility seam until P5.19c. Channel and Nova work already consume
-    committed primitive values. The transition itself is complete before this
-    function starts; failures here therefore produce reconciliation text and
-    never roll back or suppress later effects.
-    """
+    """Run independent post-commit effects over immutable result/card data."""
 
     send = output_context.send
     if result.broadcast_targets:
@@ -276,23 +269,7 @@ async def publish_start_result(
                 error=exc,
             )
 
-    game = None
-    try:
-        game = models.Game.load_full_game(game_id=result.game_id)
-    except Exception as exc:
-        logger.exception(
-            'Committed started game %s could not be reloaded for effects',
-            result.game_id,
-        )
-        await _safe_effect_warning(
-            send,
-            game_id=result.game_id,
-            effect='the committed game card reload',
-            error=exc,
-        )
-
-    # These committed lifecycle warnings do not depend on the compatibility
-    # reload used by the classic card and remaining P5.19 follow-ups.
+    # These committed lifecycle warnings depend only on frozen worker output.
     for warning in result.missing_member_warnings:
         await _safe_public_send(
             send,
@@ -315,11 +292,7 @@ async def publish_start_result(
             effect='season warning',
         )
 
-    channels_processed = False
-
     async def publish_frozen_channels():
-        nonlocal channels_processed
-        channels_processed = True
         try:
             if (
                 result.channel_plan is not None
@@ -350,161 +323,171 @@ async def publish_start_result(
                 error=exc,
             )
 
-    if game is not None:
-        season = None
+    ranked_str = 'unranked ' if not result.is_ranked else ''
+    season = bool(result.league_season)
+    season_str = ''
+    if season:
         try:
-            season = game.is_season_game()
+            tier_name = settings.tier_lookup(result.league_tier)[1]
+        except exceptions.NoMatches:
+            tier_name = 'Unknown'
+        except Exception as exc:
+            tier_name = 'Unknown'
+            await _safe_effect_warning(
+                send,
+                game_id=result.game_id,
+                effect='season tier-name preparation',
+                error=exc,
+            )
+        season_str = f'**{tier_name} Season {result.league_season}** '
+    announce_str = (
+        f'New {season_str}{ranked_str}game ID **{result.game_id}** started! '
+        f'Roster: {" ".join(result.mentions)}'
+    )
+
+    announce_channel_id = None
+    channel = None
+    try:
+        announce_channel_id = settings.guild_setting(
+            guild.id,
+            'game_announce_channel',
+        )
+        channel = (
+            guild.get_channel(announce_channel_id)
+            if announce_channel_id else None
+        )
+    except Exception as exc:
+        await _safe_effect_warning(
+            send,
+            game_id=result.game_id,
+            effect='the configured game announcement channel lookup',
+            error=exc,
+        )
+    if announce_channel_id and channel is None:
+        await _safe_effect_warning(
+            send,
+            game_id=result.game_id,
+            effect='the configured game announcement channel lookup',
+        )
+
+    card_destination = channel or output_context
+    if channel is not None:
+        try:
+            await channel.send(announce_str)
         except Exception as exc:
             await _safe_effect_warning(
                 send,
                 game_id=result.game_id,
-                effect='season-state lookup',
+                effect='game announcement',
                 error=exc,
             )
+    else:
+        await _safe_public_send(
+            send,
+            announce_str,
+            game_id=result.game_id,
+            effect='game announcement',
+        )
 
+    card = None
+    try:
+        card = await game_join_leave.load_post_commit_game_card(
+            game_id=result.game_id,
+            guild=guild,
+            bot=settings.bot,
+            prefix=prefix,
+            presentation=presentation,
+            requester_id=result.requester_id,
+            channel_id=int(getattr(card_destination, 'id', 0) or 0),
+        )
+    except Exception as exc:
+        await _safe_effect_warning(
+            send,
+            game_id=result.game_id,
+            effect='the committed game card reload',
+            error=exc,
+        )
+
+    announcement = None
+    if card is not None:
         try:
-            embed, content = game.embed(
-                guild=guild,
-                prefix=prefix,
-                presentation=presentation,
+            announcement = await game_join_leave.send_post_commit_game_card(
+                card_destination,
+                card,
+                content=card.rendered.content,
             )
-            ranked_str = 'unranked ' if not game.is_ranked else ''
-            season_str = ''
-            if season:
-                try:
-                    tier_name = settings.tier_lookup(game.league_tier)[1]
-                except exceptions.NoMatches:
-                    tier_name = 'Unknown'
-                season_str = f'**{tier_name} Season {season[0]}** '
-            announce_str = (
-                f'New {season_str}{ranked_str}game ID '
-                f'**{game.id}** started! Roster: {" ".join(game.mentions())}'
-            )
-            announce_channel = settings.guild_setting(
-                guild.id,
-                'game_announce_channel',
-            )
-            channel = guild.get_channel(announce_channel) if announce_channel else None
-            if announce_channel and channel is None:
-                await _safe_effect_warning(
-                    send,
-                    game_id=result.game_id,
-                    effect='the configured game announcement channel lookup',
-                )
-
-            card_destination = channel or output_context
-            if channel is not None:
-                await _safe_public_send(
-                    channel.send,
-                    announce_str,
-                    game_id=result.game_id,
-                    effect='game announcement',
-                )
-            else:
-                await _safe_public_send(
-                    send,
-                    announce_str,
-                    game_id=result.game_id,
-                    effect='game announcement',
-                )
-
-            announcement = None
-            try:
-                announcement = await image_storage.send_game_embed(
-                    card_destination,
-                    game,
-                    embed=embed,
-                    content=content,
-                )
-            except Exception as exc:
-                await _safe_effect_warning(
-                    send,
-                    game_id=result.game_id,
-                    effect='the started game card',
-                    error=exc,
-                )
-
-            if channel is not None:
-                await _safe_public_send(
-                    send,
-                    f'New {ranked_str}game ID **{game.id}** started! See '
-                    f'{channel.mention} for full details.',
-                    game_id=result.game_id,
-                    effect='game-start summary',
-                )
-            if announcement is not None and channel is not None:
-                try:
-                    await game_start_workers.run_announcement_persistence(
-                        game_start_workers.AnnouncementReferenceRequest(
-                            game_id=result.game_id,
-                            guild_id=result.guild_id,
-                            channel_id=int(announcement.channel.id),
-                            message_id=int(announcement.id),
-                        )
-                    )
-                except Exception as exc:
-                    await _safe_effect_warning(
-                        send,
-                        game_id=result.game_id,
-                        effect='announcement metadata persistence',
-                        error=exc,
-                    )
         except Exception as exc:
             await _safe_effect_warning(
                 send,
                 game_id=result.game_id,
-                effect='game announcement/card preparation',
+                effect='the started game card',
                 error=exc,
             )
 
-        await publish_frozen_channels()
-
+    if channel is not None:
+        await _safe_public_send(
+            send,
+            f'New {ranked_str}game ID **{result.game_id}** started! See '
+            f'{channel.mention} for full details.',
+            game_id=result.game_id,
+            effect='game-start summary',
+        )
+    if announcement is not None and channel is not None:
         try:
-            if game.is_uncaught_season_game():
-                await _safe_public_send(
-                    send,
-                    ':bulb: This game looks like an incorrectly named '
-                    '**Season Game**! You might want to use '
-                    f'`{prefix}rename` and include the season tag at the '
-                    'beginning.',
+            await game_start_workers.run_announcement_persistence(
+                game_start_workers.AnnouncementReferenceRequest(
                     game_id=result.game_id,
-                    effect='season-name warning',
+                    guild_id=result.guild_id,
+                    channel_id=int(announcement.channel.id),
+                    message_id=int(announcement.id),
                 )
-            if season and game.gamesides[0].team.is_hidden:
-                await _safe_public_send(
-                    send,
-                    ':warning: This game is marked as a **Season Game** but '
-                    'is not associated with a League Team. There are probably '
-                    'players with mixed roles on a side. I suggest you '
-                    f'`{prefix}unstart`, fix the roles, and re-`{prefix}start`.',
-                    game_id=result.game_id,
-                    effect='league-team warning',
-                )
+            )
         except Exception as exc:
             await _safe_effect_warning(
                 send,
                 game_id=result.game_id,
-                effect='season warning preparation',
+                effect='announcement metadata persistence',
                 error=exc,
             )
 
-        try:
-            if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
-                await league.refresh_league_team_channels(
-                    settings.server_ids['polychampions']
-                )
-        except Exception as exc:
-            await _safe_effect_warning(
-                send,
-                game_id=result.game_id,
-                effect='league channel refresh',
-                error=exc,
-            )
+    await publish_frozen_channels()
 
-    if not channels_processed:
-        # Channel creation is fully represented by the committed primitive
-        # plan and must not be suppressed by a classic-card reload failure.
-        await publish_frozen_channels()
+    if result.uncaught_season_game:
+        await _safe_public_send(
+            send,
+            ':bulb: This game looks like an incorrectly named '
+            '**Season Game**! You might want to use '
+            f'`{prefix}rename` and include the season tag at the beginning.',
+            game_id=result.game_id,
+            effect='season-name warning',
+        )
+    if season and result.first_side_team_hidden:
+        await _safe_public_send(
+            send,
+            ':warning: This game is marked as a **Season Game** but is not '
+            'associated with a League Team. There are probably players with '
+            'mixed roles on a side. I suggest you '
+            f'`{prefix}unstart`, fix the roles, and re-`{prefix}start`.',
+            game_id=result.game_id,
+            effect='league-team warning',
+        )
+
+    try:
+        if (
+            result.guild_id == settings.server_ids['polychampions']
+            and result.side_sizes
+            and min(result.side_sizes) > 1
+        ):
+            await league.refresh_league_team_channels(
+                settings.server_ids['polychampions']
+            )
+    except Exception as exc:
+        await _safe_effect_warning(
+            send,
+            game_id=result.game_id,
+            effect='league channel refresh',
+            error=exc,
+        )
 
     try:
         nova_result = await nova_graduation.run_nova_graduation(

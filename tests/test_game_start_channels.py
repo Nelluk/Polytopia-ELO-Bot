@@ -423,9 +423,9 @@ class StartedChannelPublicationTests(unittest.IsolatedAsyncioTestCase):
         )
         guild = SimpleNamespace(id=300)
         with mock.patch.object(
-            start_adapter.models.Game,
-            'load_full_game',
-            side_effect=RuntimeError('reload failed'),
+            start_adapter.game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(side_effect=RuntimeError('reload failed')),
         ), mock.patch.object(
             start_adapter.settings,
             'guild_setting',

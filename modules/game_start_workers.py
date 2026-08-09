@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 from dataclasses import dataclass
 
 import discord
@@ -35,6 +36,22 @@ from modules import (
 
 
 logger = logging.getLogger('polybot.' + __name__)
+
+
+def _is_uncaught_season_game(game) -> bool:
+    """Freeze the legacy season-tag warning without another model reload."""
+
+    if int(game.guild_id) != int(settings.server_ids['polychampions']):
+        return False
+    if getattr(game, 'league_season', None):
+        return False
+    if tuple(int(value) for value in (game.size or ())) not in (
+        (2, 2),
+        (3, 3),
+    ):
+        return False
+    name_notes = f'{game.name} {game.notes or ""}'
+    return bool(re.search(r'[PJ]?S\d', name_notes, flags=re.IGNORECASE))
 
 
 class GameStartValidationError(RuntimeError):
@@ -145,6 +162,13 @@ class StartResult:
     channel_plan: (
         game_start_channel_workers.StartedGameChannelPlan | None
     ) = None
+    is_ranked: bool = True
+    side_sizes: tuple[int, ...] = ()
+    league_season: int | None = None
+    league_tier: int | None = None
+    league_playoff: bool = False
+    first_side_team_hidden: bool = False
+    uncaught_season_game: bool = False
 
 
 @dataclass(frozen=True)
@@ -568,6 +592,25 @@ def start_game(request: StartRequest) -> StartResult:
                 channel_plan=(
                     game_start_channel_workers.freeze_started_channel_plan(game)
                 ),
+                is_ranked=bool(game.is_ranked),
+                side_sizes=tuple(int(value) for value in game.size),
+                league_season=(
+                    int(game.league_season)
+                    if game.league_season is not None
+                    else None
+                ),
+                league_tier=(
+                    int(game.league_tier)
+                    if game.league_tier is not None
+                    else None
+                ),
+                league_playoff=bool(game.league_playoff),
+                first_side_team_hidden=bool(
+                    current_sides
+                    and current_sides[0].team is not None
+                    and current_sides[0].team.is_hidden
+                ),
+                uncaught_season_game=_is_uncaught_season_game(game),
             )
 
 

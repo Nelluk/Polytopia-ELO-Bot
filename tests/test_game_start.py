@@ -4,6 +4,7 @@ from contextlib import AbstractContextManager, ExitStack
 import asyncio
 from dataclasses import FrozenInstanceError
 import datetime
+import inspect
 import threading
 from types import SimpleNamespace
 import unittest
@@ -375,8 +376,27 @@ class StartWorkerTests(unittest.TestCase):
                 ),
             ),
         )
+        self.assertTrue(result.is_ranked)
+        self.assertEqual(result.side_sizes, (1, 1))
+        self.assertIsNone(result.league_season)
+        self.assertFalse(result.first_side_team_hidden)
+        self.assertFalse(result.uncaught_season_game)
         with self.assertRaises(FrozenInstanceError):
             result.name = "changed"
+
+    def test_uncaught_season_warning_is_frozen_from_primitive_game_fields(self):
+        harness = StartHarness()
+        harness.game.guild_id = 300
+        harness.game.name = 'Friendly PS12'
+        harness.game.size = [2, 2]
+        with mock.patch.object(
+            workers.settings,
+            'server_ids',
+            {'polychampions': 300},
+        ):
+            self.assertTrue(workers._is_uncaught_season_game(harness.game))
+            harness.game.league_season = 12
+            self.assertFalse(workers._is_uncaught_season_game(harness.game))
 
     def test_preflight_rejects_guild_nonpending_incomplete_and_missing_name(self):
         for scenario in ("guild", "nonpending", "incomplete", "name"):
@@ -757,19 +777,6 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         async def send(content=None, **kwargs):
             sent.append(content)
 
-        game = SimpleNamespace(
-            id=322,
-            guild_id=300,
-            is_ranked=True,
-            is_mobile=True,
-            gamesides=(SimpleNamespace(team=SimpleNamespace(is_hidden=False)),),
-            embed=lambda **kwargs: (discord.Embed(title="started"), None),
-            mentions=lambda: ["<@100>", "<@200>"],
-            is_season_game=lambda: (),
-            is_uncaught_season_game=lambda: False,
-            smallest_team=lambda: 1,
-            create_game_channels=mock.AsyncMock(),
-        )
         result = workers.StartResult(
             game_id=322,
             guild_id=300,
@@ -796,8 +803,6 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         output = SimpleNamespace(send=send)
 
         with mock.patch.object(
-            adapter.models.Game, "load_full_game", return_value=game
-        ), mock.patch.object(
             adapter.settings,
             "guild_setting",
             side_effect=lambda _guild, key: {
@@ -807,8 +812,8 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             adapter.settings, "server_ids", {"polychampions": 999}
         ), mock.patch.object(
-            adapter.image_storage,
-            "send_game_embed",
+            adapter.game_join_leave,
+            "load_post_commit_game_card",
             new=mock.AsyncMock(side_effect=RuntimeError("card failure")),
         ), mock.patch.object(
             adapter.league, "auto_grad_novas", new=mock.AsyncMock()
@@ -832,8 +837,115 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertTrue(any("600/700" in str(item) for item in sent))
+        self.assertTrue(any("Roster: <@100> <@200>" in str(item) for item in sent))
         self.assertTrue(any("game card" in str(item) for item in sent))
         self.assertTrue(any("now being tracked" in str(item) for item in sent))
+
+    async def test_publisher_uses_one_immutable_card_and_frozen_effect_plan(self):
+        output_messages = []
+
+        async def output_send(content=None, **_kwargs):
+            output_messages.append(content)
+
+        channel = SimpleNamespace(
+            id=700,
+            mention='#announcements',
+            send=mock.AsyncMock(),
+        )
+        guild = SimpleNamespace(
+            id=300,
+            get_channel=lambda channel_id: channel if channel_id == 700 else None,
+        )
+        result = workers.StartResult(
+            game_id=322,
+            guild_id=300,
+            name='Fields of Fire',
+            requester_id=100,
+            mentions=('<@100>', '<@200>'),
+            participant_ids=(100, 200),
+            missing_member_warnings=(),
+            name_warning=None,
+            league_warning=None,
+            creator_id=100,
+            host_id=100,
+            is_ranked=False,
+            side_sizes=(2, 2),
+            league_season=8,
+            league_tier=2,
+            league_playoff=False,
+            first_side_team_hidden=True,
+        )
+        card = SimpleNamespace(rendered=SimpleNamespace(content='card content'))
+        card_message = SimpleNamespace(id=701, channel=channel)
+        load_card = mock.AsyncMock(return_value=card)
+        send_card = mock.AsyncMock(return_value=card_message)
+        persistence = mock.AsyncMock()
+        refresh = mock.AsyncMock()
+        nova = mock.AsyncMock(return_value=SimpleNamespace(warnings=()))
+
+        with mock.patch.object(
+            adapter.settings,
+            'guild_setting',
+            side_effect=lambda _guild_id, key: (
+                700 if key == 'game_announce_channel' else False
+            ),
+        ), mock.patch.object(
+            adapter.settings,
+            'server_ids',
+            {'polychampions': 300, 'test': 301},
+        ), mock.patch.object(
+            adapter.settings,
+            'tier_lookup',
+            return_value=(2, 'Pro'),
+        ), mock.patch.object(
+            adapter.game_join_leave,
+            'load_post_commit_game_card',
+            new=load_card,
+        ), mock.patch.object(
+            adapter.game_join_leave,
+            'send_post_commit_game_card',
+            new=send_card,
+        ), mock.patch.object(
+            adapter.game_start_workers,
+            'run_announcement_persistence',
+            new=persistence,
+        ), mock.patch.object(
+            adapter.league,
+            'refresh_league_team_channels',
+            new=refresh,
+        ), mock.patch.object(
+            adapter.nova_graduation,
+            'run_nova_graduation',
+            new=nova,
+        ):
+            await adapter.publish_start_result(
+                result,
+                output_context=SimpleNamespace(send=output_send),
+                guild=guild,
+                prefix='$',
+                bot_guilds=(guild,),
+                presentation='slash',
+            )
+
+        load_card.assert_awaited_once()
+        self.assertEqual(load_card.await_args.kwargs['game_id'], 322)
+        self.assertEqual(load_card.await_args.kwargs['presentation'], 'slash')
+        send_card.assert_awaited_once_with(
+            channel,
+            card,
+            content='card content',
+        )
+        announcement_text = channel.send.await_args.args[0]
+        self.assertIn('New **Pro Season 8** unranked game ID **322**', announcement_text)
+        self.assertIn('Roster: <@100> <@200>', announcement_text)
+        persistence.assert_awaited_once()
+        refresh.assert_awaited_once_with(300)
+        nova.assert_awaited_once()
+        self.assertTrue(any('not associated with a League Team' in str(item) for item in output_messages))
+        self.assertTrue(any('now being tracked' in str(item) for item in output_messages))
+        source = inspect.getsource(adapter.publish_start_result)
+        self.assertNotIn('load_full_game', source)
+        self.assertNotIn('send_game_embed', source)
 
     async def test_announcement_reference_uses_bounded_postcommit_worker(self):
         sent = []
@@ -848,19 +960,6 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         )
         announcement = SimpleNamespace(id=701, channel=channel)
         channel.send.return_value = announcement
-        game = SimpleNamespace(
-            id=322,
-            guild_id=300,
-            is_ranked=True,
-            is_mobile=True,
-            gamesides=(SimpleNamespace(team=SimpleNamespace(is_hidden=False)),),
-            embed=lambda **kwargs: (discord.Embed(title="started"), None),
-            mentions=lambda: ["<@100>"],
-            is_season_game=lambda: (),
-            is_uncaught_season_game=lambda: False,
-            smallest_team=lambda: 1,
-            create_game_channels=mock.AsyncMock(),
-        )
         result = workers.StartResult(
             game_id=322,
             guild_id=300,
@@ -878,9 +977,8 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         output = SimpleNamespace(send=send)
         persistence = mock.AsyncMock()
 
+        card = SimpleNamespace(rendered=SimpleNamespace(content=None))
         with mock.patch.object(
-            adapter.models.Game, "load_full_game", return_value=game
-        ), mock.patch.object(
             adapter.settings,
             "guild_setting",
             side_effect=lambda _guild, key: (
@@ -889,8 +987,12 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             adapter.settings, "server_ids", {"polychampions": 999}
         ), mock.patch.object(
-            adapter.image_storage,
-            "send_game_embed",
+            adapter.game_join_leave,
+            "load_post_commit_game_card",
+            new=mock.AsyncMock(return_value=card),
+        ), mock.patch.object(
+            adapter.game_join_leave,
+            "send_post_commit_game_card",
             new=mock.AsyncMock(return_value=announcement),
         ), mock.patch.object(
             adapter.game_start_workers,
