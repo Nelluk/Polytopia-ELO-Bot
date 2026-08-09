@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-08
+Last updated: 2026-08-09
 
 Status: Active
 
@@ -481,17 +481,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.15 native `/league roster draft` is integrated and
-deployed with exact Drafter/Helper/Mod/owner parity and `$draft` retired as
-approved. Wider-beta card acceptance awaits an exact-role development Team
-with a stored image.**
+Current active unit: **P8.16 native `/league roster price` is locally green,
+real-schema validated against owned league-season fixtures, and ready for
+accumulation integration and development-guild deployment.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
 loaded by the guarded beta at `1addc54`; the complete offline suite is green.
 P8.16 `/league roster price` is now implemented locally with the formula and
-recommended access/inference/transparency decisions accepted; its real-schema
-gate, integration, command apply, and beta deployment remain pending.
+recommended access/inference/transparency decisions accepted. Its stopped-
+beta real-schema gate passed after the owned result fixtures were given
+deterministic Season 3/4, Tier 1 metadata; integration, command apply, and beta
+deployment remain pending.
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7885,7 +7886,7 @@ price` should become public native functionality.
 
 ### P8.16 — Native trade price
 
-Status: **Implemented locally; real-schema gate and deployment pending**
+Status: **Implemented and real-schema validated; integration/deployment pending**
 
 The hidden `$tradeprice` / `$playerprice` command is not yet a safe mechanical
 slash conversion:
@@ -7949,19 +7950,23 @@ Validation evidence:
 
 - focused price/draft/roster/taxonomy tests: **33 passed**;
 - expanded affected league suites: **75 passed**;
-- complete offline discovery: **1,102 passed with 38 intentional gated
+- complete offline discovery: **1,103 passed with 38 intentional gated
   skips**;
 - touched-file compilation and `git diff --check`: passed.
 
-The read-only real-schema case is present behind the unchanged
-`development` / `polytopia_dev` / `polybot_dev` gate and will run only after
-stopping the guarded beta and confirming no other development writer. No
-PostgreSQL, Discord command-tree, production, dependency, or fixture operation
-occurred during implementation.
+The stopped-beta gated development suite ran **37 tests: 36 passed and one
+operator-owned fixture round trip skipped intentionally**. The P8.16 case
+executed successfully rather than skipping and confirmed the exact Player and
+three-season read leaves Player, DiscordMember, and GameLog counts unchanged.
+The owned fixture harness now idempotently tags completed game 151 as Season
+3/Tier 1 and unconfirmed game 150 as current Season 4/Tier 1. This gives the
+beta a deterministic successful formula case and exercises the preserved
+fallback without adopting or creating unrelated data. No production,
+dependency, schema, global-command, or unowned-fixture operation occurred.
 
-Next action: run the approved stopped-beta real-schema gate, integrate and
-push P8.16, update only the development guild's existing `league` root,
-restart the guarded beta, and publish a targeted **WHAT TO TEST** update.
+Next action: integrate and push P8.16, update only the development guild's
+existing `league` root, restart the guarded beta, and publish a targeted
+**WHAT TO TEST** update.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9461,6 +9466,24 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
 
+### 2026-08-09 — P8.16 real-schema and fixture gate passed
+
+- Stopped only the guarded development beta and confirmed the writer was
+  absent before running the existing database gate.
+- The first safe run showed that no confirmed league-season history existed,
+  which would have made the native command impossible to smoke-test.
+- Extended only the already-owned beta fixtures: completed game 151 is Season
+  3/Tier 1 and unconfirmed game 150 is current Season 4/Tier 1. Re-seeding is
+  idempotent and retains the existing users and ownership marker.
+- The complete gated suite then ran **37 tests: 36 passed and one retained-
+  fixture round trip skipped intentionally**; the P8.16 real-schema case
+  passed with no Player, DiscordMember, or GameLog count change.
+- Focused fixture/price/roster/draft/taxonomy coverage passed **46 tests**;
+  complete offline discovery passed **1,103 tests with 38 intentional gated
+  skips**; compilation and diff checks passed.
+- Fixture implementation/test checkpoint: `c9108c9`. Integration, guild-only
+  apply, beta restart, and release announcement remain pending.
+
 ### 2026-08-09 — P8.16 native trade price implemented locally
 
 - Confirmed the legacy GalC4 formula/inflation as authoritative and accepted
@@ -9471,7 +9494,7 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   bounded worker-local connection, and public no-ping formula breakdown.
 - Removed `$tradeprice` and `$playerprice` without adapters and added C-020.
 - Focused suites passed **33**, expanded affected league suites passed **75**,
-  and complete offline discovery passed **1,102 tests with 38 intentional
+  and complete offline discovery initially passed **1,102 tests with 38 intentional
   gated skips**. Compilation and diff checks passed.
 - Recorded implementation/tests checkpoint `d209468`; the stopped-beta
   real-schema gate, integration, command apply, restart, announcement, and
