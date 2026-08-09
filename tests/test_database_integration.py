@@ -3332,17 +3332,16 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
     def test_league_roster_card_resolves_team_image_without_writes(self):
         """Exercise the P8.14 worker-local team-image read under the dev gate."""
 
-        from modules import image_storage, league_roster_cards_workers as workers
+        from modules import league_roster_cards_workers as workers
 
-        team = next(
-            (
-                row for row in self.models.Team.select().order_by(self.models.Team.id)
-                if image_storage.resolve_image('team', row)
-            ),
-            None,
+        team = (
+            self.models.Team.select()
+            .where(self.models.Team.is_hidden == 0)
+            .order_by(self.models.Team.id)
+            .first()
         )
         if team is None:
-            self.skipTest('development database has no team with a stored image')
+            self.skipTest('development database has no visible team to inspect')
         before = (
             self.models.Team.select().count(),
             self.models.GameLog.select().count(),
@@ -3357,8 +3356,14 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             right=workers.ImageSource('team', str(team.name)),
             role_colours=(workers.RoleColourSnapshot(str(team.name), '#123456'),),
         )
-        with mock.patch.object(workers.imgen, 'arrow_card', return_value=rendered):
-            result = workers._render(request)
+        with mock.patch.object(
+            workers.image_storage,
+            'resolve_image',
+            return_value='https://offline.test/team.png',
+        ), mock.patch.object(
+            workers.imgen, 'arrow_card', return_value=rendered
+        ):
+            result = asyncio.run(workers.run_roster_card(request))
         self.assertEqual(result.image_bytes, b'owned-png')
         self.assertEqual(
             (
