@@ -1005,7 +1005,7 @@ beta lifecycle action is part of this unit.
 |---|---|---|
 | `tutorial` | `/league guide` | Strong candidate |
 | `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
-| `tokens` | `/league tokens` | Redesign view/update permission behavior |
+| `tokens` | `/league tokens` | P8.10 public balance/history workspace; level-5+ atomic updates; prefix fully retired with exact permission parity |
 | `imalive` | `/league mark-active` | Strong candidate |
 | `season` | `/league season` | Strong candidate |
 | `novas` | `/league join-novas` | Strong candidate |
@@ -1108,6 +1108,29 @@ gate later passed 30 tests with one retained-fixture skip. The unit was
 integrated at checklist checkpoint `a42ca7d`, synchronized by updating only
 the development-guild `house` root, and deployed through minor release
 `2026-08-08-house-create`.
+
+#### P8.10 `/league tokens` implementation state
+
+P8.10 introduces the reserved `league` root with one no-required-option
+workspace: `/league tokens house:[optional] amount:[optional]
+note:[optional]`. Omission exposes all balances and recent changes; choosing a
+House exposes its current balance and audit history. Pagination, recent/all
+switching, and House selection operate on one requester-bound immutable
+Components v2 snapshot without database requeries.
+
+The command intentionally preserves the legacy permission boundary rather
+than adopting newer House-management restrictions: any user in the configured
+league/test guild may read, and existing staff level 5 or above may update.
+There is no added bot-channel restriction and updates are not narrowed to
+Mod-only. The bounded worker owns its connection and commits the expected
+House balance plus actual-guild actor-attributed audit atomically; public
+output follows commit and publication failure becomes terminal reconciliation.
+
+`$tokens` is fully retired without an adapter under C-017. Implementation
+checkpoint `7abfbde` passed 14 focused, 60 affected, and 1009 complete offline
+tests with 32 intentional database skips. The stopped-beta real-schema gate,
+development-only `league` capability assignment, guild apply, restart, and
+wider-beta acceptance remain pending.
 
 ### Legacy modules outside the modernization target
 
