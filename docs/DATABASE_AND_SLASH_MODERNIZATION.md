@@ -478,10 +478,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.10 native `/league tokens` is integrated and
-deployed under the temporary Sol omni workflow. The wider tester pool owns
-acceptance. P8.11 `/league mark-active` is the next recommended bounded design
-unit, pending the explicit legacy-prefix decision.**
+Current active unit: **P8.11 small league user commands are Implemented on
+`codex/p8-11-league-user-commands` under the temporary Sol omni workflow.
+`/league guide`, `/league mark-active`, and `/league join-novas` are locally
+green; stopped-beta real-schema validation, accumulation integration,
+guild-only apply, restart, and wider-beta publication remain.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7401,6 +7402,67 @@ Next action: collect wider-beta P8.10 acceptance while designing P8.11
 Co-Leader/Mod target permission behavior; decide explicitly whether `$imalive`
 is retained as a day-to-day convenience before implementation.
 
+### P8.11 — Small league user commands
+
+Status: **Implemented locally; stopped-beta database gate and deployment
+pending**
+
+Branch/base: `codex/p8-11-league-user-commands` from exact clean accumulation
+checkpoint `1e87233`.
+
+Interface and legacy decisions:
+
+- `/league guide` is a public no-option quick start using the surviving
+  `/player register`, `/league join-novas`, `/game search`, `/game open`,
+  `/game start`, and `/game show` workflows;
+- `/league mark-active member:[optional]` targets the requester by default and
+  preserves exact House Leader, House Co-Leader, or Mod targeting parity;
+- `/league join-novas` is a public-success, no-option starter-group action;
+- legacy recommendation: **retain** `$tutorial`, `$imalive`, `$novas`, and
+  `$joinnovas` because these are concise onboarding/day-to-day conveniences.
+  They delegate to the same guide, permission, eligibility, and result helpers
+  rather than retaining separate business logic.
+
+Database, concurrency, and Discord boundaries:
+
+- Novas registration/team eligibility crosses into a dedicated bounded worker
+  as frozen primitive IDs/names. The worker owns its Peewee connection and one
+  synchronous transaction around the legacy-compatible guild Player lookup,
+  which may create only the local Player row when an account-wide
+  DiscordMember already exists;
+- the same worker returns a bounded immutable snapshot of exact guild Team
+  role names. A truncated snapshot fails closed instead of allowing a member
+  whose Team role was not loaded to join Novas;
+- Discord role mutations remain on the event loop after database eligibility
+  succeeds. Native committed role changes publish actor-attributed public
+  confirmation; validation, permission, lookup, and pre-change failures are
+  private;
+- a post-role-change publication failure is terminal reconciliation and says
+  not to retry. Failure to remove the secondary Newbie role after the Novas
+  role was added produces a public reconciliation warning rather than
+  misreporting the join as rolled back;
+- mark-active contains no database mutation and checks current live Discord
+  roles immediately before removing Inactive.
+
+No Components workspace is added because each workflow is a one-step action
+or static guide. No compatibility-ledger row is required: all affected prefix
+entry points remain available and delegate to the shared behavior.
+
+Validation evidence:
+
+- focused P8.11/P8.10/taxonomy suites: **38 passed**;
+- complete offline discovery: **1,029 passed, 33 intentional gated skips**;
+- touched-file compilation and `git diff --check`: passed;
+- a real-schema test is present behind the unchanged
+  `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate. It proves
+  the worker-local legacy-compatible Player creation and exact cleanup, but
+  has not yet run while the durable beta is active.
+
+Next action: checkpoint implementation/evidence, stop only the durable
+development beta, run the unchanged gated PostgreSQL suite, integrate the
+unit into the accumulation branch, inspect/apply the guild-only command-tree
+delta, restart, and add the three commands to wider-beta testing.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -8866,6 +8928,25 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.11 small league user commands implemented
+
+- Added `/league guide`, `/league mark-active member:[optional]`, and
+  `/league join-novas` beneath the existing guild-scoped league root.
+- Retained `$tutorial`, `$imalive`, `$novas`, and `$joinnovas` as
+  onboarding/day-to-day conveniences over the shared service paths.
+- Moved Novas registration and exact Team-role eligibility reads to a bounded
+  worker-local Peewee transaction; live Discord role mutation remains outside
+  that transaction and precedes attributed public success.
+- Added fail-closed bounded Team-role loading, private validation/permission
+  failures, public committed-role transparency, and terminal reconciliation
+  if post-change publication fails.
+- Added a gated real-schema legacy-compatible Player-upsert/cleanup test.
+- Validation passed 38 focused tests and complete offline discovery at 1,029
+  tests with 33 intentional gated skips; compilation and diff checks passed.
+- No PostgreSQL, Discord command apply, beta lifecycle, production, dependency,
+  or sudo action occurred. Stopped-beta validation and deployment remain the
+  next gate.
 
 ### 2026-08-08 — P8.10 league-token workspace integrated and deployed
 

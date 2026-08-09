@@ -1003,12 +1003,12 @@ beta lifecycle action is part of this unit.
 
 | Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
-| `tutorial` | `/league guide` | Strong candidate |
+| `tutorial` | `/league guide` | P8.11 public modern quick start; `$tutorial` retained as an onboarding convenience over the same guide |
 | `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
 | `tokens` | `/league tokens` | P8.10 public balance/history workspace; level-5+ atomic updates; prefix fully retired with exact permission parity |
-| `imalive` | `/league mark-active` | Strong candidate |
+| `imalive` | `/league mark-active` | P8.11 self-service by default with House Leader/Co-Leader/Mod targeting parity; `$imalive` retained |
 | `season` | `/league season` | Strong candidate |
-| `novas` | `/league join-novas` | Strong candidate |
+| `novas` | `/league join-novas` | P8.11 worker-checked registration/team eligibility and public post-role success; `$novas`/`$joinnovas` retained |
 | `promote` | `/league roster promote` | Split alias-driven image modes |
 | `trade` alias | `/league roster trade` | Split from promote |
 | `draft` | `/league roster draft` | Strong candidate with member/team options |
@@ -1133,6 +1133,23 @@ tests with 32 intentional database skips. The stopped-beta suite later passed
 was assigned only to the development guild, and the guild-only apply created
 exactly that root while leaving the other nine unchanged. The durable beta is
 running clean checkpoint `90d0ce5`; wider-beta acceptance remains pending.
+
+#### P8.11 small league user commands
+
+P8.11 fills three uncontroversial leaf commands beneath the existing
+guild-scoped `/league` root: no-option `/league guide`, optional-member
+`/league mark-active`, and no-option `/league join-novas`. The guide uses only
+surviving native paths. Mark-active preserves self-service and exact House
+Leader/Co-Leader/Mod targeting. Join-Novas performs its legacy-compatible
+registration/Team-role check through a bounded worker-local Peewee snapshot,
+then applies Discord roles and publishes only after the role change.
+
+`$tutorial`, `$imalive`, `$novas`, and `$joinnovas` remain registered as
+compact onboarding/day-to-day conveniences and share the same service logic.
+No Components surface or compatibility-ledger gap is introduced. Local
+validation passed 38 focused tests and complete offline discovery at 1,029
+tests with 33 intentional database skips; stopped-beta real-schema validation
+and guild-only deployment remain pending.
 
 ### Legacy modules outside the modernization target
 

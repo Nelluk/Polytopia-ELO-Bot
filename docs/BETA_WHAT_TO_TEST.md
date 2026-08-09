@@ -84,6 +84,19 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 ## League
 
+- `/league guide`: verify the quick start is public and points to the current
+  player-registration, Novas, game-search/open/start/show workflows.
+- `/league mark-active`: remove your own Inactive role. House Leaders,
+  Co-Leaders, and Mods should also be able to target another member; ordinary
+  users must be denied privately when targeting someone else. Successful role
+  changes should be public and identify actor/target.
+- `/league join-novas`: try an eligible registered user with no Team role.
+  Success should add The Novas, remove Newbie when present, and publish an
+  attributed confirmation. Unregistered users and existing Team members
+  should fail privately without changing roles.
+- Retained `$tutorial`, `$imalive`, `$novas`, and `$joinnovas` should continue
+  to reach the same underlying behavior.
+
 - `/league tokens` with no options: verify the public workspace lists all
   configured House balances, Recent changes opens the audit history, paging
   works, and selecting a House opens only that House's balance/history.
