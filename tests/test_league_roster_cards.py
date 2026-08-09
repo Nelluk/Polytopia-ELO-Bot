@@ -72,7 +72,8 @@ class RegistrationAndPermissionTests(unittest.TestCase):
     def test_native_group_has_typed_common_inputs_and_raw_url_overrides(self):
         roster = root().get_command('roster')
         self.assertEqual(
-            {command.name for command in roster.commands}, {'promote', 'trade'}
+            {command.name for command in roster.commands},
+            {'promote', 'trade', 'draft'},
         )
         promote = roster.get_command('promote')
         self.assertEqual(

@@ -200,18 +200,36 @@ def player_draft_card(
 
     # get the relevant images and strings
     team = Team.get_or_except(team_name=team_role.name, guild_id=member.guild.id)
-    team_logo = fetch_image(image_storage.resolve_image('team', team))
-    team_colour = str(team_role.colour)
-    selecting_string = selecting_string if selecting_string else team.name
+    return player_draft_card_from_sources(
+        player_name=member.name,
+        player_avatar_source=str(
+            member.display_avatar.replace(size=256, format='png')
+        ),
+        player_summary=get_player_summary(member),
+        team_name=team.name,
+        team_image_source=image_storage.resolve_image('team', team),
+        team_colour=str(team_role.colour),
+        selecting_string=(selecting_string if selecting_string else team.name),
+    )
+
+
+def player_draft_card_from_sources(
+        *, player_name: str, player_avatar_source: typing.Union[str, Path],
+        player_summary: str, team_name: str,
+        team_image_source: typing.Union[str, Path], team_colour: str,
+        selecting_string: str) -> discord.File:
+    """Render the legacy draft-card design from frozen primitive inputs."""
+
+    team_logo = fetch_image(team_image_source)
     title = f'{selecting_string.upper()} SELECT'
     # player_avatar = fetch_image(str(member.avatar_url_as(
     #     format='png', size=256
     # )))
     # if not member.avatar:
     #     player_avatar = player_avatar.convert("RGB")
-    player_avatar = fetch_image(str(member.display_avatar.replace(size=256, format='png')))
-    name = member.name.upper()
-    summary = get_player_summary(member)
+    player_avatar = fetch_image(player_avatar_source)
+    name = player_name.upper()
+    summary = player_summary
     wordmark = Image.open('res/pc_wordmark.png')
     # generate the image
     width = max(
@@ -220,7 +238,7 @@ def player_draft_card(
         600
     )
     # im = generate_gradient('#4e459d', '#b03045', width, 400)
-    im = generate_gradient(str(team_role.color), '#FFFFFF', width, 400)
+    im = generate_gradient(str(team_colour), '#FFFFFF', width, 400)
     rectangle(im, 0, 0, width, 90, team_colour)
     if 'LIGHTNING' in title or 'PLAGUE' in title:
         text_colour = '#000'
@@ -234,7 +252,7 @@ def player_draft_card(
     paste_image(im, team_logo, left=20, top=10, height=80)
     paste_image(im, player_avatar, left=23, top=108, height=255)
     paste_image(im, wordmark, left=5, top=365, height=30)
-    return store_image(im, f'{team_role.name}_selects_{member.name}.png')
+    return store_image(im, f'{team_name}_selects_{player_name}.png')
 
 
 def arrow_card(

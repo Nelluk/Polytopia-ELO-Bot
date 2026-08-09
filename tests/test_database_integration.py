@@ -3373,6 +3373,62 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before,
         )
 
+    def test_league_draft_card_reads_player_and_team_without_writes(self):
+        """Exercise the P8.15 worker-local draft-card reads under the dev gate."""
+
+        from modules import league_draft_cards_workers as workers
+
+        player = (
+            self.models.Player.select(self.models.Player)
+            .join(self.models.DiscordMember)
+            .order_by(self.models.Player.id)
+            .first()
+        )
+        if player is None:
+            self.skipTest('development database has no registered player to inspect')
+        team = (
+            self.models.Team.select()
+            .where(
+                (self.models.Team.guild_id == player.guild_id)
+                & (self.models.Team.is_hidden == 0)
+            )
+            .order_by(self.models.Team.id)
+            .first()
+        )
+        if team is None:
+            self.skipTest('player guild has no visible Team to inspect')
+        before = (
+            self.models.Player.select().count(),
+            self.models.Team.select().count(),
+            self.models.GameLog.select().count(),
+        )
+        rendered = SimpleNamespace(fp=BytesIO(b'draft-png'), close=mock.Mock())
+        request = workers.DraftCardRequest(
+            guild_id=int(player.guild_id),
+            player_discord_id=int(player.discord_member.discord_id),
+            player_name=str(player.discord_member.name),
+            player_avatar_url='https://offline.test/player.png',
+            team_name=str(team.name),
+            role_colours=(workers.RoleColourSnapshot(str(team.name), '#123456'),),
+        )
+        with mock.patch.object(
+            workers.image_storage, 'resolve_image', return_value='/tmp/team.png'
+        ), mock.patch.object(
+            workers.imgen,
+            'player_draft_card_from_sources',
+            return_value=rendered,
+        ):
+            result = asyncio.run(workers.run_draft_card(request))
+        self.assertEqual(result.image_bytes, b'draft-png')
+        self.assertEqual(
+            (
+                self.models.Player.select().count(),
+                self.models.Team.select().count(),
+                self.models.GameLog.select().count(),
+            ),
+            before,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

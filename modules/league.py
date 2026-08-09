@@ -36,6 +36,8 @@ import modules.league_user_commands as league_user_commands
 import modules.league_user_workers as league_user_workers
 import modules.league_roster_cards as league_roster_cards
 import modules.league_roster_cards_workers as league_roster_cards_workers
+import modules.league_draft_cards as league_draft_cards
+import modules.league_draft_cards_workers as league_draft_cards_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -1704,6 +1706,60 @@ class league(commands.Cog):
         )
         return await self._publish_roster_card(interaction, roster_request)
 
+    @league_roster_group.command(
+        name='draft',
+        description='Create a player draft announcement card.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        player='Player being drafted.',
+        team='Team selecting the player.',
+    )
+    async def league_roster_draft_slash(
+        self,
+        interaction: discord.Interaction,
+        player: discord.Member,
+        team: str,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Draft cards require a server.', ephemeral=True
+            )
+        error = league_draft_cards.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        draft_request = league_draft_cards.request(
+            guild=guild,
+            player=player,
+            team=team,
+        )
+        try:
+            result = await league_draft_cards.run_draft_card(draft_request)
+            await league_draft_cards.public_interaction_sender(interaction)(
+                league_draft_cards.public_caption(interaction.user, result),
+                file=league_draft_cards.discord_file(result),
+            )
+            return result
+        except league_draft_cards_workers.DraftCardError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except (imgen.ImageFetchError, UnidentifiedImageError):
+            logger.exception('Could not fetch or decode a draft-card image')
+            await interaction.followup.send(
+                'A draft-card image could not be retrieved or decoded. '
+                'Check the player avatar and stored Team image, then try again.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected draft-card rendering failure')
+            await interaction.followup.send(
+                'The draft card could not be generated. Try again later.',
+                ephemeral=True,
+            )
+
     @commands.command(usage='', aliases=['trade'])
     @settings.is_staff_check()
     @settings.in_bot_channel_strict()
@@ -1769,60 +1825,6 @@ class league(commands.Cog):
                 f'directly to a file. {exc}'
             )
         await ctx.send(file=league_roster_cards.discord_file(result))
-
-    @commands.command(usage='@Draftee TeamName')
-    @settings.draft_check()
-    # @settings.in_bot_channel_strict()
-    async def draft(self, ctx, *, args=None):
-        """
-        *Mod:* Generate a draft announcement image
-        Currently will not alter any roles or do anything other than display an image.
-
-        **Examples**
-        `[p]draft` @Nelluk Ronin
-        """
-        args = args.split() if args else []
-        usage = (f'**Example usage:** `{ctx.prefix}draft @Nelluk Ronin`')
-
-        if len(args) < 2:
-            return await ctx.send(f'Insufficient arguments.\n{usage}')
-        draftee = ctx.guild.get_member(utilities.string_to_user_id(args[0]))
-        if not draftee:
-            return await ctx.send(f'Could not find server member from **{args[0]}**. Make sure to use a @Mention.\n{usage}')
-
-        try:
-            team = models.Team.get_or_except(team_name=' '.join(args[1:]), guild_id=ctx.guild.id)
-        except exceptions.NoSingleMatch as e:
-            return await ctx.send(f'Error looking up team: {e}\n{usage}')
-
-        if not image_storage.resolve_image('team', team):
-            return await ctx.send(f'Team **{team.name}** does not have an image set. Use `{ctx.prefix}team_image` first.')
-        draft_team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-        if not draft_team_role:
-            return await ctx.send(f'Found matching team but no matching role with name *{team.name}*!')
-
-        if team.house:
-            house_roles = [hr for hr in get_house_roles() if hr and hr.name == team.house.name]
-            house_role = house_roles[0] if house_roles else None
-        else:
-            house_role = None
-
-        selecting_string = house_role.name if house_role else draft_team_role.name
-        try:
-            fs = await asyncio.to_thread(
-                imgen.player_draft_card,
-                member=draftee,
-                team_role=draft_team_role,
-                selecting_string=selecting_string,
-            )
-        except imgen.ImageFetchError as exc:
-            logger.warning('Unable to create draft card: %s', exc)
-            return await ctx.send('Unable to retrieve one of the draft card images. Please try again later.')
-        except UnidentifiedImageError as exc:
-            logger.warning(f'UnidentifiedImageError: {exc}')
-            return await ctx.send(f'An image is formatted incorrectly: {exc}')
-
-        await ctx.send(file=fs)
 
     @commands.command(aliases=['playerprice'], hidden=True)
     async def tradeprice(self, ctx, season: typing.Optional[int], *, player_name: str):
