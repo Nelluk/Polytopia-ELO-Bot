@@ -7562,7 +7562,7 @@ remains a crucial operational fallback.
 
 ### P8.13 — Free Agent signup announcement composer
 
-Status: **Implemented locally; stopped-beta validation and deployment pending**
+Status: **Validated locally; integration and deployment pending**
 
 Branch/base: `codex/p8-13-free-agent-post` from exact clean accumulation
 checkpoint `c4fd8f65a942de5ba778c6cfc149ae0a23ed6dcf`.
@@ -7612,13 +7612,17 @@ Local validation evidence:
 - focused P8.13 suite: **18 passed**;
 - expanded league/free-agent/season/token/taxonomy suites: **68 passed**;
 - complete offline discovery: **1,061 passed, 35 intentional gated skips**;
-- the stopped-beta real-schema gate is recorded below after integration
-  validation;
+- after stopping only the durable development beta and confirming no other
+  beta writer remained, the unchanged gated database suite passed **33 tests
+  with one intentional retained-fixture skip**. The P8.13 case committed the
+  Configuration/GameLog pair, proved a forced audit failure rolled the
+  signup pointer back, and removed its exact temporary rows;
 - touched-file compilation and `git diff --check`: passed.
 
-Next action: complete the offline run, commit implementation and evidence
-separately, stop only the durable beta, run the unchanged development database
-gate, then integrate and update only the development guild's `/league` root.
+Next action: fast-forward the reviewed commits into the accumulation branch,
+push that branch, update only the development guild's `/league` root, restart
+the guarded beta from the clean integrated checkpoint, and publish the
+reviewed wider-beta test request.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9085,6 +9089,27 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.13 Free Agent composer validated locally
+
+- Added Mod-only `/league free-agents post channel:[optional]` with a private
+  modal/preview and public actor-attributed announcement; retained
+  `$newfreeagent` through the same posting service.
+- Preserved signup, open/close, and conclude reactions; refused live
+  duplicates; serialized creation; and atomically stored the message pointer
+  with its audit record after Discord supplied the message IDs.
+- Added orphan deletion and visible terminal reconciliation when a Discord
+  effect or database commit fails before activation.
+- Focused P8.13 tests passed **18**; expanded league/taxonomy tests passed
+  **68**; complete offline discovery passed **1,061 tests with 35 intentional
+  gated skips**; compilation and diff checks passed.
+- Stopped only the guarded development beta and confirmed the writer audit was
+  clear. The unchanged gated database suite passed **33 tests with one
+  intentional retained-fixture skip**, including P8.13 commit, rollback, and
+  exact cleanup evidence under `development` / `polytopia_dev` /
+  `polybot_dev`.
+- Implementation checkpoint `0ffa36d` and initial roadmap/checklist checkpoint
+  `b02ff7b` remain on the clean unit branch pending accumulation integration.
 
 ### 2026-08-08 — P8.12 integrated and deployed
 
