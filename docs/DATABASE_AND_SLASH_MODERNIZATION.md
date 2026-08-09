@@ -484,10 +484,10 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **The P8.19 `on_member_remove` worker prerequisite is
-Implemented and real-schema validated on `codex/p8-19-member-remove-worker`
-from exact accumulation checkpoint `dc494ad`; integration is pending. This
-unit does not implement guild-member kicks or approve the pending P8.19
-destructive policy. P8.18 and P8.17 staff beta acceptance remain pending.**
+Complete, integrated, pushed, and running on the development beta through
+checkpoint `b921ee7`. The destructive `/league maintenance kick-inactive`
+workflow remains blocked on explicit policy approval. P8.18 and P8.17 staff
+beta acceptance also remain pending.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8149,8 +8149,8 @@ Deployment result:
 
 ### P8.19 — Remove inactive members from the guild
 
-Status: **Listener-worker prerequisite Implemented and validated; kick
-workflow still blocked on policy approval**
+Status: **Listener-worker prerequisite Complete and deployed; kick workflow
+still blocked on policy approval**
 
 Legacy `$kick_inactive` is also Mod-only and league-guild-only, ignores its
 declared free-form argument, and immediately kicks members with the Inactive
@@ -8228,6 +8228,13 @@ Listener-worker prerequisite result:
 - Implementation/tests checkpoint: `e73b0bf`. No compatibility-ledger entry
   is needed because no slash or prefix command interface changed;
   `$kick_inactive` remains untouched.
+- Evidence checkpoint `b921ee7` fast-forwarded and was pushed to the approved
+  accumulation branch. No application-command definition changed, so no
+  guild command inspection/apply was needed.
+- The guarded beta restarted at exact integrated checkpoint `b921ee7` and
+  authenticated as PolyELO Bot Beta `479029527553638401`. This backend-only
+  parity/reliability prerequisite intentionally received no tester
+  announcement because it adds no command or useful human smoke action.
 
 No automatic/scheduled purge is proposed. P8.19 should begin only after
 P8.18 beta acceptance and explicit approval of the role policy and preserved
@@ -9746,8 +9753,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   intentional operator-fixture skip**, including audit-failure rollback and
   pending-only deletion on a worker-owned real connection.
 - Recorded implementation checkpoint `e73b0bf`. Integration/restart remains
-  pending; no command tree changed, so no command apply or tester-facing
-  announcement is required for this backend-only prerequisite.
+  pending at the pre-integration record; the accumulation branch subsequently
+  fast-forwarded and pushed through evidence checkpoint `b921ee7`.
+- No command tree changed, so no command apply occurred. The guarded beta
+  restarted at `b921ee7`, authenticated as the expected beta application, and
+  remained active. No tester-facing announcement was sent for this
+  backend-only prerequisite.
 - The destructive `/league maintenance kick-inactive` contract remains a
   separate decision/implementation unit; this prerequisite does not approve
   or alter it.
