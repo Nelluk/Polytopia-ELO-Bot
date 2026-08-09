@@ -485,8 +485,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **No code unit is active. P5.17 post-join game-card
-presentation is implemented and fully validated; integration, push, and the
-guarded-beta restart remain pending. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
+presentation is complete, integrated, pushed, and loaded by the guarded beta
+at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
 P5.17 found that the remaining synchronous post-commit card reload is shared
 by successful `/game join`, `$join`, and reaction joins, not reaction leave.
@@ -5489,7 +5489,7 @@ game-detail read service or remain a smaller reaction-specific snapshot.
 
 ### P5.17 — Post-join game-card lifecycle audit
 
-Status: **Implemented and validated; integration/deployment pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The initially suspected reaction-success reload is one instance of a wider
 shared presentation gap. After the authoritative join worker commits:
@@ -5639,6 +5639,28 @@ fixture, task, dependency, or production behavior changed. Application-command
 synchronization and a broad tester announcement are unnecessary; after
 integration the guarded beta needs only a restart onto the clean accumulation
 checkpoint.
+
+Integration/deployment evidence:
+
+- fast-forwarded implementation `54b2251` and evidence `452879f` into
+  `codex/database-slash-modernization`, then pushed that exact checkpoint to
+  the approved GitHub origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and PID `3239615` runs from the clean accumulation
+  checkout at `452879f` with zero automatic restarts;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup with `--skip_tasks`, and passed the protected
+  local release-control status operation;
+- made no application-command plan/apply/sync because no command definition or
+  capability changed; and
+- selected the explicit no-announcement route because the shared card remains
+  the same production-style presentation and adds no tester-facing workflow.
+
+Next action: P5.18 should audit the adjacent synchronous post-commit card
+reload in `game_join_leave.publish_kick_result()` and both of its native/prefix
+callers. Determine whether it can reuse the P5.17 immutable loader/sender
+directly while preserving removal/expiration output and card reconciliation,
+before implementation.
 
 ## P6 — Registration and player preferences
 
@@ -11456,6 +11478,11 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   guarded-beta restart remained pending at this evidence checkpoint. No
   command apply, announcement, schema, fixture, dependency, or production
   action was performed.
+- Subsequently integrated and pushed exact checkpoint `452879f`, started only
+  the guarded beta, and verified its clear writer preflight, PID `3239615`,
+  expected beta identity, `--skip_tasks` startup, zero automatic restarts, and
+  protected release-control status. No command apply or tester announcement
+  was needed.
 
 ### 2026-08-09 — P5.17 post-join game-card lifecycle audited
 
