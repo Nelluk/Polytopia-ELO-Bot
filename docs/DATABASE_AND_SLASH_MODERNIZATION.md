@@ -484,13 +484,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.20 member-join reconciliation is locally green on
-`codex/p8-20-member-join-reconciliation` from exact clean accumulation
-checkpoint `cf6e398`. It preserves rejoin Player upsert, existing game-channel
+Current active unit: **No code unit is active. P8.20 member-join
+reconciliation is integrated, pushed, and running on the guarded development
+beta at `de1dcf7`. It preserves rejoin Player upsert, existing game-channel
 permission restoration, and missing side-channel recreation while moving all
-Peewee work into bounded worker-owned transactions. Offline and stopped-beta
-real-schema validation passed; integration, push, and guarded restart remain
-pending. No command tree changes.**
+Peewee work into bounded worker-owned transactions. No command tree changed
+and no command synchronization or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8371,7 +8370,7 @@ Implementation result:
 
 ### P8.20 — Member-join database and channel reconciliation
 
-Status: **Implemented and locally green; integration/deployment pending**
+Status: **Complete through development deployment**
 
 The legacy `on_member_join` listener performs a potentially mutating
 `Player.get_by_discord_id()` lookup plus three Peewee lineup/game queries on
@@ -8418,10 +8417,26 @@ immutable side snapshot ordering, external-guild channel attribution,
 optimistic conflict rejection, and exact owned-row cleanup.
 Implementation/tests checkpoint: `90d6495`.
 
-A backend-only deployment needs no command apply/sync. No tester announcement
-is planned because there is no safe, useful broad-tester smoke unless a
-designated account deliberately leaves and rejoins; this disposition will be
-recorded with deployment evidence.
+A backend-only deployment needed no command apply/sync. No tester announcement
+was sent because there is no safe, useful broad-tester smoke unless a
+designated account deliberately leaves and rejoins.
+
+Integration/deployment evidence:
+
+- fast-forwarded implementation/tests `90d6495` and roadmap evidence
+  `de1dcf7` into `codex/database-slash-modernization`, then pushed the clean
+  branch to the approved GitHub origin;
+- made no application-command plan/apply/sync because the listener changes no
+  command registration or capability;
+- started only `polybot-development-beta@main.service` at exact clean
+  checkpoint `de1dcf75490187116ccaa553c06b03fce72b38cd` after the database
+  gate. Its `ExecStartPre` writer audit was clear, it authenticated as
+  PolyELO Bot Beta `479029527553638401`, and the protected local release
+  status operation completed successfully;
+- selected the explicit no-announcement acceptance route. The change is a
+  backend rejoin reliability boundary with no normal tester command or safe
+  broad-pool action; a later deliberately coordinated leave/rejoin owns human
+  acceptance if desired.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9946,9 +9961,13 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   and one intentional retained-fixture skip**. The initial real-schema failure
   was a test-fixture guild-Player mismatch; the corrected staged fixture then
   proved rollback, upsert, side loading, persistence, conflict, and cleanup.
-- Integration, push, guarded restart, and final deployment evidence remain
-  pending. No command definition changed, so no Discord command
-  synchronization is planned. Implementation/tests checkpoint: `90d6495`.
+- Integrated and pushed implementation/tests checkpoint `90d6495` and
+  evidence checkpoint `de1dcf7`. No command definition changed, so no Discord
+  command synchronization occurred.
+- Restarted only the guarded beta at exact clean checkpoint `de1dcf7`; it
+  authenticated as the expected beta application and its protected local
+  control status was healthy. No announcement was sent because this backend-
+  only listener boundary has no safe, useful broad-tester smoke action.
 
 ### 2026-08-09 — P7.7a player analytics restored locally
 
