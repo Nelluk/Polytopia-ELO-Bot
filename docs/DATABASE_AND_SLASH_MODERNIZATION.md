@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.19 shared post-start
-lifecycle has been audited read-only and awaits acceptance of
-P5.19-A/B/C/D. P5.18 post-kick game-card presentation is complete, integrated,
+Current active unit: **P5.19a started-game channel creation is implemented and
+validated on `codex/p5-19a-started-channel-creation` at `4f40c63`; integration,
+push, and guarded-beta restart are pending. P5.19-A/B/C/D are accepted, and
+P5.19b Nova graduation is the next code unit. P5.18 post-kick game-card presentation is complete, integrated,
 pushed, and loaded by the guarded beta at `e79ab1c`. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
@@ -5831,8 +5832,7 @@ Discord state, beta runtime, schema, dependency, or production behavior.
 
 ### P5.19 — Shared post-start lifecycle audit
 
-Status: **Audited read-only; implementation sequence blocked on
-P5.19-A/B/C/D**
+Status: **In progress; P5.19-A/B/C/D accepted**
 
 All three start adapters share the same post-commit publisher:
 
@@ -5961,6 +5961,30 @@ Policy decisions required before implementation:
    contract, preserve public ordering and announcement persistence, and make
    every post-commit effect independent before removing the live model reload.
    **Recommended.**
+
+The user accepted P5.19-A/B/C/D as proposed on 2026-08-09. P5.19a was
+implemented on `codex/p5-19a-started-channel-creation` from exact audit
+checkpoint `548bce7`; implementation/tests checkpoint `4f40c63` is locally
+validated and awaiting integration, push, and guarded-beta restart.
+
+P5.19a freezes immutable game/side/player/team/host/external-server channel
+plans inside the authoritative start transaction. Discord channel creation now
+uses only those primitive values. Every concrete channel is optimistically
+claimed through the serialized pending-game coordinator in a worker-local
+synchronous transaction before greeting; a stale or failed claim triggers
+best-effort compensating deletion, with exact game/guild/channel details when
+deletion is uncertain. Cancellation drains creation, persistence, greeting, or
+compensation once Discord work begins. Target failures remain isolated and
+public reconciliation warnings do not suppress the final start confirmation.
+
+The change preserves configured categories, external-team-server and PCPLUS
+routing, source-server capacity thresholds, Nova exceptions, central-channel
+eligibility, naming, roster greetings, and prefix/native adapters. The classic
+started card, season predicates, league refresh predicate, and Nova follow-up
+still use the compatibility reload pending P5.19b/c. The separate direct game
+record publisher and member-rejoin repair path remain unchanged; this unit
+removes `Game.create_game_channels()` only from the shared pending-game start
+publisher.
 
 The audit changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
@@ -11758,6 +11782,36 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.19a started-channel lifecycle validated
+
+- Froze exact started-game channel plans in `StartResult` while the final
+  worker transaction owned the committed graph; no Peewee or Discord object
+  crosses the new boundary.
+- Replaced the shared start publisher's live-model channel creation with
+  primitive Discord creation, optimistic worker-local reference persistence,
+  greet-after-claim ordering, and compensating deletion of unclaimed concrete
+  channels.
+- Preserved source/external/PCPLUS routing, category and capacity behavior,
+  side/central eligibility, partial success, prefix/native parity, public
+  reconciliation, and cancellation draining. A classic-card reload failure no
+  longer suppresses channel creation.
+- Added focused plan, connection/transaction, race, routing, capacity,
+  compensation, cancellation, and reload-failure regressions. The affected
+  suites passed **59 tests**; complete offline discovery passed **1,336 tests
+  with 54 intentional gated skips**; compilation and `git diff --check`
+  passed.
+- Stopped only `polybot-development-beta@main.service`, confirmed the writer
+  audit clear, passed the targeted real-schema start/channel claim case, and
+  passed the complete gated `development` / `polytopia_dev` / `polybot_dev`
+  suite: **53 tests passed with one intentional operator-fixture skip**.
+  Real-schema coverage proves exact external-side persistence, idempotent
+  retry, conflict rejection, and cleanup.
+- Recorded implementation/tests checkpoint `4f40c63`. Integration, push, and
+  guarded-beta restart remain pending at this evidence checkpoint. No command
+  apply/sync, announcement, schema, dependency, persistent/operator-fixture,
+  production, or sudo action occurred. Next code unit after deployment is
+  P5.19b Nova graduation.
 
 ### 2026-08-09 — P5.19 shared post-start lifecycle audited
 
