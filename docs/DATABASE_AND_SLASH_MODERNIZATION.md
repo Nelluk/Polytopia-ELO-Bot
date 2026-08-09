@@ -484,14 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.21 deleted-channel reference reconciliation is
-Implemented and locally green on `codex/p8-21-channel-delete-reconciliation`
-from exact clean accumulation checkpoint `faceda4`; implementation/tests are
-checkpointed as `1d0cbff`. The two direct Peewee updates in
+Current active unit: **No code unit is active. P8.21 deleted-channel reference
+reconciliation is integrated, pushed, and running on the guarded development
+beta at `0a53bb4`. The two direct Peewee updates in
 `on_guild_channel_delete` now run in one bounded worker-owned transaction while
 preserving side/full-game reference cleanup and external-guild routing
-evidence. The stopped-beta real-schema gate passed. Integration, push, and
-development-beta restart remain active. No command tree changes.**
+evidence. The stopped-beta real-schema gate passed. No command tree changed,
+and no command synchronization or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8442,7 +8441,7 @@ Integration/deployment evidence:
 
 ### P8.21 — Deleted-channel reference reconciliation
 
-Status: **Implemented and locally green; integration/deployment pending**
+Status: **Complete; integrated, pushed, and running on the development beta**
 
 The legacy `on_guild_channel_delete` listener performs two direct Peewee
 updates on the Discord event loop: it clears every matching
@@ -8490,8 +8489,22 @@ Validation evidence:
 - touched-Python compilation and both working-tree/full-diff whitespace checks
   passed.
 
-Implementation/tests checkpoint: `1d0cbff`. Integration, push, guarded beta
-restart, and the final no-announcement deployment record remain pending.
+Implementation/tests checkpoint: `1d0cbff`; roadmap evidence and integrated
+running-code checkpoint: `0a53bb4`.
+
+Integration/deployment evidence:
+
+- fast-forwarded the clean P8.21 branch into
+  `codex/database-slash-modernization` and pushed the exact `0a53bb4`
+  checkpoint to GitHub;
+- started only `polybot-development-beta@main.service` after the stopped-beta
+  database gate. Its `ExecStartPre` writer audit was clear, and it authenticated
+  as PolyELO Bot Beta `479029527553638401`;
+- the guarded beta release-control status operation completed successfully;
+- made no application-command plan/apply/sync because the listener changes no
+  command definition or capability;
+- selected the explicit no-announcement route. This is backend-only deleted-
+  channel reconciliation with no normal command or safe broad-pool smoke action.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -10011,7 +10024,11 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   proved rollback, commit, idempotency, and retained external-guild routing.
 - Checkpointed implementation/tests as `1d0cbff`. Evidence checkpoint,
   integration, push, restart, and the explicit no-announcement deployment
-  record remain pending.
+  record were subsequently completed at running-code checkpoint `0a53bb4`.
+- Fast-forwarded and pushed the accumulation branch, restarted only the guarded
+  development beta, verified expected bot identity and release-control health,
+  made no command sync, and posted no tester announcement because the listener
+  has no meaningful broad-pool smoke action.
 
 ### 2026-08-09 — P8.20 member-join reconciliation implemented locally
 
