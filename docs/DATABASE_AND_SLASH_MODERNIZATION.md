@@ -8726,6 +8726,14 @@ Integration/deployment evidence:
 - selected the explicit no-announcement route because this backend event
   boundary has no safe, meaningful broad-pool smoke action.
 
+Next action: implement P5.9 as a bounded read/adaptation unit for join-game
+message and reaction listeners. Keep message parsing on the event loop, move
+Game/pending/guild/external-server resolution to a worker-local immutable
+snapshot, and continue routing mutations through the existing shared
+join/leave workers. Preserve reaction behavior and messages. The later expired-
+game purge writer remains a separate unit because its database/Discord effect
+and retry policy requires explicit design.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
