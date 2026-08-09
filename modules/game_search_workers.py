@@ -7,10 +7,14 @@ import datetime
 import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import logging
 import re
 
 import settings
 from modules import models
+
+
+logger = logging.getLogger(__name__)
 
 
 MAX_GAMES = 500
@@ -694,8 +698,29 @@ def load_game_search(request: GameSearchRequest) -> GameSearchSnapshot:
 async def run_game_search(
     request: GameSearchRequest,
 ) -> GameSearchSnapshot:
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _game_search_executor,
-        functools.partial(load_game_search, request),
+    """Run a bounded read and drain its thread before cancellation returns."""
+
+    concurrent_future = _game_search_executor.submit(
+        functools.partial(load_game_search, request)
     )
+    try:
+        while not concurrent_future.done():
+            await asyncio.sleep(0.001)
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        while not concurrent_future.done():
+            if task is not None:
+                while task.cancelling():
+                    task.uncancel()
+            try:
+                await asyncio.sleep(0.001)
+            except asyncio.CancelledError:
+                continue
+        try:
+            concurrent_future.result()
+        except BaseException:
+            logger.exception(
+                'Cancelled game-search worker completed with an error'
+            )
+        raise asyncio.CancelledError
+    return concurrent_future.result()

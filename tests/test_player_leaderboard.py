@@ -556,6 +556,49 @@ class PlayerLeaderboardExecutorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(max_active, 2)
 
+    async def test_cancelled_read_drains_worker_before_propagating(self):
+        started = threading.Event()
+        release = threading.Event()
+        connection_closed = threading.Event()
+
+        def blocked_read(_request):
+            started.set()
+            try:
+                release.wait(timeout=2)
+                return result_with_rows(1)
+            finally:
+                connection_closed.set()
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=300,
+            active_cutoff=datetime.datetime(2025, 1, 1),
+        )
+        with mock.patch.object(
+            leaderboard_workers,
+            'load_player_leaderboard',
+            side_effect=blocked_read,
+        ):
+            task = asyncio.create_task(
+                leaderboard_workers.run_player_leaderboard(request)
+            )
+            try:
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertTrue(started.is_set())
+                task.cancel()
+                task.cancel()
+                await asyncio.sleep(0.01)
+                self.assertFalse(task.done())
+                self.assertFalse(connection_closed.is_set())
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                self.assertTrue(connection_closed.is_set())
+            finally:
+                release.set()
+
 
 class PlayerLeaderboardCommandTests(unittest.IsolatedAsyncioTestCase):
     def test_all_sixteen_prefix_filter_combinations_map_to_options(self):

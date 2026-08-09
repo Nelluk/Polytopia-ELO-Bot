@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import AbstractContextManager
 import datetime
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -444,17 +445,23 @@ class ActivitySquadCommandTests(unittest.IsolatedAsyncioTestCase):
 class SharedLeaderboardExecutorTests(unittest.IsolatedAsyncioTestCase):
     async def test_activity_and_squad_share_bounded_responsive_executor(self):
         started = 0
-        release = asyncio.Event()
+        lock = threading.Lock()
+        release = threading.Event()
 
-        async def fake_run_in_executor(executor, call):
+        def mark_started():
             nonlocal started
-            self.assertIs(
-                executor,
-                leaderboard_workers._leaderboard_read_executor,
-            )
-            started += 1
-            await release.wait()
-            return call()
+            with lock:
+                started += 1
+
+        def slow_activity(_request):
+            mark_started()
+            release.wait(timeout=2)
+            return activity_result(1)
+
+        def slow_squad(_request):
+            mark_started()
+            release.wait(timeout=2)
+            return squad_result(1)
 
         activity_request = leaderboard_workers.ActivityLeaderboardRequest(
             guild_id=300,
@@ -464,20 +471,14 @@ class SharedLeaderboardExecutorTests(unittest.IsolatedAsyncioTestCase):
             guild_id=300,
             period='all-time',
         )
-        loop = asyncio.get_running_loop()
-
         with mock.patch.object(
-            loop,
-            'run_in_executor',
-            side_effect=fake_run_in_executor,
-        ), mock.patch.object(
             leaderboard_workers,
             'load_activity_leaderboard',
-            return_value=activity_result(1),
+            side_effect=slow_activity,
         ), mock.patch.object(
             leaderboard_workers,
             'load_squad_leaderboard',
-            return_value=squad_result(1),
+            side_effect=slow_squad,
         ):
             tasks = [
                 asyncio.create_task(
@@ -491,7 +492,11 @@ class SharedLeaderboardExecutorTests(unittest.IsolatedAsyncioTestCase):
                     )
                 ),
             ]
-            await asyncio.sleep(0)
+            for _ in range(100):
+                with lock:
+                    if started == 2:
+                        break
+                await asyncio.sleep(0.001)
             self.assertEqual(started, 2)
             heartbeat = False
 
@@ -504,3 +509,78 @@ class SharedLeaderboardExecutorTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(heartbeat)
             release.set()
             await asyncio.gather(*tasks)
+
+    async def test_cancelled_activity_and_squad_reads_drain_workers(self):
+        activity_started = threading.Event()
+        squad_started = threading.Event()
+        release = threading.Event()
+        activity_closed = threading.Event()
+        squad_closed = threading.Event()
+
+        def blocked_activity(_request):
+            activity_started.set()
+            try:
+                release.wait(timeout=2)
+                return activity_result(1)
+            finally:
+                activity_closed.set()
+
+        def blocked_squad(_request):
+            squad_started.set()
+            try:
+                release.wait(timeout=2)
+                return squad_result(1)
+            finally:
+                squad_closed.set()
+
+        with mock.patch.object(
+            leaderboard_workers,
+            'load_activity_leaderboard',
+            side_effect=blocked_activity,
+        ), mock.patch.object(
+            leaderboard_workers,
+            'load_squad_leaderboard',
+            side_effect=blocked_squad,
+        ):
+            tasks = [
+                asyncio.create_task(
+                    leaderboard_workers.run_activity_leaderboard(
+                        leaderboard_workers.ActivityLeaderboardRequest(
+                            guild_id=300,
+                            view='global-all-time',
+                        )
+                    )
+                ),
+                asyncio.create_task(
+                    leaderboard_workers.run_squad_leaderboard(
+                        leaderboard_workers.SquadLeaderboardRequest(
+                            guild_id=300,
+                            period='all-time',
+                        )
+                    )
+                ),
+            ]
+            try:
+                for _ in range(100):
+                    if activity_started.is_set() and squad_started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertTrue(activity_started.is_set())
+                self.assertTrue(squad_started.is_set())
+                for task in tasks:
+                    task.cancel()
+                    task.cancel()
+                await asyncio.sleep(0.01)
+                self.assertTrue(all(not task.done() for task in tasks))
+                self.assertFalse(activity_closed.is_set())
+                self.assertFalse(squad_closed.is_set())
+                release.set()
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                self.assertTrue(
+                    all(isinstance(result, asyncio.CancelledError)
+                        for result in results)
+                )
+                self.assertTrue(activity_closed.is_set())
+                self.assertTrue(squad_closed.is_set())
+            finally:
+                release.set()

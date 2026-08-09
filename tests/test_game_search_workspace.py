@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import contextmanager
 from types import SimpleNamespace
+import threading
 import time
 import unittest
 from unittest import mock
@@ -423,6 +424,85 @@ class GameSearchWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await task).rows[0].game_id, 1)
         finally:
             workers.load_game_search = original
+
+    async def test_cancelled_read_drains_worker_before_propagating(self):
+        started = threading.Event()
+        release = threading.Event()
+        connection_closed = threading.Event()
+
+        def blocked(_request):
+            started.set()
+            try:
+                release.wait(timeout=2)
+                return snapshot(count=1)
+            finally:
+                connection_closed.set()
+
+        with mock.patch.object(
+            workers,
+            'load_game_search',
+            side_effect=blocked,
+        ):
+            task = asyncio.create_task(workers.run_game_search(
+                workers.GameSearchRequest(
+                    guild_id=1,
+                    requester_discord_id=2,
+                )
+            ))
+            try:
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertTrue(started.is_set())
+                task.cancel()
+                task.cancel()
+                await asyncio.sleep(0.01)
+                self.assertFalse(task.done())
+                self.assertFalse(connection_closed.is_set())
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                self.assertTrue(connection_closed.is_set())
+            finally:
+                release.set()
+
+    async def test_cancelled_worker_failure_is_logged_not_reinterpreted(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        def blocked_failure(_request):
+            started.set()
+            release.wait(timeout=2)
+            raise RuntimeError('worker failed after cancellation')
+
+        with mock.patch.object(
+            workers,
+            'load_game_search',
+            side_effect=blocked_failure,
+        ), mock.patch.object(workers.logger, 'exception') as logged:
+            task = asyncio.create_task(workers.run_game_search(
+                workers.GameSearchRequest(
+                    guild_id=1,
+                    requester_discord_id=2,
+                )
+            ))
+            try:
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertTrue(started.is_set())
+                task.cancel()
+                task.cancel()
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                logged.assert_called_once_with(
+                    'Cancelled game-search worker completed with an error'
+                )
+            finally:
+                release.set()
 
     def test_unconfirmed_and_outcome_guards(self):
         with self.assertRaisesRegex(workers.GameSearchError, 'Only staff'):

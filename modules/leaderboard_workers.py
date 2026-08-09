@@ -777,9 +777,9 @@ async def run_player_leaderboard(
 ) -> PlayerLeaderboardResult:
     """Submit a player leaderboard read to the bounded read executor."""
 
-    loop = asyncio.get_running_loop()
-    call = functools.partial(load_player_leaderboard, request)
-    return await loop.run_in_executor(_leaderboard_read_executor, call)
+    return await _run_bounded_leaderboard_call(
+        functools.partial(load_player_leaderboard, request)
+    )
 
 
 async def run_activity_leaderboard(
@@ -787,9 +787,9 @@ async def run_activity_leaderboard(
 ) -> ActivityLeaderboardResult:
     """Submit an activity leaderboard read to the bounded executor."""
 
-    loop = asyncio.get_running_loop()
-    call = functools.partial(load_activity_leaderboard, request)
-    return await loop.run_in_executor(_leaderboard_read_executor, call)
+    return await _run_bounded_leaderboard_call(
+        functools.partial(load_activity_leaderboard, request)
+    )
 
 
 async def run_squad_leaderboard(
@@ -797,9 +797,9 @@ async def run_squad_leaderboard(
 ) -> SquadLeaderboardResult:
     """Submit a squad leaderboard read to the bounded executor."""
 
-    loop = asyncio.get_running_loop()
-    call = functools.partial(load_squad_leaderboard, request)
-    return await loop.run_in_executor(_leaderboard_read_executor, call)
+    return await _run_bounded_leaderboard_call(
+        functools.partial(load_squad_leaderboard, request)
+    )
 
 
 async def _run_bounded_leaderboard_call(call):
