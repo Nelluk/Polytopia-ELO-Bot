@@ -484,9 +484,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.12 automatic vacant-lobby
-creation is complete, integrated, pushed, and loaded by the guarded
-development beta at `4f9bb72`. The unit preserves configured lobby
+Current active unit: **P5.13 hourly open-game broadcasting is Implemented and
+validated on `codex/p5-13-open-game-broadcasts` at `7fa58ce`, pending
+accumulation integration and guarded-beta restart. The unit preserves
+configured channel/ranked routing, the 12-game cap, descending game ordering,
+temporary-message lifetime, purgable-message tracking, and useful row content
+while moving all Peewee selection/traversal into bounded immutable worker
+snapshots. Discord channel resolution, rendering, and sends are post-read and
+independently contained; native guidance and the accepted cross-play policy
+replace legacy prefix/platform copy. Focused, complete offline, and targeted
+read-only PostgreSQL validation are green. P5.12 automatic vacant-lobby creation
+is complete, integrated, pushed, and loaded by the guarded development beta at
+`4f9bb72`. That unit preserves configured lobby
 shape/ranking/notes/expiration, `remake_partial` semantics, and captured
 Discord role locks while moving authoritative existence checks plus the
 Game/GameSide/audit creation graph into independently atomic worker-local
@@ -4820,6 +4829,64 @@ game list broadcaster as a bounded read/presentation unit. It should freeze at
 most the displayed pending-game rows on worker-local connections, render
 native `/game join` and `/game show` guidance post-read, and isolate each
 channel send. The older incomplete-game purge remains policy-gated.
+
+### P5.13 — Hourly open-game list broadcaster
+
+Status: **Implemented and validated; accumulation integration and guarded-beta
+restart pending**
+
+The retained background task previously selected and traversed pending games
+on the Discord event loop separately for each configured channel, built embeds
+from live Peewee models, and advertised prefix join/game plus obsolete platform
+distinctions. One model/render/configuration failure could interrupt later
+channels in the hourly cycle.
+
+The bounded implementation:
+
+- adds `modules/game_list_broadcast_workers.py` with frozen request/row/snapshot
+  DTOs, a dedicated two-thread read executor, worker-local Peewee connections,
+  and cancellation ownership through thread completion;
+- preserves the legacy open-capacity query, guild/ranked channel routing,
+  descending game-ID order, and hard 12-row display cap;
+- freezes ID, creator/vacant label, size, capacity, expiration, ranked state,
+  and notes. A malformed row is logged/skipped without losing later rows;
+- adds `modules/game_list_broadcasts.py` to resolve channels, render dense
+  public embeds, send them with the unchanged one-hour deletion lifetime, and
+  update the existing bounded `purgable_messages` list only after success;
+- replaces `$join ID` / `$game ID` text with `/game join` / `/game show` and
+  omits Mobile/Steam icons under accepted D-027 cross-play semantics;
+- preserves ranked-only, unranked-only, and mixed channel titles/filters while
+  isolating missing channels, load failures, render failures, and Discord send
+  failures so later channels still proceed;
+- removes the old invite-only skip branch because it required more than 15
+  loaded games while the same code hard-capped the list at 12, making it
+  unreachable and behaviorally inert;
+- reduces `task_print_matchlist` to its existing five-second initial delay,
+  one application-service call, and unchanged one-hour cycle sleep.
+
+Validation evidence:
+
+- focused P5.13 plus game-search/discovery coverage: 47 active tests passed;
+- complete offline discovery: 1,272 passed with 52 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- the targeted read-only real-schema case passed under exact `development` /
+  `polytopia_dev` / `polybot_dev` and disabled background/API gates while the
+  beta remained active. It exercised real pending rows, enforced the 12-row
+  bound, and proved GameLog count was unchanged;
+- implementation/tests checkpoint: `7fa58ce`.
+
+No command registration, option, permission, prefix handler, schema, fixture,
+transaction writer, capability, background-task configuration, or production
+change is included. Development background tasks remain disabled, so restart
+loads but does not publish the hourly list; no command sync or tester
+announcement is useful.
+
+Next action after integration/deployment: P5.14 should perform a read-only
+policy/transaction audit of `administration.task_purge_incomplete`. Its age,
+season exemption, channel deletion, audit, and game-state effects are
+destructive and branch across several legacy conditions; do not implement a
+worker rewrite until those policies and commit-before-Discord ordering are
+explicitly accepted.
 
 ## P6 — Registration and player preferences
 
@@ -10614,6 +10681,26 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.13 open-game broadcaster snapshots validated
+
+- Replaced event-loop pending-game reads and live-model embed construction with
+  a bounded worker-local snapshot containing only the 12 displayed rows.
+- Preserved configured ranked/unranked/mixed routing, descending order, dense
+  row information, one-hour deletion, and purgable-message tracking.
+- Applied native `/game join` and `/game show` guidance plus accepted
+  cross-play presentation, removing obsolete platform icons from this refreshed
+  automatic view.
+- Isolated malformed rows and configuration/read/render/send failures by
+  channel so later broadcasts still proceed.
+- Passed 47 active focused/adjacent tests, 1,272 complete offline tests with 52
+  gated skips, touched compilation, and diff checks.
+- Passed the targeted read-only real-schema case alongside the active beta
+  under the unchanged development identity gate and proved no GameLog writes.
+- Recorded implementation/tests checkpoint `7fa58ce`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no command, capability, schema, fixture, writer, background-task
+  configuration, announcement, or production change.
 
 ### 2026-08-09 — P5.12 automatic vacant-lobby worker validated
 
