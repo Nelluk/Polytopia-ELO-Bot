@@ -28,6 +28,9 @@ import modules.league_tokens_workers as league_tokens_workers
 import modules.league_season as league_season
 import modules.league_season_views as league_season_views
 import modules.league_season_workers as league_season_workers
+import modules.league_free_agents as league_free_agents
+import modules.league_free_agents_views as league_free_agents_views
+import modules.league_free_agents_workers as league_free_agents_workers
 import modules.league_user_commands as league_user_commands
 import modules.league_user_workers as league_user_workers
 import modules.models as models
@@ -203,6 +206,12 @@ class league(commands.Cog):
     league_group = discord.app_commands.Group(
         name='league',
         description='View and manage PolyChampions league information.',
+        guild_only=True,
+    )
+    league_free_agents_group = discord.app_commands.Group(
+        name='free-agents',
+        description='Manage Free Agent signup announcements.',
+        parent=league_group,
         guild_only=True,
     )
 
@@ -525,59 +534,86 @@ class league(commands.Cog):
 
         """
 
-        # post message in announcements (optional argument of a different channel if mod wants announcement to go elsewhere?)
-        # listen for reactions in a check
-        # if reactor has Nova Grad role, PM success message and apply Free Agent role
-        # if not, PM failure message and remove reaction
-        # remove Free Agent role if user removes their reaction
+        announcement_channel = (
+            channel_override or league_free_agents.default_channel(ctx.guild)
+        )
+        if announcement_channel is None:
+            return await ctx.send(
+                'The default Free Agent announcement channel is unavailable. '
+                'Supply a channel explicitly.'
+            )
+        try:
+            result = await league_free_agents.post_announcement(
+                cog=self,
+                guild=ctx.guild,
+                actor=ctx.author,
+                channel=announcement_channel,
+                added_message=added_message,
+            )
+        except league_free_agents_workers.FreeAgentPostError as exc:
+            return await ctx.send(str(exc))
+        await ctx.send(
+            f'Free Agent signup announcement posted and activated: '
+            f'{result.message_link}'
+        )
 
-        if channel_override:
-            announcement_channel = channel_override
-        else:
-            # use default channel for announcement
-            if ctx.guild.id == settings.server_ids['polychampions']:
-                announcement_channel = ctx.guild.get_channel(1326604735863721984)  # #announcements
-            else:
-                announcement_channel = ctx.guild.get_channel(480078679930830849)  # #admin-spam
+    @league_free_agents_group.command(
+        name='post',
+        description='Preview and post a new Free Agent signup announcement.',
+    )
+    @discord.app_commands.describe(
+        channel='Destination channel; omit to use the configured default.',
+    )
+    async def league_free_agents_post_slash(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Free Agent announcements require a server.', ephemeral=True
+            )
+        error = league_free_agents.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        announcement_channel = channel or league_free_agents.default_channel(guild)
+        if announcement_channel is None:
+            return await interaction.response.send_message(
+                'The default Free Agent announcement channel is unavailable. '
+                'Choose a destination channel explicitly.',
+                ephemeral=True,
+            )
+        try:
+            roles = league_free_agents.capture_roles(guild)
+        except league_free_agents_workers.FreeAgentPostError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
 
-        draft_config = self.get_draft_config(ctx.guild.id)
+        async def confirm(_component_interaction, view):
+            return await league_free_agents.post_announcement(
+                cog=self,
+                guild=guild,
+                actor=interaction.user,
+                channel=announcement_channel,
+                added_message=view.added_message,
+            )
 
-        if self.announcement_message:
-            try:
-                channel = ctx.guild.get_channel(draft_config['announcement_channel'])
-                if channel and await channel.fetch_message(self.announcement_message):
-                    return await ctx.send(f'There is already an existing announcement message. Use the {self.emoji_draft_conclude} reaction on that message (preferred) '
-                        f'or delete the message.\nhttps://discord.com/channels/{ctx.guild.id}/{channel.id}/{self.announcement_message}')
-            except discord.NotFound:
-                pass  # Message no longer exists - assume deleted and create a fresh draft message
-            except discord.DiscordException as e:
-                logger.warning(f'Error loading existing draft announcement message in newfreeagent command: {e}')
-
-        grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
-        novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
-        free_agent_role = discord.utils.get(ctx.guild.roles, name=free_agent_role_name)
-
-        formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, free_agent_role.mention, added_message)
-        announcement_message = await announcement_channel.send(formatted_message)
-
-        await announcement_message.add_reaction(self.emoji_draft_signup)
-        await announcement_message.add_reaction(self.emoji_draft_close)
-        await announcement_message.add_reaction(self.emoji_draft_conclude)
-
-        await utilities.send_to_log_channel(ctx.guild, f'Draft created by {ctx.author.mention}\n'
-            f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
-
-        if announcement_channel.id != ctx.message.channel.id:
-            await ctx.send('Draft announcement has been posted in the announcement channel.')
-
-        draft_config['announcement_message'] = announcement_message.id
-        draft_config['announcement_channel'] = announcement_message.channel.id
-        draft_config['date_opened'] = str(datetime.datetime.today())
-        draft_config['draft_open'] = True
-        draft_config['draft_message'] = added_message
-
-        self.announcement_message = announcement_message.id
-        self.save_draft_config(ctx.guild.id, draft_config)
+        view = league_free_agents_views.FreeAgentPostView(
+            requester_id=interaction.user.id,
+            actor_mention=interaction.user.mention,
+            channel=announcement_channel,
+            roles=roles,
+            confirmer=confirm,
+        )
+        try:
+            await league_free_agents_views.open_initial_modal(interaction, view)
+        except Exception:
+            logger.exception('Could not open /league free-agents post modal')
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    'The announcement editor could not be opened. Try again.',
+                    ephemeral=True,
+                )
 
     @league_group.command(
         name='tokens',

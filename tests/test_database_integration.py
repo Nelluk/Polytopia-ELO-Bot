@@ -3173,6 +3173,100 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before_counts,
         )
 
+    def test_free_agent_post_state_commits_rolls_back_and_cleans_up(self):
+        """Exercise P8.13 Configuration+audit atomicity under the dev gate."""
+
+        from modules import league_free_agents_workers
+
+        guild_id = 8_000_000_000_000_000_000 + (uuid.uuid4().int % 100_000_000)
+        actor_id = int(self.settings.owner_id)
+        try:
+            initial = league_free_agents_workers.load_draft_state(guild_id)
+            self.assertIsNone(initial.announcement_message_id)
+            self.assertEqual(
+                self.models.Configuration.select().where(
+                    self.models.Configuration.guild_id == guild_id
+                ).count(),
+                0,
+            )
+
+            committed = league_free_agents_workers.persist_draft_state(
+                league_free_agents_workers.DraftPersistRequest(
+                    guild_id=guild_id,
+                    requester_id=actor_id,
+                    requester_name='P8.13 integration actor',
+                    expected_message_id=None,
+                    expected_channel_id=None,
+                    announcement_message_id=700,
+                    announcement_channel_id=400,
+                    added_message='Owned integration message',
+                    opened_at='2026-08-08T12:00:00+00:00',
+                )
+            )
+            self.assertEqual(committed.announcement_message_id, 700)
+            config = self.models.Configuration.get(
+                self.models.Configuration.guild_id == guild_id
+            ).polychamps_draft
+            self.assertEqual(config['announcement_message'], 700)
+            self.assertEqual(config['draft_message'], 'Owned integration message')
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.guild_id == guild_id
+                ).count(),
+                1,
+            )
+
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=RuntimeError('forced audit rollback'),
+            ):
+                with self.assertRaises(RuntimeError):
+                    league_free_agents_workers.persist_draft_state(
+                        league_free_agents_workers.DraftPersistRequest(
+                            guild_id=guild_id,
+                            requester_id=actor_id,
+                            requester_name='P8.13 integration actor',
+                            expected_message_id=700,
+                            expected_channel_id=400,
+                            announcement_message_id=701,
+                            announcement_channel_id=401,
+                            added_message='Must roll back',
+                            opened_at='2026-08-08T12:01:00+00:00',
+                        )
+                    )
+            config = self.models.Configuration.get(
+                self.models.Configuration.guild_id == guild_id
+            ).polychamps_draft
+            self.assertEqual(config['announcement_message'], 700)
+            self.assertEqual(config['announcement_channel'], 400)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.guild_id == guild_id
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.GameLog.delete().where(
+                self.models.GameLog.guild_id == guild_id
+            ).execute()
+            self.models.Configuration.delete().where(
+                self.models.Configuration.guild_id == guild_id
+            ).execute()
+
+        self.assertEqual(
+            self.models.GameLog.select().where(
+                self.models.GameLog.guild_id == guild_id
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.models.Configuration.select().where(
+                self.models.Configuration.guild_id == guild_id
+            ).count(),
+            0,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
