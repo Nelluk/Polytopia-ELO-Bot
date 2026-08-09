@@ -485,13 +485,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P7.14 read-heavy close-out audit is Complete on
-`codex/p7-closeout-audit` from exact clean accumulation checkpoint `4562f38`.
-The repository-backed inventory found one final consistency seam: the oldest
-player/activity/squad leaderboard submissions and the game-search submission
-do not drain their bounded thread before propagating cancellation, unlike all
-later P7 workers. P7.15 is the selected final code unit and is not yet
-started.** P6.3 asynchronous prefix
+Current active unit: **P7.15 cancellation cleanup is Implemented and validated
+locally on
+`codex/p7-15-read-cancellation` from exact clean accumulation checkpoint
+`d3bb1c8`; integration is pending. Implementation checkpoint `a9dbf21` makes
+the oldest player/activity/squad leaderboard and game-search submission
+wrappers drain their bounded worker thread before propagating cancellation,
+without changing queries, results, commands, or visibility.** P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
 `DiscordMember` query used by 18 prefix handlers with a bounded, worker-local
@@ -6589,8 +6589,8 @@ Integration/deployment evidence:
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **In progress; P7.14 audit complete and P7.15 cancellation cleanup
-selected**
+Status: **Implementation complete; P7.15 integration and guarded runtime load
+pending**
 
 Candidate scope:
 
@@ -8281,7 +8281,10 @@ schema, fixture, or runtime state.
 
 ### P7.15 — Drain the oldest bounded read submissions on cancellation
 
-Status: **Planned; not started**
+Status: **Implemented and validated; integration pending**
+
+Branch/base: `codex/p7-15-read-cancellation` from exact clean accumulation
+checkpoint `d3bb1c8`.
 
 Risk tier: **Tier 2 internal concurrency cleanup**. No command registration,
 query, filter, permission, visibility, result, schema, fixture, or plotting
@@ -8311,6 +8314,26 @@ is required if implementation changes only the submission wrappers and the
 focused plus complete offline suites pass. An ordinary guarded beta restart
 may load the internal cleanup after integration. P7 can then be marked
 technically Complete; wider-beta product acceptance remains tracked by WB1.
+
+Implementation evidence:
+
+- checkpoint `a9dbf21` routes player, activity, and squad leaderboard calls
+  through the established shared drain helper and gives game search an
+  equivalent bounded submit/drain wrapper;
+- repeated cancellation cannot release the awaiting task before the simulated
+  worker connection closes; a worker failure after cancellation is logged
+  without replacing the caller's `CancelledError`;
+- the two existing two-thread executor limits, worker-local query functions,
+  immutable request/results, row caps, query/filter semantics, prefix/slash
+  adapters, visibility, caches, and pagination remain unchanged;
+- focused cancellation coverage passed **13 tests**; the broader affected
+  leaderboard/search/detail/taxonomy/process suites passed **129 tests**;
+  complete offline discovery passed **1,368 tests with 56 intentional
+  database-gated skips**; and
+- touched compilation and `git diff --check` passed. No PostgreSQL gate was
+  run because no query or schema behavior changed. No beta, Discord,
+  capability, fixture, production, or dependency action occurred before this
+  evidence checkpoint.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -12217,6 +12240,25 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P7.15 cancellation cleanup implemented
+
+- Routed the three oldest leaderboard submissions through the shared bounded
+  cancellation-drain helper and applied the same repeated-cancellation
+  lifecycle to game-search reads.
+- Preserved both executor limits, all query/result semantics and caps,
+  worker-local connections, native/prefix interfaces, filter caching,
+  pagination, permissions, and visibility.
+- Added regressions proving player, activity, squad, and game-search awaiters
+  do not return cancellation before their worker/connection finishes; also
+  proved repeated cancellation and post-cancellation worker failure logging.
+- Passed 13 focused tests, 129 broader affected tests, and complete offline
+  discovery at 1,368 tests with 56 intentional gated skips. Compilation and
+  `git diff --check` passed. PostgreSQL was not run because no query/schema
+  behavior changed.
+- Recorded implementation/tests checkpoint `a9dbf21`. Next: checkpoint this
+  evidence, fast-forward/push the accumulation branch, perform an ordinary
+  guarded beta restart without command sync or announcement, and close P7.
 
 ### 2026-08-09 — P7.14 read-heavy close-out audit completed
 
