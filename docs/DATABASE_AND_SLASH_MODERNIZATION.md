@@ -484,14 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.16 external-broadcast creation audit is complete;
-implementation is blocked on P5.16-A/B/C/D policy acceptance.** The audit
-traced the prefix-only role-lock broadcast from the committed open-game result
-through its synchronous game/team/house reloads, Discord send, and event-loop
-tracking-row insert. It recommends a schema-free bounded correction with
-worker-owned planning/persistence, deterministic destination resolution,
-pending-state revalidation, exact-target deduplication, and compensating
-message deletion when persistence fails. P5.15 post-start external-broadcast
+Current active unit: **P5.16 external-broadcast creation is implemented and
+validated; accumulation integration and guarded-beta restart are pending.**
+P5.16-A/B/C/D are accepted. Prefix-only role-lock broadcasts now use immutable
+worker-owned planning and persistence, deterministic House routing and
+destination deduplication, pending-state revalidation, per-target isolation,
+and compensating deletion whenever a concrete Discord message cannot be
+tracked. Focused, affected, complete offline, targeted PostgreSQL, and complete
+gated development-database validation are green. P5.15 post-start external-broadcast
 reconciliation is complete, integrated, pushed, and loaded by the guarded
 development beta at `6e76932`. P5.15-A/B/C/D are accepted.
 Exact primitive targets
@@ -5297,7 +5297,7 @@ Discord, beta, task-configuration, schema, dependency, or production change.
 
 ### P5.16 — External-broadcast creation lifecycle audit
 
-Status: **Audit complete; blocked on P5.16-A/B/C/D policy acceptance**
+Status: **Implemented and validated; integration/deployment pending**
 
 The external broadcast is a rare legacy extension of prefix role-locked open
 games. Native `/game open` cannot create role locks and does not provide the
@@ -5384,32 +5384,81 @@ Policy decisions required before implementation:
 1. **P5.16-A — Surface and compatibility:** preserve external broadcasts only
    for prefix role-locked open games. Do not add role locks or external
    broadcasts to native `/game open` in this lifecycle unit. Preserve the
-   existing public content/jump-link/reaction behavior. **Recommended.**
+   existing public content/jump-link/reaction behavior. **Accepted.**
 2. **P5.16-B — Destination resolution:** use exact guild-scoped Team/House
    matches, require a House to converge on one distinct active-Team external
    server, deduplicate shared destinations, combine their scope labels, and
    cap a game at 16 destinations. Ambiguous/unconfigured destinations are
-   skipped with exact warnings rather than guessed. **Recommended.**
+   skipped with exact warnings rather than guessed. **Accepted.**
 3. **P5.16-C — Persistence and races:** perform worker-side preflight and
    post-send tracking persistence with authoritative pending-state and
    duplicate revalidation. If a concrete sent message cannot be tracked,
    compensate by deleting it; retain/report exact orphan context if deletion
-   is uncertain. Isolate every destination. **Recommended.**
+   is uncertain. Isolate every destination. **Accepted.**
 4. **P5.16-D — Residual crash window:** do not add a schema-backed outbox for
    this rare legacy feature. Accept and document the irreducible window where
    Discord accepts a message but no concrete message is returned, or the
    process exits before persistence; do not blindly retry such an ambiguous
    send. Reconsider a durable outbox/nonce design only if operational evidence
-   shows this path is important enough. **Recommended.**
+   shows this path is important enough. **Accepted.**
 
-This audit makes no code, test, database, fixture, Discord, beta, task,
-schema, dependency, or production change. `broadcast_team_game_to_server()`
-and all live behavior remain unchanged pending policy acceptance.
+The user accepted P5.16-A/B/C/D as proposed on 2026-08-09. Implementation:
 
-Next action: accept or revise P5.16-A/B/C/D, then implement the bounded
-schema-free creation service and focused lifecycle regressions. The alternate
-ready unit remains the immutable post-commit game-card reload used by reaction
-success paths.
+- adds `modules/game_broadcast_creation_workers.py` with immutable role,
+  destination, target, and result values; a 16-destination bound; exact
+  guild-scoped active Team/House resolution; deterministic House convergence;
+  stable destination deduplication; bounded scope-label rendering; and
+  worker-local preflight/persistence through the existing pending-game
+  coordinator;
+- removes the event-loop live-Game reload and legacy
+  `broadcast_team_game_to_server()` helper. The prefix adapter now passes only
+  the committed game/guild IDs, invoking-message jump URL, and frozen role
+  IDs/names;
+- adds `modules/game_broadcast_creation.py` for cached external-guild/channel
+  resolution, permission-aware content selection, one-attempt Discord sends,
+  authoritative post-send persistence, concrete-message compensation, exact
+  orphan context, per-destination isolation, and a process-local duplicate
+  attempt claim;
+- revalidates the same pending game and absence of a game/channel tracking row
+  immediately before send and again inside the post-send transaction. A
+  concurrent start/delete or duplicate result causes the concrete message to
+  be deleted rather than retained as a stale invitation;
+- drains persistence/compensation to completion after a concrete message even
+  when the caller is cancelled. An ambiguous Discord send without a concrete
+  message is logged and never blindly retried, preserving P5.16-D;
+- publishes bounded exact reconciliation warnings through the existing
+  post-commit open-game presenter. Successfully tracked messages remain
+  compatible with P5.15 start reconciliation and every deletion publisher;
+- preserves the prefix-only role-lock surface, source-guild restriction,
+  legacy message content/jump link, configured production/beta channel names,
+  reaction behavior, and all native `/game open` behavior. No command,
+  capability, schema, task, fixture, or production behavior changes.
+
+Validation evidence:
+
+- focused creation/open coverage: 52 passed;
+- affected open/start/broadcast/deletion/expiration/reaction coverage:
+  156 passed;
+- complete offline discovery: 1,320 passed with 54 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the targeted P5.16 real-schema case passed under exact `development` /
+  `polytopia_dev` / `polybot_dev` and disabled background/API gates. It proved
+  deterministic external planning, exact tracking-row persistence, duplicate
+  preflight detection, stale post-start refusal, and exact cleanup;
+- the complete gated development suite passed 52 runnable cases with one
+  intentional operator-fixture preservation skip;
+- implementation/tests checkpoint: `d0a57e6`.
+
+No application-command synchronization or tester announcement is useful:
+P5.16 changes no command definition and only hardens the rare retained prefix
+role-lock broadcast lifecycle.
+
+Next action: commit this evidence, fast-forward the validated implementation
+into the accumulation branch, push, and restart only the guarded development
+beta without command synchronization. The next bounded unit is the immutable
+post-commit game-card reload used by reaction success paths.
 
 ## P6 — Registration and player preferences
 
@@ -11204,6 +11253,31 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.16 external-broadcast creation worker validated
+
+- Accepted P5.16-A/B/C/D and replaced the event-loop live-model helper with
+  immutable worker-owned destination planning, preflight, and exact tracking
+  persistence through the pending-game coordinator.
+- Made Team/House routing exact and deterministic, deduplicated shared
+  external destinations, bounded destinations/scope labels, and isolated every
+  destination so one failure cannot suppress later sends.
+- Revalidated pending/duplicate state before send and inside the post-send
+  transaction. A stale, duplicate, or failed concrete-message persistence now
+  triggers deletion compensation; uncertain deletion reports exact orphan
+  IDs, while ambiguous sends are never blindly retried.
+- Added cancellation draining after concrete sends and routed bounded exact
+  warnings through the existing post-commit open-game presenter.
+- Passed 52 focused tests, 156 affected tests, and 1,320 complete offline tests
+  with 54 intentional gated skips; touched compilation and diff checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed the targeted real-schema plan/persist/duplicate/stale case, and passed
+  all 52 runnable complete gated cases with one intentional operator-fixture
+  skip.
+- Recorded implementation/tests checkpoint `d0a57e6`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no command, capability, schema, fixture, task, dependency, announcement,
+  or production change.
 
 ### 2026-08-09 — P5.16 external-broadcast creation lifecycle audited
 
