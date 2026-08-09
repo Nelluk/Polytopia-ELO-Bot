@@ -370,7 +370,7 @@ would become unavailable if a prefix is retired.
 | C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`, integrated/deployed at `a42ca7d` |
 | C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
 | C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 integrated and deployed; wider-beta acceptance pending |
-| C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 implemented locally at `e4b7c49`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; integration, command apply, and beta acceptance pending |
+| C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 integrated and deployed at `1714473`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; wider-beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -480,10 +480,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.15 native `/league roster draft` is implemented and
-development-database validated with exact Drafter/Helper/Mod/owner parity and
-`$draft` retired as approved. Integration, development-guild command apply,
-and beta deployment remain pending.**
+Current active unit: **P8.15 native `/league roster draft` is integrated and
+deployed with exact Drafter/Helper/Mod/owner parity and `$draft` retired as
+approved. Wider-beta card acceptance awaits an exact-role development Team
+with a stored image. The accumulation branch is locally ahead of its GitHub
+remote because the environment egress reviewer rejected the authorized push
+and requires fresh explicit approval for that exact destination.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7799,7 +7801,7 @@ useful but do not block the bounded implementation.
 
 ### P8.15 — Native league draft card
 
-Status: **Implemented and development-database validated; deployment pending**
+Status: **Complete on the accumulation branch and deployed; wider-beta acceptance pending**
 
 `/league roster draft player:<member> team:<Team>` replaces the retired
 `$draft` command. The typed native interface fully covers the legacy grammar,
@@ -7843,11 +7845,37 @@ fixture skip**. The new P8.15 case read a real registered player and exact
 Team and left Player, Team, and GameLog counts unchanged. No production,
 dependency, or fixture operation occurred.
 
-Next action: run the read-isolated gate in the approved stopped-beta window,
-integrate the unit, update only the development guild's existing `league`
-root, restart the guarded beta, and record an honest announcement disposition.
-Live acceptance additionally requires one exact-role development Team with a
-stored image.
+The approved read-isolated gate and deployment sequence were then completed.
+Live acceptance still requires one exact-role development Team with a stored
+image.
+
+Integration/deployment evidence:
+
+- fast-forwarded implementation `e4b7c49`, evidence `2b45d2b`, and database
+  evidence `1714473` into `codex/database-slash-modernization`;
+- remote inspection planned exactly one update to the existing `league` root,
+  with the other nine roots unchanged and no create/removal/global operation;
+  the explicit development-guild apply completed and post-inspection converged
+  to zero changes;
+- the guarded beta restarted at exact clean checkpoint
+  `1714473b7308ae36754002dd0d95d0255fb49bca`, authenticated as PolyELO Bot
+  Beta `479029527553638401`, and kept background/API/Bullet disabled;
+- non-pinging release `2026-08-09-roster-draft` posted once to
+  `todo-and-changelog` as message `1535961754859872268`. It states the exact
+  Team-role/stored-image prerequisite instead of asking the whole tester pool
+  to perform an unavailable showcase test;
+- the GitHub push to exact configured origin
+  `git@github.com:Nelluk/Polytopia-ELO-Bot.git` was rejected by the environment
+  egress reviewer. No workaround was attempted; after this deployment-evidence
+  checkpoint the local branch is ahead by four commits pending explicit
+  destination approval.
+
+Next action: obtain explicit approval to push the exact GitHub origin, then
+configure a stored image on one showcase Team for P8.14/P8.15 acceptance. As
+the next code unit, either correct the pre-existing `game_tribe` timing-test/
+executor reliability seam so complete discovery is green again, or review the
+hidden `$tradeprice` behavior before deciding whether P8.16 `/league roster
+price` should become public native functionality.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9350,6 +9378,14 @@ bounded worker as native commands.
   pending. The approved stopped-writer gate then passed **35 runnable tests
   with one retained-fixture skip**, including the read-isolated P8.15 case;
   integration and deployment remain next.
+- Fast-forwarded P8.15 into the accumulation branch, updated only the existing
+  development-guild `league` root, verified post-apply convergence, and
+  restarted the guarded beta at `1714473b` with the expected identity.
+- Posted non-pinging release `2026-08-09-roster-draft` as message
+  `1535961754859872268`, accurately naming the stored-image prerequisite.
+- The exact GitHub-origin push was blocked by the environment egress reviewer;
+  after this evidence checkpoint the branch remains locally ahead by four
+  commits and no bypass was tried.
 
 ### 2026-08-08 — P8.14 roster cards implemented locally
 
