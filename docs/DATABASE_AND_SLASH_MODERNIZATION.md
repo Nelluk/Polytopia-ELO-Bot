@@ -373,7 +373,7 @@ would become unavailable if a prefix is retired.
 | C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 integrated and deployed at `1714473`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; wider-beta acceptance pending |
 | C-020 `/league roster price` / `$tradeprice` / `$playerprice` | Native pricing uses one typed member plus an optional ending season, preserves the confirmed legacy GalC4 formula/inflation and incomplete-current-game fallback, and publicly discloses the three season tier/W-L/game inputs plus House-leadership adjustment. | Legacy recommendation: **retire** — explicitly approved with the P8.16 design. Both hidden prefix names are removed because typed member/season options cover their useful grammar. The native path remains a broadly accessible league-guild read, matching the old command's effective access rather than treating hidden help status as authorization. | If the pricing policy changes, version the formula and explain the effective version in output; do not restore an event-loop query/upsert prefix implementation. | P8.16 integrated and development-guild deployed through `ba7a03d`; wider-beta acceptance pending |
 | C-021 `/league maintenance export` / `$league_export` | Native staff export has one optional `include_logs` Boolean and privately returns the same gzip CSV population/columns as the legacy command. A single conflict-rejecting worker owns its Peewee connection, generates immutable bytes in memory, and enforces game/upload bounds. | Legacy recommendation: **retain** — the low-frequency fallback is inexpensive once delegated to the same worker and remains useful during the beta transition. Native output is private because the bulk dataset and optional audit logs should not be posted publicly; retained prefix output remains channel-visible because message commands cannot deliver ephemeral attachments. No data or grammar is lost if message intent is later retired. | Retire the prefix after native staff acceptance. Add alternate storage/delivery only if a real export exceeds the guild upload limit; do not write shared export filenames or publish bulk logs to a public channel. | P8.17 implemented, real-schema validated, integrated, and deployed at `a6e71f5`; staff beta acceptance pending |
-| C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remains unchanged for the separately governed P8.19 removal workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, full offline and stopped-beta real-schema gates passed; integration/deployment pending |
+| C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remains unchanged for the separately governed P8.19 removal workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -483,10 +483,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.18 `/league maintenance mark-inactive` is
-Implemented and real-schema validated on `codex/p8-18-mark-inactive` from
-exact accumulation checkpoint `fc856b5`; integration and development-guild
-deployment are next. P8.17 staff beta acceptance remains pending.**
+Current active unit: **P8.18 `/league maintenance mark-inactive` is integrated,
+development-guild deployed, and awaiting Mod beta acceptance. P8.19 remains
+blocked on its `on_member_remove` worker prerequisite and destructive-policy
+approval. P8.17 staff beta acceptance also remains pending.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8035,7 +8035,7 @@ reconciliation for `deactivate_players` and `kick_inactive` as separate units.
 
 ### P8.18 — Mark inactive members
 
-Status: **Implemented and real-schema validated; integration/deployment pending**
+Status: **Integrated and development-guild deployed; Mod acceptance pending**
 
 Legacy investigation found that `$deactivate_players` / `$deactivate` is not
 a database deactivation. It immediately adds the configured Discord Inactive
@@ -8124,6 +8124,27 @@ Implementation/tests checkpoint: `e61162d`. No schema, persistent fixture,
 production, global-command, dependency, or sudo change occurred. The guarded
 beta remained stopped after validation so integration and command apply can
 complete before one clean restart and announcement.
+
+Deployment result:
+
+- evidence checkpoint `bf403af` fast-forwarded the accumulation branch and
+  was pushed to the approved GitHub remote;
+- remote inspection found exactly one update to the development guild's
+  existing `league` root. Explicit guild-only apply changed no other root,
+  created/removed nothing, and post-apply inspection converged to zero
+  differences; no global scope was touched;
+- the guarded beta restarted at exact checkpoint `bf403af` and authenticated
+  as PolyELO Bot Beta `479029527553638401`;
+- a first announcement attempt was never made because the Codex sandbox
+  denied access to the protected Unix control socket. The absent release
+  record proved Discord posting had not begun. One unnecessary same-checkpoint
+  restart occurred before the underlying `PermissionError` was exposed; the
+  operations runbook now requires host/local-socket approval and state review
+  before interpreting this generic error as a beta failure; and
+- non-pinging release `2026-08-09-p8-18-inactivity` posted once to
+  `todo-and-changelog` as message `1535986297338986536`. It requires
+  Preview/Cancel before any carefully reviewed Mod confirmation and records
+  that Helpers/testers are intentionally denied.
 
 ### P8.19 — Remove inactive members from the guild
 
@@ -9700,6 +9721,16 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   counted state. Implementation/tests checkpoint: `e61162d`.
 - The guarded beta remains stopped until the reviewed integration, exact
   development-guild command apply, and one clean restart are complete.
+- The accumulation branch was subsequently pushed through `bf403af`; only
+  the development guild's existing `league` root changed and post-apply
+  inspection converged with no global operation.
+- The beta authenticated at `bf403af`. Non-pinging release
+  `2026-08-09-p8-18-inactivity` posted once as message
+  `1535986297338986536`; Mod acceptance is pending.
+- Recorded that live local-control commands require approved host/socket
+  access in sandboxed Codex sessions. A denied socket request must not be
+  mistaken for a beta timeout or trigger a restart before idempotency-state
+  inspection.
 
 ### 2026-08-09 — Legacy inactivity maintenance investigated
 

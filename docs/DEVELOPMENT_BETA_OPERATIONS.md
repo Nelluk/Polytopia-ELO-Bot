@@ -226,6 +226,18 @@ emergency restart is required, report the interruption explicitly and decide
 whether a corrective announcement is needed before treating the release as
 handed off.
 
+Live release-control commands use the protected Unix socket beneath
+`logs/development/beta-operations`. In a sandboxed Codex session, run
+`status`, `deliver`, `resolve-tester-role`, and live readiness inventory only
+with the explicitly approved host/local-socket permission. A sandbox denial
+may otherwise surface as the generic “release control request did not
+complete” message even while the beta is healthy. Before restarting or
+retrying a delivery, inspect the underlying exception and the local
+idempotency record. An absent release record whose file timestamp predates
+the request proves that posting never began; `posting`, `failed`, or `posted`
+must instead follow the documented reconciliation rules. Do not treat a
+sandbox denial as a bot timeout.
+
 ### Required post-push operator handoff
 
 After every beta push/restart or command apply, report the running checkpoint,
