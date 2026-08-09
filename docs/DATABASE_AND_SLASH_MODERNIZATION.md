@@ -369,7 +369,7 @@ would become unavailable if a prefix is retired.
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
 | C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`, integrated/deployed at `a42ca7d` |
 | C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
-| C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 implementation and stopped-beta real-schema gate complete; integration, deployment, and wider-beta acceptance pending |
+| C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 integrated and deployed; wider-beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -479,11 +479,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.14 adds Helper-or-higher native
-`/league roster promote|trade` cards while retaining `$promote`/`$trade` as
-the advanced arbitrary-source fallback. Implementation and offline validation
-are green and the stopped-beta development-database gate passed; integration,
-development-guild command update, restart, and wider-beta release remain.**
+Current active unit: **P8.14 Helper-or-higher native
+`/league roster promote|trade` cards are integrated and deployed while
+`$promote`/`$trade` remain the advanced arbitrary-source fallback. Wider-beta
+acceptance is pending; P8.15 roster draft is the recommended next unit.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7722,7 +7721,7 @@ the reaction roster/count value.
 
 ### P8.14 — League roster promotion and trade cards
 
-Status: **Implemented and real-schema validated; integration/deployment pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-14-roster-cards` from exact clean accumulation
 checkpoint `66a97e4`.
@@ -7775,9 +7774,29 @@ Validation evidence:
 Checkpoints: implementation/tests `761a4ed`, initial roadmap/checklist
 `b0cb609`, and read-isolated gate correction `bd1edbe`.
 
-Next action: commit the final gate evidence, integrate into the accumulation
-branch, explicitly update only the development guild's existing `league` root,
-restart the guarded beta, and publish the bounded **WHAT TO TEST** announcement.
+Integration/deployment evidence:
+
+- final gate evidence `4439420` was fast-forwarded into and pushed on
+  `codex/database-slash-modernization`;
+- remote inspection planned exactly one update to the existing `league` root,
+  with the other nine roots unchanged and no create/removal/global operation.
+  The explicit development-guild apply completed and post-inspection converged
+  to zero changes;
+- the guarded beta restarted at exact clean code checkpoint
+  `44394204aeaf9df0f3575f5c7e4454451a2e9b11` and authenticated as PolyELO Bot
+  Beta `479029527553638401` with background/API/Bullet disabled;
+- readiness verified the `testers` Helper access and exact showcase Team roles.
+  Those showcase Teams currently lack stored images, so the tester checklist
+  accurately uses the retained raw `team_image_url` override rather than
+  claiming the default image is presently testable;
+- tester-pinged release `2026-08-08-roster-cards` posted once to
+  `todo-and-changelog` as message `1535858899327131710`.
+
+Next action: collect wider-beta P8.14 evidence while designing P8.15
+`/league roster draft` over the new bounded image/Team-resolution service.
+Decide whether the low-frequency `$draft` operational fallback should remain;
+also configure a stored image on one showcase Team when convenient so the
+default native promotion path can receive live acceptance.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9279,7 +9298,14 @@ bounded worker as native commands.
   writer, and passed **34 tests with one retained-fixture skip**. The P8.14
   read-isolated case passed and left Team/GameLog counts unchanged.
 - Recorded implementation `761a4ed`, initial evidence `b0cb609`, and corrected
-  read-isolated verifier `bd1edbe`; integration and live deployment remain.
+  read-isolated verifier `bd1edbe`, followed by gate/integration checkpoint
+  `4439420`.
+- Fast-forwarded and pushed the complete unit. Updated only the development
+  guild's existing `league` root; post-inspection converged with all ten roots
+  unchanged and no global operation.
+- Restarted the guarded beta at `44394204` and verified the expected beta
+  identity. Posted tester-pinged release `2026-08-08-roster-cards` once as
+  message `1535858899327131710` with an honest showcase-Team image limitation.
 
 ### 2026-08-08 — P8.13b Free Agent reactions modernized locally
 
