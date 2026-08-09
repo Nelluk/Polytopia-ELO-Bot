@@ -484,9 +484,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.15 post-start
-external-broadcast reconciliation is complete, integrated, pushed, and loaded
-by the guarded development beta at `6e76932`. P5.15-A/B/C/D are accepted.
+Current active unit: **P5.16 external-broadcast creation audit is complete;
+implementation is blocked on P5.16-A/B/C/D policy acceptance.** The audit
+traced the prefix-only role-lock broadcast from the committed open-game result
+through its synchronous game/team/house reloads, Discord send, and event-loop
+tracking-row insert. It recommends a schema-free bounded correction with
+worker-owned planning/persistence, deterministic destination resolution,
+pending-state revalidation, exact-target deduplication, and compensating
+message deletion when persistence fails. P5.15 post-start external-broadcast
+reconciliation is complete, integrated, pushed, and loaded by the guarded
+development beta at `6e76932`. P5.15-A/B/C/D are accepted.
 Exact primitive targets
 are frozen in the start transaction, Discord updates are idempotent and
 post-commit, successful or confirmed-absent targets finalize through bounded
@@ -5287,6 +5294,122 @@ narrower immutable post-commit game-card reload used by reaction success paths.
 
 The preceding design-audit stage made no implementation, test, database,
 Discord, beta, task-configuration, schema, dependency, or production change.
+
+### P5.16 — External-broadcast creation lifecycle audit
+
+Status: **Audit complete; blocked on P5.16-A/B/C/D policy acceptance**
+
+The external broadcast is a rare legacy extension of prefix role-locked open
+games. Native `/game open` cannot create role locks and does not provide the
+broadcast callback. After the authoritative open-game transaction commits,
+the prefix adapter currently reloads a live `Game` model on the event loop and
+calls `broadcast_team_game_to_server()`. That helper then:
+
+1. synchronously traverses game sides and queries active Team and House names;
+2. resolves a team role directly, or resolves a house role through
+   `house.teams[0]` and therefore an implicit, unordered first Team;
+3. resolves one cached external guild and a name-based announcement channel;
+4. sends the public Discord invitation; and
+5. synchronously inserts `TeamServerBroadcastMessage` on the event loop.
+
+The tracking insert is outside an explicit worker-local connection and
+transaction. The helper catches only `discord.DiscordException`; a Peewee
+failure after a successful send escapes, prevents later role destinations
+from being attempted, and leaves a usable invitation with no retained row for
+P5.15 start reconciliation or game deletion. The outer open-game publisher
+can warn that reconciliation is required, but it does not know the exact
+external message target.
+
+Additional observed risks:
+
+- the tracking table has no uniqueness constraint, and duplicate role locks
+  or team/house roles resolving to the same external channel can send and
+  persist duplicate invitations;
+- house routing through the first related Team is not guild-filtered,
+  archived-team-aware, or deterministic, and can silently choose the wrong
+  external server;
+- team/house lookup, lazy relationship traversal, and the tracking insert all
+  block the Discord event loop;
+- a start or deletion may commit after destination planning but before row
+  persistence. The start transaction then cannot freeze the late row, leaving
+  a newly tracked invitation that its immediate P5.15 publisher never saw;
+- one destination failure is not fully isolated from later destinations;
+- if Discord accepts a send but the process exits, or the HTTP result is
+  ambiguous before a `Message` object is returned, the current schema has no
+  durable attempt/nonce record from which to discover that message;
+- no focused test exercises the actual helper's message-send/row-create
+  boundary, destination deduplication, house ambiguity, or race behavior.
+
+Recommended bounded implementation after policy acceptance:
+
+- replace the live-model callback with a creation service that receives only
+  the committed game ID, guild ID, invoking-message jump URL, and frozen role
+  ID/name values already available from `OpenGameResult`;
+- build an immutable, capped, deterministic destination plan in a bounded
+  worker with its own Peewee connection. Resolve exact Team/House names in the
+  originating guild, ignore hidden/archived Teams, and return only primitive
+  external-guild/message data;
+- require a House route to resolve to exactly one distinct configured
+  external server among its active Teams. Skip zero/multiple-server houses
+  with an exact operator-visible warning rather than selecting an arbitrary
+  Team;
+- deduplicate all role-derived plans by external server and eventual channel.
+  When more than one accepted role maps to the same destination, send one
+  invitation whose label lists the matching Team/House scopes in stable role
+  order. Cap one game's external destinations at 16;
+- isolate each destination. Resolve the cached guild and configured channel,
+  then use the pending-game coordinator for a short pre-send revalidation that
+  confirms the same pending game and no existing row for that game/channel;
+- after Discord returns a concrete message, use a second bounded worker-local
+  transaction to revalidate that the game is still pending, recheck the exact
+  game/channel target, and insert the tracking row. This closes the normal
+  start/delete race without holding a database transaction over a Discord
+  await;
+- if persistence fails, becomes stale, or finds a duplicate after send,
+  immediately delete that concrete message. A successful delete or confirmed
+  NotFound is safe terminal compensation. Forbidden, transient, or unknown
+  deletion failure must report the exact game/channel/message IDs and link as
+  an untracked-orphan reconciliation outcome;
+- never automatically resend after an ambiguous Discord send, because that
+  may duplicate a message that Discord accepted. Continue later independent
+  destinations and return a bounded public/operator warning summary to the
+  invoking channel;
+- preserve the existing content, configured channel names, beta-channel
+  override, reaction behavior, and P5.15/deletion consumers once a row is
+  successfully committed. No command, capability, schema, or production task
+  change belongs in this unit.
+
+Policy decisions required before implementation:
+
+1. **P5.16-A — Surface and compatibility:** preserve external broadcasts only
+   for prefix role-locked open games. Do not add role locks or external
+   broadcasts to native `/game open` in this lifecycle unit. Preserve the
+   existing public content/jump-link/reaction behavior. **Recommended.**
+2. **P5.16-B — Destination resolution:** use exact guild-scoped Team/House
+   matches, require a House to converge on one distinct active-Team external
+   server, deduplicate shared destinations, combine their scope labels, and
+   cap a game at 16 destinations. Ambiguous/unconfigured destinations are
+   skipped with exact warnings rather than guessed. **Recommended.**
+3. **P5.16-C — Persistence and races:** perform worker-side preflight and
+   post-send tracking persistence with authoritative pending-state and
+   duplicate revalidation. If a concrete sent message cannot be tracked,
+   compensate by deleting it; retain/report exact orphan context if deletion
+   is uncertain. Isolate every destination. **Recommended.**
+4. **P5.16-D — Residual crash window:** do not add a schema-backed outbox for
+   this rare legacy feature. Accept and document the irreducible window where
+   Discord accepts a message but no concrete message is returned, or the
+   process exits before persistence; do not blindly retry such an ambiguous
+   send. Reconsider a durable outbox/nonce design only if operational evidence
+   shows this path is important enough. **Recommended.**
+
+This audit makes no code, test, database, fixture, Discord, beta, task,
+schema, dependency, or production change. `broadcast_team_game_to_server()`
+and all live behavior remain unchanged pending policy acceptance.
+
+Next action: accept or revise P5.16-A/B/C/D, then implement the bounded
+schema-free creation service and focused lifecycle regressions. The alternate
+ready unit remains the immutable post-commit game-card reload used by reaction
+success paths.
 
 ## P6 — Registration and player preferences
 
@@ -11081,6 +11204,28 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.16 external-broadcast creation lifecycle audited
+
+- Traced the prefix-only role-lock broadcast from the committed open-game
+  result through its event-loop game/team/house reload, Discord send, and
+  synchronous `TeamServerBroadcastMessage` insert.
+- Confirmed that a Peewee failure after send leaves an untracked live
+  invitation, escapes the helper's Discord-only exception handling, and can
+  suppress later destination attempts.
+- Identified duplicate-destination, unordered House routing, event-loop
+  database access, and start/delete race risks, plus the lack of focused
+  coverage for the actual creation boundary.
+- Proposed a schema-free bounded service with immutable worker plans, exact
+  House routing, destination deduplication, pending-state revalidation,
+  worker-local tracking persistence, per-target isolation, and compensating
+  deletion when a concrete sent message cannot be tracked.
+- Recorded the residual ambiguous-send/process-crash window that cannot be
+  removed without a richer outbox/nonce design, and recommended deferring that
+  schema work for this rare legacy feature.
+- Left implementation blocked on P5.16-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, task-configuration, schema, dependency, or
+  production change.
 
 ### 2026-08-09 — P5.15 started-broadcast worker validated
 
