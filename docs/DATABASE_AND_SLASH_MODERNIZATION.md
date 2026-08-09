@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.19c final started-card and announcement migration is
-locally validated on `codex/p5-19c-final-start-publisher` from exact clean
-deployed accumulation checkpoint `87da298` and is pending integration. P5.19b Nova graduation is complete,
+Current active unit: **No code unit is active. P5.19c final started-card and
+announcement migration is complete, integrated, pushed, and loaded by the
+guarded beta at `064d84a`. A read-only P5 matchmaking close-out audit is the
+recommended next unit before declaring the phase complete. P5.19b Nova graduation is complete,
 integrated, pushed, and loaded by the guarded beta at `c8e8ecc`. P5.19a
 started-game channel creation is complete, integrated,
 pushed, and loaded by the guarded beta at `389acf7`. P5.19-A/B/C/D are
@@ -5985,6 +5986,12 @@ suite passed 54 tests with one intentional operator-fixture skip. The first
 targeted run exposed only a fixture expectation that assumed the committed team
 was visible; it was corrected to compare the frozen value with the actual
 committed team. No data residue or production/code defect resulted.
+
+The accumulation branch was fast-forwarded through `064d84a`, pushed, and
+loaded by the guarded beta as expected application `479029527553638401`, PID
+`3263954`, with zero automatic restarts. No command apply/sync or tester
+announcement was needed because the command schema and intended presentation
+are unchanged. P5.19 is complete; a read-only P5 close-out audit is next.
 
 The existing announcement-reference worker remains in scope as the accepted
 bounded persistence seam; this audit does not add an outbox. Each implementation
@@ -11860,10 +11867,15 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   **54 tests with one intentional operator-fixture skip**. A data-dependent
   test expectation was corrected without changing runtime code or leaving
   residue.
-- Recorded implementation/tests checkpoint `8bf801a`. Integration, push, and
-  guarded restart remain pending at this evidence checkpoint. No command
-  apply/sync, schema, capability, dependency, production, or sudo action is
-  required.
+- Recorded implementation/tests checkpoint `8bf801a` and evidence checkpoint
+  `064d84a`. The accumulation branch was fast-forwarded and pushed through
+  `064d84a`; only the guarded beta was restarted. Its clear-writer preflight,
+  expected beta identity `479029527553638401`, PID `3263954`, `--skip_tasks`
+  startup, and zero automatic restarts were verified. No command apply/sync or
+  tester announcement was needed because the command schema and intended
+  presentation are unchanged. No schema, capability, dependency, production,
+  or sudo action occurred. Next: perform a read-only P5 matchmaking close-out
+  audit before marking the phase complete.
 
 ### 2026-08-09 — P5.19b Nova graduation worker validated
 
