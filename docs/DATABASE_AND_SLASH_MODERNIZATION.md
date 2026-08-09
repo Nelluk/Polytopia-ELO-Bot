@@ -484,13 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.10 expired-pending-game purge is implemented and
-validated on its isolated branch; accumulation integration and guarded-beta
-restart are pending. The user accepted per-game atomicity, database commit
-before Discord effects, and operator-visible manual reconciliation without a
-new retry/outbox schema. Focused, complete offline, targeted real-schema, and
-complete gated development-database validation are green. The guarded beta is
-stopped after the approved writer-validation window.**
+Current active unit: **No code unit is active. P5.10 expired-pending-game
+purge is complete, integrated, pushed, and loaded by the guarded development
+beta at `29dd80a`. The user accepted per-game atomicity, database commit before
+Discord effects, and operator-visible manual reconciliation without a new
+retry/outbox schema. Focused, complete offline, targeted real-schema, and
+complete gated development-database validation are green. Development
+background tasks remain disabled, so the beta does not execute the automatic
+purge and no command sync or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4514,7 +4515,7 @@ three policy decisions are accepted.
 
 ### P5.10 — Expired pending-game purge design audit
 
-Status: **Implemented and validated; integration/restart pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The retained ten-minute task in `modules/matchmaking.py` currently performs
 all Peewee selection and model traversal on the Discord event loop. For every
@@ -4626,6 +4627,21 @@ Validation evidence:
   intentional operator-managed fixture round-trip skip;
 - implementation/tests checkpoint: `af1299d`.
 
+Integration/deployment evidence:
+
+- separate implementation/tests checkpoint `af1299d` and roadmap evidence
+  checkpoint `29dd80a` were fast-forwarded into
+  `codex/database-slash-modernization` and pushed to the approved GitHub
+  origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and the sole writer is PID `3147364`, running from
+  the clean accumulation checkout at exact checkpoint `29dd80a`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401` and completed
+  startup successfully with background tasks disabled;
+- made no application-command plan/apply/sync and posted no announcement,
+  because P5.10 changes only a disabled development background path and has no
+  useful tester action.
+
 No schema, expiration/grace rule, command, capability, prefix, taxonomy,
 fixture, or production change is included. Because development background
 tasks remain disabled, restarting the beta loads the code but does not execute
@@ -4635,11 +4651,13 @@ This unit does not authorize enabling background tasks in development,
 changing expiration/grace rules, adding a public command, migrating schema,
 or altering production.
 
-Next action: integrate the validated checkpoint into
-`codex/database-slash-modernization`, push the approved accumulation branch,
-restart only the guarded development beta, and verify identity/startup health.
-Do not apply/synchronize commands or announce this internal background-task
-boundary.
+Next action: P5.11 can modernize the ranked full-game reminder task as a
+bounded read/presentation unit: freeze due reminder DTOs on worker-local
+connections, keep Discord member/channel resolution and DMs post-read, update
+surviving native guidance, and preserve the existing twelve-hour suppression
+rule. The automatic vacant-lobby creator is the next ready writer alternative.
+The older incomplete-game purge requires a separate policy audit before its
+destructive thresholds/effects are changed.
 
 ## P6 — Registration and player preferences
 
@@ -10455,7 +10473,14 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   of 47 runnable complete gated cases with one intentional operator-fixture
   skip.
 - Recorded implementation/tests checkpoint `af1299d`; accumulation integration
-  and guarded-beta restart remain pending.
+  and guarded-beta restart remained pending at that checkpoint.
+- Subsequently committed roadmap evidence as `29dd80a`, fast-forwarded and
+  pushed the accumulation branch, and started only the guarded beta. The sole
+  writer runs from the clean integrated checkout, authenticated as the expected
+  beta application, and completed startup with background tasks disabled.
+- Made no command sync or tester announcement because the changed automatic
+  task cannot run in the development profile and exposes no tester-facing
+  behavior.
 
 ### 2026-08-09 — P5.10 expired-purge design audit completed
 
