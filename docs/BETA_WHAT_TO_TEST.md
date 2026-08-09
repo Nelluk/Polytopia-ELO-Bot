@@ -68,8 +68,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/house image`: omit image/clear for a public read, replace the image with a
   PNG/JPEG/WebP attachment, and explicitly clear it. Check the image on both
   desktop and mobile and verify committed changes publicly identify the actor.
+- `/house create`: as a Mod, create only a development House that should be
+  retained. Confirm the public result identifies the actor, stored name, and
+  House ID and explains that its exact Discord role is a separate staff step.
+  Duplicate, invalid, non-Mod, and wrong-channel attempts should fail privately
+  without creating a House or audit record.
 - The retired `$house_rename` and `$house_image` aliases should no longer be
-  available. `$house_add` remains temporarily for House creation.
+  available. The retired `$house_add` command should no longer be available.
 - Another user must not be able to operate your list/detail controls. Missing
   exact House or Team roles should produce useful warnings, while lookup,
   inference, permission, and expired-control failures should stay private.
