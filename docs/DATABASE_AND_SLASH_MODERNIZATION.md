@@ -484,14 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.10's read-only expired-pending-game purge design
-audit is complete and blocked on three policy approvals before implementation.
-The audit recommends one independently atomic purge per game, database commit
-before every Discord effect, and operator-visible manual reconciliation rather
-than a new durable retry/outbox schema in this bounded unit. P5.9 remains
-complete, integrated, pushed, and running on the guarded development beta at
-`68966c0`. No P5.10 runtime code, database state, task configuration, or beta
-process changed during the audit.**
+Current active unit: **P5.10 expired-pending-game purge is implemented and
+validated on its isolated branch; accumulation integration and guarded-beta
+restart are pending. The user accepted per-game atomicity, database commit
+before Discord effects, and operator-visible manual reconciliation without a
+new retry/outbox schema. Focused, complete offline, targeted real-schema, and
+complete gated development-database validation are green. The guarded beta is
+stopped after the approved writer-validation window.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4515,7 +4514,7 @@ three policy decisions are accepted.
 
 ### P5.10 — Expired pending-game purge design audit
 
-Status: **Blocked on three policy approvals; no runtime implementation**
+Status: **Implemented and validated; integration/restart pending**
 
 The retained ten-minute task in `modules/matchmaking.py` currently performs
 all Peewee selection and model traversal on the Discord event loop. For every
@@ -4571,32 +4570,76 @@ Recommended bounded implementation:
   through focused offline fault injection and the existing stopped-beta
   development-database gate before any production consideration.
 
-Policy decisions required before code:
+Accepted policy decisions:
 
 1. **P5.10-A — Atomicity:** approve one independent synchronous transaction
    per game, not one batch transaction. This limits locks and failure scope and
-   lets the cycle continue after one bad candidate. **Recommended: approve.**
+   lets the cycle continue after one bad candidate. **Accepted.**
 2. **P5.10-B — Effect ordering:** approve audit plus database deletion as the
    authoritative commit, followed only afterward by external-broadcast edits
    and the public purge announcement. No Discord await occurs in a database
-   transaction. **Recommended: approve.**
+   transaction. **Accepted.**
 3. **P5.10-C — Retry/reconciliation:** do not add a schema-backed outbox in
    this unit. Attempt every frozen Discord effect once, log failures with exact
    targets, warn the configured staff/log channel when available, and never
    retry or recreate the committed database purge automatically. A future
    outbox/reconciliation command requires a separate schema and product
    decision if operational evidence shows that manual reconciliation is
-   inadequate. **Recommended: approve.**
+   inadequate. **Accepted.**
 
-This audit does not authorize enabling background tasks in development,
+The user accepted P5.10-A/B/C as proposed on 2026-08-09. Implementation:
+
+- adds `modules/game_expiration_workers.py` for bounded deterministic
+  discovery and authoritative per-game purge requests/results;
+- adds `modules/game_expiration.py` for post-commit broadcast updates, public
+  notices, and staff reconciliation warnings;
+- reduces the retained task callback to one frozen `as_of` timestamp and one
+  application-service call per guild, with no direct Peewee access;
+- promotes the existing pending deletion graph and broadcast-freezing helpers
+  for reuse without changing manual deletion behavior;
+- discovers at most 500 candidates per guild in expiration/game-ID order and
+  warns staff when later candidates are deferred;
+- reloads and locks each candidate inside the existing pending-game
+  coordinator, revalidates guild/pending/expiration/capacity state, freezes
+  effects, and atomically writes one protected reconciliation audit plus
+  deletes Lineup/GameSide/Game rows;
+- treats a missing or changed game as a typed no-op, drains discovery
+  cancellation until worker connection work finishes, and contains every
+  candidate/effect failure so later work proceeds;
+- attempts external broadcast edits and the game-channel notice only after
+  commit. Observed failures include exact target IDs in logs/staff warnings and
+  never make the committed database purge retryable.
+
+Validation evidence:
+
+- focused P5.10 plus unified deletion coverage: 29 passed;
+- complete offline discovery: 1,243 passed with 49 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the targeted P5.10 real-schema case passed twice under the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` and disabled background/API
+  gates. It proved deterministic discovery, immediate open-slot eligibility,
+  full-game grace exclusion, committed graph/audit deletion, frozen external
+  targets, injected partial-delete rollback, and exact zero-residue cleanup;
+- the complete gated development suite passed 47 runnable cases with one
+  intentional operator-managed fixture round-trip skip;
+- implementation/tests checkpoint: `af1299d`.
+
+No schema, expiration/grace rule, command, capability, prefix, taxonomy,
+fixture, or production change is included. Because development background
+tasks remain disabled, restarting the beta loads the code but does not execute
+the automatic purge; there is no useful broad-tester smoke or announcement.
+
+This unit does not authorize enabling background tasks in development,
 changing expiration/grace rules, adding a public command, migrating schema,
-or altering production. Implementation begins only after P5.10-A/B/C are
-accepted or revised.
+or altering production.
 
-Next action: obtain the three policy decisions above. If accepted, implement
-the automatic purge worker, bounded discovery, immutable effect plan, focused
-rollback/race/post-commit tests, and a stopped-beta gated real-schema test as
-one Tier-3 writer unit.
+Next action: integrate the validated checkpoint into
+`codex/database-slash-modernization`, push the approved accumulation branch,
+restart only the guarded development beta, and verify identity/startup health.
+Do not apply/synchronize commands or announce this internal background-task
+boundary.
 
 ## P6 — Registration and player preferences
 
@@ -10391,6 +10434,28 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.10 expired purge worker validated
+
+- Accepted P5.10-A/B/C as proposed and implemented bounded candidate
+  discovery plus one independently atomic, coordinator-serialized purge per
+  game.
+- Moved all selection, eligibility, effect freezing, protected audit, and
+  pending graph deletion off the Discord event loop with worker-local Peewee
+  connections and immutable primitive DTOs.
+- Preserved immediate expiration for games with open capacity and the existing
+  three-day grace for full games; stale selection results become typed skips.
+- Made every Discord broadcast edit and public purge notice post-commit,
+  isolated failures by target/game, and added exact staff reconciliation
+  warnings without automatic database retry or a new outbox schema.
+- Focused coverage passed 29 tests; complete offline discovery passed 1,243
+  with 49 gated skips; compilation and diff checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed the targeted real-schema case twice with exact cleanup, and passed 47
+  of 47 runnable complete gated cases with one intentional operator-fixture
+  skip.
+- Recorded implementation/tests checkpoint `af1299d`; accumulation integration
+  and guarded-beta restart remain pending.
 
 ### 2026-08-09 — P5.10 expired-purge design audit completed
 
