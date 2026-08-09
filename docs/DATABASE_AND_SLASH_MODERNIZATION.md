@@ -485,12 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P4.6 immutable metadata presentation is Implemented on
-`codex/p4-6-immutable-metadata-presentation` from exact clean accumulation
-checkpoint `49c09d9`. It preserves all existing command registrations,
-permissions, visibility, and mutation workers while replacing post-commit
-live Peewee card reloads shared by side, notes, map, name, and tribe with the
-established immutable detail-card reader. P5.20 is complete, integrated,
+Current active unit: **No code unit is active. P4.6 immutable metadata
+presentation is complete, integrated, pushed, and loaded by the guarded beta
+at `5335443`. It preserves all existing command registrations, permissions,
+visibility, and mutation workers while replacing post-commit live Peewee card
+reloads shared by side, notes, map, name, and tribe with the established
+immutable detail-card reader. P5.20 is complete, integrated,
 pushed, and loaded by the guarded beta through `e78601b`; P5 is closed with
 its remaining shared registration seam owned by P6. P5.19c final
 started-card and announcement
@@ -1770,7 +1770,8 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **Implemented locally; integration and beta acceptance pending**
+Status: **Complete; implementation integrated and running, with broader
+wider-beta acceptance continuing through WB1**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -3285,7 +3286,7 @@ bounded offline unit.
 
 #### P4.6 — Immutable metadata post-commit presentation
 
-Status: **Implemented; pending accumulation integration and guarded beta restart**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 Risk tier: **Tier 2 presentation/database-read cleanup**. No command schema,
 mutation transaction, permission, or intended Discord visibility changes.
@@ -3334,6 +3335,19 @@ The real-schema gate is deferred because the unit reuses the already validated
 read-only game-detail worker without changing its query, DTO, or connection
 boundary. No compatibility-ledger entry is required because every command and
 visible workflow is preserved.
+
+Integration/deployment evidence:
+
+- fast-forwarded the accumulation branch through `5335443` and pushed it to
+  the approved GitHub remote;
+- restarted only `polybot-development-beta@main.service`, with no
+  application-command apply/sync;
+- its guarded writer audit was clear and it authenticated as **PolyELO Bot
+  Beta** (`479029527553638401`) with PID `3270752` from the clean checkpoint;
+- the required read-only release-control status request completed; and
+- selected the explicit no-announcement route because this is an internal
+  post-commit presentation boundary with no command or intended visible
+  workflow change and therefore no useful broad-pool smoke action.
 
 ## P5 — Matchmaking lifecycle
 
@@ -12012,6 +12026,24 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P4.6 integrated, deployed, and P4 closed
+
+- Fast-forwarded and pushed the accumulation branch through roadmap checkpoint
+  `5335443` after all focused and complete offline validation passed.
+- Restarted only the guarded development beta without command synchronization;
+  it authenticated as application `479029527553638401`, PID `3270752`, and
+  the release-control status check completed successfully.
+- Sent no tester announcement because command schemas and intended visible
+  behavior are unchanged; offline regression coverage owns this internal
+  cleanup.
+- Marked P4 Complete. Broader human acceptance of previously deployed game
+  workflows remains tracked through WB1 rather than blocking bounded database
+  modernization close-out.
+- Next: P6.3, one shared asynchronous prefix registration-check cleanup for
+  the remaining handlers that still call `models.is_registered_member()` on
+  the Discord event loop. First inventory decorator semantics and preserve
+  authoritative worker checks; do not duplicate the lookup per command.
 
 ### 2026-08-09 — P4.6 immutable metadata presentation implemented
 
