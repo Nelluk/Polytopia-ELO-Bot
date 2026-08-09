@@ -373,7 +373,8 @@ would become unavailable if a prefix is retired.
 | C-019 `/league roster draft` / `$draft` | Native draft cards use one typed Discord member and one autocompleted exact Team. The bounded worker reloads the registered player and Team, preserves the legacy local/global ELO and W-L summary, stored Team image, exact Team-role color, and House-selecting label when its exact Discord role exists. | Legacy recommendation: **retire** — explicitly approved. `$draft` had no additional alias or free-form source grammar beyond member plus Team, so the native command covers the complete useful interface. The existing authorization boundary is preserved exactly: Drafter role, Helper, Mod, or bot owner. | Restore no adapter unless beta evidence identifies a concrete native parity gap. Configure a stored image and exact role for a development Team before requesting card-generation acceptance. | P8.15 integrated and deployed at `1714473`; read-isolated database gate passed 35 runnable tests with one retained-fixture skip; wider-beta acceptance pending |
 | C-020 `/league roster price` / `$tradeprice` / `$playerprice` | Native pricing uses one typed member plus an optional ending season, preserves the confirmed legacy GalC4 formula/inflation and incomplete-current-game fallback, and publicly discloses the three season tier/W-L/game inputs plus House-leadership adjustment. | Legacy recommendation: **retire** — explicitly approved with the P8.16 design. Both hidden prefix names are removed because typed member/season options cover their useful grammar. The native path remains a broadly accessible league-guild read, matching the old command's effective access rather than treating hidden help status as authorization. | If the pricing policy changes, version the formula and explain the effective version in output; do not restore an event-loop query/upsert prefix implementation. | P8.16 integrated and development-guild deployed through `ba7a03d`; wider-beta acceptance pending |
 | C-021 `/league maintenance export` / `$league_export` | Native staff export has one optional `include_logs` Boolean and privately returns the same gzip CSV population/columns as the legacy command. A single conflict-rejecting worker owns its Peewee connection, generates immutable bytes in memory, and enforces game/upload bounds. | Legacy recommendation: **retain** — the low-frequency fallback is inexpensive once delegated to the same worker and remains useful during the beta transition. Native output is private because the bulk dataset and optional audit logs should not be posted publicly; retained prefix output remains channel-visible because message commands cannot deliver ephemeral attachments. No data or grammar is lost if message intent is later retired. | Retire the prefix after native staff acceptance. Add alternate storage/delivery only if a real export exceeds the guild upload limit; do not write shared export filenames or publish bulk logs to a public channel. | P8.17 implemented, real-schema validated, integrated, and deployed at `a6e71f5`; staff beta acceptance pending |
-| C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remains unchanged for the separately governed P8.19 removal workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
+| C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remained unchanged through P8.18 and was subsequently retired by the separately governed P8.19/C-023 workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
+| C-023 `/league maintenance kick-inactive` / `$kick_inactive` | Native Mod-only removal privately evaluates every member carrying Inactive, displays an eligible/protected reason for each, refreshes the complete candidate set, requires exact typed `KICK <count>`, and removes at most 25 members per run. Current Team roles and a small starter set are eligible; unknown, managed, staff, leadership, bot, and owner roles/accounts fail closed. | Legacy recommendation: **retire** — explicitly approved. The immediate prefix batch had no preview, used a stale hard-coded Team-role list, aborted on individual failures, and mixed Discord awaits with event-loop database work. Native preserves the effective 7/30/60 thresholds while accurately describing “tracked games,” blocks pending/incomplete league games, treats DM failure as nonfatal, continues kick failures, and records audits only after Discord effects. | Restore no immediate prefix adapter. If thresholds or role policy change, revise the centralized worker, all-reasons preview, refreshed execution, and tests together. Never add scheduled removal without a separate policy and operations review. | P8.19 implemented and real-schema validated at `c01dd4c`; integration/development deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -483,11 +484,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **The P8.19 `on_member_remove` worker prerequisite is
-Complete, integrated, pushed, and running on the development beta through
-checkpoint `b921ee7`. The destructive `/league maintenance kick-inactive`
-workflow remains blocked on explicit policy approval. P8.18 and P8.17 staff
-beta acceptance also remain pending.**
+Current active unit: **P8.19 `/league maintenance kick-inactive` is
+Implemented and real-schema validated on `codex/p8-19-kick-inactive` from
+exact accumulation checkpoint `0ba949a`; integration and development-guild
+deployment are pending. The user accepted the recorded safety policy and
+explicitly waived the P8.18 beta-acceptance sequencing gate.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8149,8 +8150,8 @@ Deployment result:
 
 ### P8.19 — Remove inactive members from the guild
 
-Status: **Listener-worker prerequisite Complete and deployed; kick workflow
-still blocked on policy approval**
+Status: **Kick workflow Implemented and validated; integration pending;
+listener-worker prerequisite Complete**
 
 Legacy `$kick_inactive` is also Mod-only and league-guild-only, ignores its
 declared free-form argument, and immediately kicks members with the Inactive
@@ -8236,9 +8237,53 @@ Listener-worker prerequisite result:
   parity/reliability prerequisite intentionally received no tester
   announcement because it adds no command or useful human smoke action.
 
-No automatic/scheduled purge is proposed. P8.19 should begin only after
-P8.18 beta acceptance and explicit approval of the role policy and preserved
-7/30/60-day thresholds.
+No automatic/scheduled purge is proposed. The user accepted the role policy,
+preserved 7/30/60-day thresholds, refreshed preview, typed confirmation,
+25-member cap, per-member failure continuation, audit/reconciliation boundary,
+and `$kick_inactive` retirement on 2026-08-09. The user also explicitly waived
+the prior P8.18 beta-acceptance sequencing gate for this unit.
+
+Implementation result:
+
+- Added Mod-or-owner, league-guild-only
+  `/league maintenance kick-inactive` with no slash options. It privately
+  defers into a requester-bound Components v2 workspace and evaluates every
+  member currently carrying the configured Inactive role.
+- Every evaluated member is shown with an eligible or protected reason.
+  Selection preserves the effective legacy thresholds: an unregistered member
+  must be joined at least 7 days; a registered member must be joined at least
+  30 days and have no tracked game in the last 60 days. A pending or incomplete
+  league-guild game always blocks removal.
+- The worker derives exact Team-role names from current guild-scoped Team
+  records. `@everyone`, Inactive, a small explicit starter-role set, and
+  current Team roles remain eligible; unknown, managed, Helper/Mod,
+  leadership, bot, owner, missing-join-date, and no-longer-Inactive states are
+  protected. Worker inputs and results are frozen primitive DTOs.
+- Continue opens an exact-count modal. Execution refreshes the complete
+  candidate set, requires `KICK <count>`, caps one run at 25, and performs a
+  final live role/account check before each Discord effect. DM failure is
+  nonfatal; individual kick failure does not abort later candidates.
+- Successful Discord removals are recorded afterward in one worker-local
+  audit transaction. Audit or public-summary failure is a terminal
+  reconciliation result and cannot claim a rollback or make removed members
+  retryable. One process-local execution claim plus cancellation draining
+  prevents overlapping destructive runs and stranded claims.
+- Retired `$kick_inactive` under C-023. No scheduled/automatic removal was
+  introduced, Player/DiscordMember history remains retained, and the already-
+  deployed `on_member_remove` worker continues to own pending-lineup cleanup.
+- New focused P8.19 coverage passed **16 tests**; affected inactivity,
+  listener, taxonomy, and gated-module coverage passed **87 tests with 41
+  intentional skips**. Complete offline discovery passed **1,155 tests with
+  42 intentional gated skips**.
+- After stopping only the guarded beta and obtaining a clear host-wide writer
+  audit, the unchanged `development` / `polytopia_dev` / `polybot_dev` gate
+  ran **41 tests: 40 passed and one operator-fixture round trip skipped
+  intentionally**.
+- The P8.19 real-schema case proved current Team-role loading, both eligible
+  age/registration paths, pending/incomplete blocking, worker-local reads,
+  post-effect audit creation, atomic rollback after an injected second audit
+  failure, and exact owned-row cleanup. Implementation/tests checkpoint:
+  `c01dd4c`.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9737,6 +9782,26 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.19 inactive-member removal implemented and validated
+
+- Accepted the recorded destructive policy and explicitly waived the earlier
+  P8.18 beta-acceptance sequencing gate.
+- Added a private all-reasons preview, complete-set refresh, exact typed
+  confirmation, 25-member cap, current Team-role discovery, fail-closed role
+  protection, pending/incomplete-game blocking, per-member Discord failure
+  continuation, and post-Discord atomic audit/reconciliation.
+- Retired the unsafe immediate `$kick_inactive` path under C-023; retained no
+  automatic purge and made no Player/DiscordMember history deletion.
+- Passed **16** focused tests, **87** affected tests with **41** gated skips,
+  and complete offline discovery with **1,155 passed and 42 intentional
+  skips**. Compilation and diff checks passed.
+- Stopped only the guarded development beta, confirmed the host-wide writer
+  audit clear, and passed the full real-schema gate with **40 passes and one
+  intentional retained-fixture skip**. The P8.19 test cleaned every owned row.
+- Implementation/tests checkpoint: `c01dd4c`. Integration, exact guild-only
+  command apply, restart, and carefully bounded Mod preview acceptance remain
+  pending.
 
 ### 2026-08-09 — P8.19 member-departure prerequisite implemented and validated
 

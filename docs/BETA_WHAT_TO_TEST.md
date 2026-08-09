@@ -144,7 +144,15 @@ This is the running wider-beta checklist—not just the newest release. Please u
   guild**. Confirmation must refresh the plan before applying at most 100
   roles, continue through individual failures, and post one public no-ping
   actor-attributed aggregate; member-level failure details stay private.
-  `$kick_inactive` is unchanged and is not part of this test.
+  `$kick_inactive` is retired and should no longer run.
+- `/league maintenance kick-inactive`: as a Mod, open the private preview and
+  inspect every eligible/protected reason, paging, the 25-member run/deferred
+  counts, and **Cancel**. Unknown, managed, Helper/Mod, leadership, bot, and
+  owner roles/accounts must be protected; current Team and starter roles may
+  remain eligible only when the 7/30/60-day and pending/incomplete-game rules
+  also pass. Helpers must be denied privately and `$kick_inactive` must no
+  longer run. **Do not submit the typed `KICK <count>` confirmation unless
+  Nelluk has designated every listed account as disposable for this test.**
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.
