@@ -159,7 +159,10 @@ class RegistrationTests(unittest.TestCase):
             if command.name == 'house'
         )
         self.assertTrue(root.guild_only)
-        self.assertEqual({command.name for command in root.commands}, {'show', 'list'})
+        self.assertEqual(
+            {command.name for command in root.commands},
+            {'show', 'list', 'name', 'image'},
+        )
         show = root.get_command('show')
         self.assertEqual(
             [(parameter.name, parameter.required, parameter.type)

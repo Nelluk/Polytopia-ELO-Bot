@@ -18,6 +18,8 @@ import modules.exceptions as exceptions
 # import random
 import modules.imgen as imgen
 import modules.image_storage as image_storage
+import modules.house_attributes as house_attributes
+import modules.house_attributes_workers as house_attributes_workers
 import modules.house_show as house_show
 import modules.house_show_workers as house_show_workers
 import modules.models as models
@@ -677,7 +679,7 @@ class league(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none()
         )
 
-    @commands.command(usage='house_name')
+    @commands.command(usage='House Name')
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def house(self, ctx, *, arg=None):
@@ -835,136 +837,191 @@ class league(commands.Cog):
             await interaction.followup.send(
                 'The House directory could not be loaded.', ephemeral=True
             )
+
+    @house_group.command(
+        name='name',
+        description='View or update a House name.',
+    )
+    @discord.app_commands.autocomplete(
+        house=team_attributes_service.autocomplete_houses,
+    )
+    @discord.app_commands.describe(
+        house='House to inspect; omit to infer your exact House role.',
+        name='New required House name; omit to view the current name.',
+    )
+    async def house_name_slash(
+        self,
+        interaction: discord.Interaction,
+        house: str | None = None,
+        name: str | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'House commands require a server.', ephemeral=True
+            )
+        mutation = name is not None
+        error = house_attributes.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+            mutation=mutation,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        actor = house_attributes.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            current = await house_attributes.run_read(
+                house_attributes.build_read_request(
+                    member=interaction.user,
+                    guild_id=guild.id,
+                    channel_id=interaction.channel_id,
+                    house_lookup=house,
+                    attribute=house_attributes_workers.HOUSE_ATTRIBUTE_NAME,
+                )
+            )
+            send = house_attributes.public_interaction_sender(interaction)
+            if not mutation:
+                await house_attributes.publish_read(current, send=send, actor=actor)
+                return current
+            result = await house_attributes.run_mutation(
+                house_attributes.build_mutation_request(
+                    member=interaction.user,
+                    current=current,
+                    attribute=house_attributes_workers.HOUSE_ATTRIBUTE_NAME,
+                    value=name,
+                )
+            )
+            await house_attributes.publish_mutation(result, send=send, actor=actor)
+            return result
+        except house_attributes_workers.HouseAttributeError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /house name')
+            await interaction.followup.send(
+                'House name operation failed and rolled back.', ephemeral=True
+            )
+
+    @house_group.command(
+        name='image',
+        description='View, replace, or clear a House image.',
+    )
+    @discord.app_commands.autocomplete(
+        house=team_attributes_service.autocomplete_houses,
+    )
+    @discord.app_commands.describe(
+        house='House to inspect; omit to infer your exact House role.',
+        image='PNG, JPEG, or WebP attachment; omit to view the current image.',
+        clear='Explicitly clear the House image.',
+    )
+    async def house_image_slash(
+        self,
+        interaction: discord.Interaction,
+        house: str | None = None,
+        image: discord.Attachment | None = None,
+        clear: bool = False,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'House commands require a server.', ephemeral=True
+            )
+        mutation = image is not None or clear
+        error = house_attributes.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+            mutation=mutation,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        if image is not None and clear:
+            return await interaction.response.send_message(
+                'Choose either an image replacement or `clear`, not both.',
+                ephemeral=True,
+            )
+        actor = house_attributes.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            current = await house_attributes.run_read(
+                house_attributes.build_read_request(
+                    member=interaction.user,
+                    guild_id=guild.id,
+                    channel_id=interaction.channel_id,
+                    house_lookup=house,
+                    attribute=house_attributes_workers.HOUSE_ATTRIBUTE_IMAGE,
+                )
+            )
+            send = house_attributes.public_interaction_sender(interaction)
+            if not mutation:
+                await house_attributes.publish_read(current, send=send, actor=actor)
+                return current
+            staged = None
+            operation = house_attributes_workers.HOUSE_IMAGE_CLEAR
+            if image is not None:
+                staged = await house_attributes.stage_attachment(
+                    image,
+                    house_id=current.house_id,
+                )
+                operation = house_attributes_workers.HOUSE_IMAGE_LOCAL
+            result = await house_attributes.run_mutation(
+                house_attributes.build_mutation_request(
+                    member=interaction.user,
+                    current=current,
+                    attribute=house_attributes_workers.HOUSE_ATTRIBUTE_IMAGE,
+                    image_operation=operation,
+                    staged_path=(staged.path if staged is not None else None),
+                ),
+                staged=staged,
+            )
+            await house_attributes.publish_mutation(result, send=send, actor=actor)
+            return result
+        except house_attributes.HouseImagePublicationError as exc:
+            logger.exception(
+                'Committed House image %s requires reconciliation',
+                exc.result.house_id,
+            )
+            warning = house_attributes.publication_failure_message(exc, actor=actor)
+            try:
+                await house_attributes.public_interaction_sender(interaction)(warning)
+            except Exception:
+                logger.exception('House image reconciliation warning failed')
+                await interaction.followup.send(warning, ephemeral=True)
+        except (
+            house_attributes_workers.HouseAttributeError,
+            house_attributes.HouseImageDownloadError,
+            image_storage.ImageStorageError,
+        ) as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /house image')
+            await interaction.followup.send(
+                'House image operation failed and rolled back.', ephemeral=True
+            )
     
-    @commands.command(aliases=['house_rename', 'house_image'], usage='')
+    @commands.command(usage='house_name')
     @settings.is_mod_check()
     async def house_add(self, ctx, *, arg=None):
-        """*Mod*: Create or rename a league House
+        """*Mod*: Create a league House
         **Example:**
         `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
-        `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
-        `[p]house_image amphibian http://www.path.to/image.png` - Set house image URL
-        `[p]house_image amphibian` with an attachment - Store a local house image
         """
         args = arg.split() if arg else []
         if not args:
             return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
         
-        if ctx.invoked_with == 'house_image':
-            if not args:
-                return await ctx.send(
-                    f'Please provide a house name and either an image URL or attachment. '
-                    f'Example: `{ctx.prefix}house_image housename http://url_to_image.png`'
-                )
-            
-            attachments = ctx.message.attachments
-            if len(attachments) > 1:
-                return await ctx.send('Please attach exactly one image.')
-
-            has_url_argument = (
-                len(args) > 1 and
-                '://' in args[-1]
-            )
-            if has_url_argument:
-                house_name, image_url = ' '.join(args[:-1]), args[-1]
-            else:
-                house_name, image_url = ' '.join(args), None
-            
-            try:
-                house = models.House.get_or_except(house_name=house_name)
-            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-                return await ctx.send(e)
-
-            async with image_storage.update_lock('house', house.id):
-                if attachments:
-                    try:
-                        await image_storage.save_attachment(attachments[0], 'house', house.id)
-                    except (image_storage.ImageStorageError, discord.HTTPException) as exc:
-                        return await ctx.send(f'Unable to save house image: {exc}')
-
-                    ignored_url = ' The supplied URL was ignored.' if image_url else ''
-                    logger.info(f'house_image stored locally for {house.id} {house.name}')
-                    models.GameLog.write(
-                        guild_id=ctx.guild.id,
-                        message=(
-                            f'{models.GameLog.member_string(ctx.author)} updated the local image '
-                            f'for House {house.name}.{ignored_url}'
-                        ),
-                    )
-                    local_file = image_storage.local_attachment('house', house)
-                    await ctx.send(
-                        f'House **{house.name}** updated with a local image.{ignored_url}',
-                        file=local_file.to_discord_file(),
-                    )
-                    return
-
-                if image_url:
-                    old_url = house.image_url if house.image_url else "None"
-                    try:
-                        image_storage.activate_remote_url(house, 'house', image_url)
-                    except image_storage.ImageStorageError as exc:
-                        return await ctx.send(
-                            f'{exc} Example: `{ctx.prefix}house_image name http://url_to_image.png`'
-                        )
-
-                    logger.info(f'house_image set for {house.id} {house.name} to {house.image_url}')
-                    models.GameLog.write(
-                        guild_id=ctx.guild.id,
-                        message=(
-                            f'{models.GameLog.member_string(ctx.author)} updated image URL for '
-                            f'House {house.name} from {old_url} to {house.image_url}'
-                        ),
-                    )
-                    await ctx.send(
-                        f'House **{house.name}** updated with a direct image URL. '
-                        f'Old URL was: {old_url}'
-                    )
-                    await ctx.send(house.image_url)
-                    return
-
-                local_file = image_storage.local_attachment('house', house)
-                if local_file:
-                    await ctx.send(
-                        f'Locally stored image for house **{house.name}**:',
-                        file=local_file.to_discord_file(),
-                    )
-                elif house.image_url:
-                    await ctx.send(f'Image for house **{house.name}**: <{house.image_url}>')
-                else:
-                    await ctx.send(f'House **{house.name}** does not have an image set.')
-                return
-
-        if ctx.invoked_with == 'house_add':
-            house_name = ' '.join(args)
-            try:
-                logger.debug(f'Trying to create a house with name {house_name}')
-                house = models.House.create(name=house_name)
-            except peewee.IntegrityError:
-                return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
-            return await ctx.send(
-                f'New league House created with name "{house.name}". You can '
-                'add a team to it using `/team house`.'
-            )
-        
-        if ctx.invoked_with == 'house_rename':
-            example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
-            if len(args) < 2:
-                return await ctx.send(f'The first argument should be a single word identifying an existing House. The rest will be used for the new name. {example_string}')
-            house_identifier, house_newname = args[0], ' '.join(args[1:])
-            logger.debug(f'Attempting to rename house identified by string "{house_identifier}" to "{house_newname}"')
-
-            try:
-                house = models.House.get_or_except(house_name=house_identifier)
-            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-                return await ctx.send(e)
-            
-            house_oldname = house.name
-            house.name = house_newname
-            house.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} renamed a House from "{house_oldname}" to "{house_newname}"')
-
-            return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
+        house_name = ' '.join(args)
+        try:
+            logger.debug(f'Trying to create a house with name {house_name}')
+            house = models.House.create(name=house_name)
+        except peewee.IntegrityError:
+            return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
+        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
+        return await ctx.send(
+            f'New league House created with name "{house.name}". You can '
+            'add a team to it using `/team house`.'
+        )
 
     @commands.command(hidden=True)
     @settings.is_mod_check()
@@ -1007,7 +1064,7 @@ class league(commands.Cog):
         `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
         `[p]team_tier ronin gold` - Change league tier of team. Does not impact current or past games from this team.
         
-        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `house_rename`
+        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `/house name`
         """
         args = arg.split() if arg else []
         if not args or len(args) != 2:

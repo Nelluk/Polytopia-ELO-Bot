@@ -1020,6 +1020,70 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ),
         )
 
+    def test_house_attribute_worker_reads_and_rolls_back_real_schema(self):
+        """Exercise P8.8 read and audit-failure rollback under the dev gate."""
+
+        from modules import house_attributes_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        house = self.models.House.select().order_by(self.models.House.id).first()
+        if house is None:
+            self.skipTest('development database has no House to inspect')
+        original_name = str(house.name)
+        read_result = asyncio.run(
+            house_attributes_workers.run_house_attribute_read(
+                house_attributes_workers.HouseAttributeReadRequest(
+                    guild_id=guild_id,
+                    requester_id=self.settings.owner_id,
+                    requester_is_mod=True,
+                    league_scope=True,
+                    channel_allowed=True,
+                    house_lookup=original_name,
+                    requester_role_names=(),
+                    attribute=house_attributes_workers.HOUSE_ATTRIBUTE_NAME,
+                    requester_description='P8.8 integration actor',
+                )
+            )
+        )
+        self.assertEqual(read_result.house_id, house.id)
+        rollback_name = f'P88 Rollback {uuid.uuid4().hex}'
+        with mock.patch.object(
+            self.models.GameLog,
+            'write',
+            side_effect=peewee.OperationalError('P8.8 audit failure'),
+        ):
+            with self.assertRaises(peewee.OperationalError):
+                asyncio.run(
+                    house_attributes_workers.run_house_attribute_mutation(
+                        house_attributes_workers.HouseAttributeMutationRequest(
+                            guild_id=guild_id,
+                            requester_id=self.settings.owner_id,
+                            requester_is_mod=True,
+                            league_scope=True,
+                            channel_allowed=True,
+                            house_id=house.id,
+                            attribute=house_attributes_workers.HOUSE_ATTRIBUTE_NAME,
+                            value=rollback_name,
+                            image_operation=None,
+                            staged_path=None,
+                            expected_name=read_result.house_name,
+                            expected_image_url=read_result.image_url,
+                            expected_local_digest=read_result.local_image_digest,
+                            requester_description='P8.8 integration actor',
+                        )
+                    )
+                )
+        self.assertEqual(
+            self.models.House.get_by_id(house.id).name,
+            original_name,
+        )
+        self.assertEqual(
+            self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(rollback_name)
+            ).count(),
+            0,
+        )
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 
