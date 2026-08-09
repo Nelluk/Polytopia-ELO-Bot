@@ -484,8 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.13 hourly open-game
-broadcasting is complete, integrated, pushed, and loaded by the guarded
+Current active unit: **P5.14 older incomplete-game purge analysis is complete
+and implementation is blocked on the four policy decisions recorded below.
+The legacy task mixes pending and started games, performs synchronous Peewee
+writes on the event loop, carries live models out of a generic executor,
+deletes Discord channels before the database commit, and contains a duplicate
+four-player deletion call. P5.13 hourly open-game broadcasting is complete,
+integrated, pushed, and loaded by the guarded
 development beta at `b40b20d`. The unit preserves
 configured channel/ranked routing, the 12-game cap, descending game ordering,
 temporary-message lifetime, purgable-message tracking, and useful row content
@@ -4901,6 +4906,114 @@ season exemption, channel deletion, audit, and game-state effects are
 destructive and branch across several legacy conditions; do not implement a
 worker rewrite until those policies and commit-before-Discord ordering are
 explicitly accepted.
+
+### P5.14 — Older incomplete-game purge design audit
+
+Status: **Analysis complete; implementation blocked on P5.14-A/B/C/D**
+
+The retained five-hour task in `modules/administration.py` is a second,
+distinct automatic deletion workflow alongside P5.10. It currently waits 15
+minutes after startup, then for each guild loads up to 500 rows from
+`Game.search(status_filter=2)`, reverses the returned list, warns selected
+channel-bearing games three days before their age threshold, and deletes old
+game records and most associated Discord channels.
+
+The observed implementation is not a safe boundary to preserve literally:
+
+- `status_filter=2` includes pending/open games as well as started incomplete
+  games. A partially filled pending game is classified by its current lineup
+  count, so it can be treated as a smaller game and independently deleted by
+  both this task and the P5.10 expiration owner;
+- model objects loaded in a generic executor are carried back to the event
+  loop, where related rows are traversed and most `GameLog`/deletion writes
+  run synchronously;
+- most branches delete Discord channels before the audit plus authoritative
+  game deletion. A database failure can therefore leave a live game record
+  whose channels are already gone;
+- the unranked four-player branch submits `game.delete_game()` to an executor,
+  then writes the audit and calls `game.delete_game()` a second time on the
+  event loop;
+- the two-player branch deletes no game/team channel at all, even when one is
+  recorded;
+- warning delivery uses `suppress_errors=True`, then unconditionally writes
+  `AUTO_PURGE_WARNING_SENT`. A missing or forbidden channel can therefore be
+  recorded as successfully warned; the send and marker also have no atomic or
+  worker-local database boundary;
+- reversing `Game.search()` does not establish a deterministic same-date game
+  order, and one unhandled candidate failure can terminate the whole task;
+- summaries describe candidates selected for deletion rather than typed,
+  independently committed results and provide no precise reconciliation list
+  for failed post-commit Discord effects.
+
+The effective legacy age policy is:
+
+| Started-game population/ranking | Purge when older than | Current warning |
+|---|---:|---|
+| 2 players | 60 days | none |
+| 3 players | 90 days | 3 days before, channel-bearing only |
+| 4 players, unranked | 90 days | 3 days before, channel-bearing only |
+| 4 players, ranked | 120 days | 3 days before, channel-bearing only |
+| 5–6 players, ranked | 150 days | 3 days before, channel-bearing only |
+| 5+ players, unranked | 120 days | 3 days before, channel-bearing only |
+| 7+ players, ranked | never automatically | none |
+
+Every explicit PolyChampions season game is exempt. The comparisons use the
+calendar `Game.date` and are strict: a game is deleted only when its date is
+older than the cutoff, not on the cutoff date. Completed-but-unconfirmed games
+are selected by the broad query but are skipped by the later checks.
+
+Recommended bounded implementation after policy acceptance:
+
+- make P5.14 own only started, non-pending, non-completed games. Leave every
+  pending/open game exclusively to the already-modernized P5.10 expiration
+  workflow;
+- use a worker-local read request to return at most 500 deterministic primitive
+  candidates per guild and frozen `as_of` date, ordered by game date then game
+  ID. Report truncation to the staff log rather than silently starving later
+  rows;
+- serialize each candidate through the existing ELO/game-deletion coordinator
+  and game lock used by manual in-progress deletion. In a worker-local
+  connection and one synchronous transaction, reload and lock by primitive
+  game ID; revalidate guild, started/incomplete state, season exemption,
+  lineup population, ranking, and age; freeze the existing deletion effect
+  plan; write a protected automatic-purge audit; and delete the graph;
+- return typed `purged` and `skipped-state-changed` results. A conflicting ELO
+  job should defer the remaining cycle rather than emit hundreds of conflicts,
+  while one malformed or failed candidate must not prevent later candidates;
+- only after commit, update any tracked announcement and delete every frozen
+  game/team channel target, including a recorded two-player channel. Isolate
+  failures and send exact game/channel reconciliation details to the configured
+  staff log. Never retry the committed database deletion automatically;
+- discover warning candidates off-loop. Attempt each frozen channel send with
+  errors observable, and write one protected game/channel warning marker
+  through a worker-local transaction only after that target succeeds. This
+  avoids both falsely marking a failed channel and repeatedly notifying targets
+  that already succeeded. A failed warning target remains retryable and is
+  reported to staff, but does not indefinitely block an otherwise eligible
+  purge;
+- keep development background tasks disabled. Validate discovery and each
+  independently atomic writer through focused fault injection and the existing
+  stopped-beta development-database gate before any production consideration.
+
+Policy decisions required:
+
+1. **P5.14-A — Ownership:** restrict this task to started incomplete games and
+   leave all pending/open expiration to P5.10. **Recommended.**
+2. **P5.14-B — Eligibility:** preserve the table above, strict calendar-date
+   comparisons, actual started lineup population, explicit season exemption,
+   and the ranked-7+ exemption. **Recommended.**
+3. **P5.14-C — Warning parity:** add the same best-effort three-day warning to
+   channel-bearing two-player games; record a warning only after a successful
+   send, retry/report failures, but do not make warning delivery a prerequisite
+   for eventual purge. **Recommended.**
+4. **P5.14-D — Commit/effect boundary:** use one independent atomic audit plus
+   deletion per game, then update the announcement/delete all captured channels
+   post-commit with exact staff reconciliation and no schema-backed outbox or
+   automatic mutation retry. This follows the accepted P5.10 precedent.
+   **Recommended.**
+
+This audit changes no code, task configuration, command, schema, database,
+fixture, Discord state, beta runtime, or production state.
 
 ## P6 — Registration and player preferences
 
@@ -10695,6 +10808,25 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.14 older incomplete-game purge design audited
+
+- Traced the retained five-hour task through its broad incomplete-game query,
+  warning marker, size/rank/age branches, channel deletion, audit, model
+  deletion, and staff summary.
+- Confirmed that pending games overlap P5.10 ownership and are classified by
+  currently filled seats; proposed restricting P5.14 to started games.
+- Identified live Peewee objects crossing the executor boundary, synchronous
+  event-loop writes, channel-before-commit ordering, a duplicate unranked
+  four-player deletion, missing two-player channel cleanup, swallowed warning
+  delivery errors, nondeterministic ties, and cycle-wide failure coupling.
+- Recorded the exact legacy age/season matrix and proposed preserving it while
+  adding warning parity for channel-bearing two-player games.
+- Proposed bounded deterministic discovery plus coordinator-serialized,
+  independently atomic per-game deletion reusing the existing deletion effect
+  plan, followed by isolated post-commit announcement/channel reconciliation.
+- Left implementation blocked on P5.14-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, task-configuration, schema, or production change.
 
 ### 2026-08-09 — P5.13 open-game broadcaster snapshots validated
 
