@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.17 post-join game-card
-presentation is complete, integrated, pushed, and loaded by the guarded beta
-at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
+Current active unit: **No code unit is active. P5.18 post-kick game-card
+lifecycle has been audited read-only and awaits acceptance of P5.18-A/B/C/D.
+P5.17 post-join game-card presentation is complete, integrated, pushed, and
+loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
 P5.17 found that the remaining synchronous post-commit card reload is shared
 by successful `/game join`, `$join`, and reaction joins, not reaction leave.
@@ -5661,6 +5662,99 @@ reload in `game_join_leave.publish_kick_result()` and both of its native/prefix
 callers. Determine whether it can reuse the P5.17 immutable loader/sender
 directly while preserving removal/expiration output and card reconciliation,
 before implementation.
+
+### P5.18 — Post-kick game-card lifecycle audit
+
+Status: **Audited read-only; implementation blocked on P5.18-A/B/C/D**
+
+The shared kick mutation boundary is already sound. Native
+`/game manage kick` and prefix `$kick` both create primitive `KickRequest`
+inputs, execute through the serialized pending-game worker, and receive one
+frozen `KickResult` only after the worker-local synchronous transaction has
+committed. The result already contains the authoritative source guild, actor,
+target, public removal text, and whether the near-expiration timer was reset.
+No Discord await occurs inside that transaction.
+
+The remaining defect is isolated to the shared post-commit publisher.
+`game_join_leave.publish_kick_result()` currently calls
+`Game.load_full_game()` and `Game.embed()` synchronously on the event-loop
+thread, then passes the live Peewee model to `image_storage.send_game_embed()`.
+Both command adapters use this publisher, so one bounded correction covers the
+entire kick surface. No reaction-kick or pending-card Kick-button adapter
+exists.
+
+P5.17's accepted immutable game-card path covers this presentation contract:
+
+- the primitive `GameDetailRequest` and bounded two-thread detail reader load
+  an authoritative post-commit graph through a worker-local connection;
+- `GameDetailSnapshot` includes every pending-card field affected or displayed
+  after a kick, including sides, lineups, capacity, creator/host, expiration,
+  teams, tribes, notes, draft order, and join availability;
+- the event-loop display resolver and classic renderer preserve the accepted
+  dense card while keeping `/game ...` guidance for native presentation and
+  configured-prefix guidance for `$kick`; and
+- the existing finite timeout and cancellation drain ensure the database
+  thread finishes before cancellation propagates, without holding the
+  pending-game coordinator or a transaction across the read/render/send.
+
+Because kick would be the second mutation family using this service, the
+implementation should generalize the P5.17 names from `PostJoinCard` /
+`load_post_join_card()` / `send_post_join_card()` to neutral post-commit game
+card names in `game_join_leave`, then update join and kick consumers together.
+This is a naming/generalization change to one already-accepted data contract,
+not a second DTO or executor. The obsolete kick-only live-model imports can be
+removed after the shared publisher migrates.
+
+The native adapter should pass its primitive interaction channel ID and bot
+cache reference; the prefix adapter should pass the context channel ID and the
+same bot reference. Both retain the committed result's source guild and actor
+ID for the detail request. The card remains an authoritative point-in-time
+snapshot: a later serialized join, leave, or kick may be reflected if it
+commits before the read. That is preferable to synthesizing a stale projection
+from `KickResult`.
+
+Required compatibility and reconciliation behavior:
+
+- preserve `/game manage kick`, `$kick`, every existing permission and channel
+  check, target grammar, and validation response;
+- preserve public successful output and private native pre-commit failures;
+- after commit, attempt the public refreshed card first; if its load or send
+  fails, publish the existing committed-but-unreconciled warning;
+- regardless of card success, continue with the public removal message and
+  optional expiration-reset message in their current order, with each send
+  retaining best-effort reconciliation behavior; and
+- never roll back, retry, or invite the requester to repeat a committed kick
+  because a post-commit read or Discord effect failed.
+
+No schema, fixture, capability, command-tree, ELO, or production change is
+needed. Implementation coverage should prove both adapters pass the correct
+presentation/guild/actor/channel values, no live-game reload remains in the
+publisher, prefix versus slash guidance is retained, card load/send failure
+does not suppress removal/expiration output, and cancellation/timeout does not
+reinterpret the commit. The existing gated kick mutation and game-detail read
+cases cover the two real-schema seams; no new schema test is required.
+
+Policy decisions required before implementation:
+
+1. **P5.18-A — Scope:** modernize the shared post-kick card publisher for both
+   `/game manage kick` and `$kick`; do not add a new command, button, or
+   reaction path. **Recommended.**
+2. **P5.18-B — Shared contract:** generalize P5.17's post-join card helper names
+   into one neutral post-commit game-card service and reuse its existing
+   `GameDetailSnapshot`/classic-render contract. Do not introduce a kick-only
+   DTO or executor. **Recommended.**
+3. **P5.18-C — Compatibility and reconciliation:** preserve native/prefix
+   guidance, public destinations, card-first ordering, removal and optional
+   expiration output, and committed-but-unreconciled warnings. Never make a
+   committed kick retryable after presentation failure. **Recommended.**
+4. **P5.18-D — Concurrency and validation:** retain the finite detail-read
+   timeout and cancellation drain, hold no coordinator claim or transaction
+   over presentation, and validate with focused adapter/publisher coverage plus
+   the existing gated kick-worker and game-detail-reader seams in the next
+   approved stopped-writer window. **Recommended.**
+
+The audit changed no code, test, command, capability, database, fixture,
+Discord state, beta runtime, schema, dependency, or production behavior.
 
 ## P6 — Registration and player preferences
 
@@ -11455,6 +11549,28 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.18 post-kick game-card lifecycle audited
+
+- Traced the shared `publish_kick_result()` path used by native
+  `/game manage kick` and prefix `$kick`; confirmed that its synchronous
+  `Game.load_full_game()` / `Game.embed()` call is the only remaining live
+  Peewee presentation boundary in the kick surface.
+- Verified that the committed `KickResult` already contains the primitive
+  source-guild, actor, target, removal, and expiration-reset values needed by
+  post-commit presentation. No worker, transaction, or schema redesign is
+  required.
+- Confirmed that P5.17's bounded `GameDetailSnapshot` reader and accepted
+  classic renderer cover the full pending card. Recommended generalizing the
+  post-join helper names into one neutral post-commit card service rather than
+  creating a kick-specific DTO or executor.
+- Preserved slash/prefix guidance, public destinations, card-first effect
+  ordering, removal/expiration output, and best-effort reconciliation. A card
+  timeout or failure must never make the committed kick retryable or suppress
+  later effects.
+- Left implementation blocked on P5.18-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, command, capability, schema, dependency, or
+  production change.
 
 ### 2026-08-09 — P5.17 immutable post-join cards validated
 
