@@ -26,13 +26,10 @@ from modules import team_image as team_image_service
 from modules import team_image_workers
 from modules import team_show as team_show_service
 from modules import team_show_workers
+from modules import incomplete_game_purge
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
-
-PURGE_WARNING_DAYS = 3
-PURGE_WARNING_MARKER = 'AUTO_PURGE_WARNING_SENT'
-
 
 def load_unconfirmed_game_summaries(guild_id: int):
     """Load display-only unconfirmed game data on a local connection."""
@@ -654,60 +651,6 @@ class administration(commands.Cog):
         logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
         return (unconfirmed_count, games_confirmed)
 
-    @staticmethod
-    def incomplete_channel_purge_threshold(game, game_size: int):
-        if game_size == 3:
-            return 90
-        if game_size == 4 and not game.is_ranked:
-            return 90
-        if game_size == 4 and game.is_ranked:
-            return 120
-        if (game_size == 5 or game_size == 6) and game.is_ranked:
-            return 150
-        if game_size >= 5 and not game.is_ranked:
-            return 120
-        return None
-
-    @staticmethod
-    def has_purgeable_game_channel(game):
-        if game.game_chan:
-            return True
-        return any(gameside.team_chan for gameside in game.gamesides)
-
-    async def maybe_warn_game_channel_purge(self, game, guild, game_size: int, today):
-        if game.is_completed:
-            return
-
-        threshold_days = self.incomplete_channel_purge_threshold(game, game_size)
-        if not threshold_days or not self.has_purgeable_game_channel(game):
-            return
-
-        delete_cutoff = today + datetime.timedelta(days=-threshold_days)
-        warning_cutoff = today + datetime.timedelta(days=-(threshold_days - PURGE_WARNING_DAYS))
-        if game.date < delete_cutoff or game.date > warning_cutoff:
-            return
-
-        if models.GameLog.search(keywords=f'_{game.id}_ {PURGE_WARNING_MARKER}', guild_id=guild.id, limit=1).exists():
-            return
-
-        rank_str = 'ranked' if game.is_ranked else 'unranked'
-        message = (
-            f'Warning: this incomplete {rank_str} {game_size}-player game is scheduled for cleanup soon. '
-            f'If the game is still active, finish or report it. Otherwise these game channels may be deleted after '
-            f'{threshold_days} days from the game start date.'
-        )
-        await game.update_squad_channels(
-            self.bot.guilds,
-            guild.id,
-            message=message,
-            include_message_mentions=True
-        )
-        models.GameLog.write(
-            game_id=game,
-            guild_id=guild.id,
-            message=f'{PURGE_WARNING_MARKER} for incomplete game channel cleanup at {threshold_days} days.'
-        )
-
     async def task_confirm_auto(self):
         await self.bot.wait_until_ready()
         sleep_cycle = (60 * 60 * 0.5)  # half hour cycle
@@ -744,88 +687,22 @@ class administration(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(900)
             logger.debug('Task running: task_purge_incomplete')
-
-            today = datetime.date.today()
-            old_60d = (today + datetime.timedelta(days=-60))
-            old_90d = (today + datetime.timedelta(days=-90))
-            old_120d = (today + datetime.timedelta(days=-120))
-            old_150d = (today + datetime.timedelta(days=-150))
-
+            as_of = datetime.date.today()
             for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
-
-                utilities.connect()
-
-                def async_game_search():
-                    utilities.connect()
-                    query = models.Game.search(status_filter=2, guild_id=guild.id)
-                    query = list(query)  # reversing 'Incomplete' queries so oldest is at top
-                    query.reverse()
-                    return query
-
-                game_list = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
-
-                delete_result = []
-                for game in game_list[:500]:
-
-                    if game.is_season_game():
-                        logger.debug(f'task_purge_incomplete: skipping game {game.id} since it is a Season Game')
-                        continue
-
-                    game_size = len(game.lineup)
-                    await self.maybe_warn_game_channel_purge(game, guild, game_size, today)
-                    rank_str = ' - *Unranked*' if not game.is_ranked else ''
-                    if game_size == 2 and game.date < old_60d and not game.is_completed:
-                        delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
-                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                        game.delete_game()
-
-                    if game_size == 3 and game.date < old_90d and not game.is_completed:
-                        delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                        await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                        game.delete_game()
-
-                    if game_size == 4:
-                        if game.date < old_90d and not game.is_completed and not game.is_ranked:
-                            delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                            await game.delete_game_channels(self.bot.guilds, guild.id)
-                            await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                            models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                            game.delete_game()
-                        if game.date < old_120d and not game.is_completed and game.is_ranked:
-                            delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-                            await game.delete_game_channels(self.bot.guilds, guild.id)
-                            models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                            # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                            game.delete_game()
-
-                    if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
-                        # Max out ranked game deletion at game_size==6
-                        delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
-                        await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                        game.delete_game()
-
-                    if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
-                        # no cap on unranked game deletion above 120 days old
-                        delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-                        await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                        game.delete_game()
-
-                delete_str = '\n'.join(delete_result)
-                logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
-                if len(delete_result):
-
-                    if staff_output_channel:
-                        await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
-                    else:
-                        logger.debug(f'Could not load log_channel for server {guild.id} {guild.name} - performing task silently')
+                try:
+                    await (
+                        incomplete_game_purge
+                        .purge_incomplete_games_for_guild(
+                            bot=self.bot,
+                            guild=guild,
+                            as_of=as_of,
+                        )
+                    )
+                except Exception:
+                    logger.exception(
+                        'Unhandled incomplete-game purge failure for guild %s',
+                        guild.id,
+                    )
 
             await asyncio.sleep(sleep_cycle)
 

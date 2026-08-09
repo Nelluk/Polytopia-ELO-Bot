@@ -3044,6 +3044,280 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     0,
                 )
 
+    def test_old_incomplete_purge_warns_commits_and_rolls_back_real_graph(self):
+        from modules import incomplete_game_purge_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        marker = f'P514 incomplete-purge {suffix}'
+        id_base = 9_514_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        today = datetime.date.today()
+        game_ids = set()
+        purge_runner = asyncio.Runner()
+
+        def make_game(label, *, age_days, pending=False, season=None):
+            created = self.models.Game.create(
+                guild_id=guild_id,
+                host=host_player,
+                name=label,
+                notes=label,
+                date=today - datetime.timedelta(days=age_days),
+                is_pending=pending,
+                is_completed=False,
+                is_confirmed=False,
+                is_ranked=True,
+                is_mobile=True,
+                league_season=season,
+                league_tier=1 if season else None,
+                size=[1, 1],
+                game_chan=id_base + 100 + len(game_ids),
+            )
+            game_ids.add(created.id)
+            first_side = self.models.GameSide.create(
+                game=created,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            second_side = self.models.GameSide.create(
+                game=created,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=created,
+                gameside=first_side,
+                player=host_player,
+            )
+            self.models.Lineup.create(
+                game=created,
+                gameside=second_side,
+                player=target_player,
+            )
+            return created
+
+        try:
+            host_member = self.models.DiscordMember.create(
+                discord_id=id_base,
+                name=f'P514 Host {suffix}',
+                polytopia_name=f'P514Host{suffix}',
+            )
+            target_member = self.models.DiscordMember.create(
+                discord_id=id_base + 1,
+                name=f'P514 Target {suffix}',
+                polytopia_name=f'P514Target{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+            )
+            target_player = self.models.Player.create(
+                discord_member=target_member,
+                guild_id=guild_id,
+                name=target_member.name,
+            )
+            warning_game = make_game(f'{marker} warning', age_days=58)
+            purge_game = make_game(f'{marker} purge', age_days=61)
+            rollback_game = make_game(f'{marker} rollback', age_days=62)
+            pending_game = make_game(
+                f'{marker} pending', age_days=90, pending=True,
+            )
+            season_game = make_game(
+                f'{marker} season', age_days=90, season=99,
+            )
+
+            self.models.db.close()
+            discovered = asyncio.run(
+                incomplete_game_purge_workers.run_discover_incomplete_games(
+                    incomplete_game_purge_workers
+                    .IncompleteGameDiscoveryRequest(guild_id, today)
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIn(warning_game.id, discovered.warning_game_ids)
+            self.assertIn(purge_game.id, discovered.purge_game_ids)
+            self.assertIn(rollback_game.id, discovered.purge_game_ids)
+            self.assertNotIn(pending_game.id, discovered.purge_game_ids)
+            self.assertNotIn(season_game.id, discovered.purge_game_ids)
+
+            self.models.db.close()
+            warning_plan = asyncio.run(
+                incomplete_game_purge_workers.run_load_warning_plan(
+                    incomplete_game_purge_workers.IncompleteGamePurgeRequest(
+                        warning_game.id, guild_id, today,
+                    )
+                )
+            )
+            self.assertEqual(len(warning_plan.targets), 1)
+            warning_target = warning_plan.targets[0]
+            self.assertEqual(warning_target.channel_id, warning_game.game_chan)
+            recorded = asyncio.run(
+                incomplete_game_purge_workers.run_record_warning_delivery(
+                    incomplete_game_purge_workers.WarningDeliveryRequest(
+                        warning_game.id,
+                        guild_id,
+                        warning_target.guild_id,
+                        warning_target.channel_id,
+                        today,
+                    )
+                )
+            )
+            self.assertEqual(
+                recorded.status,
+                incomplete_game_purge_workers.WARNING_RECORDED,
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.startswith(
+                        f'__{warning_game.id}__'
+                    )
+                    & self.models.GameLog.message.contains(
+                        incomplete_game_purge_workers.PURGE_WARNING_MARKER
+                    )
+                    & (self.models.GameLog.is_protected == True)
+                ).count(),
+                1,
+            )
+
+            with mock.patch.object(
+                self.settings,
+                'bot',
+                SimpleNamespace(locked_game_records=set()),
+            ):
+                self.models.db.close()
+                committed = purge_runner.run(
+                    incomplete_game_purge_workers.run_purge_incomplete_game(
+                        incomplete_game_purge_workers
+                        .IncompleteGamePurgeRequest(
+                            purge_game.id, guild_id, today,
+                        )
+                    )
+                )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                committed.status,
+                incomplete_game_purge_workers.PURGED,
+            )
+            self.assertEqual(
+                committed.effect_plan.channel_targets,
+                (
+                    incomplete_game_purge_workers.game_deletion_workers
+                    .DeletionChannelTarget(guild_id, purge_game.game_chan),
+                ),
+            )
+            self.assertIsNone(self.models.Game.get_or_none(id=purge_game.id))
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.startswith(
+                        f'__{purge_game.id}__'
+                    )
+                    & self.models.GameLog.message.contains(
+                        'Reconciliation targets:'
+                    )
+                    & (self.models.GameLog.is_protected == True)
+                ).count(),
+                1,
+            )
+
+            def delete_one_lineup_then_fail(loaded):
+                loaded.lineup.get().delete_instance()
+                raise peewee.OperationalError('P5.14 injected purge rollback')
+
+            with mock.patch.object(
+                self.settings,
+                'bot',
+                SimpleNamespace(locked_game_records=set()),
+            ), mock.patch.object(
+                self.models.Game,
+                'delete_game',
+                new=delete_one_lineup_then_fail,
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'P5.14 injected purge rollback',
+                ):
+                    purge_runner.run(
+                        incomplete_game_purge_workers
+                        .run_purge_incomplete_game(
+                            incomplete_game_purge_workers
+                            .IncompleteGamePurgeRequest(
+                                rollback_game.id, guild_id, today,
+                            )
+                        )
+                    )
+            purge_runner.run(asyncio.sleep(0))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNotNone(
+                self.models.Game.get_or_none(id=rollback_game.id)
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == rollback_game.id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.startswith(
+                        f'__{rollback_game.id}__'
+                    )
+                    & self.models.GameLog.message.contains(
+                        'Reconciliation targets:'
+                    )
+                ).count(),
+                0,
+            )
+        finally:
+            purge_runner.close()
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(game_ids):
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.startswith(f'__{game_id}__')
+                ).execute()
+            temporary_member_ids = tuple(
+                row[0] for row in self.models.DiscordMember.select(
+                    self.models.DiscordMember.id
+                ).where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (id_base, id_base + 1)
+                    )
+                ).tuples()
+            )
+            if temporary_member_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.discord_member.in_(temporary_member_ids)
+                ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (id_base, id_base + 1)
+                )
+            ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 
