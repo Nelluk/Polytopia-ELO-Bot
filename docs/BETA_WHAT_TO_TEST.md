@@ -102,8 +102,10 @@ This is the running wider-beta checklist—not just the newest release. Please u
   disposable test channel. Verify the private modal/preview/Edit/Cancel flow,
   then Confirm and check the public actor attribution plus all three reactions:
   `🔆`, `⏯`, and `❎`. A second post must refuse privately and link the live
-  announcement. Conclude the disposable post with `❎`; a non-Mod attempt must
-  fail privately without posting anything.
+  announcement. An eligible Nova Grad should receive/remove Free Agent when
+  adding/removing `🔆`; ineligible or closed signups should be rejected. As a
+  Mod, close and reopen with `⏯`, then conclude the disposable post with `❎`
+  and its confirmation. A non-Mod control attempt must change nothing.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.

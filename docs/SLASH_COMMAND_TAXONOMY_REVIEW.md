@@ -1203,6 +1203,12 @@ Implementation `0ffa36d`, evidence `b02ff7b`, and stopped-beta checkpoint
 the existing `/league` root, and tester-pinged wider-beta release
 `2026-08-08-free-agent-post` is live.
 
+P8.13b deliberately leaves this taxonomy unchanged. It retains the public
+reaction roster and all three reaction actions while moving their
+Configuration/GameLog work to worker-local reads and atomic transitions.
+Buttons remain a later optional usability experiment rather than a condition
+of the `/league free-agents post` conversion.
+
 ### Legacy modules outside the modernization target
 
 | Module / current behavior | Native home | Disposition / note |

@@ -478,9 +478,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.13 `/league free-agents post` is integrated and
-deployed under the temporary Sol omni workflow and is now owned by the wider
-tester pool. P8.12 `/league season` remains deployed with acceptance pending.**
+Current active unit: **P8.13b retains the Free Agent reaction interface while
+moving its signup, open/close, and conclude database work behind bounded
+worker-local operations. It is implemented locally under the temporary Sol
+omni workflow and awaits final validation/integration/deployment. P8.13 and
+P8.12 remain deployed with wider-beta acceptance pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7600,11 +7602,10 @@ Database, Discord, and concurrency boundary:
 - no Discord await occurs inside a database transaction. Staff-log relay and
   private workspace completion are post-commit effects.
 
-Known limitation: the existing reaction listeners that close, reopen, and
-conclude a Free Agent post still use their legacy synchronous configuration
-paths. P8.13 modernizes creation and replacement safety only; listener-side
-database separation is a sensible follow-up unit. No compatibility-ledger
-entry is required because `$newfreeagent` remains registered.
+P8.13 initially left the existing reaction listeners on their legacy
+synchronous configuration paths. P8.13b below closes that database boundary
+without replacing the reaction interface. No compatibility-ledger entry is
+required because `$newfreeagent` and all three reactions remain registered.
 
 Local validation evidence:
 
@@ -7639,6 +7640,64 @@ Integration/deployment evidence:
 Next action: collect wider-beta P8.13 acceptance while selecting either the
 bounded listener-side Free Agent lifecycle modernization or the already
 taxonomized `/league roster promote|trade` presentation unit.
+
+### P8.13b — Free Agent reaction lifecycle workers
+
+Status: **Implemented locally; final validation and deployment pending**
+
+Branch/base: `codex/p8-13b-free-agent-reactions` from exact clean accumulation
+checkpoint `41ca7ed11618e7743f6fc1c0321d38f20ea46725`.
+
+Interface and compatibility:
+
+- retain the public reaction roster and exact `🔆` signup/un-signup,
+  Mod-only `⏯` close/reopen, and confirmed Mod-only `❎` conclude behavior;
+- do not add buttons in this unit. Reactions continue to provide Discord's
+  visible participant count/list and natural withdrawal behavior without a
+  second stored roster;
+- preserve user DMs, role eligibility, Free Agent role add/remove, staff log
+  relay, conclusion confirmation, `/league free-agents post`, and
+  `$newfreeagent`.
+
+Database and concurrency boundary:
+
+- startup and signup-state reads now use the existing bounded Free Agent
+  executor and worker-local Peewee connection instead of synchronous event-
+  loop Configuration access;
+- a process-local async lifecycle lock orders signup role effects against
+  close/reopen/conclude transitions, preventing a join from crossing a close
+  between its authoritative state read and Discord role change;
+- close/reopen and conclude reload and lock the exact Configuration row,
+  verify the expected message/channel pointer, and commit the state plus
+  actor-attributed GameLog in one synchronous transaction;
+- conclusion resets only `Configuration.polychamps_draft`; it no longer
+  deletes the guild's entire Configuration row;
+- Discord message edits/clears and staff-log relays occur only after commit.
+  A failed announcement update publishes bounded reconciliation guidance and
+  never reports the database transition as uncommitted;
+- signup role changes remain Discord-authoritative. Their GameLog write runs
+  afterward in a worker transaction that rechecks the active pointer/open
+  state. Audit failure preserves the completed role effect and emits staff
+  reconciliation instead of repeating or reversing it;
+- cancellation drains the worker and observes a known transition result
+  before public reconciliation. No Discord object crosses the worker and no
+  Discord await occurs inside a database transaction.
+
+Local validation evidence:
+
+- focused P8.13/P8.13b tests: **31 passed**;
+- expanded affected league/taxonomy tests: **81 passed**;
+- complete offline discovery: **1,074 passed, 35 intentional gated skips**;
+- touched-file compilation and `git diff --check`: passed;
+- the first complete run after the final cancellation regression hit the
+  repository's known intermittent `game_tribe` responsiveness timeout. That
+  unchanged test passed immediately in isolation, and a fresh complete run
+  then passed all **1,074** tests;
+- the stopped-beta real-schema extension is recorded after its deployment
+  gate completes.
+
+Next action: commit implementation and evidence separately, then use the
+established stopped-beta database and development-only deployment sequence.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9105,6 +9164,26 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.13b Free Agent reactions modernized locally
+
+- Retained the visible reaction roster and exact signup, close/reopen, and
+  conclude interface while routing startup/state reads and audit writes
+  through the bounded Free Agent worker.
+- Added one process-local lifecycle lock so signup role effects cannot cross
+  a close/conclude transition. Close/reopen and conclude now lock and verify
+  the expected Configuration pointer and commit state plus audit atomically.
+- Conclusion resets only the draft field instead of deleting the guild's
+  complete Configuration row. Discord effects remain post-commit and publish
+  reconciliation guidance if the announcement cannot reflect committed state.
+- Focused P8.13/P8.13b tests passed **31**; expanded affected league/taxonomy
+  tests passed **81**; complete offline discovery passed **1,074 tests with 35
+  intentional gated skips**; compilation and diff checks passed. One initial
+  complete retry hit the known unrelated `game_tribe` timing test; it passed
+  immediately in isolation and the next complete run was green.
+- The beta remained running during implementation. The extended real-schema
+  commit/rollback/cleanup case remains behind the established stopped-writer
+  deployment gate.
 
 ### 2026-08-08 — P8.13 Free Agent composer validated locally
 
