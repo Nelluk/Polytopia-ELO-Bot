@@ -1141,6 +1141,106 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.House.name == house_name
             ).execute()
 
+    def test_league_tokens_worker_reads_commits_and_rolls_back_real_schema(self):
+        """Exercise P8.10 bounded read and House+audit transaction."""
+
+        from modules import league_tokens_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        house = self.models.House.select().order_by(self.models.House.id).first()
+        if house is None:
+            self.skipTest('development database has no House to inspect')
+        original_balance = int(house.league_tokens)
+        new_balance = original_balance + 1
+        if new_balance > league_tokens_workers.MAX_TOKEN_BALANCE:
+            new_balance = original_balance - 1
+        suffix = f'P8.10 {uuid.uuid4().hex}'
+
+        read_result = asyncio.run(
+            league_tokens_workers.run_league_tokens_read(
+                league_tokens_workers.LeagueTokensReadRequest(
+                    guild_id=guild_id,
+                    requester_id=self.settings.owner_id,
+                    requester_level=1,
+                    league_scope=True,
+                    house_lookup=house.name,
+                )
+            )
+        )
+        selected = next(
+            row for row in read_result.houses if row.house_id == house.id
+        )
+        self.assertEqual(selected.balance, original_balance)
+
+        request = league_tokens_workers.LeagueTokensMutationRequest(
+            guild_id=guild_id,
+            requester_id=self.settings.owner_id,
+            requester_level=5,
+            league_scope=True,
+            house_id=house.id,
+            expected_house_name=house.name,
+            expected_balance=original_balance,
+            new_balance=new_balance,
+            note=suffix,
+            requester_description='P8.10 integration actor',
+        )
+        try:
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P8.10 audit failure'),
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'P8.10 audit failure',
+                ):
+                    asyncio.run(
+                        league_tokens_workers.run_league_tokens_mutation(request)
+                    )
+            self.assertEqual(
+                int(self.models.House.get_by_id(house.id).league_tokens),
+                original_balance,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                0,
+            )
+
+            result = asyncio.run(
+                league_tokens_workers.run_league_tokens_mutation(request)
+            )
+            self.assertEqual(result.old_balance, original_balance)
+            self.assertEqual(result.new_balance, new_balance)
+            self.assertEqual(
+                int(self.models.House.get_by_id(house.id).league_tokens),
+                new_balance,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.House.update(
+                league_tokens=original_balance
+            ).where(self.models.House.id == house.id).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(suffix)
+            ).execute()
+            self.assertEqual(
+                int(self.models.House.get_by_id(house.id).league_tokens),
+                original_balance,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                0,
+            )
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 

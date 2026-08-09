@@ -13,6 +13,7 @@ from tests.test_newgame_worker import import_offline_runtime
 games = import_offline_runtime('modules.games')
 administration = import_offline_runtime('modules.administration')
 misc = import_offline_runtime('modules.misc')
+league = import_offline_runtime('modules.league')
 
 
 def app_group(cog_class, name):
@@ -60,6 +61,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         squad_group = app_group(games.polygames, 'squad')
         elo_group = app_group(administration.administration, 'elo')
         team_group = app_group(administration.administration, 'team')
+        league_group = app_group(league.league, 'league')
 
         self.assertEqual(
             [command.name for command in games.polygames.__cog_app_commands__],
@@ -142,6 +144,10 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertEqual(
             {command.name for command in squad_group.commands},
             {'show', 'name'},
+        )
+        self.assertEqual(
+            {command.name for command in league_group.commands},
+            {'tokens'},
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):

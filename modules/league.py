@@ -22,6 +22,9 @@ import modules.house_attributes as house_attributes
 import modules.house_attributes_workers as house_attributes_workers
 import modules.house_show as house_show
 import modules.house_show_workers as house_show_workers
+import modules.league_tokens as league_tokens
+import modules.league_tokens_views as league_tokens_views
+import modules.league_tokens_workers as league_tokens_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -190,6 +193,11 @@ class league(commands.Cog):
     house_group = discord.app_commands.Group(
         name='house',
         description='View PolyChampions Houses and their teams.',
+        guild_only=True,
+    )
+    league_group = discord.app_commands.Group(
+        name='league',
+        description='View and manage PolyChampions league information.',
         guild_only=True,
     )
 
@@ -592,64 +600,103 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command(usage='team_name new_tokens [optional_note]')
-    # @settings.is_mod_check()
-    async def tokens(self, ctx, *, arg=None):
-        """
-        *Mod:* Display or update house tokens. 
-        The house name must be identified by a single word.
+    @league_group.command(
+        name='tokens',
+        description='Browse House token balances/history or update one balance.',
+    )
+    @discord.app_commands.autocomplete(
+        house=team_attributes_service.autocomplete_houses,
+    )
+    @discord.app_commands.describe(
+        house='House to inspect or update; omit for all balances.',
+        amount='New token balance; staff level 5+ only.',
+        note='Optional audit note for a balance update.',
+    )
+    async def league_tokens_slash(
+        self,
+        interaction: discord.Interaction,
+        house: str | None = None,
+        amount: int | None = None,
+        note: str | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'League token commands require a server.', ephemeral=True
+            )
+        error = league_tokens.native_access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        if amount is not None and house is None:
+            return await interaction.response.send_message(
+                'Choose a House when supplying a new token balance.', ephemeral=True
+            )
+        if note is not None and amount is None:
+            return await interaction.response.send_message(
+                'A token note is valid only when supplying a new balance.', ephemeral=True
+            )
 
-        **Examples**
-        `[p]tokens` Summarize tokens for all Houses and list last 5 changes
-        `[p]tokens ronin` Print log of all token updates regarding house Ronin
-        `[p]tokens ronin 5 removed bonus` Set tokens for House Ronin to 5, and log an optional note
-        """
-        args = arg.split() if arg else []
-
-        if len(args) == 0:
-            logger.debug('Summarizing league tokens')
-            message = ['**League Tokens Summary**']
-            houses = models.House().select().order_by(models.House.league_tokens)
-            for house in houses:
-                message.append(f'House **{house.name}** {house.emoji} - {house.league_tokens} tokens')
-            
-            entries = models.GameLog.search(keywords=f'FATS id=', guild_id=ctx.guild.id, limit=5)
-            message.append('\n**Last 5 changes:**')
-            for entry in entries:
-                message.append(f'`- {entry.message_ts.strftime("%Y-%m-%d %H:%M")}` {entry.message[:500]}')
-            return await ctx.send('\n'.join(message))
-
+        actor = league_tokens.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        mutation = None
         try:
-            logger.debug(f'Attempting to load house "{args[0]}"')
-            house = models.House.get_or_except(house_name=args[0])
-        except exceptions.TooManyMatches:
-            return await ctx.send(f'Too many matches found for house *{args[0]}*. The first argument must be a single word identifying a House.')
-        except exceptions.NoMatches:
-            return await ctx.send(f'No matches found for house *{args[0]}*. The first argument must be a single word identifying a House.')
-        
-        # if len(args) != 2:
-        #     return await ctx.send(f'Incorrect number of arguments. Example: `{ctx.prefix}{ctx.invoked_with} housename 5` to set tokens to 5.')
-
-        if len(args) == 1:
-            # Just a house name supplied. Print gamelogs for token updates for that house.
-            entries = models.GameLog.search(keywords=f'FATS id={house.id}', guild_id=ctx.guild.id)
-            paginated_message_list = []
-            for entry in entries:
-                paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
-
-            return await utilities.paginate(self.bot, ctx, title=f'Searched logs for token updates on House ID={house.id}', message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
-        if settings.get_user_level(ctx.author) <= 4:
-            return await ctx.send(f'You are not authorized to alter tokens.')
-        
-        token_notes = f' - Note: {" ".join(args[2:])}' if len(args) > 2 else ''
-        logger.debug(f'Attempting to update tokens for house ID {house.id} to {args[1]} {token_notes}')
-        try:
-            old_count, new_count = house.update_tokens(int(args[1]))
-        except ValueError:
-            return await ctx.send(f'Could not translate "{args[1]}" into an integer.')
-        
-        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated league tokens (FATs) for House ID={house.id} {house.name} from {old_count} to {new_count} {token_notes}')
-        return await ctx.send(f'House **{house.name}** has {old_count} tokens. Updating to {new_count}. :coin: {token_notes}')
+            current = await league_tokens.run_read(
+                league_tokens.build_read_request(
+                    member=interaction.user,
+                    guild_id=guild.id,
+                    house_lookup=house,
+                )
+            )
+            banner = None
+            if amount is not None:
+                mutation = await league_tokens.run_mutation(
+                    league_tokens.build_mutation_request(
+                        member=interaction.user,
+                        current=current,
+                        new_balance=amount,
+                        note=note,
+                    )
+                )
+                current = league_tokens.apply_mutation(current, mutation)
+                banner = league_tokens.mutation_banner(mutation, actor=actor)
+            view = league_tokens_views.LeagueTokensWorkspace(
+                result=current,
+                requester_id=interaction.user.id,
+                banner=banner,
+            )
+            await league_tokens_views.publish(interaction, view)
+            return current
+        except league_tokens_workers.LeagueTokensPublicationError as exc:
+            if mutation is None:
+                return await interaction.followup.send(str(exc), ephemeral=True)
+            logger.exception(
+                'Committed /league tokens update for House %s could not publish',
+                mutation.house_id,
+            )
+            return await interaction.followup.send(
+                'The token balance and audit entry were committed, but the public '
+                'workspace could not be published. Do not retry the update; an '
+                'operator should reconcile the public output.',
+                ephemeral=True,
+            )
+        except league_tokens_workers.LeagueTokensError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /league tokens')
+            await interaction.followup.send(
+                'League token operation failed and rolled back.', ephemeral=True
+            )
+        except Exception:
+            logger.exception('Unexpected failure in /league tokens')
+            if mutation is not None:
+                return await interaction.followup.send(
+                    'The token update committed, but its public output failed. '
+                    'Do not retry the update; an operator should reconcile it.',
+                    ephemeral=True,
+                )
+            await interaction.followup.send(
+                'League token output could not be completed.', ephemeral=True
+            )
 
     @commands.command()
     @settings.on_polychampions()
