@@ -98,9 +98,15 @@ This is the running wider-beta checklist—not just the newest release. Please u
   try Season 1 or 2 for the historical result. Verify tier headings,
   regular/postseason W-L-incomplete counts, public output, and paging/page
   jump when enough teams are present.
+- `/league free-agents post`: as a Mod, try the default channel and an explicit
+  disposable test channel. Verify the private modal/preview/Edit/Cancel flow,
+  then Confirm and check the public actor attribution plus all three reactions:
+  `🔆`, `⏯`, and `❎`. A second post must refuse privately and link the live
+  announcement. Conclude the disposable post with `❎`; a non-Mod attempt must
+  fail privately without posting anything.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
-  `$jrseason`, `$ps`, `$js`, and `$seasonjr` should continue to reach the same
-  underlying behavior.
+  `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
+  to reach the same underlying behavior.
 
 - `/league tokens` with no options: verify the public workspace lists all
   configured House balances, Recent changes opens the audit history, paging

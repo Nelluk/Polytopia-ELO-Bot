@@ -1004,7 +1004,7 @@ beta lifecycle action is part of this unit.
 | Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | `tutorial` | `/league guide` | P8.11 public modern quick start; `$tutorial` retained as an onboarding convenience over the same guide |
-| `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
+| `newfreeagent` | `/league free-agents post` | P8.13 Mod-only modal/preview composer with optional channel, duplicate protection, all three operational reactions, atomic config/audit persistence, and retained `$newfreeagent` fallback |
 | `tokens` | `/league tokens` | P8.10 public balance/history workspace; level-5+ atomic updates; prefix fully retired with exact permission parity |
 | `imalive` | `/league mark-active` | P8.11 self-service by default with House Leader/Co-Leader/Mod targeting parity; `$imalive` retained |
 | `season` | `/league season` | P8.12 optional integer season/all-seasons public workspace with worker-backed aggregate; `$season` and aliases retained |
@@ -1181,6 +1181,22 @@ Implementation `dc0877d`, evidence `b8ae88c`, and database checkpoint
 existing `league` root; the durable beta is running that code checkpoint and
 tester-pinged release `2026-08-08-league-season` is live. Wider-beta
 acceptance remains pending.
+
+#### P8.13 Free Agent signup announcement composer
+
+P8.13 adds `/league free-agents post channel:[optional text channel]` under
+the existing guild-scoped `/league` root. The command is Mod-only and opens a
+private requester-bound modal and preview instead of exposing a long slash
+argument. Confirm publishes one actor-attributed signup announcement, seeds
+the legacy signup/open-state/conclude reactions, and persists the message and
+channel IDs with an audit entry.
+
+The command refuses a second live announcement and links the existing one.
+Its service compensates for pre-commit reaction or persistence failure by
+removing the orphan message, or visibly marking it inactive when removal
+fails. `$newfreeagent` remains as a compact operational fallback over the same
+service pending native beta acceptance. The reaction listeners themselves
+retain their legacy behavior and are outside this creation-focused unit.
 
 ### Legacy modules outside the modernization target
 

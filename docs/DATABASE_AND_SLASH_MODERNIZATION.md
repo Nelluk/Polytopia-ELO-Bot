@@ -478,11 +478,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.12 `/league season` is integrated and deployed under
-the temporary Sol omni workflow and is now owned by the wider tester pool.
-P8.13 `/league free-agents post` is the next candidate, but it requires an
-explicit lifecycle design for Discord announcement/reaction state before
-implementation.**
+Current active unit: **P8.13 `/league free-agents post` is implemented under
+the temporary Sol omni workflow and is awaiting the stopped-beta database,
+integration, guild-sync, and wider-beta deployment gates. P8.12 `/league
+season` remains deployed and owned by the wider tester pool.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7560,6 +7559,66 @@ Next action: collect wider-beta P8.12 evidence while designing P8.13
 announcement/config transaction boundary, replacement/duplicate behavior,
 reaction seeding, target-channel selection, and whether `$newfreeagent`
 remains a crucial operational fallback.
+
+### P8.13 — Free Agent signup announcement composer
+
+Status: **Implemented locally; stopped-beta validation and deployment pending**
+
+Branch/base: `codex/p8-13-free-agent-post` from exact clean accumulation
+checkpoint `c4fd8f65a942de5ba778c6cfc149ae0a23ed6dcf`.
+
+Interface and compatibility:
+
+- add Mod-only `/league free-agents post channel:[optional text channel]`;
+- open one requester-bound private modal and preview workspace, with optional
+  additional text plus Edit, Confirm, and Cancel controls;
+- retain `$newfreeagent [channel] [additional message]` as an operational
+  fallback over the same posting service until the native workflow receives
+  beta acceptance;
+- preserve the three operational reactions: `🔆` signup, `⏯` open/closed,
+  and `❎` conclude/delete;
+- publish actor attribution in the announcement and restrict allowed mentions
+  to the actor and the exact configured Nova Grad, The Novas, and Free Agent
+  roles;
+- refuse a second live announcement and link the authoritative existing one.
+
+Database, Discord, and concurrency boundary:
+
+- a process-local single-flight coordinator prevents two creation workflows
+  from racing before either has persisted its message ID;
+- frozen primitive requests cross into one bounded worker, which owns its
+  Peewee connection and reloads the authoritative Configuration row;
+- Discord must create the message and reactions before the database can store
+  their IDs. The worker then uses one synchronous transaction, a locked
+  Configuration row, optimistic prior-state comparison, and an
+  actor-attributed GameLog to commit the new state;
+- if reaction setup or persistence fails before commit, the service deletes
+  the orphan announcement. If deletion also fails, it visibly marks the
+  message as not activated and returns terminal reconciliation guidance;
+- cancellation after persistence submission drains the worker and returns
+  its known commit result rather than treating a potentially committed state
+  as retryable;
+- no Discord await occurs inside a database transaction. Staff-log relay and
+  private workspace completion are post-commit effects.
+
+Known limitation: the existing reaction listeners that close, reopen, and
+conclude a Free Agent post still use their legacy synchronous configuration
+paths. P8.13 modernizes creation and replacement safety only; listener-side
+database separation is a sensible follow-up unit. No compatibility-ledger
+entry is required because `$newfreeagent` remains registered.
+
+Local validation evidence:
+
+- focused P8.13 suite: **18 passed**;
+- expanded league/free-agent/season/token/taxonomy suites: **68 passed**;
+- complete offline discovery: **1,061 passed, 35 intentional gated skips**;
+- the stopped-beta real-schema gate is recorded below after integration
+  validation;
+- touched-file compilation and `git diff --check`: passed.
+
+Next action: complete the offline run, commit implementation and evidence
+separately, stop only the durable beta, run the unchanged development database
+gate, then integrate and update only the development guild's `/league` root.
 
 ## WB1 — Wider beta operations and structured feedback
 
