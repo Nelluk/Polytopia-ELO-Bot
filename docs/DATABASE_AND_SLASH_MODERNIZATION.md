@@ -484,16 +484,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.24 automatic league team-role reconciliation is
-implemented and validated on `codex/p8-24-league-role-reconciliation` from
-exact clean accumulation base `b148884`; integration/deployment is in
-progress. Discord's active team role is authoritative. The bounded worker
+Current active unit: **No code unit is active. P8.24 automatic league
+team-role reconciliation is complete, integrated, pushed, and running on the
+guarded development beta at `ca0931b`. Discord's active team role is
+authoritative. The bounded worker
 atomically reconciles `Player.team`, assignment-time House preferences, and
 the audit row; derived House/tier/League Discord roles are applied only after
 commit. Removing the final active team role now clears the stale database team
 assignment. Complete offline validation, the stopped-beta writer audit, and
 the full gated development PostgreSQL suite are green. No command tree,
-permission, capability, taxonomy, schema, or prefix change is included.**
+permission, capability, taxonomy, schema, or prefix change was included, so no
+command sync or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8649,7 +8650,7 @@ Integration/deployment evidence:
 
 ### P8.24 — Automatic league team-role reconciliation
 
-Status: **Implemented and validated; integration/deployment in progress**
+Status: **Complete; integrated, pushed, and running on the development beta**
 
 The retained `league.on_member_update` listener synchronously loads active
 Teams, guild Player state, Houses, and tiers on the Discord event loop. Its
@@ -8709,6 +8710,21 @@ the database transaction may finish without a Discord-role reconciliation in
 that terminating process; the next Discord team-role change or an explicit
 future repair operation can reconcile it. No new always-on repair sweep is
 added in this bounded unit.
+
+Integration/deployment evidence:
+
+- committed roadmap validation evidence as `ca0931b`, fast-forwarded the clean
+  unit branch into `codex/database-slash-modernization`, and pushed that exact
+  checkpoint to the approved GitHub origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear, it authenticated as PolyELO Bot Beta
+  `479029527553638401`, and startup completed without a league-role worker
+  error;
+- the guarded beta release-control status operation completed successfully;
+- made no application-command plan/apply/sync because this listener changes no
+  command definition or capability;
+- selected the explicit no-announcement route because this backend event
+  boundary has no safe, meaningful broad-pool smoke action.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -10228,9 +10244,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   and passed 45 of 45 runnable gated development PostgreSQL cases with one
   intentional operator-fixture skip. The new case proved both commit paths and
   injected audit-failure rollback.
-- Recorded implementation/tests checkpoint `d0326af`. Integration and guarded
-  beta restart are the remaining actions; no command apply/sync or broad
-  tester announcement is required.
+- Recorded implementation/tests checkpoint `d0326af` and evidence/integrated
+  running-code checkpoint `ca0931b`.
+- Fast-forwarded and pushed the accumulation branch, started only the guarded
+  development beta, verified expected identity/startup/release-control health,
+  made no command sync, and posted no tester announcement because the listener
+  boundary has no meaningful broad-pool smoke action.
 
 ### 2026-08-09 — P8.23 league channel cache worker implemented locally
 
