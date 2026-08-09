@@ -473,7 +473,7 @@ class matchmaking(commands.Cog):
             message_list.append(reconciliation)
 
         try:
-            card = await game_join_leave.load_post_join_card(
+            card = await game_join_leave.load_post_commit_game_card(
                 game_id=result.game_id,
                 guild=guild,
                 bot=getattr(self, 'bot', None),
@@ -511,7 +511,7 @@ class matchmaking(commands.Cog):
                     'creator.'
                 )
             try:
-                await game_join_leave.send_post_join_card(
+                await game_join_leave.send_post_commit_game_card(
                     announce_channel,
                     card,
                     content=f'{content}{announce_message}',
@@ -535,7 +535,7 @@ class matchmaking(commands.Cog):
         self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
         if card is not None:
             try:
-                return await game_join_leave.send_post_join_card(
+                return await game_join_leave.send_post_commit_game_card(
                     feedback_destination,
                     card,
                     content=f'{message_str}',
@@ -1090,7 +1090,7 @@ class matchmaking(commands.Cog):
 
         card = None
         try:
-            card = await game_join_leave.load_post_join_card(
+            card = await game_join_leave.load_post_commit_game_card(
                 game_id=result.game_id,
                 guild=ctx.guild,
                 bot=getattr(self, 'bot', None),
@@ -1129,7 +1129,7 @@ class matchmaking(commands.Cog):
 
         if card is not None:
             try:
-                await game_join_leave.send_post_join_card(
+                await game_join_leave.send_post_commit_game_card(
                     ctx,
                     card,
                     content=(
@@ -1416,6 +1416,8 @@ class matchmaking(commands.Cog):
             send=ctx.send,
             card_destination=ctx,
             guild=ctx.guild,
+            bot=getattr(self, 'bot', None),
+            channel_id=getattr(getattr(ctx, 'channel', None), 'id', 0),
             prefix=ctx.prefix,
         )
 

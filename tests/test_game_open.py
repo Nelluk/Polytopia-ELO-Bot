@@ -23,7 +23,7 @@ games = import_offline_runtime('modules.games')
 matchmaking = import_offline_runtime('modules.matchmaking')
 
 
-def post_join_card(*, content='card'):
+def post_commit_game_card(*, content='card'):
     return SimpleNamespace(
         snapshot=SimpleNamespace(game_id=322),
         rendered=SimpleNamespace(
@@ -1794,11 +1794,11 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             return_value='$',
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'load_post_join_card',
-            new=mock.AsyncMock(return_value=post_join_card()),
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=post_commit_game_card()),
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'send_post_join_card',
+            'send_post_commit_game_card',
             new=mock.AsyncMock(),
         ):
             await cog.on_raw_reaction_add(payload)
@@ -1896,11 +1896,11 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             new=mock.AsyncMock(return_value=[member]),
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'load_post_join_card',
-            new=mock.AsyncMock(return_value=post_join_card()),
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=post_commit_game_card()),
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'send_post_join_card',
+            'send_post_commit_game_card',
             new=mock.AsyncMock(),
         ):
             await join_command.callback(cog, context, '322')
@@ -1919,11 +1919,11 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             return_value='$',
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'load_post_join_card',
-            new=mock.AsyncMock(return_value=post_join_card()),
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=post_commit_game_card()),
         ), mock.patch.object(
             matchmaking.game_join_leave,
-            'send_post_join_card',
+            'send_post_commit_game_card',
             new=mock.AsyncMock(),
         ):
             await reaction_cog.on_raw_reaction_add(payload)

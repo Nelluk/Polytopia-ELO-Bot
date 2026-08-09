@@ -4,6 +4,7 @@ from contextlib import AbstractContextManager, ExitStack
 import asyncio
 import datetime
 from dataclasses import FrozenInstanceError
+import inspect
 import threading
 import time
 from types import SimpleNamespace
@@ -576,18 +577,24 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
             expiration_reset=reset,
         )
 
-    async def test_post_commit_card_failure_reconciles_and_later_effects_continue(self):
-        game = SimpleNamespace(
-            embed=mock.Mock(return_value=(None, None)),
+    def _card(self, *, content='card'):
+        return SimpleNamespace(
+            rendered=SimpleNamespace(
+                content=content,
+                embed=discord.Embed(title='Game 322'),
+                new_file=mock.Mock(return_value=None),
+            ),
         )
+
+    async def test_post_commit_card_send_failure_reconciles_and_later_effects_continue(self):
         sender = mock.AsyncMock()
         with mock.patch.object(
-            game_join_leave.models.Game,
-            'load_full_game',
-            return_value=game,
+            game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=self._card()),
         ), mock.patch.object(
-            game_join_leave.image_storage,
-            'send_game_embed',
+            game_join_leave,
+            'send_post_commit_game_card',
             new=mock.AsyncMock(side_effect=RuntimeError('card failed')),
         ):
             await game_join_leave.publish_kick_result(
@@ -595,6 +602,8 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
                 send=sender,
                 card_destination=SimpleNamespace(),
                 guild=SimpleNamespace(id=300),
+                bot=SimpleNamespace(),
+                channel_id=301,
                 prefix='$',
             )
 
@@ -603,6 +612,34 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Removing **Target**', '\n'.join(contents))
         self.assertIn('expiration has been reset', '\n'.join(contents))
         self.assertEqual(len(contents), 3)
+
+    async def test_post_commit_card_load_failure_reconciles_and_later_effects_continue(self):
+        sender = mock.AsyncMock()
+        with mock.patch.object(
+            game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(side_effect=RuntimeError('load failed')),
+        ) as load, mock.patch.object(
+            game_join_leave,
+            'send_post_commit_game_card',
+            new=mock.AsyncMock(),
+        ) as send_card:
+            await game_join_leave.publish_kick_result(
+                self._result(),
+                send=sender,
+                card_destination=SimpleNamespace(),
+                guild=SimpleNamespace(id=300),
+                bot=SimpleNamespace(),
+                channel_id=301,
+                prefix='$',
+            )
+
+        load.assert_awaited_once()
+        send_card.assert_not_awaited()
+        contents = [call.args[0] for call in sender.await_args_list]
+        self.assertIn('game card could not be updated', contents[0])
+        self.assertIn('Removing **Target**', contents[1])
+        self.assertIn('expiration has been reset', contents[2])
 
     async def test_prefix_registration_and_failure_do_not_publish_success_effects(self):
         command = next(
@@ -632,10 +669,41 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(command.aliases, [])
         self.assertEqual(len(command.checks), 2)
 
-    async def test_post_commit_send_failure_reconciles_and_keeps_later_effects(self):
-        game = SimpleNamespace(
-            embed=mock.Mock(return_value=(None, None)),
+    async def test_prefix_success_passes_source_context_to_card_publisher(self):
+        command = next(
+            command for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'kick'
         )
+        guild = SimpleNamespace(id=300)
+        context = SimpleNamespace(
+            prefix='!',
+            invoked_with='kick',
+            author=self._member(guild_id=300),
+            guild=guild,
+            channel=SimpleNamespace(id=302),
+            send=mock.AsyncMock(),
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        cog.bot = SimpleNamespace()
+        cog.execute_kick = mock.AsyncMock(return_value=self._result(reset=False))
+        with mock.patch.object(
+            matchmaking.game_join_leave,
+            'publish_kick_result',
+            new=mock.AsyncMock(),
+        ) as publish:
+            await command.callback(cog, context, '322', 'Target')
+
+        publish.assert_awaited_once_with(
+            cog.execute_kick.return_value,
+            send=context.send,
+            card_destination=context,
+            guild=guild,
+            bot=cog.bot,
+            channel_id=302,
+            prefix='!',
+        )
+
+    async def test_post_commit_send_failure_reconciles_and_keeps_later_effects(self):
         sender = mock.AsyncMock(
             side_effect=[
                 RuntimeError('removal send failed'),
@@ -644,12 +712,12 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         with mock.patch.object(
-            game_join_leave.models.Game,
-            'load_full_game',
-            return_value=game,
+            game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=self._card()),
         ), mock.patch.object(
-            game_join_leave.image_storage,
-            'send_game_embed',
+            game_join_leave,
+            'send_post_commit_game_card',
             new=mock.AsyncMock(),
         ):
             await game_join_leave.publish_kick_result(
@@ -657,6 +725,8 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
                 send=sender,
                 card_destination=SimpleNamespace(),
                 guild=SimpleNamespace(id=300),
+                bot=SimpleNamespace(),
+                channel_id=301,
                 prefix='$',
             )
 
@@ -666,6 +736,48 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
             'expiration has been reset',
             sender.await_args_list[2].args[0],
         )
+
+    async def test_publisher_uses_immutable_card_request_and_prefix_presentation(self):
+        guild = SimpleNamespace(id=300)
+        bot = SimpleNamespace()
+        card = self._card(content='Join with $join')
+        destination = SimpleNamespace()
+        with mock.patch.object(
+            game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=card),
+        ) as load, mock.patch.object(
+            game_join_leave,
+            'send_post_commit_game_card',
+            new=mock.AsyncMock(),
+        ) as send_card:
+            await game_join_leave.publish_kick_result(
+                self._result(reset=False),
+                send=mock.AsyncMock(),
+                card_destination=destination,
+                guild=guild,
+                bot=bot,
+                channel_id=301,
+                prefix='$',
+            )
+
+        load.assert_awaited_once_with(
+            game_id=322,
+            guild=guild,
+            bot=bot,
+            prefix='$',
+            presentation='prefix',
+            requester_id=100,
+            channel_id=301,
+        )
+        send_card.assert_awaited_once_with(
+            destination,
+            card,
+            content='Join with $join',
+        )
+        source = inspect.getsource(game_join_leave.publish_kick_result)
+        self.assertNotIn('Game.load_full_game', source)
+        self.assertNotIn('Game.embed', source)
 
     async def test_native_kick_defers_and_keeps_success_public_but_failure_ephemeral(self):
         command = (
@@ -713,6 +825,10 @@ class KickAdapterTests(unittest.IsolatedAsyncioTestCase):
             prefix=mock.ANY,
         )
         publish.assert_awaited_once()
+        publish_call = publish.await_args
+        self.assertIs(publish_call.kwargs['bot'], cog.bot)
+        self.assertEqual(publish_call.kwargs['channel_id'], 301)
+        self.assertEqual(publish_call.kwargs['presentation'], 'slash')
 
         interaction = SimpleNamespace(
             guild=requester.guild,

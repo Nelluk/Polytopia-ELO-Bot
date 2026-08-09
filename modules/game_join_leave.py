@@ -1,4 +1,4 @@
-"""Shared application adapters for pending-game joins and leaves."""
+"""Shared application adapters for pending-game roster mutations."""
 
 from __future__ import annotations
 
@@ -14,26 +14,24 @@ from modules import (
     game_detail_workers,
     game_join_workers,
     game_kick_workers,
-    image_storage,
-    models,
 )
 
 
 logger = logging.getLogger('polybot.' + __name__)
 
 
-POST_JOIN_CARD_TIMEOUT_SECONDS = 20.0
+POST_COMMIT_GAME_CARD_TIMEOUT_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
-class PostJoinCard:
-    """One immutable, production-style card loaded after a join commits."""
+class PostCommitGameCard:
+    """One immutable, production-style card loaded after a mutation commits."""
 
     snapshot: game_detail_workers.GameDetailSnapshot
     rendered: game_detail_views.ClassicGameDetailRender
 
 
-async def load_post_join_card(
+async def load_post_commit_game_card(
     *,
     game_id: int,
     guild,
@@ -42,7 +40,7 @@ async def load_post_join_card(
     presentation: str,
     requester_id: int,
     channel_id: int = 0,
-) -> PostJoinCard:
+) -> PostCommitGameCard:
     """Load and render one committed game card without event-loop DB work."""
 
     request = game_detail_workers.GameDetailRequest(
@@ -53,7 +51,7 @@ async def load_post_join_card(
     )
     snapshot = await asyncio.wait_for(
         game_detail_workers.run_game_detail(request),
-        timeout=POST_JOIN_CARD_TIMEOUT_SECONDS,
+        timeout=POST_COMMIT_GAME_CARD_TIMEOUT_SECONDS,
     )
     display = game_detail_views.resolve_display(
         snapshot,
@@ -63,13 +61,18 @@ async def load_post_join_card(
         join_emoji=getattr(settings, 'emoji_join_game', ''),
         presentation=presentation,
     )
-    return PostJoinCard(
+    return PostCommitGameCard(
         snapshot=snapshot,
         rendered=game_detail_views.render_classic_game_detail(display),
     )
 
 
-async def send_post_join_card(destination, card: PostJoinCard, *, content):
+async def send_post_commit_game_card(
+    destination,
+    card: PostCommitGameCard,
+    *,
+    content,
+):
     """Send one immutable card, opening a fresh attachment for this send."""
 
     kwargs = {
@@ -232,6 +235,8 @@ async def publish_kick_result(
     send,
     card_destination,
     guild,
+    bot,
+    channel_id: int,
     prefix: str,
     presentation: str = 'prefix',
 ) -> None:
@@ -239,18 +244,31 @@ async def publish_kick_result(
 
     card_warning = None
     try:
-        committed_game = models.Game.load_full_game(result.game_id)
-        embed, content = committed_game.embed(
+        card = await load_post_commit_game_card(
+            game_id=result.game_id,
             guild=guild,
+            bot=bot,
             prefix=prefix,
             presentation=presentation,
+            requester_id=result.author_id,
+            channel_id=channel_id,
         )
+    except Exception:
+        logger.exception(
+            'Committed kick %s could not reload its game card',
+            result.game_id,
+        )
+        card_warning = (
+            f':warning: Game {result.game_id} was changed successfully, but '
+            'its game card could not be updated. An operator must reconcile '
+            'the announcement.'
+        )
+    else:
         try:
-            await image_storage.send_game_embed(
+            await send_post_commit_game_card(
                 card_destination,
-                committed_game,
-                embed=embed,
-                content=content,
+                card,
+                content=card.rendered.content,
             )
         except Exception:
             logger.exception(
@@ -262,16 +280,6 @@ async def publish_kick_result(
                 'but its game card could not be updated. An operator must '
                 'reconcile the announcement.'
             )
-    except Exception:
-        logger.exception(
-            'Committed kick %s could not reload its game card',
-            result.game_id,
-        )
-        card_warning = (
-            f':warning: Game {result.game_id} was changed successfully, but '
-            'its game card could not be updated. An operator must reconcile '
-            'the announcement.'
-        )
 
     if card_warning:
         await send_post_commit_message(

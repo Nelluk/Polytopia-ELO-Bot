@@ -3584,7 +3584,7 @@ class polygames(commands.Cog):
         card = None
         if publish_card:
             try:
-                card = await game_join_leave.load_post_join_card(
+                card = await game_join_leave.load_post_commit_game_card(
                     game_id=result.game_id,
                     guild=interaction.guild,
                     bot=getattr(self, 'bot', None),
@@ -3627,7 +3627,7 @@ class polygames(commands.Cog):
 
         if card is not None:
             try:
-                await game_join_leave.send_post_join_card(
+                await game_join_leave.send_post_commit_game_card(
                     interaction.followup,
                     card,
                     content=(
@@ -3857,6 +3857,8 @@ class polygames(commands.Cog):
             ),
             card_destination=interaction.followup,
             guild=interaction.guild,
+            bot=self.bot,
+            channel_id=interaction.channel_id,
             prefix=prefix,
             presentation='slash',
         )
