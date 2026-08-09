@@ -484,15 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.9 join-message/reaction
-routing is complete, integrated, pushed, and running on the guarded
-development beta at `68966c0`.
-Regex parsing remains on the event loop while Game existence/pending/guild and
-related-external-server reads move to one bounded worker-local immutable
-snapshot. The three message/reaction listeners continue to route mutations
-through the existing shared join/leave workers. No command, permission,
-capability, taxonomy, schema, or prefix change was included, so no command sync
-or tester announcement was needed.**
+Current active unit: **P5.10's read-only expired-pending-game purge design
+audit is complete and blocked on three policy approvals before implementation.
+The audit recommends one independently atomic purge per game, database commit
+before every Discord effect, and operator-visible manual reconciliation rather
+than a new durable retry/outbox schema in this bounded unit. P5.9 remains
+complete, integrated, pushed, and running on the guarded development beta at
+`68966c0`. No P5.10 runtime code, database state, task configuration, or beta
+process changed during the audit.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4513,6 +4512,91 @@ one atomic purge, which database state commits before external-broadcast and
 announcement effects, and how committed-but-unpublished work is retried or
 reconciled. Do not implement that destructive background writer until those
 three policy decisions are accepted.
+
+### P5.10 — Expired pending-game purge design audit
+
+Status: **Blocked on three policy approvals; no runtime implementation**
+
+The retained ten-minute task in `modules/matchmaking.py` currently performs
+all Peewee selection and model traversal on the Discord event loop. For every
+candidate it then:
+
+1. edits and clears reactions from external Discord broadcasts;
+2. deletes each corresponding broadcast database row;
+3. constructs the creator/host/player notification from live models;
+4. writes a `GameLog` row outside the deletion transaction;
+5. sends the public purge announcement; and
+6. calls `Game.delete_game()` in a separate synchronous transaction on the
+   event-loop thread.
+
+That ordering can publish a deletion before the database deletion commits,
+can cross out usable broadcasts if the later audit/delete fails, and can
+leave a committed deletion with no Discord effect if the process exits after
+commit. `Game.update_external_broadcasts()` also consumes some Discord errors
+and deletes the broadcast row even when the edit fails. One unhandled model or
+formatting exception can interrupt later games in the same task iteration.
+The two candidate queries are unbounded and their conversion through `set()`
+does not provide deterministic processing order.
+
+The observed eligibility policy should remain unchanged unless separately
+revised:
+
+- a pending game with any open side is eligible immediately after its
+  expiration timestamp;
+- a full pending game receives three additional days to be started;
+- an authoritative worker must recheck pending state, guild, expiration, and
+  remaining capacity at mutation time rather than trusting the earlier scan;
+- a missing creator/host must produce safe fallback wording rather than abort
+  the purge cycle.
+
+Recommended bounded implementation:
+
+- use a worker-local read request to return a bounded, deterministic list of
+  candidate primitive game IDs for one guild and one frozen `as_of` timestamp,
+  ordered by expiration then game ID;
+- send each ID through the existing one-thread pending-game coordinator so it
+  serializes with open/join/leave/kick/start/manual-delete mutations;
+- for each ID, open a worker-local Peewee connection, lock/reload the game,
+  revalidate eligibility, freeze an automatic-purge effect plan, and atomically
+  write the audit row plus delete the pending Lineup/GameSide/Game graph;
+- return a typed `purged` or `skipped-state-changed` result so races are normal
+  no-ops rather than task failures;
+- only after commit, update each frozen external broadcast target and send the
+  public game-channel purge notice; isolate each target and game so one failed
+  Discord effect cannot prevent later purges;
+- include the frozen game, guild, channel, message, creator/host, and mention
+  identifiers in protected audit/log context sufficient for an operator to
+  locate stale Discord state after a crash or observed publication failure;
+- keep background tasks disabled in the development beta. Validate the writer
+  through focused offline fault injection and the existing stopped-beta
+  development-database gate before any production consideration.
+
+Policy decisions required before code:
+
+1. **P5.10-A — Atomicity:** approve one independent synchronous transaction
+   per game, not one batch transaction. This limits locks and failure scope and
+   lets the cycle continue after one bad candidate. **Recommended: approve.**
+2. **P5.10-B — Effect ordering:** approve audit plus database deletion as the
+   authoritative commit, followed only afterward by external-broadcast edits
+   and the public purge announcement. No Discord await occurs in a database
+   transaction. **Recommended: approve.**
+3. **P5.10-C — Retry/reconciliation:** do not add a schema-backed outbox in
+   this unit. Attempt every frozen Discord effect once, log failures with exact
+   targets, warn the configured staff/log channel when available, and never
+   retry or recreate the committed database purge automatically. A future
+   outbox/reconciliation command requires a separate schema and product
+   decision if operational evidence shows that manual reconciliation is
+   inadequate. **Recommended: approve.**
+
+This audit does not authorize enabling background tasks in development,
+changing expiration/grace rules, adding a public command, migrating schema,
+or altering production. Implementation begins only after P5.10-A/B/C are
+accepted or revised.
+
+Next action: obtain the three policy decisions above. If accepted, implement
+the automatic purge worker, bounded discovery, immutable effect plan, focused
+rollback/race/post-commit tests, and a stopped-beta gated real-schema test as
+one Tier-3 writer unit.
 
 ## P6 — Registration and player preferences
 
@@ -10307,6 +10391,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.10 expired-purge design audit completed
+
+- Traced the retained ten-minute purge from unbounded event-loop selection
+  through external-broadcast edits, split audit/deletion writes, public
+  announcement, and the legacy synchronous `Game.delete_game()` call.
+- Confirmed that the present effect-first ordering can announce or cross out a
+  game whose later database deletion fails, while a post-commit process exit
+  has no durable Discord retry mechanism.
+- Identified the modern manual pending-delete boundary as the correct reuse
+  point: the pending-game coordinator, primitive broadcast targets, atomic
+  pending graph deletion, and post-commit publication helpers already exist.
+- Proposed bounded deterministic candidate discovery, authoritative per-game
+  eligibility revalidation, one transaction per game, commit-before-Discord
+  ordering, isolated effect failures, and protected operator reconciliation
+  context.
+- Recommended preserving immediate purge for expired games with capacity and
+  the existing three-day grace for full games. No expiration or game-rule
+  change is part of P5.10.
+- Left implementation blocked on P5.10-A/B/C: per-game atomicity,
+  commit-before-effects ordering, and manual operator reconciliation without
+  a new durable outbox schema.
+- Made no code, test, database, fixture, beta, Discord, task-configuration, or
+  production change during this read-only audit.
 
 ### 2026-08-09 — P5.9 reaction routing snapshot validated
 
