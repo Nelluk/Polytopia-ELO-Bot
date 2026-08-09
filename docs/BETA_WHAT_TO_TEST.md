@@ -36,7 +36,11 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 ## Players and leaderboards
 
-- `/player show`, including profile sections and navigation
+- `/player show`, including profile sections and navigation. Open Analytics
+  for yourself and another player, switch between current-reset and all-time
+  ELO history, confirm the graph works on desktop/mobile, and compare the
+  requester-versus-player local ranked 1v1 record. Revisit both eras to check
+  cached controls remain responsive without replacing the public workspace.
 - `/player register` and `/player timezone` read/edit/clear behavior
 - `/leaderboard players`: pagination, common filters, advanced filters, active/all toggle, jump-to-page, desktop/mobile layout
 - `/leaderboard teams`: active/all-tier default, tier and archived-team filters, pagination/page jump, current-page ELO graph, desktop/mobile layout, and sensible behavior for teams with missing or empty Discord roles

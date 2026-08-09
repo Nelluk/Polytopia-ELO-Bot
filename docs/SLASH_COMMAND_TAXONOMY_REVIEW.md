@@ -237,7 +237,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game show` | optional game ID when it cannot be inferred from the channel | Implemented P7.9 classic production-style card over a bounded immutable read; numeric prefixes share it, while Components remain opt-in for a separately justified future need |
 | `/game ping` | optional integer `game_id` when it cannot be inferred | requester-bound single/all scope and target controls, three-section text modal, up to 10 uploads, private preview, explicit confirmation, bounded post-commit fanout |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
-| `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
+| `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, lazy current/all-time history graph, requester head-to-head, recent/incomplete/completed/season games, results, teams, and permitted profile edits; remaining legacy details stay tracked under C-002 |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/player timezone` | optional member, normalized UTC offset, or clear; requester/member defaults as defined by permission | no options reads the effective fixed offset; bounded UTC-offset autocomplete and explicit clear/write semantics |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
@@ -534,6 +534,8 @@ rating and game lists. It defaults to the requester and initially displays
 
 - Overview/profile and canonical Polytopia name;
 - current, peak, local/global, and all-time rating information;
+- a lazy current/all-time ELO-history graph and requester-versus-player local
+  ranked 1v1 summary;
 - recent games;
 - incomplete games;
 - completed games, with all/win/loss refinement;

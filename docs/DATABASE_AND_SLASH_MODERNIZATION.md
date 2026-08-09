@@ -352,7 +352,7 @@ would become unavailable if a prefix is retired.
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
-| C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
+| C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, paged game sections/filters, lazily rendered current/all-time rating history, and the requester's local ranked 1v1 record against the viewed player. | Trophies, favorite-tribe summaries, and pre-Moonrise miscellaneous statistics from the legacy card remain unavailable after prefix commands deep-link the workspace. | Restore another detail only when beta usage demonstrates value; keep every database read and media render bounded/off-loop rather than rebuilding the legacy monolith. | P7.7a implemented locally from `784daac`; beta acceptance pending |
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
@@ -484,12 +484,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.19
-`/league maintenance kick-inactive` is implemented, real-schema validated,
-integrated, pushed, and development-guild deployed through checkpoint
-`958ae90`. The user accepted the recorded safety policy and explicitly waived
-the P8.18 beta-acceptance sequencing gate. Bounded Mod preview acceptance is
-pending; destructive confirmation remains operator-controlled.**
+Current active unit: **P7.7a read-only player analytics restoration is
+Implemented locally on `codex/p7-7a-player-analytics` from exact accumulation
+checkpoint `784daac`; integration and beta deployment are pending. It restores
+a lazily rendered ELO-history view and requester-versus-target local 1v1
+summary inside `/player show`, without adding slash options or database writes.
+Trophies, favorite tribe, and pre-Moonrise miscellaneous statistics remain
+deferred under C-002.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -1698,7 +1699,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **In progress**
+Status: **Implemented locally; integration and beta acceptance pending**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -5514,6 +5515,63 @@ Next action: P7.7 is integrated. Implement and beta-smoke the bounded
 `/game search` workspace. C-002 analytics restoration is explicitly deferred
 until usage demonstrates which legacy details justify a separate bounded
 unit.
+
+### P7.7a — Read-only player analytics restoration
+
+Status: **In progress**
+
+Branch/base: `codex/p7-7a-player-analytics` from exact accumulation checkpoint
+`784daac`.
+
+Accepted bounded scope:
+
+- add one Analytics section to the existing `/player show` workspace rather
+  than adding slash arguments or a second command;
+- capture bounded local/global current and all-time rating-history points in
+  the initial worker-owned read, then render the selected graph lazily and
+  off-loop from immutable data;
+- show the requester's confirmed ranked local 1v1 record against a different
+  viewed player, preserving the useful legacy follow-up without another
+  database query after publication;
+- keep section navigation, current/all-time switching, and cached graph reuse
+  database-free and requester-bound;
+- preserve existing prefix deep links and command permissions;
+- keep trophies, favorite-tribe summaries, and pre-Moonrise miscellaneous
+  statistics explicitly deferred under C-002.
+
+This is a read-only Tier-2 presentation/database-read unit. It introduces no
+schema, mutation, audit, transaction, permission, taxonomy, or command-sync
+change. Real-schema validation remains behind the unchanged development gate
+and may wait for the next convenient stopped-writer window.
+
+Implementation result:
+
+- Added one Analytics destination to the existing section selector. The slash
+  command still has only its optional member and every retained prefix deep
+  link keeps its established initial section.
+- The worker-owned initial read captures at most the newest 500 local and 500
+  global confirmed-ranked history points, including current-reset and all-time
+  ELO values, plus one aggregate requester-versus-target local ranked 1v1
+  record. Frozen dataclasses are the only worker/view boundary.
+- The selected current or all-time graph renders lazily through the bounded
+  player executor with an object-owned `Figure`/`FigureCanvasAgg`, immutable
+  PNG bytes, and a request-unique attachment name. It uses no pyplot globals,
+  shared filename, or filesystem write.
+- Each era is cached in the requester-bound public workspace. Era changes and
+  repeat navigation do not query PostgreSQL; render/attachment failure remains
+  private and leaves the prior public view intact. Cancellation drains the
+  submitted renderer before returning.
+- Kept the current-reset graph coherent by using Moonrise-era fields rather
+  than mixing the archived pre-Moonrise series into it. The all-time graph
+  uses the permanent fields. C-002 continues to defer the separate legacy
+  trophies, favorite-tribe, and pre-Moonrise miscellaneous presentation.
+- Focused player-workspace coverage passed **15 tests**. The affected player,
+  leaderboard, taxonomy, and dependency suites passed **48 tests**. Complete
+  offline discovery passed **1,159 tests with 42 intentional database-gated
+  skips**. Compilation and `git diff --check` passed.
+- The existing gated player-workspace real-schema case now exercises the
+  immutable history DTOs and off-loop renderer, but remains deferred under the
+  ordinary read-only validation cadence while the durable beta is active.
 
 ### P7.8 — Unified game-search workspace
 
@@ -9796,6 +9854,22 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P7.7a player analytics restored locally
+
+- Added one Analytics section to `/player show` and every retained player-card
+  prefix workspace without changing the application-command option shape.
+- Captured bounded current/all-time local/global rating points and the
+  requester's local ranked 1v1 record in the worker-owned immutable snapshot.
+- Added lazy object-owned Agg rendering, unique in-memory attachments, era
+  caching, private rollback-safe render failures, and cancellation draining.
+- Passed **15** focused tests, **48** affected tests, and complete offline
+  discovery with **1,159 passes and 42 intentional gated skips**. Compilation
+  and diff checks passed. Real-schema read evidence is batched for the next
+  stopped-writer window under the accepted database-test cadence.
+- Integration, guarded beta restart, and targeted wider-beta publication are
+  pending Tier-2 self-review. No command sync is required because `/player
+  show` retains the same optional-member registration.
 
 ### 2026-08-09 — P8.19 inactive-member removal implemented and validated
 
