@@ -485,7 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P4.6 immutable metadata
+Current active unit: **P6.3 asynchronous prefix registration checks is In
+progress on `codex/p6-3-async-registration-check` from exact clean
+accumulation checkpoint `189cabd`. It replaces the one remaining shared
+event-loop `DiscordMember` query used by 18 prefix handlers with a bounded,
+worker-local read while preserving every command, denial message, help
+suppression rule, and authoritative command-worker validation. P4.6 immutable metadata
 presentation is complete, integrated, pushed, and loaded by the guarded beta
 at `5335443`. It preserves all existing command registrations, permissions,
 visibility, and mutation workers while replacing post-commit live Peewee card
@@ -6235,8 +6240,8 @@ database modernization.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0 complete, P6.1 reviewed/integrated, and P6.2
-implemented locally; review, schema gate, and beta acceptance pending**
+Status: **In progress; P6.0–P6.2 are integrated and deployed, and P6.3 is
+implemented pending accumulation integration**
 
 Candidate scope:
 
@@ -6507,6 +6512,62 @@ only the `player` root; the durable beta runs checkpoint `c6032df`, and release
 `1534198493650878756` with the testers role ping. The next action is to ingest
 wider-beta feedback for `/player register`, `/player timezone`, and retained
 `$settime`.
+
+### P6.3 — Asynchronous shared prefix registration check
+
+Status: **Implemented; pending accumulation integration and guarded beta restart**
+
+Risk tier: **Tier 2 shared read-boundary cleanup**. No command schema,
+registration data, permission rule, or mutation path changes.
+
+Branch/base: `codex/p6-3-async-registration-check` from exact clean
+accumulation checkpoint `189cabd`.
+
+Accepted boundary:
+
+- preserve `@models.is_registered_member()` at all 18 existing prefix command
+  call sites so decorator order and command registration do not drift;
+- replace its synchronous event-loop `DiscordMember` count with one primitive
+  requester-ID request submitted to a bounded read executor;
+- open and close a worker-local Peewee connection and return only an immutable
+  registered/not-registered result;
+- drain submitted work before propagating cancellation;
+- preserve the current account-wide `DiscordMember` semantics, exact public
+  registration guidance, and silent denial while rendering help for another
+  command; and
+- leave each command's authoritative guild/player/permission worker checks in
+  place rather than treating this convenience preflight as authorization.
+
+The unit requires focused connection, responsiveness, cancellation, denial,
+help-suppression, and all-caller inventory coverage plus complete offline
+discovery. A targeted read-only development-schema probe may run without a
+stopped-writer window; no full writer-containing PostgreSQL suite is required
+unless implementation uncovers a real schema/query uncertainty. Deployment is
+an ordinary guarded beta restart with no application-command synchronization
+or tester announcement.
+
+Implementation evidence:
+
+- checkpoint `2c9b485` adds a dedicated two-thread registration-read executor,
+  frozen primitive request/result DTOs, one worker-local connection per read,
+  and cancellation draining;
+- `models.is_registered_member()` remains a coroutine check decorator at all
+  18 existing call sites, but now awaits the bounded reader instead of opening
+  or querying the shared Peewee connection on Discord's event loop;
+- focused connection, responsiveness, cancellation, decorator, denial,
+  help-suppression, failure, and inventory coverage passed **8 tests**;
+- expanded affected command/import coverage passed **231 tests**; complete
+  offline discovery passed **1,364 tests with 56 intentional gated skips**;
+- the single targeted read-only PostgreSQL probe passed against the strictly
+  gated `development` / `polytopia_dev` / `polybot_dev` identity while the
+  durable beta remained online; and
+- touched compilation and `git diff --check` passed.
+
+No database rows, schema, fixture, command registration, permission, or
+visibility changed. No compatibility-ledger entry is required. Next: commit
+this evidence, fast-forward the accumulation branch, push, and perform an
+ordinary guarded beta restart without command synchronization or tester
+announcement.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -12026,6 +12087,23 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P6.3 asynchronous registration check implemented
+
+- Preserved the shared `@models.is_registered_member()` decorator and all 18
+  prefix call sites while replacing its synchronous event-loop count with a
+  bounded worker-local `EXISTS` read.
+- Preserved account-wide registration semantics, exact public registration
+  guidance, silent denial during help rendering, and propagation of database
+  failures without a false unregistered response.
+- Added immutable DTO, worker connection, responsiveness, repeated
+  cancellation, caller-inventory, and decorator regressions.
+- Passed 8 focused tests, 231 expanded affected tests, complete offline
+  discovery at 1,364 tests with 56 gated skips, and one targeted read-only
+  development-schema probe. Compilation and whitespace checks passed.
+- Recorded implementation/tests checkpoint `2c9b485`. Next: commit this
+  evidence, integrate/push, restart the guarded beta without command sync, and
+  close P6 if runtime identity remains healthy.
 
 ### 2026-08-09 — P4.6 integrated, deployed, and P4 closed
 
