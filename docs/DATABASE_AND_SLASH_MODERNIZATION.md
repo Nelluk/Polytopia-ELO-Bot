@@ -484,10 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.19a started-game channel creation is implemented and
-validated on `codex/p5-19a-started-channel-creation` at `4f40c63`; integration,
-push, and guarded-beta restart are pending. P5.19-A/B/C/D are accepted, and
-P5.19b Nova graduation is the next code unit. P5.18 post-kick game-card presentation is complete, integrated,
+Current active unit: **No code unit is active. P5.19a started-game channel
+creation is complete, integrated, pushed, and loaded by the guarded beta at
+`389acf7`. P5.19-A/B/C/D are accepted, and P5.19b Nova graduation is the next
+code unit. P5.18 post-kick game-card presentation is complete, integrated,
 pushed, and loaded by the guarded beta at `e79ab1c`. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
@@ -5965,7 +5965,8 @@ Policy decisions required before implementation:
 The user accepted P5.19-A/B/C/D as proposed on 2026-08-09. P5.19a was
 implemented on `codex/p5-19a-started-channel-creation` from exact audit
 checkpoint `548bce7`; implementation/tests checkpoint `4f40c63` is locally
-validated and awaiting integration, push, and guarded-beta restart.
+validated. Evidence checkpoint `389acf7` is integrated, pushed, and loaded by
+the guarded development beta.
 
 P5.19a freezes immutable game/side/player/team/host/external-server channel
 plans inside the authoritative start transaction. Discord channel creation now
@@ -11808,10 +11809,15 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   Real-schema coverage proves exact external-side persistence, idempotent
   retry, conflict rejection, and cleanup.
 - Recorded implementation/tests checkpoint `4f40c63`. Integration, push, and
-  guarded-beta restart remain pending at this evidence checkpoint. No command
-  apply/sync, announcement, schema, dependency, persistent/operator-fixture,
-  production, or sudo action occurred. Next code unit after deployment is
-  P5.19b Nova graduation.
+  guarded-beta restart remained pending at the unit-branch evidence checkpoint.
+  The accumulation branch was subsequently fast-forwarded and pushed through
+  `389acf7`; only the guarded beta was restarted. Its clear writer preflight,
+  expected beta identity `479029527553638401`, PID `3254561`, `--skip_tasks`
+  startup, and zero automatic restarts were verified. No command apply/sync or
+  tester announcement was needed because the command schema and visible
+  interface are unchanged. No schema, dependency, persistent/operator-fixture,
+  production, or sudo action occurred. Next code unit is P5.19b Nova
+  graduation.
 
 ### 2026-08-09 — P5.19 shared post-start lifecycle audited
 
