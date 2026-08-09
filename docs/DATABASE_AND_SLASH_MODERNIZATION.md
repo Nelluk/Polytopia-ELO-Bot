@@ -485,7 +485,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **No code unit is active. P5.18 post-kick game-card
-lifecycle has been audited read-only and awaits acceptance of P5.18-A/B/C/D.
+presentation is implemented and validated at `8d45fd9`; integration, push,
+and guarded-beta restart are pending. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
@@ -5665,7 +5666,7 @@ before implementation.
 
 ### P5.18 — Post-kick game-card lifecycle audit
 
-Status: **Audited read-only; implementation blocked on P5.18-A/B/C/D**
+Status: **Implemented and validated; integration and deployment pending**
 
 The shared kick mutation boundary is already sound. Native
 `/game manage kick` and prefix `$kick` both create primitive `KickRequest`
@@ -5752,6 +5753,51 @@ Policy decisions required before implementation:
    over presentation, and validate with focused adapter/publisher coverage plus
    the existing gated kick-worker and game-detail-reader seams in the next
    approved stopped-writer window. **Recommended.**
+
+The user accepted P5.18-A/B/C/D as proposed on 2026-08-09. Implementation is
+complete on `codex/p5-18-post-kick-card` from exact audit checkpoint
+`52656ff`.
+
+Accepted implementation:
+
+- generalizes P5.17's helper into neutral `PostCommitGameCard`,
+  `load_post_commit_game_card()`, and `send_post_commit_game_card()` names and
+  updates the existing native, prefix, and reaction join consumers without
+  changing their behavior;
+- routes the shared kick publisher through that bounded immutable loader and
+  removes its live Peewee `Game.load_full_game()` / `Game.embed()` /
+  `image_storage.send_game_embed()` boundary;
+- has native and prefix kick adapters pass the source guild, actor, invoking
+  channel ID, bot cache reference, configured prefix, and slash/prefix
+  presentation explicitly;
+- preserves card-first publication, then the removal message and optional
+  expiration-reset message. Card load/send failure reports reconciliation and
+  later effects still run; and
+- retains the existing game-detail reader's worker-local connection, finite
+  20-second timeout, cancellation drain, classic dense renderer, and fresh
+  attachment per destination. No coordinator claim or transaction spans the
+  post-commit read/render/Discord effects.
+
+Validation evidence:
+
+- focused kick/join/open/detail coverage: **116 passed**;
+- complete offline discovery: **1,327 passed, 54 intentional database-gated
+  skips**;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the existing game-detail and kick-worker real-schema seams passed **2/2**
+  under exact `development` / `polytopia_dev` / `polybot_dev` and disabled
+  background/API gates; and
+- the complete gated development suite passed **52 runnable cases**, with one
+  intentional operator-fixture preservation skip. No fixture cleanup is
+  required.
+
+Implementation/tests checkpoint: `8d45fd9`. No command, capability, schema,
+fixture, task, dependency, or production behavior changed. Application-command
+synchronization and a broad tester announcement are unnecessary; after
+integration the guarded beta needs only a restart onto the clean accumulation
+checkpoint.
 
 The audit changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
@@ -11549,6 +11595,27 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.18 immutable post-kick cards validated
+
+- Accepted P5.18-A/B/C/D and generalized the P5.17 card helper into one
+  neutral post-commit game-card service used by direct joins, reaction joins,
+  and the shared kick publisher.
+- Removed the kick publisher's event-loop `Game.load_full_game()` / embed /
+  live-model image-sender path while preserving slash/prefix presentation,
+  card-first ordering, removal and expiration output, and public
+  committed-but-unreconciled warnings.
+- Added focused loader/send failure, later-effect continuation, immutable
+  request, source-context, and native/prefix adapter regressions.
+- Passed 116 focused tests and 1,327 complete offline tests with 54 intentional
+  gated skips; touched compilation and diff checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed both targeted real-schema seams 2/2, and passed all 52 runnable gated
+  development cases with one intentional operator-fixture skip.
+- Recorded implementation/tests checkpoint `8d45fd9`; integration, push, and
+  guarded-beta restart remained pending at this evidence checkpoint. No
+  command apply, announcement, schema, fixture, dependency, or production
+  action was performed.
 
 ### 2026-08-09 — P5.18 post-kick game-card lifecycle audited
 
