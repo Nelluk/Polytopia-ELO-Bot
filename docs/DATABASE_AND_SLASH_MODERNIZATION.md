@@ -485,8 +485,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **No code unit is active. P5.18 post-kick game-card
-presentation is implemented and validated at `8d45fd9`; integration, push,
-and guarded-beta restart are pending. P5.18-A/B/C/D are accepted.
+presentation is complete, integrated, pushed, and loaded by the guarded beta
+at `e79ab1c`. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
 integrated, pushed, and loaded by the guarded development beta at `25ab89a`.**
@@ -5666,7 +5666,7 @@ before implementation.
 
 ### P5.18 — Post-kick game-card lifecycle audit
 
-Status: **Implemented and validated; integration and deployment pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The shared kick mutation boundary is already sound. Native
 `/game manage kick` and prefix `$kick` both create primitive `KickRequest`
@@ -5798,6 +5798,32 @@ fixture, task, dependency, or production behavior changed. Application-command
 synchronization and a broad tester announcement are unnecessary; after
 integration the guarded beta needs only a restart onto the clean accumulation
 checkpoint.
+
+Integration/deployment evidence:
+
+- fast-forwarded implementation `8d45fd9` and evidence `e79ab1c` into
+  `codex/database-slash-modernization`, then pushed that exact checkpoint to
+  the approved GitHub origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and PID `3245780` runs from the clean accumulation
+  checkout at `e79ab1c` with zero automatic restarts;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup with `--skip_tasks`, and passed the protected
+  local release-control status operation;
+- made no application-command plan/apply/sync because no command definition or
+  capability changed; and
+- selected the explicit no-announcement route because the public kick card,
+  removal output, and expiration output intentionally retain their prior
+  presentation and workflow.
+
+Next action: P5.19 should perform a read-only lifecycle audit of
+`game_start.publish_start_result()`. Its worker transaction and external
+broadcast reconciliation are modernized, but the shared native/prefix
+post-commit path still synchronously reloads a live `Game`, computes season
+state, renders the card, resolves announcement routing, and supplies later
+channel/role effects from that model. Determine the smallest immutable result
+and card boundary before implementation rather than assuming P5.18's card-only
+reuse is sufficient.
 
 The audit changed no code, test, command, capability, database, fixture,
 Discord state, beta runtime, schema, dependency, or production behavior.
@@ -11616,6 +11642,11 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   guarded-beta restart remained pending at this evidence checkpoint. No
   command apply, announcement, schema, fixture, dependency, or production
   action was performed.
+- Subsequently integrated and pushed exact checkpoint `e79ab1c`, started only
+  the guarded beta, and verified its clear writer preflight, PID `3245780`,
+  expected beta identity, `--skip_tasks` startup, zero automatic restarts, and
+  protected release-control status. No command apply or tester announcement
+  was needed.
 
 ### 2026-08-09 — P5.18 post-kick game-card lifecycle audited
 
