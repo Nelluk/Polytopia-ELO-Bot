@@ -121,7 +121,10 @@ class RegistrationTests(unittest.TestCase):
             command for command in league.league.__cog_app_commands__
             if command.name == 'league'
         )
-        self.assertEqual({command.name for command in root.commands}, {'tokens'})
+        self.assertEqual(
+            {command.name for command in root.commands},
+            {'tokens', 'guide', 'mark-active', 'join-novas'},
+        )
         command = root.get_command('tokens')
         self.assertEqual(
             [

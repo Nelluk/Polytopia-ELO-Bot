@@ -25,6 +25,8 @@ import modules.house_show_workers as house_show_workers
 import modules.league_tokens as league_tokens
 import modules.league_tokens_views as league_tokens_views
 import modules.league_tokens_workers as league_tokens_workers
+import modules.league_user_commands as league_user_commands
+import modules.league_user_workers as league_user_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -489,33 +491,7 @@ class league(commands.Cog):
 
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
-        tutorial_message = (
-            "# The Basics\n"
-            "__To set your polytopia name with the bot <:Midjiwan:938642183093907496>:__\n"
-            "`$setname` followed by your polytopia in app name\n\n"
-            
-            "__To join the new starters team <:novas:1327341237665005669>:__\n"
-            "`$novas`\n\n"
-            
-            "__To open a game 👋 :__\n"
-            "`$open 2v2 drylands` (Can be changed to any map type or other size games like 1v1 or 3v3)\n\n"
-            
-            "__To see a list of games you can join ⚔️ <:star:390477609131048962>:__\n"
-            "`$novagames` or `$games`\n\n"
-            
-            "__To see games you are in 👀:__\n"
-            "`$incomplete`\n\n"
-            
-            "__To start a game you created 💪:__\n"
-            "`$start 111222 prediscussion change 111222 for the game ID you want to start`\n\n"
-            
-            "__To see a full list 📜 of commands:__\n"
-            "`$help`\n\n"
-            
-            "Watch a YT tutorial on how to use the PolyElo bot and the match making system "
-            "https://youtu.be/_KsDd0LT54M"
-        )
-        await ctx.send(tutorial_message)
+        await ctx.send(league_user_commands.guide_message())
 
     @commands.command(usage=None)
     @settings.is_mod_check()
@@ -698,18 +674,207 @@ class league(commands.Cog):
                 'League token output could not be completed.', ephemeral=True
             )
 
+    @league_group.command(
+        name='guide',
+        description='Show the PolyChampions quick-start guide.',
+    )
+    async def league_guide_slash(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if guild is None or not league_user_commands.league_scope(guild.id):
+            return await interaction.response.send_message(
+                'This guide is available only in the configured league server.',
+                ephemeral=True,
+            )
+        await interaction.response.send_message(
+            league_user_commands.guide_message()
+        )
+
+    @league_group.command(
+        name='mark-active',
+        description='Remove the Inactive role from yourself or an allowed member.',
+    )
+    @discord.app_commands.describe(
+        member='Member to mark active; omit to target yourself.',
+    )
+    async def league_mark_active_slash(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None or not league_user_commands.league_scope(guild.id):
+            return await interaction.response.send_message(
+                'This command is available only in the configured league server.',
+                ephemeral=True,
+            )
+        target = member or interaction.user
+        if not league_user_commands.can_target_mark_active(
+            interaction.user, target
+        ):
+            return await interaction.response.send_message(
+                'You must be a House Leader, Co-Leader, or Mod to use this '
+                'on another player.',
+                ephemeral=True,
+            )
+        role = league_user_commands.inactive_role(guild)
+        if role is None:
+            logger.warning('Could not load configured Inactive role in guild %s', guild.id)
+            return await interaction.response.send_message(
+                'Error loading the configured Inactive role.', ephemeral=True
+            )
+        if role not in target.roles:
+            return await interaction.response.send_message(
+                f'{target.mention} does not have the *{role.name}* role.',
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await target.remove_roles(
+                role,
+                reason=f'Marked active by {interaction.user} ({interaction.user.id})',
+            )
+        except discord.DiscordException:
+            logger.exception('Discord role failure in /league mark-active')
+            return await interaction.followup.send(
+                'The Inactive role could not be removed.', ephemeral=True
+            )
+        try:
+            await league_user_commands.public_sender(interaction)(
+                league_user_commands.mark_active_success(
+                    actor=interaction.user,
+                    target=target,
+                    role_name=role.name,
+                    native=True,
+                ),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception:
+            logger.exception(
+                'Committed /league mark-active role change could not publish'
+            )
+            await interaction.followup.send(
+                'The Inactive role was removed, but the public confirmation '
+                'could not be posted. Do not retry; staff may need to '
+                'reconcile the announcement.',
+                ephemeral=True,
+            )
+
+    @league_group.command(
+        name='join-novas',
+        description='Join the PolyChampions starter group.',
+    )
+    async def league_join_novas_slash(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if guild is None or not league_user_commands.league_scope(guild.id):
+            return await interaction.response.send_message(
+                'This command is available only in the configured league server.',
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            eligibility = await league_user_commands.run_join_check(
+                interaction.user, guild
+            )
+            if not eligibility.registered:
+                return await interaction.followup.send(
+                    'You are not registered with the bot. Use `/player register` '
+                    'first.',
+                    ephemeral=True,
+                )
+            if eligibility.team_roles_truncated:
+                return await interaction.followup.send(
+                    'The configured team list is too large to validate safely. '
+                    'Ask staff to review the league configuration.',
+                    ephemeral=True,
+                )
+            team = league_user_commands.matching_team(
+                eligibility, interaction.user
+            )
+            if team is not None:
+                return await interaction.followup.send(
+                    f'You are already a member of team *{team.name}* '
+                    f'{team.emoji}. Server staff is required to remove you '
+                    'from a team.',
+                    ephemeral=True,
+                )
+            novas_role = discord.utils.get(
+                guild.roles, name=league_user_commands.NOVAS_ROLE_NAME
+            )
+            if novas_role is None:
+                logger.warning('Could not load The Novas role in guild %s', guild.id)
+                return await interaction.followup.send(
+                    'Error finding the **The Novas** role.', ephemeral=True
+                )
+            newbie_role = discord.utils.get(
+                guild.roles, name=league_user_commands.NEWBIE_ROLE_NAME
+            )
+            await interaction.user.add_roles(
+                novas_role,
+                reason=f'Joined via /league join-novas by {interaction.user.id}',
+            )
+            warning = None
+            if newbie_role is not None and newbie_role in interaction.user.roles:
+                try:
+                    await interaction.user.remove_roles(
+                        newbie_role,
+                        reason='Joining Novas',
+                    )
+                except discord.DiscordException:
+                    logger.exception(
+                        'Joined Novas but could not remove Newbie from member %s',
+                        interaction.user.id,
+                    )
+                    warning = (
+                        '\nThe Novas role was added, but the Newbie role could '
+                        'not be removed; staff may need to reconcile it.'
+                    )
+        except league_user_workers.LeagueUserError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /league join-novas')
+            return await interaction.followup.send(
+                'Your league eligibility could not be checked.', ephemeral=True
+            )
+        except discord.DiscordException:
+            logger.exception('Discord role failure in /league join-novas')
+            return await interaction.followup.send(
+                'The Novas role could not be added.', ephemeral=True
+            )
+        except Exception:
+            logger.exception('Unexpected failure in /league join-novas')
+            return await interaction.followup.send(
+                'The Novas join could not be completed.', ephemeral=True
+            )
+        try:
+            await league_user_commands.public_sender(interaction)(
+                league_user_commands.join_success(
+                    member=interaction.user,
+                    native=True,
+                ) + (warning or ''),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception:
+            logger.exception(
+                'Committed /league join-novas role change could not publish'
+            )
+            await interaction.followup.send(
+                'The Novas role was added, but the public confirmation could '
+                'not be posted. Do not retry; staff may need to reconcile the '
+                'announcement.',
+                ephemeral=True,
+            )
+
     @commands.command()
     @settings.on_polychampions()
     async def imalive(self, ctx, *, member: discord.Member = None):
         """Remove your own Inactive role. Leaders/Co-Leaders/Mods can target another player."""
         target = member or ctx.author
-        if target != ctx.author and not utilities.get_matching_roles(
-            ctx.author,
-            [leader_role_name, coleader_role_name, mod_role_name]
-        ):
+        if not league_user_commands.can_target_mark_active(ctx.author, target):
             return await ctx.send('You must be a House Leader, Co-Leader, or Mod to use this on another player.')
 
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        inactive_role = league_user_commands.inactive_role(ctx.guild)
         if not inactive_role:
             logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
             return await ctx.send('Error loading Inactive role.')
@@ -722,7 +887,12 @@ class league(commands.Cog):
 
         await target.remove_roles(inactive_role, reason=f'Removed via imalive by {ctx.author.name}')
         await ctx.send(
-            f'Removed *{inactive_role.name}* from {target.mention}.',
+            league_user_commands.mark_active_success(
+                actor=ctx.author,
+                target=target,
+                role_name=inactive_role.name,
+                native=False,
+            ),
             allowed_mentions=discord.AllowedMentions.none()
         )
 
@@ -1320,25 +1490,47 @@ class league(commands.Cog):
         """ Join yourself to the Novas team
         """
 
-        player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-        if not player:
+        try:
+            eligibility = await league_user_commands.run_join_check(
+                ctx.author, ctx.guild
+            )
+        except (league_user_workers.LeagueUserError, peewee.PeeweeException):
+            logger.exception('Eligibility failure in prefix novas command')
+            return await ctx.send('Your league eligibility could not be checked.')
+        if not eligibility.registered:
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'*{ctx.author.name}* was found in the server but is not registered with me. '
                 f'Players can register themselves with `{ctx.prefix}setname Your Mobile Name`.')
 
-        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
-        if on_team:
+        if eligibility.team_roles_truncated:
+            return await ctx.send(
+                'The configured team list is too large to validate safely. '
+                'Ask staff to review the league configuration.'
+            )
+
+        player_team = league_user_commands.matching_team(eligibility, ctx.author)
+        if player_team is not None:
             return await ctx.send(f'You are already a member of team *{player_team.name}* {player_team.emoji}. Server staff is required to remove you from a team.')
 
-        novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
+        novas_role = discord.utils.get(
+            ctx.guild.roles, name=league_user_commands.NOVAS_ROLE_NAME
+        )
+        newbie_role = discord.utils.get(
+            ctx.guild.roles, name=league_user_commands.NEWBIE_ROLE_NAME
+        )
 
         if not novas_role:
             return await ctx.send('Error finding Novas role. Searched *The Novas*.')
 
 
         await ctx.author.add_roles(novas_role, reason='Joining Novas')
-        await ctx.send(f'Congrats, you are now a member of the **The Novas**! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
+        await ctx.send(
+            league_user_commands.join_success(
+                member=ctx.author,
+                native=False,
+                prefix=ctx.prefix,
+            )
+        )
 
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')

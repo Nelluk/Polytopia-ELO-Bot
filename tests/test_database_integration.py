@@ -796,6 +796,63 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         finally:
             cleanup((target_id, rollback_target_id))
 
+    def test_league_join_worker_uses_real_schema_and_exact_cleanup(self):
+        """Exercise P8.11's legacy-compatible Player upsert boundary."""
+
+        from modules import league_user_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex[:12]
+        discord_id = 8_910_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        member = None
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'P811 {suffix}',
+            )
+            self.assertEqual(
+                self.models.Player.select().where(
+                    (self.models.Player.discord_member == member)
+                    & (self.models.Player.guild_id == guild_id)
+                ).count(),
+                0,
+            )
+            result = asyncio.run(
+                league_user_workers.run_join_eligibility(
+                    league_user_workers.LeagueJoinRequest(
+                        guild_id=guild_id,
+                        requester_id=discord_id,
+                        requester_name=f'P811 {suffix}',
+                        requester_nick='',
+                        league_scope=True,
+                    )
+                )
+            )
+            self.assertTrue(result.registered)
+            self.assertTrue(result.local_player_created)
+            self.assertEqual(result.guild_id, guild_id)
+            self.assertEqual(
+                self.models.Player.select().where(
+                    (self.models.Player.discord_member == member)
+                    & (self.models.Player.guild_id == guild_id)
+                ).count(),
+                1,
+            )
+            self.assertIsInstance(result.team_roles, tuple)
+        finally:
+            with self.models.db.atomic():
+                if member is None:
+                    member = self.models.DiscordMember.get_or_none(
+                        self.models.DiscordMember.discord_id == discord_id
+                    )
+                if member is not None:
+                    self.models.Player.delete().where(
+                        self.models.Player.discord_member == member
+                    ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.discord_id == discord_id
+                ).execute()
+
     def test_team_creation_worker_commits_and_rolls_back_real_graph(self):
         """Exercise the new Team+GameLog graph under the unchanged gate."""
 
