@@ -483,10 +483,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.18 `/league maintenance mark-inactive` is integrated,
-development-guild deployed, and awaiting Mod beta acceptance. P8.19 remains
-blocked on its `on_member_remove` worker prerequisite and destructive-policy
-approval. P8.17 staff beta acceptance also remains pending.**
+Current active unit: **The P8.19 `on_member_remove` worker prerequisite is
+Implemented and real-schema validated on `codex/p8-19-member-remove-worker`
+from exact accumulation checkpoint `dc494ad`; integration is pending. This
+unit does not implement guild-member kicks or approve the pending P8.19
+destructive policy. P8.18 and P8.17 staff beta acceptance remain pending.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8148,7 +8149,8 @@ Deployment result:
 
 ### P8.19 — Remove inactive members from the guild
 
-Status: **Investigated; blocked on listener hardening and policy approval**
+Status: **Listener-worker prerequisite Implemented and validated; kick
+workflow still blocked on policy approval**
 
 Legacy `$kick_inactive` is also Mod-only and league-guild-only, ignores its
 declared free-form argument, and immediately kicks members with the Inactive
@@ -8196,6 +8198,36 @@ Recommended prerequisites and contract:
    transaction spanning Discord awaits.
 7. Publish only the attributed aggregate result; keep member-level failure
    and reconciliation details private to the requester.
+
+Listener-worker prerequisite result:
+
+- `on_member_remove` now freezes only the guild ID, member ID, and escaped
+  member description before submitting one bounded worker job. No live
+  Discord or Peewee object crosses the boundary.
+- The worker owns its Peewee connection and one synchronous transaction for
+  exact guild Player lookup, pending/incomplete lineup reads, one audit per
+  pending game, and exact pending-lineup deletion. A changed delete count is
+  a conflict and rolls the graph back.
+- An unregistered departure remains a no-op. Incomplete lineups remain in the
+  database; the existing PolyChampions staff warning is resolved and sent on
+  the event loop only after a successful worker commit. Database failure
+  produces no Discord effect, and a post-commit Discord failure cannot retry
+  or reinterpret the committed cleanup.
+- Focused member-removal coverage passed **9 tests**. Affected
+  member-removal/inactivity/taxonomy coverage passed **31 tests**. Complete
+  offline discovery passed **1,138 tests with 41 intentional gated skips**.
+- After stopping only the guarded development beta and obtaining a clear
+  host-wide writer audit, the unchanged development gate confirmed
+  `development`, `polytopia_dev`, `polybot_dev`, and disabled background/API
+  services. It ran **40 tests: 39 passed and one operator-fixture round trip
+  skipped intentionally**.
+- The new real-schema test injected an audit failure and proved both pending
+  and incomplete lineups remained. Its successful retry deleted only the
+  pending lineup, retained the incomplete lineup, wrote the exact game audit,
+  closed the worker connection, and cleaned every owned fixture row.
+- Implementation/tests checkpoint: `e73b0bf`. No compatibility-ledger entry
+  is needed because no slash or prefix command interface changed;
+  `$kick_inactive` remains untouched.
 
 No automatic/scheduled purge is proposed. P8.19 should begin only after
 P8.18 beta acceptance and explicit approval of the role policy and preserved
@@ -9698,6 +9730,27 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.19 member-departure prerequisite implemented and validated
+
+- Extracted the synchronous `on_member_remove` database graph into a bounded
+  worker-local transaction while preserving pending cleanup, per-game audit,
+  and incomplete-game staff-warning semantics.
+- Added conflict detection, cancellation draining, immutable primitive DTOs,
+  event-loop responsiveness coverage, and commit-before-Discord-effect tests.
+- Passed **9** focused member-removal tests, **31** affected tests, and the
+  complete offline suite with **1,138 passed and 41 intentional skips**.
+- Stopped only `polybot-development-beta@main.service`; it became inactive and
+  the host-wide audit found no `bot.py --skip_tasks` writer.
+- Passed the full development database gate with **39 passes and one
+  intentional operator-fixture skip**, including audit-failure rollback and
+  pending-only deletion on a worker-owned real connection.
+- Recorded implementation checkpoint `e73b0bf`. Integration/restart remains
+  pending; no command tree changed, so no command apply or tester-facing
+  announcement is required for this backend-only prerequisite.
+- The destructive `/league maintenance kick-inactive` contract remains a
+  separate decision/implementation unit; this prerequisite does not approve
+  or alter it.
 
 ### 2026-08-09 — P8.18 inactivity marking implemented and validated
 
