@@ -484,9 +484,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.19b Nova graduation is locally validated on
-`codex/p5-19b-nova-graduation` from exact deployed accumulation checkpoint
-`26b26af` and is pending integration. P5.19a started-game channel creation is complete, integrated,
+Current active unit: **No code unit is active. P5.19b Nova graduation is
+complete, integrated, pushed, and loaded by the guarded beta at `c8e8ecc`.
+P5.19c final started-card and announcement migration is next. P5.19a
+started-game channel creation is complete, integrated,
 pushed, and loaded by the guarded beta at `389acf7`. P5.19-A/B/C/D are
 accepted. P5.18 post-kick game-card presentation is complete, integrated,
 pushed, and loaded by the guarded beta at `e79ab1c`. P5.18-A/B/C/D are accepted.
@@ -5920,7 +5921,7 @@ units, all under this accepted audit:
 - preserve the current PolyChampions/test-guild scope, role names, threshold,
   broad behavior, and absence of a new command or schema.
 
-Implemented and locally validated on `codex/p5-19b-nova-graduation` from exact
+Implemented and validated on `codex/p5-19b-nova-graduation` from exact
 clean deployed accumulation checkpoint `26b26af`; implementation/tests
 checkpoint `caebf39`. The shared start publisher now supplies committed
 primitive participant IDs, so a classic-card reload failure cannot suppress
@@ -5938,7 +5939,11 @@ the test attempted to delete a winning side before clearing `Game.winner`.
 The cleanup was corrected, exactly two uniquely marked games and their one
 temporary player/member were removed, and both the targeted rerun and complete
 gate passed. No fixture residue, schema, command registration, capability, or
-production change remains. P5.19c remains separate and next.
+production change remains. The accumulation branch was fast-forwarded through
+`c8e8ecc`, pushed, and loaded by the guarded beta as the expected beta
+application with zero automatic restarts. No command apply/sync or tester
+announcement was needed because this unit changes no command schema or visible
+workflow. P5.19c remains separate and next.
 
 #### P5.19c — Final started-card and announcement publisher
 
@@ -11828,10 +11833,14 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   `polytopia_dev` / `polybot_dev` suite passed **54 tests with one intentional
   operator-fixture skip**. Exactly marked residue from the failed cleanup was
   removed before rerun.
-- Recorded implementation/tests checkpoint `caebf39`. Integration, push, and
-  guarded restart remain pending at this evidence checkpoint. No slash apply,
-  tester announcement, schema, dependency, production, or sudo action is
-  required. Next code unit is P5.19c final started-card/announcement migration.
+- Recorded implementation/tests checkpoint `caebf39` and evidence checkpoint
+  `c8e8ecc`. The accumulation branch was fast-forwarded and pushed through
+  `c8e8ecc`; only the guarded beta was restarted. Its clear-writer preflight,
+  expected beta identity `479029527553638401`, PID `3260760`, `--skip_tasks`
+  startup, and zero automatic restarts were verified. No slash apply/sync or
+  tester announcement was needed because the command schema and visible
+  workflow are unchanged. No schema, dependency, production, or sudo action
+  occurred. Next code unit is P5.19c final started-card/announcement migration.
 
 ### 2026-08-09 — P5.19a started-channel lifecycle validated
 
