@@ -4820,6 +4820,125 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertGreater(reminder.creator_discord_id, 0)
         self.assertEqual(after_logs, before_logs)
 
+    def test_configured_lobby_worker_commits_and_rolls_back_real_graph(self):
+        """Exercise P5.12 idempotency and atomic rollback on PostgreSQL."""
+
+        from modules import game_lobby_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        marker = f'P5.12 vacant lobby {suffix}'
+        rollback_marker = f'P5.12 rollback {suffix}'
+        created_game_ids = set()
+
+        def request(notes):
+            return game_lobby_workers.EnsureLobbyRequest(
+                guild_id=guild_id,
+                size=(1, 1),
+                size_display='1v1',
+                is_ranked=False,
+                remake_partial=False,
+                notes=notes,
+                notes_log_display=f'*{notes}*',
+                expiration_at=(
+                    datetime.datetime.now() + datetime.timedelta(hours=30)
+                ),
+                role_locks=(
+                    game_lobby_workers.LobbySideLock(None, None),
+                    game_lobby_workers.LobbySideLock(None, None),
+                ),
+            )
+
+        try:
+            result = asyncio.run(
+                game_lobby_workers.run_ensure_configured_lobby(request(marker))
+            )
+            created_game_ids.add(result.game_id)
+            self.assertEqual(result.status, game_lobby_workers.CREATED)
+            self.models.db.connect(reuse_if_open=True)
+            game = self.models.Game.get_by_id(result.game_id)
+            self.assertIsNone(game.host)
+            self.assertTrue(game.is_pending)
+            self.assertFalse(game.is_ranked)
+            self.assertEqual(game.size, [1, 1])
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == game
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            second = asyncio.run(
+                game_lobby_workers.run_ensure_configured_lobby(request(marker))
+            )
+            self.assertEqual(second.status, game_lobby_workers.EXISTING)
+            self.assertEqual(second.game_id, result.game_id)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.notes == marker
+                ).count(),
+                1,
+            )
+
+            original_create = self.models.GameSide.create
+            side_calls = 0
+
+            def fail_second_side(**kwargs):
+                nonlocal side_calls
+                side_calls += 1
+                if side_calls == 2:
+                    raise RuntimeError('P5.12 side failure')
+                return original_create(**kwargs)
+
+            with mock.patch.object(
+                self.models.GameSide,
+                'create',
+                side_effect=fail_second_side,
+            ), self.assertRaisesRegex(RuntimeError, 'P5.12 side failure'):
+                asyncio.run(
+                    game_lobby_workers.run_ensure_configured_lobby(
+                        request(rollback_marker)
+                    )
+                )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.notes == rollback_marker
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(rollback_marker)
+                ).count(),
+                0,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(created_game_ids):
+                game = self.models.Game.get_or_none(
+                    self.models.Game.id == game_id
+                )
+                if game is not None:
+                    game.delete_game()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+                | self.models.GameLog.message.contains(rollback_marker)
+            ).execute()
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 

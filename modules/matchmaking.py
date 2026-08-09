@@ -16,6 +16,7 @@ from modules import game_start, game_start_workers
 from modules import game_reaction_workers
 from modules import game_expiration
 from modules import game_reminders
+from modules import game_lobbies
 import peewee
 import re
 import datetime
@@ -1655,52 +1656,14 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(60)
             logger.debug('Task running: task_create_empty_matchmaking_lobbies')
-            utilities.connect()
-            unhosted_game_list = models.Game.search_pending(status_filter=2, host_discord_id=0)
-            for lobby in settings.lobbies:
-                matching_lobby = False
-                for g in unhosted_game_list:
-                    if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
-                            g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
-                        # TODO: could be improved by comparing g.size to lobby['size'] now that Game.size is a field
-
-                        players_in_lobby = g.capacity()[0]
-                        # if remake_partial == True, lobby will be regenerated if anybody is in it.
-                        # if remake_partial == False, lobby will only be regenerated once it is full
-
-                        if lobby['remake_partial'] and players_in_lobby > 0:
-                            pass  # Leave matching_lobby as current value. So it will be remade if no other open games change it
-                        else:
-                            matching_lobby = True  # Lobby meets desired criteria, so nothing new will be created
-
-                if not matching_lobby:
-                    logger.info(f'creating new lobby {lobby}')
-                    guild = self.bot.get_guild(lobby['guild'])
-                    if not guild:
-                        logger.warning(f'Bot not a member of guild {lobby["guild"]}')
-                        continue
-                    expiration_hours = lobby.get('exp', 30)
-                    expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
-                    role_locks = lobby.get('role_locks', [None] * len(lobby['size']))
-                    with models.db.atomic():
-                        opengame = models.Game.create(host=None, notes=lobby['notes'],
-                                                      guild_id=lobby['guild'], is_pending=True,
-                                                      is_ranked=lobby['ranked'], expiration=expiration_timestamp, size=lobby['size'])
-                        notes_str = f'*{discord.utils.escape_markdown(opengame.notes)}*' if opengame.notes else ''
-                        models.GameLog.write(game_id=opengame, guild_id=guild.id, message=f'I created an {"unranked" if not lobby["ranked"] else ""} empty {lobby["size_str"]} lobby. {notes_str}')
-                        for count, size in enumerate(lobby['size']):
-                            role_lock_id = role_locks[count]
-                            role_lock_name = None
-                            if role_lock_id:
-                                role_lock = guild.get_role(role_lock_id)
-                                if not role_lock:
-                                    logger.warning(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
-                                    role_lock_id = None
-                                else:
-                                    # successfully found role - using its ID to lock a side and its name for the role side
-                                    role_lock_name = role_lock.name
-
-                            models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=role_lock_id, sidename=role_lock_name)
+            try:
+                await game_lobbies.ensure_configured_lobbies(
+                    bot=self.bot,
+                    lobbies=settings.lobbies,
+                    as_of=datetime.datetime.now(),
+                )
+            except Exception:
+                logger.exception('Configured vacant lobby cycle failed.')
 
     async def task_print_matchlist(self):
         await self.bot.wait_until_ready()
