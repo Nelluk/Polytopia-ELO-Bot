@@ -478,11 +478,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.11 small league user commands are Implemented on
+Current active unit: **P8.11 small league user commands are Implemented and
+development-database validated on
 `codex/p8-11-league-user-commands` under the temporary Sol omni workflow.
 `/league guide`, `/league mark-active`, and `/league join-novas` are locally
-green; stopped-beta real-schema validation, accumulation integration,
-guild-only apply, restart, and wider-beta publication remain.**
+green; accumulation integration, guild-only apply, restart, and wider-beta
+publication remain.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7404,8 +7405,8 @@ is retained as a day-to-day convenience before implementation.
 
 ### P8.11 — Small league user commands
 
-Status: **Implemented locally; stopped-beta database gate and deployment
-pending**
+Status: **Implemented and development-database validated; integration and
+deployment pending**
 
 Branch/base: `codex/p8-11-league-user-commands` from exact clean accumulation
 checkpoint `1e87233`.
@@ -7455,13 +7456,14 @@ Validation evidence:
 - touched-file compilation and `git diff --check`: passed;
 - a real-schema test is present behind the unchanged
   `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate. It proves
-  the worker-local legacy-compatible Player creation and exact cleanup, but
-  has not yet run while the durable beta is active.
+  the worker-local legacy-compatible Player creation and exact cleanup;
+- after stopping only the durable development beta, the complete gated suite
+  passed **32 tests with one intentional retained-fixture skip**. The P8.11
+  test passed and left no temporary Player or DiscordMember rows.
 
-Next action: checkpoint implementation/evidence, stop only the durable
-development beta, run the unchanged gated PostgreSQL suite, integrate the
-unit into the accumulation branch, inspect/apply the guild-only command-tree
-delta, restart, and add the three commands to wider-beta testing.
+Next action: checkpoint the database evidence, integrate the unit into the
+accumulation branch, inspect/apply the guild-only command-tree delta, restart,
+and add the three commands to wider-beta testing.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8944,9 +8946,12 @@ component refinements that do not require command re-registration.
 - Added a gated real-schema legacy-compatible Player-upsert/cleanup test.
 - Validation passed 38 focused tests and complete offline discovery at 1,029
   tests with 33 intentional gated skips; compilation and diff checks passed.
-- No PostgreSQL, Discord command apply, beta lifecycle, production, dependency,
-  or sudo action occurred. Stopped-beta validation and deployment remain the
-  next gate.
+- Stopped only the durable development beta and ran the unchanged
+  development/`polytopia_dev`/`polybot_dev` suite: 32 passed with one
+  intentional retained-fixture skip. The new real-schema case passed and
+  cleaned up exactly.
+- No Discord command apply, production, dependency, or sudo action occurred.
+  Integration and deployment remain the next gate.
 
 ### 2026-08-08 — P8.10 league-token workspace integrated and deployed
 

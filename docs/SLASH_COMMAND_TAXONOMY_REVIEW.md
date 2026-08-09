@@ -1148,8 +1148,9 @@ then applies Discord roles and publishes only after the role change.
 compact onboarding/day-to-day conveniences and share the same service logic.
 No Components surface or compatibility-ledger gap is introduced. Local
 validation passed 38 focused tests and complete offline discovery at 1,029
-tests with 33 intentional database skips; stopped-beta real-schema validation
-and guild-only deployment remain pending.
+tests with 33 intentional database skips. The stopped-beta development suite
+then passed 32 tests with one retained-fixture skip, including exact P8.11
+Player-upsert cleanup; guild-only deployment remains pending.
 
 ### Legacy modules outside the modernization target
 
