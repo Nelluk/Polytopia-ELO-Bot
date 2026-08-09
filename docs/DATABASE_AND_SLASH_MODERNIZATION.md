@@ -484,8 +484,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.16 external-broadcast creation is implemented and
-validated; accumulation integration and guarded-beta restart are pending.**
+Current active unit: **No code unit is active. P5.16 external-broadcast
+creation is complete, integrated, pushed, and loaded by the guarded
+development beta at `25ab89a`.**
 P5.16-A/B/C/D are accepted. Prefix-only role-lock broadcasts now use immutable
 worker-owned planning and persistence, deterministic House routing and
 destination deduplication, pending-state revalidation, per-target isolation,
@@ -5297,7 +5298,7 @@ Discord, beta, task-configuration, schema, dependency, or production change.
 
 ### P5.16 — External-broadcast creation lifecycle audit
 
-Status: **Implemented and validated; integration/deployment pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The external broadcast is a rare legacy extension of prefix role-locked open
 games. Native `/game open` cannot create role locks and does not provide the
@@ -5451,14 +5452,31 @@ Validation evidence:
   intentional operator-fixture preservation skip;
 - implementation/tests checkpoint: `d0a57e6`.
 
-No application-command synchronization or tester announcement is useful:
+No application-command synchronization or tester announcement was useful:
 P5.16 changes no command definition and only hardens the rare retained prefix
 role-lock broadcast lifecycle.
 
-Next action: commit this evidence, fast-forward the validated implementation
-into the accumulation branch, push, and restart only the guarded development
-beta without command synchronization. The next bounded unit is the immutable
-post-commit game-card reload used by reaction success paths.
+Integration/deployment evidence:
+
+- fast-forwarded implementation `d0a57e6` and evidence `25ab89a` into
+  `codex/database-slash-modernization`, then pushed that exact checkpoint to
+  the approved GitHub origin;
+- started only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and PID `3235100` runs from the clean accumulation
+  checkout at `25ab89a`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup with `--skip_tasks`, and passed protected local
+  release-control status;
+- made no application-command plan/apply/sync because no command definition
+  or capability changed;
+- selected the explicit no-announcement route because this rare prefix-only
+  lifecycle correction adds no broad-tester action.
+
+Next action: P5.17 should audit and modernize the immutable post-commit
+game-card reload used by reaction success paths. Preserve reaction join/leave
+semantics and public cards while moving the remaining synchronous reload off
+the event loop; first identify whether the reload should share the existing
+game-detail read service or remain a smaller reaction-specific snapshot.
 
 ## P6 — Registration and player preferences
 
@@ -11278,6 +11296,10 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   push, and guarded-beta restart remained pending at this evidence checkpoint.
 - Made no command, capability, schema, fixture, task, dependency, announcement,
   or production change.
+- Subsequently integrated and pushed exact checkpoint `25ab89a`, restarted
+  only the guarded beta, and verified its clear writer preflight, PID
+  `3235100`, expected beta identity, `--skip_tasks` startup, and protected
+  release-control status. No command apply or tester announcement was needed.
 
 ### 2026-08-09 — P5.16 external-broadcast creation lifecycle audited
 
