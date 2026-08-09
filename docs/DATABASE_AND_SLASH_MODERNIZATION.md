@@ -484,9 +484,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.11 ranked full-game reminder snapshots are
-Implemented and validated on `codex/p5-11-reminder-snapshot` at `be25914`,
-pending accumulation integration and guarded-beta restart. The retained task
+Current active unit: **No code unit is active. P5.11 ranked full-game reminder
+snapshots are complete, integrated, pushed, and loaded by the guarded
+development beta at `a1afd93`. The retained task
 now delegates bounded deterministic discovery and immutable game-card
 snapshotting to a worker-local Peewee read, while guild/member resolution,
 dense rendering, and independent DMs remain post-read. Existing ranked/full,
@@ -4653,18 +4653,14 @@ This unit does not authorize enabling background tasks in development,
 changing expiration/grace rules, adding a public command, migrating schema,
 or altering production.
 
-Next action: P5.11 can modernize the ranked full-game reminder task as a
-bounded read/presentation unit: freeze due reminder DTOs on worker-local
-connections, keep Discord member/channel resolution and DMs post-read, update
-surviving native guidance, and preserve the existing twelve-hour suppression
-rule. The automatic vacant-lobby creator is the next ready writer alternative.
-The older incomplete-game purge requires a separate policy audit before its
+The recommended P5.11 reminder action was subsequently completed as recorded
+below. The automatic vacant-lobby creator is the next ready writer unit. The
+older incomplete-game purge requires a separate policy audit before its
 destructive thresholds/effects are changed.
 
 ### P5.11 — Ranked full-game reminder snapshots
 
-Status: **Implemented and validated; accumulation integration and guarded-beta
-restart pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The retained twelve-hour reminder loop previously selected full ranked pending
 games, traversed related Peewee models, searched recent join logs, built the
@@ -4707,6 +4703,24 @@ Validation evidence:
   real pending-game query and frozen snapshots while proving the GameLog count
   was unchanged;
 - implementation/tests checkpoint: `be25914`.
+
+Integration/deployment evidence:
+
+- committed roadmap evidence as `a1afd93`, fast-forwarded the clean unit branch
+  into `codex/database-slash-modernization`, and pushed that exact checkpoint
+  to the approved GitHub origin;
+- restarted only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and the sole writer is PID `3151985`, running from the
+  clean accumulation checkout at exact checkpoint `a1afd93`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup, and answered the protected local release-control
+  status operation;
+- made no application-command plan/apply/sync because P5.11 changes no command
+  definition or capability;
+- selected the explicit no-announcement route because the development profile
+  keeps background tasks disabled, so no reminder is sent and there is no
+  useful tester action. The roadmap/operator owns acceptance through the
+  offline and read-only real-schema evidence above.
 
 No command registration, slash option, prefix command, permission, schema,
 fixture, transaction writer, capability, background-task configuration, or
@@ -10531,9 +10545,15 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Passed the targeted read-only real-schema case under the unchanged
   development safety gate and proved the worker made no GameLog writes.
 - Recorded implementation/tests checkpoint `be25914`; accumulation integration,
-  push, and guarded-beta restart remained pending at this evidence checkpoint.
+  push, and guarded-beta restart remained pending at that evidence checkpoint.
 - Made no schema, command, capability, fixture, writer, background-task
   configuration, Discord sync, announcement, or production change.
+- Subsequently committed roadmap evidence as `a1afd93`, fast-forwarded and
+  pushed the accumulation branch, and restarted only the guarded beta. The
+  writer audit was clear, PID `3151985` authenticated as the expected beta
+  application, and the protected release-control status operation succeeded.
+- Made no command sync or tester announcement because this disabled
+  background path exposes no tester-facing action in development.
 
 ### 2026-08-09 — P5.10 expired purge worker validated
 
