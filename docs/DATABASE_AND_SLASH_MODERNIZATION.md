@@ -7643,7 +7643,7 @@ taxonomized `/league roster promote|trade` presentation unit.
 
 ### P8.13b — Free Agent reaction lifecycle workers
 
-Status: **Implemented locally; final validation and deployment pending**
+Status: **Validated locally; integration and deployment pending**
 
 Branch/base: `codex/p8-13b-free-agent-reactions` from exact clean accumulation
 checkpoint `41ca7ed11618e7743f6fc1c0321d38f20ea46725`.
@@ -7693,11 +7693,15 @@ Local validation evidence:
   repository's known intermittent `game_tribe` responsiveness timeout. That
   unchanged test passed immediately in isolation, and a fresh complete run
   then passed all **1,074** tests;
-- the stopped-beta real-schema extension is recorded after its deployment
-  gate completes.
+- after stopping only the guarded beta and confirming no development writer
+  remained, the unchanged gated database suite passed **33 tests with one
+  intentional retained-fixture skip**. The extended Free Agent case verified
+  toggle, leave-audit, closed-join rejection, forced rollback, conclusion
+  reset without Configuration-row deletion, and exact temporary cleanup.
 
-Next action: commit implementation and evidence separately, then use the
-established stopped-beta database and development-only deployment sequence.
+Next action: integrate the reviewed checkpoints into the accumulation branch,
+push, restart the guarded beta without command synchronization, and publish a
+targeted reaction-lifecycle test request.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9182,8 +9186,9 @@ component refinements that do not require command re-registration.
   complete retry hit the known unrelated `game_tribe` timing test; it passed
   immediately in isolation and the next complete run was green.
 - The beta remained running during implementation. The extended real-schema
-  commit/rollback/cleanup case remains behind the established stopped-writer
-  deployment gate.
+  commit/rollback/cleanup case then passed in the stopped-writer gate as part
+  of **33 passing tests with one retained-fixture skip**. It left no temporary
+  Configuration or GameLog rows.
 
 ### 2026-08-08 — P8.13 Free Agent composer validated locally
 
