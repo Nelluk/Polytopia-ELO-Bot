@@ -1176,6 +1176,12 @@ part of 33 tests with one retained-fixture skip; the beta guild currently has
 no ordinary league-season rows, so live acceptance of nonhistorical records
 and paging remains fixture/data-limited.
 
+Implementation `dc0877d`, evidence `b8ae88c`, and database checkpoint
+`24ebdf5` are integrated. The development-guild apply updated only the
+existing `league` root; the durable beta is running that code checkpoint and
+tester-pinged release `2026-08-08-league-season` is live. Wider-beta
+acceptance remains pending.
+
 ### Legacy modules outside the modernization target
 
 | Module / current behavior | Native home | Disposition / note |

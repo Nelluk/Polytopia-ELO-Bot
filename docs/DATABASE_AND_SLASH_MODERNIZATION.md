@@ -478,9 +478,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.12 `/league season` is in progress under the
-temporary Sol omni workflow. P8.11 remains integrated/deployed and owned by
-the wider tester pool.**
+Current active unit: **P8.12 `/league season` is integrated and deployed under
+the temporary Sol omni workflow and is now owned by the wider tester pool.
+P8.13 `/league free-agents post` is the next candidate, but it requires an
+explicit lifecycle design for Discord announcement/reaction state before
+implementation.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7483,8 +7485,7 @@ supersedes its compact optional-season usage.
 
 ### P8.12 — League season records
 
-Status: **Database-validated; integration, guild-only apply, and wider-beta
-deployment pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-12-league-season` from exact clean accumulation
 checkpoint `9e62fdc`.
@@ -7536,10 +7537,29 @@ Validation evidence:
 No compatibility-ledger entry is required because the full prefix command and
 aliases remain available through the shared worker path.
 
-Next action: perform the approved stopped-beta development database gate,
-integrate the implementation/evidence checkpoints into the accumulation
-branch, update only the development guild's existing `/league` root, restart
-the durable beta, and publish the P8.12 **WHAT TO TEST** request.
+Integration/deployment evidence:
+
+- implementation `dc0877d`, roadmap/checklist `b8ae88c`, and stopped-beta
+  database evidence `24ebdf5` were fast-forwarded into and pushed on
+  `codex/database-slash-modernization`;
+- remote inspection planned exactly one root update (`league`), with the
+  other nine roots unchanged and no create/removal/global operation. The
+  guild-only apply completed and post-inspection showed all ten roots
+  unchanged;
+- the durable beta restarted at full code checkpoint
+  `24ebdf563d345c5241ea10c5b04d3ac8a0f2bf5b` and authenticated as PolyELO Bot
+  Beta `479029527553638401` with background/API tasks disabled;
+- tester-pinged release `2026-08-08-league-season` posted once to
+  `todo-and-changelog` as message `1535836670207725628`. The announcement
+  explicitly records the current absence of ordinary beta-guild season data,
+  so empty/historical behavior is testable now while record/paging acceptance
+  remains open.
+
+Next action: collect wider-beta P8.12 evidence while designing P8.13
+`/league free-agents post`. Before implementation, define its authoritative
+announcement/config transaction boundary, replacement/duplicate behavior,
+reaction seeding, target-channel selection, and whether `$newfreeagent`
+remains a crucial operational fallback.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -9006,6 +9026,22 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.12 integrated and deployed
+
+- Fast-forwarded and pushed P8.12 through `24ebdf5` after the complete
+  stopped-beta database gate passed.
+- Remote command inspection showed one `league` update, nine unchanged roots,
+  and no create/removal/global operation. Guild-only apply and post-inspection
+  completed with all ten roots matching.
+- Restarted the durable beta at full code checkpoint `24ebdf5`; it
+  authenticated as the expected beta application with background/API tasks
+  disabled.
+- Delivered tester-pinged release `2026-08-08-league-season` once as message
+  `1535836670207725628`, accurately noting that ordinary season records and
+  paging remain data-limited in the current beta guild.
+- No production checkout/service/database, global command sync, dependency,
+  or sudo action occurred. Wider-beta acceptance now owns P8.12.
 
 ### 2026-08-08 — P8.12 league season records implemented
 
