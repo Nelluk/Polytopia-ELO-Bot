@@ -484,12 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.20 member-join
-reconciliation is integrated, pushed, and running on the guarded development
-beta at `de1dcf7`. It preserves rejoin Player upsert, existing game-channel
-permission restoration, and missing side-channel recreation while moving all
-Peewee work into bounded worker-owned transactions. No command tree changed
-and no command synchronization or tester announcement was needed.**
+Current active unit: **P8.21 deleted-channel reference reconciliation is
+Implemented and locally green on `codex/p8-21-channel-delete-reconciliation`
+from exact clean accumulation checkpoint `faceda4`; implementation/tests are
+checkpointed as `1d0cbff`. The two direct Peewee updates in
+`on_guild_channel_delete` now run in one bounded worker-owned transaction while
+preserving side/full-game reference cleanup and external-guild routing
+evidence. The stopped-beta real-schema gate passed. Integration, push, and
+development-beta restart remain active. No command tree changes.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8438,6 +8440,59 @@ Integration/deployment evidence:
   broad-pool action; a later deliberately coordinated leave/rejoin owns human
   acceptance if desired.
 
+### P8.21 — Deleted-channel reference reconciliation
+
+Status: **Implemented and locally green; integration/deployment pending**
+
+The legacy `on_guild_channel_delete` listener performs two direct Peewee
+updates on the Discord event loop: it clears every matching
+`GameSide.team_chan`, then every matching `Game.game_chan`. The operations are
+not atomic, own no explicit connection, and provide no conflict or
+cancellation behavior.
+
+Accepted bounded contract:
+
+- freeze only the deleted channel ID, guild ID, and channel name before worker
+  submission; no live Discord object crosses the worker boundary;
+- use one dedicated bounded worker, worker-local Peewee connection, and one
+  synchronous transaction to identify and clear all exact side/full-game
+  channel pointers;
+- verify each update count against the rows captured inside the transaction so
+  a changed graph rolls back rather than reporting a partial cleanup;
+- preserve idempotency for an already-unreferenced channel;
+- intentionally retain `GameSide.team_chan_external_server` when clearing
+  `team_chan`. P8.20 uses that last-known external guild to identify where a
+  missing side channel should be recreated when a player rejoins;
+- drain cancellation until the database transaction finishes, and contain
+  database failure inside the listener without any Discord follow-up effect;
+- retain listener-only behavior with no slash/prefix/taxonomy, capability, or
+  application-command registration change.
+
+Implementation adds `modules/channel_reference_workers.py`, routes
+`on_guild_channel_delete` through it, and adds focused worker/listener plus
+gated real-schema rollback/commit/idempotency coverage. Because it mutates
+persisted channel pointers, integration requires the normal stopped-beta
+writer audit and unchanged full development database gate. Deployment needs
+no command apply/sync and has no meaningful broad-tester smoke action.
+
+Validation evidence:
+
+- focused deleted-channel worker/listener suite: 9 passed;
+- affected listener/reconciliation suites: 44 passed;
+- complete offline discovery: 1,183 passed with 44 intentional gated skips;
+- stopped-beta writer audit: clear;
+- full gated development PostgreSQL suite: 43 passed with one intentional
+  retained-fixture/operator skip, under the unchanged `development` /
+  `polytopia_dev` / `polybot_dev` identity and disabled background/API gates;
+- the real-schema P8.21 case proved rollback after the side update, successful
+  atomic side/full-game clearing, repeated no-op idempotency, and preservation
+  of `team_chan_external_server`;
+- touched-Python compilation and both working-tree/full-diff whitespace checks
+  passed.
+
+Implementation/tests checkpoint: `1d0cbff`. Integration, push, guarded beta
+restart, and the final no-announcement deployment record remain pending.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9935,6 +9990,28 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.21 deleted-channel cleanup implemented and validated
+
+- Replaced the event-loop `GameSide.update()` and `Game.update()` calls in
+  `on_guild_channel_delete` with a frozen primitive request and one bounded
+  worker-local transaction.
+- Captured exact side/game reference IDs, verified update counts, preserved
+  already-unreferenced idempotency, and retained the last-known external guild
+  marker needed by P8.20's later rejoin recreation path.
+- Added event-loop responsiveness, cancellation draining, transaction/conflict,
+  listener-failure, and real-schema rollback/commit/idempotency coverage.
+- No command definition, permission, capability, Discord effect, schema, or
+  compatibility behavior changed.
+- Passed 9 focused tests, 44 affected listener/reconciliation tests, and the
+  complete 1,183-test offline suite with 44 intentional gated skips.
+- Stopped only the guarded development beta, confirmed the host-wide writer
+  audit was clear, and passed all 43 gated development PostgreSQL tests with
+  one intentional retained-fixture/operator skip. The real-schema P8.21 case
+  proved rollback, commit, idempotency, and retained external-guild routing.
+- Checkpointed implementation/tests as `1d0cbff`. Evidence checkpoint,
+  integration, push, restart, and the explicit no-announcement deployment
+  record remain pending.
 
 ### 2026-08-09 — P8.20 member-join reconciliation implemented locally
 
