@@ -366,6 +366,32 @@ class JoinWorkerTests(unittest.TestCase):
         self.assertIsInstance(request.side_arg, str)
         self.assertNotIn('discord', repr(request).lower().split('member=')[0])
 
+        side_request = game_join_workers.PrefixSideTokenRequest(322, 300, 'Alpha')
+        with self.assertRaises(FrozenInstanceError):
+            side_request.token = 'Bravo'
+
+    def test_prefix_side_token_worker_is_guild_scoped_and_connection_owned(self):
+        harness = JoinHarness()
+        request = game_join_workers.PrefixSideTokenRequest(322, 300, 'Bravo')
+        with harness.patch():
+            matched = game_join_workers.load_prefix_side_token(request)
+        self.assertTrue(matched.matches_side)
+        self.assertEqual(matched.token, 'Bravo')
+        self.assertEqual(harness.database.connection_opened, 1)
+        self.assertEqual(harness.database.connection_closed, 1)
+        self.assertEqual(harness.database.commits, 0)
+
+        harness = JoinHarness()
+        with harness.patch():
+            wrong_guild = game_join_workers.load_prefix_side_token(
+                game_join_workers.PrefixSideTokenRequest(322, 301, 'Bravo')
+            )
+            missing = game_join_workers.load_prefix_side_token(
+                game_join_workers.PrefixSideTokenRequest(999, 300, 'Bravo')
+            )
+        self.assertFalse(wrong_guild.matches_side)
+        self.assertFalse(missing.matches_side)
+
     def test_crossplay_accepts_either_legacy_name_and_ignores_historical_flag(self):
         for game_is_mobile in (True, False):
             for polytopia_name, name_steam in (
@@ -1025,7 +1051,15 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         cog.execute_join.reset_mock()
-        cog.prefix_side_exists = mock.Mock(return_value=True)
+        cog.load_prefix_side_token = mock.AsyncMock(
+            return_value=game_join_workers.PrefixSideTokenSnapshot(
+                game_id=322,
+                guild_id=300,
+                token='Bravo',
+                matches_side=True,
+            )
+        )
+        member_lookup = mock.AsyncMock(return_value=[author])
         with mock.patch.object(
             matchmaking.settings,
             'get_user_level',
@@ -1033,7 +1067,7 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             matchmaking.utilities,
             'get_guild_member',
-            new=mock.AsyncMock(side_effect=[[], [author]]),
+            new=member_lookup,
         ), mock.patch.object(
             matchmaking.game_join_leave,
             'load_post_commit_game_card',
@@ -1045,6 +1079,12 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         ):
             await command.callback(cog, context, '322', 'Bravo')
         self.assertEqual(cog.execute_join.await_args.kwargs['side_arg'], 'Bravo')
+        cog.load_prefix_side_token.assert_awaited_once_with(
+            game_id=322,
+            guild_id=300,
+            token='Bravo',
+        )
+        member_lookup.assert_awaited_once_with(context, f'<@{author.id}>')
 
         leave_result = game_join_workers.LeaveResult(
             game_id=322,
@@ -1067,6 +1107,81 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             invoked_with='leave',
             prefix='$',
         )
+
+    async def test_prefix_named_side_lookup_runs_once_and_staff_member_wins(self):
+        guild = SimpleNamespace(id=300, roles=[])
+        author = self.discord_member(guild=guild)
+        target_member = self.discord_member(guild=guild)
+        target_member.id = 201
+        context = SimpleNamespace(
+            author=author,
+            guild=guild,
+            channel=SimpleNamespace(id=301),
+            prefix='$',
+            invoked_with='join',
+            message=SimpleNamespace(mentions=[], role_mentions=[]),
+            send=mock.AsyncMock(),
+        )
+        result = game_join_workers.JoinResult(
+            game_id=322,
+            guild_id=300,
+            member_id=201,
+            side_position=1,
+            messages=('Joined',),
+            players=1,
+            capacity=2,
+            creator_id=100,
+            host_id=100,
+            remove_inactive_role=False,
+            inactive_role_name=None,
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        cog.execute_join = mock.AsyncMock(return_value=result)
+        cog.load_prefix_side_token = mock.AsyncMock(
+            return_value=game_join_workers.PrefixSideTokenSnapshot(
+                322, 300, 'Bravo', True
+            )
+        )
+        command = next(
+            command for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'join'
+        )
+        with mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=4,
+        ), mock.patch.object(
+            matchmaking.utilities,
+            'get_guild_member',
+            new=mock.AsyncMock(return_value=[target_member]),
+        ), mock.patch.object(
+            matchmaking.game_join_leave,
+            'load_post_commit_game_card',
+            new=mock.AsyncMock(return_value=post_commit_game_card()),
+        ), mock.patch.object(
+            matchmaking.game_join_leave,
+            'send_post_commit_game_card',
+            new=mock.AsyncMock(),
+        ):
+            await command.callback(cog, context, '322', 'Bravo')
+
+        cog.load_prefix_side_token.assert_awaited_once()
+        self.assertIs(cog.execute_join.await_args.kwargs['member'], target_member)
+        self.assertIsNone(cog.execute_join.await_args.kwargs['side_arg'])
+
+    def test_hidden_prefix_side_edit_commands_are_retired(self):
+        command_names = {
+            command.name
+            for command in matchmaking.matchmaking.__cog_commands__
+        }
+        aliases = {
+            alias
+            for command in matchmaking.matchmaking.__cog_commands__
+            for alias in command.aliases
+        }
+        self.assertNotIn('gameside', command_names)
+        self.assertTrue({'matchside', 'sidename'}.isdisjoint(aliases))
+        self.assertFalse(hasattr(matchmaking, 'PolyMatch'))
 
     async def test_native_join_defers_and_keeps_success_public_but_failures_ephemeral(self):
         guild = SimpleNamespace(id=300, roles=[])

@@ -1874,6 +1874,22 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 notification_member_id=joiner_discord_id,
             )
 
+            # The legacy prefix grammar resolves a possible named side once
+            # on the same bounded worker infrastructure before the join
+            # transaction authoritatively resolves it again.
+            self.models.db.close()
+            side_snapshot = asyncio.run(
+                game_join_workers.run_prefix_side_token_lookup(
+                    game_join_workers.PrefixSideTokenRequest(
+                        game_id=game_id,
+                        guild_id=guild_id,
+                        token='Bravo',
+                    )
+                )
+            )
+            self.assertTrue(side_snapshot.matches_side)
+            self.models.db.connect(reuse_if_open=True)
+
             # Close the main-thread connection so run_join must establish and
             # close its own Peewee connection in the executor worker.
             self.models.db.close()

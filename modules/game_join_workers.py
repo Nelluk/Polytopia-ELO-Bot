@@ -29,6 +29,25 @@ class PendingGameLeaveValidationError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class PrefixSideTokenRequest:
+    """Primitive input for legacy ``$join`` target disambiguation."""
+
+    game_id: int
+    guild_id: int
+    token: str
+
+
+@dataclass(frozen=True)
+class PrefixSideTokenSnapshot:
+    """Read-only result used only to route the legacy prefix grammar."""
+
+    game_id: int
+    guild_id: int
+    token: str
+    matches_side: bool
+
+
+@dataclass(frozen=True)
 class MemberSnapshot:
     """Discord-member values safe to cross into a worker thread."""
 
@@ -142,6 +161,45 @@ def _member_view(member: MemberSnapshot) -> _MemberView:
                 member.role_names,
             )
         ),
+    )
+
+
+def load_prefix_side_token(
+    request: PrefixSideTokenRequest,
+) -> PrefixSideTokenSnapshot:
+    """Resolve one legacy side-name token on a worker-local connection.
+
+    This is deliberately only a routing hint.  The join transaction reloads
+    the game and authoritatively resolves the side again before writing.
+    """
+
+    game_id = int(request.game_id)
+    guild_id = int(request.guild_id)
+    token = str(request.token).strip()
+    if game_id <= 0 or guild_id <= 0 or not token:
+        return PrefixSideTokenSnapshot(
+            game_id=game_id,
+            guild_id=guild_id,
+            token=token,
+            matches_side=False,
+        )
+
+    with models.db.connection_context():
+        try:
+            game = models.Game.get_by_id(game_id)
+        except peewee.DoesNotExist:
+            matches_side = False
+        else:
+            matches_side = False
+            if int(game.guild_id) == guild_id:
+                side, _ = game.get_side(lookup=token)
+                matches_side = side is not None
+
+    return PrefixSideTokenSnapshot(
+        game_id=game_id,
+        guild_id=guild_id,
+        token=token,
+        matches_side=matches_side,
     )
 
 
@@ -642,6 +700,17 @@ async def run_join(request: JoinRequest) -> JoinResult:
 
     return await game_open_workers.pending_game_coordinator.run_worker(
         join_game,
+        request,
+    )
+
+
+async def run_prefix_side_token_lookup(
+    request: PrefixSideTokenRequest,
+) -> PrefixSideTokenSnapshot:
+    """Run one legacy routing read on the bounded pending-game executor."""
+
+    return await game_open_workers.pending_game_coordinator.run_worker(
+        load_prefix_side_token,
         request,
     )
 

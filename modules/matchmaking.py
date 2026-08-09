@@ -9,7 +9,6 @@ from modules import game_open, game_open_workers
 from modules import game_broadcast_creation
 from modules import game_broadcast_creation_workers
 from modules import game_notes, game_workers
-from modules import game_side
 from modules import game_join_leave, game_join_workers, game_kick_workers
 from modules import game_search_workers
 from modules import game_start, game_start_workers
@@ -27,31 +26,6 @@ import asyncio
 import shlex  # for parsing $opengame arguments with quotation marks
 
 logger = logging.getLogger('polybot.' + __name__)
-
-
-class PolyMatch(commands.Converter):
-    async def convert(self, ctx, match_id: int):
-
-        match_id = match_id.strip('#')
-
-        utilities.connect()
-        try:
-            match = models.Game.get(id=match_id)
-            logger.debug(f'Game with ID {match_id} found.')
-
-            if match.guild_id != ctx.guild.id:
-                await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
-                raise commands.UserInputError()
-            return match
-        except peewee.DoesNotExist:
-            await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
-            raise commands.UserInputError()
-        except (ValueError, peewee.DataError):
-            if match_id.upper() == 'ID':
-                await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
-            else:
-                await ctx.send(f'Invalid Game ID "**{match_id}**".')
-            raise commands.UserInputError()
 
 
 class matchmaking(commands.Cog):
@@ -176,17 +150,22 @@ class matchmaking(commands.Cog):
             invoked_with=invoked_with,
         )
 
-    def prefix_side_exists(self, *, game_id: int, guild_id: int, token: str) -> bool:
-        """Disambiguate a legacy name token before the worker revalidates it."""
+    async def load_prefix_side_token(
+        self,
+        *,
+        game_id: int,
+        guild_id: int,
+        token: str,
+    ) -> game_join_workers.PrefixSideTokenSnapshot:
+        """Load one primitive routing hint for the legacy ``$join`` grammar."""
 
-        try:
-            game = models.Game.get_or_none(id=game_id)
-            if not game or game.guild_id != guild_id:
-                return False
-            side, _ = game.get_side(lookup=token)
-            return side is not None
-        except (AttributeError, TypeError, ValueError, peewee.PeeweeException):
-            return False
+        return await game_join_workers.run_prefix_side_token_lookup(
+            game_join_workers.PrefixSideTokenRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                token=token,
+            )
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -824,87 +803,6 @@ class matchmaking(commands.Cog):
         )
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['matchside', 'sidename'], usage='match_id side_number Side Name', hidden=True)
-    async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args=None):
-        """
-        Give a name to a side in an open game that you host
-        **Example:**
-        `[p]gameside 1025 2 Cool Team` - Names side 2 of Match 1025 as '*Cool Team*'
-        `[p]gameside 1025 2 @The Ronin` - Locks side 2 to people with role `@The Ronin` and names side correspondingly
-        `[p]gameside 1025 2 none` - Resets side to have no name or role locks
-        """
-
-        if not game.is_pending:
-            return await ctx.send('The game has already started and can no longer be changed.')
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
-            return await ctx.send('Only the game host or server staff can do this.')
-
-        # TODO: Have this command also allow side re-ordering
-        # matchside m1 1 name ronin
-        # matchside m1 ronin nelluk rickdaheals jonathan
-
-        role_mentions = tuple(
-            getattr(getattr(ctx, 'message', None), 'role_mentions', ()) or ()
-        )
-        role = role_mentions[0] if len(role_mentions) == 1 else None
-        clear = False
-        side_name = args
-        if role is None and args and args.lower() == 'none':
-            clear = True
-            side_name = None
-
-        request = game_side.build_mutation_request(
-            member=ctx.author,
-            guild_id=ctx.guild.id,
-            channel_id=ctx.channel.id,
-            game_id=game.id,
-            side_lookup=side_lookup,
-            side_name=(None if role is not None else side_name),
-            role_id=(role.id if role is not None else None),
-            role_name=(role.name if role is not None else None),
-            role_guild_id=(
-                getattr(getattr(role, 'guild', None), 'id', None)
-                if role is not None else None
-            ),
-            clear=clear,
-            native=False,
-            invoked_with=getattr(ctx, 'invoked_with', None) or 'gameside',
-        )
-
-        async def after_commit(result):
-            await game_side.publish_mutation_result(
-                result,
-                send=ctx.send,
-                destination=ctx,
-                guild=ctx.guild,
-                prefix=ctx.prefix,
-            )
-
-        try:
-            await game_side.run_side_mutation(
-                request,
-                after_commit=after_commit,
-            )
-        except game_workers.GameSideLookupError as exc:
-            return await ctx.send(str(exc))
-        except game_workers.GameSideValidationError as exc:
-            return await ctx.send(str(exc))
-        except exceptions.RecordLocked as exc:
-            return await ctx.send(str(exc))
-        except peewee.PeeweeException:
-            logger.exception('Database failure setting game side')
-            return await ctx.send(
-                'The side change failed and rolled back. No Discord '
-                'announcement or card update was made.'
-            )
-        except Exception:
-            logger.exception('Unexpected failure setting game side')
-            return await ctx.send(
-                'The side change failed. No Discord announcement or card '
-                'update was made.'
-            )
-
-    @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
     async def join(self, ctx, game_id: str = None, *args):
         """Join an open game through the shared pending-game service."""
@@ -983,12 +881,34 @@ class matchmaking(commands.Cog):
         else:
             return await ctx.send(f'Invalid usage.\n{syntax}')
 
+        side_token_snapshot = None
+        if named_side_candidate:
+            try:
+                side_token_snapshot = await self.load_prefix_side_token(
+                    game_id=parsed_game_id,
+                    guild_id=ctx.guild.id,
+                    token=args[0],
+                )
+            except peewee.PeeweeException:
+                logger.exception(
+                    'Database failure resolving side token for game %s',
+                    parsed_game_id,
+                )
+                return await ctx.send(
+                    ':no_entry_sign: Could not resolve that game side because '
+                    'the database operation failed.'
+                )
+            except Exception:
+                logger.exception(
+                    'Unexpected failure resolving side token for game %s',
+                    parsed_game_id,
+                )
+                return await ctx.send(
+                    ':no_entry_sign: Could not resolve that game side.'
+                )
+
         if third_party_candidate and settings.get_user_level(ctx.author) < 4:
-            if named_side_candidate and self.prefix_side_exists(
-                game_id=parsed_game_id,
-                guild_id=ctx.guild.id,
-                token=args[0],
-            ):
+            if side_token_snapshot and side_token_snapshot.matches_side:
                 # A low-level requester may select a named side when the
                 # token is not also being used as a third-party member name.
                 target = f'<@{ctx.author.id}>'
@@ -1009,12 +929,8 @@ class matchmaking(commands.Cog):
             )
         if len(guild_matches) == 0:
             named_side = (
-                named_side_candidate
-                and self.prefix_side_exists(
-                    game_id=parsed_game_id,
-                    guild_id=ctx.guild.id,
-                    token=args[0],
-                )
+                side_token_snapshot is not None
+                and side_token_snapshot.matches_side
             )
             if named_side:
                 side_arg = args[0]
