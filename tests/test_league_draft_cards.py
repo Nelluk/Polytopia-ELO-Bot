@@ -74,7 +74,7 @@ class RegistrationAndPermissionTests(unittest.TestCase):
         roster = root().get_command('roster')
         self.assertEqual(
             {command.name for command in roster.commands},
-            {'promote', 'trade', 'draft'},
+            {'promote', 'trade', 'draft', 'price'},
         )
         command = roster.get_command('draft')
         self.assertEqual(

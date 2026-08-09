@@ -3429,6 +3429,54 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             before,
         )
 
+    def test_league_trade_price_reads_real_schema_without_writes(self):
+        """Exercise P8.16's exact Player and three-season read under the gate."""
+
+        from modules import league_trade_price_workers as workers
+
+        lineup = (
+            self.models.Lineup.select(self.models.Lineup)
+            .join(self.models.Game)
+            .where(
+                (self.models.Game.is_completed == 1)
+                & (self.models.Game.is_confirmed == 1)
+                & self.models.Game.league_season.is_null(False)
+            )
+            .order_by(self.models.Game.league_season.desc())
+            .first()
+        )
+        if lineup is None:
+            self.skipTest('development database has no confirmed league player')
+        player = lineup.player
+        ending_season = int(lineup.game.league_season)
+        before = (
+            self.models.Player.select().count(),
+            self.models.DiscordMember.select().count(),
+            self.models.GameLog.select().count(),
+        )
+        result = asyncio.run(
+            workers.run_trade_price(
+                workers.TradePriceRequest(
+                    guild_id=int(player.guild_id),
+                    player_discord_id=int(player.discord_member.discord_id),
+                    player_display_name=str(player.name),
+                    ending_season=ending_season,
+                    leadership_adjustment=False,
+                )
+            )
+        )
+        self.assertEqual(result.ending_season, ending_season)
+        self.assertEqual(len(result.seasons), 3)
+        self.assertGreaterEqual(result.price, 0)
+        self.assertEqual(
+            (
+                self.models.Player.select().count(),
+                self.models.DiscordMember.select().count(),
+                self.models.GameLog.select().count(),
+            ),
+            before,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

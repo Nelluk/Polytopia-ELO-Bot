@@ -38,6 +38,8 @@ import modules.league_roster_cards as league_roster_cards
 import modules.league_roster_cards_workers as league_roster_cards_workers
 import modules.league_draft_cards as league_draft_cards
 import modules.league_draft_cards_workers as league_draft_cards_workers
+import modules.league_trade_price as league_trade_price
+import modules.league_trade_price_workers as league_trade_price_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -1760,6 +1762,50 @@ class league(commands.Cog):
                 ephemeral=True,
             )
 
+    @league_roster_group.command(
+        name='price',
+        description='Calculate a player trade price from three league seasons.',
+    )
+    @discord.app_commands.describe(
+        player='Player whose trade price should be calculated.',
+        season='Optional ending season; defaults using the legacy current-season rule.',
+    )
+    async def league_roster_price_slash(
+        self,
+        interaction: discord.Interaction,
+        player: discord.Member,
+        season: int | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Trade prices require a server.', ephemeral=True
+            )
+        error = league_trade_price.access_error(guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        price_request = league_trade_price.request(
+            guild=guild,
+            player=player,
+            ending_season=season,
+        )
+        try:
+            result = await league_trade_price.run_trade_price(price_request)
+            await league_trade_price.public_interaction_sender(interaction)(
+                league_trade_price.public_message(interaction.user, result),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return result
+        except league_trade_price_workers.TradePriceError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected trade-price calculation failure')
+            await interaction.followup.send(
+                'The trade price could not be calculated. Try again later.',
+                ephemeral=True,
+            )
+
     @commands.command(usage='', aliases=['trade'])
     @settings.is_staff_check()
     @settings.in_bot_channel_strict()
@@ -1825,57 +1871,6 @@ class league(commands.Cog):
                 f'directly to a file. {exc}'
             )
         await ctx.send(file=league_roster_cards.discord_file(result))
-
-    @commands.command(aliases=['playerprice'], hidden=True)
-    async def tradeprice(self, ctx, season: typing.Optional[int], *, player_name: str):
-        """Calculate a player's trade price
-
-        **Examples:**
-        `[p]tradeprice Nelluk`
-        """
-        guild_matches = await utilities.get_guild_member(ctx, player_name)
-        if len(guild_matches) > 1:
-            return await ctx.send(f'There is more than one player found with name "{player_name}". Try specifying with a @Mention.')
-        elif len(guild_matches) == 0:
-            return await ctx.send(f'Could not find "{player_name}" on this server.')
-        else:
-            member = guild_matches[0]
-
-        player, _ = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=ctx.guild.id)
-        if not player:
-            # Mention user without pinging him
-            return await ctx.send(f'*{member.mention}* is not registered in the bot.', allowed_mentions=discord.AllowedMentions.none())
-
-        if not season:
-            current_season = models.Game.select(peewee.fn.MAX(models.Game.league_season)).scalar()
-            incomplete_games = models.Game.search(player_filter=[player], status_filter=2, season_filter=current_season).count()
-            logger.debug(f'Incomplete games for player {player}: {incomplete_games}')
-            if incomplete_games > 0:
-                season = current_season - 1
-                logger.debug(f'Inferring season of {season} due to incomplete games in current season')
-            else:
-                season = current_season
-                logger.debug(f'Inferring season of {season} (current)')
-
-        is_leader = len(utilities.get_matching_roles(member, [leader_role_name, coleader_role_name])) > 0
-        record = []
-        for i in range(season-2, season+1):
-            season_tier = player.polychamps_season_tier(i)
-            if season_tier:
-                season_record = player.polychamps_season_record(i)
-                if sum(season_record):
-                    record.append((season_tier, sum(season_record), season_record[0]))  # tier, total games, wins
-                else:
-                    # No games played
-                    record.append((None, 0, 0))
-            else:
-                record.append((None, 0, 0))
-
-        if record.count((None, 0, 0)) == 3:
-            return await ctx.send(f'{member.display_name} has not played in the past 3 seasons.')
-
-        price = utilities.trade_price_formula(record, is_leader)
-        await ctx.send(f"Trade price for {member.display_name} is **{price}**.")
 
     @commands.command()
     @settings.is_staff_check()
