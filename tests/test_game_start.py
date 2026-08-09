@@ -191,6 +191,7 @@ class StartHarness:
             league_tier=None,
             league_playoff=False,
             date=datetime.date(2026, 7, 30),
+            broadcasts=(),
         )
 
         game.ordered_side_list = lambda: (harness.side_one, harness.side_two)
@@ -342,6 +343,14 @@ class StartHarness:
 class StartWorkerTests(unittest.TestCase):
     def test_success_uses_worker_connection_and_immutable_result(self):
         harness = StartHarness()
+        harness.game.broadcasts = (
+            SimpleNamespace(
+                id=901,
+                game=harness.game,
+                channel_id=902,
+                message_id=903,
+            ),
+        )
         with harness.patch():
             preflight = workers.preflight_start_game(harness.preflight_request())
             result = workers.start_game(harness.start_request(preflight))
@@ -354,6 +363,18 @@ class StartWorkerTests(unittest.TestCase):
         self.assertEqual(harness.database.connection_opened, 2)
         self.assertEqual(harness.database.connection_closed, 2)
         self.assertEqual(harness.database.commits, 1)
+        self.assertEqual(
+            result.broadcast_targets,
+            (
+                workers.game_broadcast_workers.ExternalBroadcastTarget(
+                    row_id=901,
+                    game_id=harness.game_id,
+                    guild_id=harness.guild_id,
+                    channel_id=902,
+                    message_id=903,
+                ),
+            ),
+        )
         with self.assertRaises(FrozenInstanceError):
             result.name = "changed"
 
@@ -747,9 +768,6 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
             is_season_game=lambda: (),
             is_uncaught_season_game=lambda: False,
             smallest_team=lambda: 1,
-            update_external_broadcasts=mock.AsyncMock(
-                side_effect=RuntimeError("broadcast failure")
-            ),
             create_game_channels=mock.AsyncMock(),
         )
         result = workers.StartResult(
@@ -764,6 +782,15 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
             league_warning=None,
             creator_id=100,
             host_id=100,
+            broadcast_targets=(
+                workers.game_broadcast_workers.ExternalBroadcastTarget(
+                    row_id=1,
+                    game_id=322,
+                    guild_id=300,
+                    channel_id=600,
+                    message_id=700,
+                ),
+            ),
         )
         guild = SimpleNamespace(id=300, get_channel=lambda _id: None)
         output = SimpleNamespace(send=send)
@@ -785,6 +812,16 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
             new=mock.AsyncMock(side_effect=RuntimeError("card failure")),
         ), mock.patch.object(
             adapter.league, "auto_grad_novas", new=mock.AsyncMock()
+        ), mock.patch.object(
+            adapter.game_broadcasts,
+            "reconcile_started_broadcasts",
+            new=mock.AsyncMock(return_value=(
+                adapter.game_broadcasts.BroadcastReconciliationOutcome(
+                    target=result.broadcast_targets[0],
+                    status=adapter.game_broadcasts.RETAINED,
+                    detail="broadcast failure",
+                ),
+            )),
         ):
             await adapter.publish_start_result(
                 result,
@@ -794,8 +831,7 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
                 bot_guilds=(),
             )
 
-        self.assertTrue(game.update_external_broadcasts.await_count)
-        self.assertTrue(any("broadcasts" in str(item) for item in sent))
+        self.assertTrue(any("600/700" in str(item) for item in sent))
         self.assertTrue(any("game card" in str(item) for item in sent))
         self.assertTrue(any("now being tracked" in str(item) for item in sent))
 
@@ -823,7 +859,6 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
             is_season_game=lambda: (),
             is_uncaught_season_game=lambda: False,
             smallest_team=lambda: 1,
-            update_external_broadcasts=mock.AsyncMock(),
             create_game_channels=mock.AsyncMock(),
         )
         result = workers.StartResult(

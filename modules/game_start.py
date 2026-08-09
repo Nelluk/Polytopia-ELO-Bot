@@ -5,7 +5,13 @@ from __future__ import annotations
 import logging
 
 import settings
-from modules import game_start_workers, image_storage, league, models
+from modules import (
+    game_broadcasts,
+    game_start_workers,
+    image_storage,
+    league,
+    models,
+)
 from modules import exceptions
 
 
@@ -230,6 +236,43 @@ async def publish_start_result(
     """
 
     send = output_context.send
+    if result.broadcast_targets:
+        try:
+            outcomes = await game_broadcasts.reconcile_started_broadcasts(
+                bot=settings.bot,
+                targets=result.broadcast_targets,
+            )
+            retained = tuple(
+                outcome
+                for outcome in outcomes
+                if outcome.status == game_broadcasts.RETAINED
+            )
+            if retained:
+                shown = retained[:12]
+                targets = ', '.join(
+                    f'`{item.target.channel_id}/{item.target.message_id}`'
+                    for item in shown
+                )
+                remaining = len(retained) - len(shown)
+                if remaining:
+                    targets += f', plus {remaining} additional target(s)'
+                await _safe_public_send(
+                    send,
+                    f':warning: Game {result.game_id} started successfully, '
+                    'but external game announcement reconciliation remains '
+                    f'pending for {targets}. An operator should review the '
+                    'bot log; the hourly recovery cycle may retry it.',
+                    game_id=result.game_id,
+                    effect='external game broadcast reconciliation',
+                )
+        except Exception as exc:
+            await _safe_effect_warning(
+                send,
+                game_id=result.game_id,
+                effect='external game broadcasts',
+                error=exc,
+            )
+
     game = None
     try:
         game = models.Game.load_full_game(game_id=result.game_id)
@@ -246,16 +289,6 @@ async def publish_start_result(
         )
 
     if game is not None:
-        try:
-            await game.update_external_broadcasts(deleted=False)
-        except Exception as exc:
-            await _safe_effect_warning(
-                send,
-                game_id=result.game_id,
-                effect='external game broadcasts',
-                error=exc,
-            )
-
         for warning in result.missing_member_warnings:
             await _safe_public_send(
                 send,

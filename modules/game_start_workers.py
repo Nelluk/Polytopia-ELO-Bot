@@ -24,7 +24,13 @@ import discord
 import peewee
 
 import settings
-from modules import exceptions, game_open_workers, models, utilities
+from modules import (
+    exceptions,
+    game_broadcast_workers,
+    game_open_workers,
+    models,
+    utilities,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -132,6 +138,9 @@ class StartResult:
     league_warning: str | None
     creator_id: int | None
     host_id: int | None
+    broadcast_targets: tuple[
+        game_broadcast_workers.ExternalBroadcastTarget, ...
+    ] = ()
 
 
 @dataclass(frozen=True)
@@ -549,6 +558,9 @@ def start_game(request: StartRequest) -> StartResult:
                 league_warning=league_warning,
                 creator_id=_creator_id(game),
                 host_id=_host_id(game),
+                broadcast_targets=(
+                    game_broadcast_workers.freeze_game_broadcast_targets(game)
+                ),
             )
 
 

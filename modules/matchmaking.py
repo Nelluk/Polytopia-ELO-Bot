@@ -18,6 +18,7 @@ from modules import game_expiration
 from modules import game_reminders
 from modules import game_lobbies
 from modules import game_list_broadcasts
+from modules import game_broadcasts
 import peewee
 import re
 import datetime
@@ -69,6 +70,7 @@ class matchmaking(commands.Cog):
             self.bg_task2 = asyncio.create_task(self.task_dm_game_creators())
             self.bg_task3 = asyncio.create_task(self.task_create_empty_matchmaking_lobbies())
             self.task_purge_expired_games.start()  # new task style
+            self.task_reconcile_started_broadcasts.start()
 
     @staticmethod
     def parse_joingame_message(message: str) -> int | None:
@@ -1694,6 +1696,24 @@ class matchmaking(commands.Cog):
                 guild=guild,
                 as_of=datetime.datetime.now(),
             )
+
+    @tasks.loop(hours=1)
+    async def task_reconcile_started_broadcasts(self):
+        """Retry retained external messages after a committed game start."""
+
+        await self.bot.wait_until_ready()
+        for guild in self.bot.guilds:
+            try:
+                await game_broadcasts.reconcile_started_broadcasts_for_guild(
+                    bot=self.bot,
+                    guild=guild,
+                )
+            except Exception:
+                logger.exception(
+                    'Started-game broadcast reconciliation cycle failed for '
+                    'guild %s',
+                    guild.id,
+                )
 
 
 async def setup(bot):

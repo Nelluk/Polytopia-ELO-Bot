@@ -2257,7 +2257,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
 
     def test_start_worker_real_graph_and_audit_rollback(self):
-        from modules import game_start_workers
+        from modules import game_broadcast_workers, game_start_workers
 
         guild_id = self.profile.allowed_guild_ids[0]
         suffix = uuid.uuid4().hex
@@ -2376,6 +2376,11 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
 
             first_game = make_pending_game(f'P54 first {suffix}')
+            broadcast = self.models.TeamServerBroadcastMessage.create(
+                game=first_game,
+                channel_id=id_base + 10,
+                message_id=id_base + 11,
+            )
             first_preflight = game_start_workers.preflight_start_game(
                 game_start_workers.StartPreflightRequest(
                     game_id=first_game.id,
@@ -2424,6 +2429,18 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
             self.models.db.connect(reuse_if_open=True)
             self.assertEqual(first_result.game_id, first_game.id)
+            self.assertEqual(
+                first_result.broadcast_targets,
+                (
+                    game_broadcast_workers.ExternalBroadcastTarget(
+                        row_id=broadcast.id,
+                        game_id=first_game.id,
+                        guild_id=guild_id,
+                        channel_id=broadcast.channel_id,
+                        message_id=broadcast.message_id,
+                    ),
+                ),
+            )
             started_game = self.models.Game.get_by_id(first_game.id)
             self.assertFalse(started_game.is_pending)
             self.assertEqual(started_game.name, f'Fields Of Fire {suffix}'.title()[:35])
@@ -2439,6 +2456,60 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     & self.models.GameSide.team.is_null(False)
                 ).count(),
                 2,
+            )
+
+            self.models.db.close()
+            discovered = asyncio.run(
+                game_broadcast_workers.run_discover_started_broadcasts(
+                    game_broadcast_workers.BroadcastDiscoveryRequest(
+                        guild_id=guild_id,
+                    )
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIn(
+                first_result.broadcast_targets[0],
+                discovered.targets,
+            )
+
+            with mock.patch.object(
+                self.models.TeamServerBroadcastMessage,
+                'delete_instance',
+                side_effect=RuntimeError('P5.15 finalization failure'),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    'P5.15 finalization failure',
+                ):
+                    asyncio.run(
+                        game_broadcast_workers
+                        .run_finalize_started_broadcast(
+                            first_result.broadcast_targets[0]
+                        )
+                    )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNotNone(
+                self.models.TeamServerBroadcastMessage.get_or_none(
+                    id=broadcast.id
+                )
+            )
+
+            self.models.db.close()
+            finalized = asyncio.run(
+                game_broadcast_workers.run_finalize_started_broadcast(
+                    first_result.broadcast_targets[0]
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                finalized.status,
+                game_broadcast_workers.FINALIZED,
+            )
+            self.assertIsNone(
+                self.models.TeamServerBroadcastMessage.get_or_none(
+                    id=broadcast.id
+                )
             )
 
             rollback_game = make_pending_game(f'P54 rollback {suffix}')

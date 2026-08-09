@@ -1442,29 +1442,6 @@ class Game(BaseModel):
             return False
         return True
 
-    async def update_external_broadcasts(self, deleted=False):
-        # update announcement messges sent to external team servers when game is deleted or starts
-        for broadcast in self.broadcasts:
-
-            message = await broadcast.fetch_message()
-            if not message:
-                broadcast.delete_instance()
-                continue
-
-            try:
-                if deleted:
-                    # update messages to reflect game has been deleted
-                    await message.edit(content=f'~~{message.content}~~\n(This game has been deleted and can no longer be joined.)')
-                    await message.clear_reactions()
-                else:
-                    # update messages to reflect game has started
-                    await message.edit(content=f'~~{message.content}~~\n(This game has started and can no longer be joined.)')
-                    await message.remove_reaction(settings.emoji_join_game, message.guild.me)
-            except discord.DiscordException as e:
-                logger.warn(f'update_external_broadcasts(): could not edit {broadcast.channel_id}/{broadcast.message_id}\n{e}')
-
-            broadcast.delete_instance()
-
     def reaction_join_string(self):
         return f'Join game {self.id} by reacting with {settings.emoji_join_game}' if self.is_pending else ''
 
@@ -3622,20 +3599,6 @@ class TeamServerBroadcastMessage(BaseModel):
     message_ts = DateTimeField(default=datetime.datetime.now)
     channel_id = BitField(unique=False, null=False)
     message_id = BitField(unique=False, null=False)
-
-    async def fetch_message(self):
-        channel = settings.bot.get_channel(self.channel_id)
-        try:
-            message = await channel.fetch_message(self.message_id) if channel else None
-        except discord.DiscordException:
-            message = None
-
-        if not message:
-            logger.warn(f'TeamServerBroadcastMessage.fetch_message(): could not load {self.channel_id}/{self.message_id}')
-            return None
-        logger.debug(f'TeamServerBroadcastMessage.fetch_message(): processing message {message.id} in channel {channel.name} guild {message.guild.name}')
-        return message
-
 
 class ApiApplication(BaseModel):
     """Model for applications allowed to access the API."""
