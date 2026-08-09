@@ -53,8 +53,12 @@ set first.
 ## Created scenarios
 
 - `Beta Fixture Ready`: ranked, started, and without a winner.
-- `Beta Fixture Unconfirmed`: ranked with a claimed but unconfirmed winner.
-- `Beta Fixture Completed`: ranked with a confirmed winner and ELO history.
+- `Beta Fixture Unconfirmed`: ranked with a claimed but unconfirmed winner;
+  tagged as current league Season 4, Tier 1.
+- `Beta Fixture Completed`: ranked with a confirmed winner and ELO history;
+  tagged as league Season 3, Tier 1. Together with the unconfirmed fixture,
+  this exercises the trade-price fallback from the incomplete current season
+  to the previous completed season.
 
 The database ownership marker is stored in `Game.notes`. Cleanup requires the
 exact marker, development guild, and fixture name prefix. It will not delete

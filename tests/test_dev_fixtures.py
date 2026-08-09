@@ -51,6 +51,37 @@ class RecordingDatabase:
 
 
 class DevelopmentFixtureSafetyTests(unittest.TestCase):
+    def test_scenario_metadata_supports_trade_price_fallback(self):
+        class FakeGame:
+            league_season = object()
+            league_tier = object()
+
+            def __init__(self):
+                self.league_season = None
+                self.league_tier = None
+                self.save = mock.Mock()
+
+        completed = FakeGame()
+        dev_fixtures._apply_scenario_metadata(completed, 'completed')
+        self.assertEqual(
+            completed.league_season,
+            dev_fixtures.FIXTURE_COMPLETED_LEAGUE_SEASON,
+        )
+        self.assertEqual(
+            completed.league_tier, dev_fixtures.FIXTURE_LEAGUE_TIER
+        )
+        completed.save.assert_called_once()
+
+        unconfirmed = FakeGame()
+        dev_fixtures._apply_scenario_metadata(unconfirmed, 'unconfirmed')
+        self.assertEqual(
+            unconfirmed.league_season,
+            dev_fixtures.FIXTURE_CURRENT_LEAGUE_SEASON,
+        )
+        self.assertEqual(
+            unconfirmed.league_tier, dev_fixtures.FIXTURE_LEAGUE_TIER
+        )
+
     def test_leaderboard_fixture_ownership_requires_id_name_and_guild(self):
         index = 4
         name = dev_fixtures._leaderboard_name(index)
@@ -117,6 +148,8 @@ class DevelopmentFixtureSafetyTests(unittest.TestCase):
                     is_ranked=True,
                     is_pending=True,
                     expiration='2026-07-30T12:00:00',
+                    league_season=4,
+                    league_tier=1,
                 ),
             ),
         )
@@ -125,6 +158,8 @@ class DevelopmentFixtureSafetyTests(unittest.TestCase):
             manage_dev_fixtures._print_state(state)
 
         self.assertIn('pending=True', output.getvalue())
+        self.assertIn('season=4', output.getvalue())
+        self.assertIn('tier=1', output.getvalue())
         self.assertIn('expiration=2026-07-30T12:00:00', output.getvalue())
 
     def test_cli_refuses_unsafe_profile_before_importing_models(self):

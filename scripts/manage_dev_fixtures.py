@@ -100,7 +100,8 @@ def _print_state(state: dev_fixtures.FixtureState) -> None:
             f'  {game.scenario}: game {game.game_id} '
             f'(completed={game.is_completed}, '
             f'confirmed={game.is_confirmed}, ranked={game.is_ranked}, '
-            f'pending={game.is_pending}, expiration={game.expiration})'
+            f'pending={game.is_pending}, season={game.league_season}, '
+            f'tier={game.league_tier}, expiration={game.expiration})'
         )
 
 

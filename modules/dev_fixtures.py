@@ -17,6 +17,9 @@ FIXTURE_VERSION = 1
 FIXTURE_NOTES_MARKER = f'polybot-dev-beta-fixture:v{FIXTURE_VERSION}'
 FIXTURE_NAME_PREFIX = 'Beta Fixture'
 SCENARIOS = ('ready', 'unconfirmed', 'completed')
+FIXTURE_LEAGUE_TIER = 1
+FIXTURE_COMPLETED_LEAGUE_SEASON = 3
+FIXTURE_CURRENT_LEAGUE_SEASON = 4
 LEADERBOARD_FIXTURE_COUNT = 24
 LEADERBOARD_DISCORD_ID_BASE = 9_000_000_000_100_000_000
 LEADERBOARD_NAME_PREFIX = 'LB2 Showcase'
@@ -41,6 +44,8 @@ class FixtureGame:
     is_ranked: bool
     is_pending: bool
     expiration: str | None
+    league_season: int | None = None
+    league_tier: int | None = None
 
 
 @dataclass(frozen=True)
@@ -394,6 +399,7 @@ def _create_scenario(
         is_mobile=True,
         size=[side_size, side_size],
     )
+    _apply_scenario_metadata(game, scenario)
     first_side = models_module.GameSide.create(
         game=game,
         size=side_size,
@@ -430,6 +436,29 @@ def _create_scenario(
     return game
 
 
+def _apply_scenario_metadata(game: Any, scenario: str) -> None:
+    """Keep the owned result fixtures useful for league-price smoke tests."""
+
+    if scenario == 'completed':
+        league_season = FIXTURE_COMPLETED_LEAGUE_SEASON
+        league_tier = FIXTURE_LEAGUE_TIER
+    elif scenario == 'unconfirmed':
+        league_season = FIXTURE_CURRENT_LEAGUE_SEASON
+        league_tier = FIXTURE_LEAGUE_TIER
+    else:
+        league_season = None
+        league_tier = None
+    if (
+        game.league_season != league_season
+        or game.league_tier != league_tier
+    ):
+        game.league_season = league_season
+        game.league_tier = league_tier
+        game.save(
+            only=[game.__class__.league_season, game.__class__.league_tier]
+        )
+
+
 def _game_view(game: Any) -> FixtureGame:
     scenario = _scenario_from_name(game.name) or 'unknown'
     return FixtureGame(
@@ -443,6 +472,16 @@ def _game_view(game: Any) -> FixtureGame:
         expiration=(
             game.expiration.isoformat()
             if game.expiration is not None
+            else None
+        ),
+        league_season=(
+            int(game.league_season)
+            if game.league_season is not None
+            else None
+        ),
+        league_tier=(
+            int(game.league_tier)
+            if game.league_tier is not None
             else None
         ),
     )
@@ -574,6 +613,10 @@ def seed_fixtures(
                         guild_id,
                         players,
                         scenario,
+                    )
+                else:
+                    _apply_scenario_metadata(
+                        existing_scenarios[scenario], scenario
                     )
 
         state = _state_from_open_connection(models_module, guild_id)

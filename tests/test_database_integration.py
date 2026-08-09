@@ -1365,6 +1365,24 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     {game.scenario for game in seeded.games},
                     {'ready', 'unconfirmed', 'completed'},
                 )
+                seeded_by_scenario = {
+                    game.scenario: game for game in seeded.games
+                }
+                self.assertIsNone(
+                    seeded_by_scenario['ready'].league_season
+                )
+                self.assertEqual(
+                    seeded_by_scenario['completed'].league_season,
+                    dev_fixtures.FIXTURE_COMPLETED_LEAGUE_SEASON,
+                )
+                self.assertEqual(
+                    seeded_by_scenario['unconfirmed'].league_season,
+                    dev_fixtures.FIXTURE_CURRENT_LEAGUE_SEASON,
+                )
+                self.assertEqual(
+                    seeded_by_scenario['completed'].league_tier,
+                    dev_fixtures.FIXTURE_LEAGUE_TIER,
+                )
                 self.assertTrue(manifest_path.is_file())
                 seeded_ids = {game.game_id for game in seeded.games}
                 created_fixture_ids.update(seeded_ids)
