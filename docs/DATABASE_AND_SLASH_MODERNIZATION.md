@@ -484,16 +484,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.22 member identity/moderation listener persistence is
-Implemented and locally green on `codex/p8-22-member-identity-listeners` from
-exact clean accumulation checkpoint `502f007`; implementation/tests are
-checkpointed as `d9e7712`. Account-wide username metadata, guild-local
-nickname/display metadata, and guild-local ELO-ban state plus each audit row
-now run in bounded worker-owned transactions. Existing global `guild_id=0`
-username audit, guild-local audit, unregistered-member, and
+Current active unit: **No code unit is active. P8.22 member
+identity/moderation listener persistence is integrated, pushed, and running on
+the guarded development beta at `5c8034b`. Account-wide username metadata,
+guild-local nickname/display metadata, and guild-local ELO-ban state plus each
+audit row now run in bounded worker-owned transactions. Existing global
+`guild_id=0` username audit, guild-local audit, unregistered-member, and
 ban→inactive→nickname sequencing semantics are preserved. The stopped-beta
-real-schema gate passed. Integration, push, and beta restart remain active. No
-command tree changes.**
+real-schema gate passed. No command tree changed, and no command synchronization
+or tester announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8511,7 +8510,7 @@ Integration/deployment evidence:
 
 ### P8.22 — Member identity and moderation listener persistence
 
-Status: **Implemented and locally green; integration/deployment pending**
+Status: **Complete; integrated, pushed, and running on the development beta**
 
 The remaining `games.py` identity/moderation listener paths synchronously query
 and mutate Peewee on the Discord event loop:
@@ -8566,8 +8565,22 @@ Validation evidence:
   and no cross-guild ELO-ban leakage;
 - touched-Python compilation and working-tree whitespace checks passed.
 
-Implementation/tests checkpoint: `d9e7712`. Integration, push, guarded beta
-restart, and final no-sync/no-announcement deployment evidence remain pending.
+Implementation/tests checkpoint: `d9e7712`; roadmap evidence and integrated
+running-code checkpoint: `5c8034b`.
+
+Integration/deployment evidence:
+
+- fast-forwarded the clean P8.22 branch into
+  `codex/database-slash-modernization` and pushed exact checkpoint `5c8034b` to
+  GitHub;
+- started only `polybot-development-beta@main.service` after the stopped-beta
+  database gate. Its `ExecStartPre` writer audit was clear, and it authenticated
+  as PolyELO Bot Beta `479029527553638401`;
+- the guarded beta release-control status operation completed successfully;
+- made no application-command plan/apply/sync because neither listener changes
+  a command definition or capability;
+- selected the explicit no-announcement route. These are backend identity and
+  moderation event boundaries with no appropriate broad-pool smoke action.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -10087,9 +10100,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   one intentional retained-fixture/operator skip. The real-schema P8.22 case
   proved rollback, commit, account-wide derived-name updates, guild-local
   nickname and ELO-ban isolation, and exact audit-row persistence.
-- Checkpointed implementation/tests as `d9e7712`. Evidence checkpoint,
-  integration, push, restart, and the explicit no-sync/no-announcement
-  deployment record remain pending.
+- Checkpointed implementation/tests as `d9e7712`; the evidence/integrated
+  running-code checkpoint is `5c8034b`.
+- Fast-forwarded and pushed the accumulation branch, restarted only the guarded
+  development beta, verified expected bot identity and release-control health,
+  made no command sync, and posted no tester announcement because the listener
+  events have no appropriate broad-pool smoke action.
 
 ### 2026-08-09 — P8.21 deleted-channel cleanup implemented and validated
 
