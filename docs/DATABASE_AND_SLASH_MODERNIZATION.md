@@ -483,9 +483,13 @@ check:
 Current active unit: **P8.15 native `/league roster draft` is integrated and
 deployed with exact Drafter/Helper/Mod/owner parity and `$draft` retired as
 approved. Wider-beta card acceptance awaits an exact-role development Team
-with a stored image. The accumulation branch is locally ahead of its GitHub
-remote because the environment egress reviewer rejected the authorized push
-and requires fresh explicit approval for that exact destination.**
+with a stored image.**
+
+The exact GitHub push was subsequently approved and completed. The active
+bounded correction is the P4.2d game-tribe executor completion seam; its code
+and complete offline suite are green locally at `b1333e0`, with integration
+and beta restart pending. P8.16 `/league roster price` has been investigated
+but remains decision-gated rather than implemented.
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7877,6 +7881,56 @@ executor reliability seam so complete discovery is green again, or review the
 hidden `$tradeprice` behavior before deciding whether P8.16 `/league roster
 price` should become public native functionality.
 
+### P8.16 — Trade-price investigation
+
+Status: **Investigated; product decisions required before implementation**
+
+The hidden `$tradeprice` / `$playerprice` command is not yet a safe mechanical
+slash conversion:
+
+- it has no command-level permission or bot-channel check, so “hidden” only
+  removes it from help and does not prevent any league-guild member who knows
+  the name from invoking it;
+- its read path calls `Player.get_by_discord_id()`, which may create a missing
+  guild Player as a side effect;
+- member resolution, season inference, Player reads, six season tier/record
+  queries, and the formula all run synchronously on the event loop;
+- default season inference uses the database-wide maximum league season and
+  falls back one season when the player has an incomplete current-season game;
+- the result exposes only one integer even though it depends on three seasons
+  of tier/games/wins data plus whether the Discord member currently has House
+  Leader or House Co-Leader;
+- `utilities.trade_price_formula()` is an undocumented GalC4 legacy formula
+  with fixed weights and inflation, and no focused policy/formula tests were
+  found.
+
+Recommended P8.16 design, if the formula is still authoritative:
+
+- `/league roster price player:<member> season:<optional integer>`;
+- a public read for the same league-guild audience as the existing command,
+  unless staff explicitly choose a narrower permission;
+- one bounded read-only worker with no Player upsert, a worker-local
+  connection, explicit league-guild season scope, batched three-season input,
+  and a frozen result;
+- a dense public result that shows the chosen/inferred ending season, each
+  included tier and W-L/game count, whether the leadership adjustment applied,
+  and the resulting price so users can understand the calculation;
+- retire `$tradeprice` and `$playerprice` without adapters once the native path
+  is accepted, because typed member/season options cover their useful grammar.
+
+Decisions required before dispatch:
+
+1. Confirm that the current formula and 1.21 inflation factor remain official.
+2. Choose visibility: broadly accessible league read (current effective
+   behavior), Helper+, or another explicit role boundary.
+3. Confirm whether default season inference should preserve the incomplete-
+   game fallback or simply use the configured/current league season.
+4. Confirm that the native result should disclose the three-season inputs and
+   leadership adjustment rather than returning only the opaque integer.
+
+No P8.16 command, database, Discord, or compatibility change was made during
+this investigation.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9357,7 +9411,35 @@ overridden. `$promote`/`$trade` remain during beta for arbitrary Team/member/
 URL combinations; their database resolution and image rendering use the same
 bounded worker as native commands.
 
+### D-045 — Do not canonize the hidden trade-price formula without review
+
+Status: **Pending user/staff decision**
+
+P8.16 does not treat hidden `$tradeprice` as an approved public product merely
+because a taxonomy slot exists. Its effective broad access, read-side Player
+upsert, event-loop queries, implicit season fallback, leadership-role input,
+and undocumented formula must be made explicit before native implementation.
+The recommended native shape and four decision points are recorded in the
+P8.16 section.
+
 ## Progress log
+
+### 2026-08-09 — Game-tribe executor reliability restored and P8.16 investigated
+
+- Reproduced the sole complete-suite failure from untouched accumulation
+  checkpoint `b90464e`, proving it predated P8.15.
+- Replaced only the tribe mutation adapter's vulnerable `asyncio.wrap_future`
+  completion dependency with the repository's established bounded-yield and
+  direct concurrent-result pattern. Repeated cancellation still drains the
+  non-cancellable synchronous transaction before releasing its claim.
+- All **23** focused tribe tests passed; complete offline discovery is green
+  again at **1,092 passed with 37 intentional gated skips**. Compilation and
+  `git diff --check` passed. Checkpoint: `b1333e0`.
+- Investigated hidden `$tradeprice`/`$playerprice` end to end and recorded the
+  permission, read-side mutation, synchronous-query, season-inference,
+  formula-transparency, and retirement decisions required before P8.16.
+- No PostgreSQL, Discord command-tree, production, dependency, or fixture
+  operation was performed for the correction or investigation.
 
 ### 2026-08-09 — P8.15 native draft card implemented locally
 

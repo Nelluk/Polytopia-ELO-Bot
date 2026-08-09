@@ -1012,7 +1012,7 @@ beta lifecycle action is part of this unit.
 | `promote` | `/league roster promote` | P8.14 Helper+ typed player/destination-Team card with optional text and advanced per-image HTTP(S) override; `$promote` retained for arbitrary Team/member/URL boxes |
 | `trade` alias | `/league roster trade` | P8.14 Helper+ typed two-player card with optional text and advanced per-image HTTP(S) override; `$trade` retained over the shared worker |
 | `draft` | `/league roster draft` | P8.15 typed member/exact-Team card with legacy Drafter/Helper/Mod/owner parity; `$draft` retired because native covers its full grammar |
-| `tradeprice` | `/league roster price` | Retain/review hidden read before exposure |
+| `tradeprice`, `playerprice` alias | `/league roster price` | P8.16 investigated and decision-gated: confirm legacy formula/inflation, access level, default-season fallback, and transparent input breakdown before implementation; retire both aliases if approved |
 | `league_export` | `/league maintenance export` | Redesign staff-only deferred generation |
 | `deactivate_players` | `/league maintenance deactivate` | Preview and confirmation required |
 | `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
