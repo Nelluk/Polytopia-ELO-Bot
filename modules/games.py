@@ -4868,8 +4868,11 @@ class polygames(commands.Cog):
                 send=ctx.send,
                 destination=ctx,
                 guild=game_guild,
+                bot=bot,
                 guild_list=guild_list,
                 prefix=ctx.prefix,
+                requester_id=int(ctx.author.id),
+                channel_id=int(ctx.channel.id),
             )
 
         try:
@@ -4933,7 +4936,10 @@ class polygames(commands.Cog):
                 result,
                 send=ctx.send,
                 guild=ctx.guild,
+                bot=getattr(self, 'bot', None),
                 prefix=ctx.prefix,
+                requester_id=int(ctx.author.id),
+                channel_id=int(ctx.channel.id),
             )
 
         try:
@@ -5063,10 +5069,13 @@ class polygames(commands.Cog):
                 result,
                 send=public_send,
                 guild=interaction.guild,
+                bot=getattr(self, 'bot', None),
                 prefix=settings.guild_setting(
                     interaction.guild.id,
                     'command_prefix',
                 ),
+                requester_id=int(interaction.user.id),
+                channel_id=int(channel_id),
                 presentation='slash',
             )
 
@@ -5219,7 +5228,10 @@ class polygames(commands.Cog):
                 send=public_send,
                 destination=interaction.channel,
                 guild=interaction.guild,
+                bot=getattr(self, 'bot', None),
                 prefix=prefix,
+                requester_id=int(interaction.user.id),
+                channel_id=int(channel_id),
                 presentation='slash',
                 actor=actor,
             )
@@ -5378,7 +5390,14 @@ class polygames(commands.Cog):
                         value,
                         destination=native_interaction.channel,
                         guild=native_interaction.guild,
+                        bot=getattr(self, 'bot', None),
                         prefix=prefix,
+                        requester_id=int(native_interaction.user.id),
+                        channel_id=int(
+                            getattr(native_interaction, 'channel_id', None)
+                            or getattr(native_interaction.channel, 'id', 0)
+                            or 0
+                        ),
                         presentation='slash',
                     ),
                 )
@@ -5580,8 +5599,15 @@ class polygames(commands.Cog):
                     send=public_send,
                     destination=native_interaction.channel,
                     guild=native_interaction.guild,
+                    bot=getattr(self, 'bot', None),
                     guild_list=guild_list,
                     prefix=prefix,
+                    requester_id=int(native_interaction.user.id),
+                    channel_id=int(
+                        getattr(native_interaction, 'channel_id', None)
+                        or getattr(native_interaction.channel, 'id', 0)
+                        or 0
+                    ),
                     presentation='slash',
                     actor=actor,
                 )
@@ -5754,7 +5780,18 @@ class polygames(commands.Cog):
                         getattr(interaction, 'channel', None),
                     ),
                     guild=native_interaction.guild,
+                    bot=getattr(self, 'bot', None),
                     prefix=prefix,
+                    requester_id=int(native_interaction.user.id),
+                    channel_id=int(
+                        getattr(native_interaction, 'channel_id', None)
+                        or getattr(
+                            getattr(native_interaction, 'channel', None),
+                            'id',
+                            0,
+                        )
+                        or 0
+                    ),
                     presentation='slash',
                     actor=submitter,
                 )
@@ -5979,7 +6016,10 @@ class polygames(commands.Cog):
                 send=ctx.send,
                 destination=ctx,
                 guild=ctx.guild,
+                bot=getattr(self, 'bot', None),
                 prefix=ctx.prefix,
+                requester_id=int(ctx.author.id),
+                channel_id=int(ctx.channel.id),
                 requester_level=request.requester_level,
             )
 

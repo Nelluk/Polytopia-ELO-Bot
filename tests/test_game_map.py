@@ -503,20 +503,26 @@ class GameMapServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_commit_precedes_card_refresh_and_failure_is_observable(self):
         events = []
 
-        class Game:
-            async def update_announcement(self, *, guild, prefix):
-                events.append('refresh')
-                return False
-
         async def send(content):
             events.append(('send', content))
+
+        async def load_card(**kwargs):
+            return SimpleNamespace()
+
+        async def refresh(*args, **kwargs):
+            events.append('refresh')
+            raise RuntimeError('refresh failure')
 
         await game_map.publish_mutation_result(
             self.result(),
             send=send,
             guild=SimpleNamespace(),
+            bot=SimpleNamespace(),
             prefix='$',
-            load_game=lambda *, game_id: Game(),
+            requester_id=100,
+            channel_id=900,
+            load_card=load_card,
+            refresh_announcement=refresh,
         )
 
         self.assertEqual(events[0][0], 'send')

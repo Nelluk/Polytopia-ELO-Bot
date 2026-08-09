@@ -6,7 +6,13 @@ from dataclasses import replace
 import logging
 
 import settings
-from modules import exceptions, game_workers, models, utilities
+from modules import (
+    exceptions,
+    game_metadata_presentation,
+    game_workers,
+    models,
+    utilities,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -154,9 +160,13 @@ async def publish_mutation_result(
     *,
     send,
     guild,
+    bot,
     prefix: str,
+    requester_id: int,
+    channel_id: int,
     presentation: str = 'prefix',
-    load_game=None,
+    load_card=None,
+    refresh_announcement=None,
 ) -> None:
     """Publish committed output and refresh the legacy announcement card.
 
@@ -165,8 +175,11 @@ async def publish_mutation_result(
     public warning plus an exception log makes reconciliation visible.
     """
 
-    if load_game is None:
-        load_game = models.Game.load_full_game
+    load_card = load_card or game_metadata_presentation.load_card
+    refresh_announcement = (
+        refresh_announcement
+        or game_metadata_presentation.refresh_announcement
+    )
 
     output = mutation_message(result)
     try:
@@ -189,20 +202,21 @@ async def publish_mutation_result(
             )
 
     try:
-        game = load_game(game_id=result.game_id)
-        announcement_kwargs = {
-            'guild': guild,
-            'prefix': prefix,
-        }
-        if presentation != 'prefix':
-            announcement_kwargs['presentation'] = presentation
-        refreshed = await game.update_announcement(**announcement_kwargs)
-        if (
-            refreshed is False
-            and result.announcement_channel_id is not None
-            and result.announcement_message_id is not None
-        ):
-            raise RuntimeError('the announcement refresh reported failure')
+        card = await load_card(
+            game_id=result.game_id,
+            guild=guild,
+            bot=bot,
+            prefix=prefix,
+            presentation=presentation,
+            requester_id=requester_id,
+            channel_id=channel_id,
+        )
+        await refresh_announcement(
+            card,
+            guild=guild,
+            channel_id=result.announcement_channel_id,
+            message_id=result.announcement_message_id,
+        )
     except Exception:
         logger.exception(
             'Committed map mutation %s announcement refresh failed',

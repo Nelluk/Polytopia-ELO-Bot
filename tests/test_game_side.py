@@ -449,14 +449,25 @@ class GameSideServiceTests(unittest.IsolatedAsyncioTestCase):
             return self.result()
 
         async def after(result):
+            async def load_card(**kwargs):
+                events.append('load')
+                return SimpleNamespace()
+
+            async def refresh(*args, **kwargs):
+                events.append('refresh')
+
             await game_side.publish_mutation_result(
                 result,
                 send=lambda content: self.record_send(events, content),
                 destination=SimpleNamespace(),
                 guild=SimpleNamespace(),
+                bot=SimpleNamespace(),
                 prefix='$',
-                load_game=lambda **kwargs: self.presentation_game(events),
-                send_game_embed=self.send_embed(events),
+                requester_id=100,
+                channel_id=900,
+                load_card=load_card,
+                refresh_announcement=refresh,
+                send_card=self.send_embed(events),
             )
 
         with mock.patch.object(
@@ -481,8 +492,9 @@ class GameSideServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[1], 'commit')
         self.assertEqual(events[2], ('unlock', 42))
         self.assertEqual(events[3][0], 'send')
-        self.assertEqual(events[4], 'refresh')
-        self.assertEqual(events[5], 'card')
+        self.assertEqual(events[4], 'load')
+        self.assertEqual(events[5], 'refresh')
+        self.assertEqual(events[6], 'card')
 
     @staticmethod
     async def record_send(events, content):
@@ -799,16 +811,15 @@ class GameSidePresentationTests(unittest.IsolatedAsyncioTestCase):
     async def test_post_commit_warning_is_public_and_ordered_after_refresh_attempt(self):
         events = []
 
-        class Game:
-            async def update_announcement(self, **kwargs):
-                events.append('refresh')
-                return False
-
-            def embed(self, **kwargs):
-                return None, None
-
         async def send(content):
             events.append(('send', content))
+
+        async def load_card(**kwargs):
+            return SimpleNamespace()
+
+        async def refresh(*args, **kwargs):
+            events.append('refresh')
+            raise RuntimeError('refresh failure')
 
         async def send_embed(*args, **kwargs):
             events.append('card')
@@ -818,9 +829,13 @@ class GameSidePresentationTests(unittest.IsolatedAsyncioTestCase):
             send=send,
             destination=SimpleNamespace(),
             guild=SimpleNamespace(),
+            bot=SimpleNamespace(),
             prefix='$',
-            load_game=lambda **kwargs: Game(),
-            send_game_embed=send_embed,
+            requester_id=100,
+            channel_id=900,
+            load_card=load_card,
+            refresh_announcement=refresh,
+            send_card=send_embed,
         )
 
         self.assertEqual(events[0][0], 'send')

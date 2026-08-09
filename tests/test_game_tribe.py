@@ -771,15 +771,14 @@ class GameTribePresentationTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         )
-        game = SimpleNamespace(
-            embed=lambda **kwargs: ('embed', 'card'),
-            update_announcement=mock.AsyncMock(
-                side_effect=RuntimeError('announcement failure')
-            ),
-        )
-
         async def send(content, **kwargs):
             events.append(('send', content))
+
+        async def load_card(**kwargs):
+            return SimpleNamespace()
+
+        async def refresh(*args, **kwargs):
+            raise RuntimeError('announcement failure')
 
         async def send_card(*args, **kwargs):
             events.append(('card',))
@@ -790,10 +789,14 @@ class GameTribePresentationTests(unittest.IsolatedAsyncioTestCase):
             send=send,
             destination=SimpleNamespace(),
             guild=SimpleNamespace(id=300),
+            bot=SimpleNamespace(),
             prefix='$',
+            requester_id=100,
+            channel_id=900,
             actor=game_tribe.capture_actor(member()),
-            load_game=lambda **kwargs: game,
-            send_game_embed=send_card,
+            load_card=load_card,
+            refresh_announcement=refresh,
+            send_card=send_card,
         )
         self.assertEqual(events[0][0], 'send')
         self.assertIn('updated tribes for game 42', events[0][1])

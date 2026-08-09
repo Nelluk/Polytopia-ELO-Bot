@@ -8,7 +8,7 @@ import logging
 import discord
 
 import settings
-from modules import exceptions, game_workers, image_storage, models
+from modules import exceptions, game_metadata_presentation, game_workers, models
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -296,48 +296,23 @@ async def _send_reconciliation_warning(send, content: str, game_id: int) -> None
         )
 
 
-async def refresh_game_card(
-    result: game_workers.GameNameMutationResult,
-    *,
-    destination,
-    guild,
-    prefix: str,
-    presentation: str = 'prefix',
-    load_game=None,
-    send_game_embed=None,
-) -> None:
-    """Send the established dense game card after a committed name write."""
-
-    if load_game is None:
-        load_game = models.Game.load_full_game
-    if send_game_embed is None:
-        send_game_embed = image_storage.send_game_embed
-    game = load_game(game_id=result.game_id)
-    embed, content = game.embed(
-        guild=guild,
-        prefix=prefix,
-        presentation=presentation,
-    )
-    await send_game_embed(
-        destination,
-        game,
-        embed=embed,
-        content=content,
-    )
-
-
 async def publish_mutation_result(
     result: game_workers.GameNameMutationResult,
     *,
     send,
     destination,
     guild,
+    bot,
     guild_list=None,
     prefix: str,
+    requester_id: int,
+    channel_id: int,
     presentation: str = 'prefix',
     actor: GameNameActor | None = None,
-    load_game=None,
-    send_game_embed=None,
+    load_card=None,
+    rename_channels=None,
+    refresh_announcement=None,
+    send_card=None,
 ) -> None:
     """Publish committed output and reconcile all established presentations.
 
@@ -379,11 +354,25 @@ async def publish_mutation_result(
     if guild_list is None:
         guild_list = (guild,)
 
-    committed_game = None
-    if load_game is None:
-        load_game = models.Game.load_full_game
+    load_card = load_card or game_metadata_presentation.load_card
+    rename_channels = (
+        rename_channels or game_metadata_presentation.rename_game_channels
+    )
+    refresh_announcement = (
+        refresh_announcement
+        or game_metadata_presentation.refresh_announcement
+    )
+    send_card = send_card or game_metadata_presentation.send_dense_card
     try:
-        committed_game = load_game(game_id=result.game_id)
+        card = await load_card(
+            game_id=result.game_id,
+            guild=guild,
+            bot=bot,
+            prefix=prefix,
+            presentation=presentation,
+            requester_id=requester_id,
+            channel_id=channel_id,
+        )
     except Exception:
         logger.exception(
             'Committed game-name mutation %s could not reload its model for '
@@ -399,13 +388,7 @@ async def publish_mutation_result(
         return
 
     try:
-        update_squad_channels = getattr(
-            committed_game,
-            'update_squad_channels',
-            None,
-        )
-        if callable(update_squad_channels):
-            await update_squad_channels(guild_list, guild.id)
+        await rename_channels(card, guild=guild, guild_list=guild_list)
     except Exception:
         logger.exception(
             'Committed game-name mutation %s squad-channel reconciliation failed',
@@ -419,25 +402,12 @@ async def publish_mutation_result(
         )
 
     try:
-        update_announcement = getattr(
-            committed_game,
-            'update_announcement',
-            None,
+        await refresh_announcement(
+            card,
+            guild=guild,
+            channel_id=result.announcement_channel_id,
+            message_id=result.announcement_message_id,
         )
-        if callable(update_announcement):
-            announcement_kwargs = {
-                'guild': guild,
-                'prefix': prefix,
-            }
-            if presentation != 'prefix':
-                announcement_kwargs['presentation'] = presentation
-            refreshed = await update_announcement(**announcement_kwargs)
-            if (
-                refreshed is False
-                and result.announcement_channel_id is not None
-                and result.announcement_message_id is not None
-            ):
-                raise RuntimeError('the announcement refresh reported failure')
     except Exception:
         logger.exception(
             'Committed game-name mutation %s announcement refresh failed',
@@ -452,15 +422,7 @@ async def publish_mutation_result(
         )
 
     try:
-        await refresh_game_card(
-            result,
-            destination=destination,
-            guild=guild,
-            prefix=prefix,
-            presentation=presentation,
-            load_game=lambda **_kwargs: committed_game,
-            send_game_embed=send_game_embed,
-        )
+        await send_card(destination, card)
     except Exception:
         logger.exception(
             'Committed game-name mutation %s dense game-card refresh failed',

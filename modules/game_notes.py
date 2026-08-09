@@ -9,7 +9,13 @@ import re
 import discord
 
 import settings
-from modules import exceptions, game_workers, image_storage, models, utilities
+from modules import (
+    exceptions,
+    game_metadata_presentation,
+    game_workers,
+    models,
+    utilities,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -240,29 +246,28 @@ async def refresh_game_card(
     *,
     destination,
     guild,
+    bot,
     prefix: str,
+    requester_id: int,
+    channel_id: int,
     presentation: str = 'prefix',
-    load_game=None,
-    send_game_embed=None,
+    load_card=None,
+    send_card=None,
 ) -> None:
     """Send the established dense game card after a committed notes write."""
 
-    if load_game is None:
-        load_game = models.Game.load_full_game
-    if send_game_embed is None:
-        send_game_embed = image_storage.send_game_embed
-    game = load_game(game_id=result.game_id)
-    embed, content = game.embed(
+    load_card = load_card or game_metadata_presentation.load_card
+    send_card = send_card or game_metadata_presentation.send_dense_card
+    card = await load_card(
+        game_id=result.game_id,
         guild=guild,
+        bot=bot,
         prefix=prefix,
         presentation=presentation,
+        requester_id=requester_id,
+        channel_id=channel_id,
     )
-    await send_game_embed(
-        destination,
-        game,
-        embed=embed,
-        content=content,
-    )
+    await send_card(destination, card)
 
 
 def public_interaction_sender(interaction):

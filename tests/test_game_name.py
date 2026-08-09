@@ -586,20 +586,20 @@ class GameNameServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_publish_orders_success_after_commit_and_observes_refresh_failure(self):
         events = []
         result = self.result()
-        committed_game = SimpleNamespace(
-            embed=lambda **kwargs: ('embed', 'content'),
-            update_squad_channels=mock.AsyncMock(
-                side_effect=lambda *args: events.append('squad')
-            ),
-            update_announcement=mock.AsyncMock(
-                side_effect=lambda **kwargs: events.append('announcement')
-            ),
-        )
-
         async def send(content, **kwargs):
             events.append(('send', content))
 
-        async def send_embed(*args, **kwargs):
+        async def load_card(**kwargs):
+            events.append('load')
+            return SimpleNamespace()
+
+        async def rename_channels(*args, **kwargs):
+            events.append('squad')
+
+        async def refresh_announcement(*args, **kwargs):
+            events.append('announcement')
+
+        async def send_card(*args, **kwargs):
             events.append('card')
             raise RuntimeError('card failure')
 
@@ -608,11 +608,16 @@ class GameNameServiceTests(unittest.IsolatedAsyncioTestCase):
             send=send,
             destination=SimpleNamespace(),
             guild=SimpleNamespace(id=300),
+            bot=SimpleNamespace(),
             guild_list=(SimpleNamespace(id=300),),
             prefix='$',
+            requester_id=100,
+            channel_id=900,
             actor=game_name.capture_actor(make_member()),
-            load_game=lambda **kwargs: committed_game,
-            send_game_embed=send_embed,
+            load_card=load_card,
+            rename_channels=rename_channels,
+            refresh_announcement=refresh_announcement,
+            send_card=send_card,
         )
         self.assertEqual(events[0][0], 'send')
         self.assertIn('renamed game 42', events[0][1])
@@ -841,7 +846,7 @@ class NativeGameNameAdapterTests(unittest.IsolatedAsyncioTestCase):
             ),
         ), mock.patch.object(
             games.game_name,
-            'refresh_game_card',
+            'publish_mutation_result',
             new=mock.AsyncMock(),
         ):
             workspace = await self.command().callback(cog, interaction, 42)

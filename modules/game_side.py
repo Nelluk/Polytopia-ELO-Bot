@@ -8,7 +8,13 @@ import logging
 import discord
 
 import settings
-from modules import exceptions, game_workers, image_storage, models, utilities
+from modules import (
+    exceptions,
+    game_metadata_presentation,
+    game_workers,
+    models,
+    utilities,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -276,20 +282,34 @@ async def reconcile_game_presentation(
     send,
     destination,
     guild,
+    bot,
     prefix: str,
+    requester_id: int,
+    channel_id: int,
     presentation: str = 'prefix',
-    load_game=None,
-    send_game_embed=None,
+    load_card=None,
+    refresh_announcement=None,
+    send_card=None,
 ) -> None:
     """Refresh the announcement and dense game card only after commit."""
 
-    if load_game is None:
-        load_game = models.Game.load_full_game
-    if send_game_embed is None:
-        send_game_embed = image_storage.send_game_embed
+    load_card = load_card or game_metadata_presentation.load_card
+    refresh_announcement = (
+        refresh_announcement
+        or game_metadata_presentation.refresh_announcement
+    )
+    send_card = send_card or game_metadata_presentation.send_dense_card
 
     try:
-        game = load_game(game_id=result.game_id)
+        card = await load_card(
+            game_id=result.game_id,
+            guild=guild,
+            bot=bot,
+            prefix=prefix,
+            presentation=presentation,
+            requester_id=requester_id,
+            channel_id=channel_id,
+        )
     except Exception:
         logger.exception(
             'Committed game-side mutation %s could not reload its game '
@@ -305,19 +325,12 @@ async def reconcile_game_presentation(
         return
 
     try:
-        announcement_kwargs = {
-            'guild': guild,
-            'prefix': prefix,
-        }
-        if presentation != 'prefix':
-            announcement_kwargs['presentation'] = presentation
-        refreshed = await game.update_announcement(**announcement_kwargs)
-        if (
-            refreshed is False
-            and result.announcement_channel_id is not None
-            and result.announcement_message_id is not None
-        ):
-            raise RuntimeError('the announcement refresh reported failure')
+        await refresh_announcement(
+            card,
+            guild=guild,
+            channel_id=result.announcement_channel_id,
+            message_id=result.announcement_message_id,
+        )
     except Exception:
         logger.exception(
             'Committed game-side mutation %s announcement refresh failed',
@@ -332,17 +345,7 @@ async def reconcile_game_presentation(
         )
 
     try:
-        embed, content = game.embed(
-            guild=guild,
-            prefix=prefix,
-            presentation=presentation,
-        )
-        await send_game_embed(
-            destination,
-            game,
-            embed=embed,
-            content=content,
-        )
+        await send_card(destination, card)
     except Exception:
         logger.exception(
             'Committed game-side mutation %s dense game-card refresh failed',
@@ -363,11 +366,15 @@ async def publish_mutation_result(
     send,
     destination,
     guild,
+    bot,
     prefix: str,
+    requester_id: int,
+    channel_id: int,
     presentation: str = 'prefix',
     actor: GameSideActor | None = None,
-    load_game=None,
-    send_game_embed=None,
+    load_card=None,
+    refresh_announcement=None,
+    send_card=None,
 ) -> None:
     """Publish committed output and reconcile the public presentation."""
 
@@ -395,8 +402,12 @@ async def publish_mutation_result(
         send=send,
         destination=destination,
         guild=guild,
+        bot=bot,
         prefix=prefix,
+        requester_id=requester_id,
+        channel_id=channel_id,
         presentation=presentation,
-        load_game=load_game,
-        send_game_embed=send_game_embed,
+        load_card=load_card,
+        refresh_announcement=refresh_announcement,
+        send_card=send_card,
     )

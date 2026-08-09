@@ -1252,7 +1252,10 @@ class matchmaking(commands.Cog):
                     value,
                     destination=ctx,
                     guild=ctx.guild,
+                    bot=getattr(self, 'bot', None),
                     prefix=ctx.prefix,
+                    requester_id=int(ctx.author.id),
+                    channel_id=int(ctx.channel.id),
                 ),
             )
 
