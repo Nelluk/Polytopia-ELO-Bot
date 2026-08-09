@@ -62,6 +62,14 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/house show`: try an explicit House and omit the option when you have one
   unambiguous House role. Check leadership, active/archived Teams, tiers,
   current Team ELO, rosters, player ELO, and the House image.
+- `/house name`: omit `name` for a public read; as a Mod, supply a replacement
+  and verify the public result identifies the actor. Confirm the bot warns
+  that the exact Discord House role must be renamed separately.
+- `/house image`: omit image/clear for a public read, replace the image with a
+  PNG/JPEG/WebP attachment, and explicitly clear it. Check the image on both
+  desktop and mobile and verify committed changes publicly identify the actor.
+- The retired `$house_rename` and `$house_image` aliases should no longer be
+  available. `$house_add` remains temporarily for House creation.
 - Another user must not be able to operate your list/detail controls. Missing
   exact House or Team roles should produce useful warnings, while lookup,
   inference, permission, and expired-control failures should stay private.
