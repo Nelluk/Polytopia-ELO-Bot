@@ -484,9 +484,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.14 older incomplete-game
-purge is complete, integrated, pushed, and loaded by the guarded development
-beta at `fcb7131`. P5.14-A/B/C/D are accepted.
+Current active unit: **P5.15 post-start external-broadcast reconciliation has
+completed its read-only design audit and is blocked on P5.15-A/B/C/D policy
+acceptance before implementation. The audit confirms that
+`Game.update_external_broadcasts()` performs Peewee iteration/deletion on the
+event loop, hides Discord fetch/edit failure distinctions, and deletes the
+tracking row even when the public message was not updated. The proposed
+boundary freezes primitive row/message targets in the existing start
+transaction, performs idempotent Discord edits after commit, and uses bounded
+worker-local persistence for terminal completion while retaining uncertain
+failures for reconciliation. No code, database, Discord, beta, task, or
+production state changed during the audit. P5.14 older incomplete-game purge
+is complete, integrated, pushed, and loaded by the guarded development beta at
+`fcb7131`. P5.14-A/B/C/D are accepted.
 The task now owns only started incomplete games, preserves the age/season
 matrix, adds two-player warning parity, records successful warnings per
 channel, commits one protected audit plus deletion per game through the ELO
@@ -5092,6 +5102,115 @@ current start transaction and command interfaces; do not silently delete a
 broadcast row when its Discord update failed without an explicit reconciliation
 policy. An alternate ready unit is the narrower immutable post-commit game-card
 reload used by reaction success paths.
+
+### P5.15 — Post-start external-broadcast reconciliation design audit
+
+Status: **Design audited; awaiting P5.15-A/B/C/D acceptance**
+
+`TeamServerBroadcastMessage` is the tracking table for open-game messages
+posted into external team servers. A row is created after the Discord message
+is sent. When that game starts, `game_start.publish_start_result()` reloads a
+live `Game` model on the event loop and calls the asynchronous model method
+`Game.update_external_broadcasts(deleted=False)`. That helper then:
+
+1. synchronously traverses the game's Peewee back-reference on the event loop;
+2. resolves only a cached Discord channel and fetches the message;
+3. strikes through the current content and removes the bot's join reaction;
+4. catches any `discord.DiscordException` from edit/reaction work without
+   exposing whether the message was absent, access was forbidden, or the
+   request failed transiently; and
+5. synchronously deletes the tracking row whether the public update succeeded
+   or failed.
+
+The helper's `deleted=True` branch has no remaining caller. Manual pending
+deletion and both automatic purge paths already freeze primitive broadcast
+targets before their authoritative database deletion and publish their
+Discord effects afterward. P5.15 should therefore own only started-game
+reconciliation and remove the now-single-use asynchronous model methods after
+the last caller migrates.
+
+Observed failure and lifecycle risks:
+
+- a cache miss is treated as a permanently missing channel without attempting
+  `bot.fetch_channel()`, after which the row is deleted;
+- `TeamServerBroadcastMessage.fetch_message()` collapses NotFound, Forbidden,
+  transient HTTP failure, and other Discord errors into the same `None` value;
+- an edit or reaction-removal failure is logged but the durable target is
+  discarded, so neither automatic nor manual reconciliation can locate it;
+- row traversal and `delete_instance()` use the event-loop database connection
+  outside an explicit worker-owned transaction;
+- a process exit after the start commit but before the helper runs leaves a
+  row, but no existing task consumes started-game rows later;
+- retrying the current content transform would nest strike-through markup and
+  repeat the suffix if the edit succeeded but reaction removal or row deletion
+  failed;
+- the start publisher catches only exceptions that escape the helper, so its
+  current public reconciliation warning cannot report the common internally
+  swallowed failures;
+- external-broadcast creation has a separate upstream gap: the Discord message
+  is sent before a synchronous event-loop row insert, so an insert failure can
+  leave an untracked message. That creation-side boundary is recorded for a
+  later unit rather than silently expanding P5.15.
+
+Recommended bounded implementation after policy acceptance:
+
+- extend the immutable start result with exact broadcast row ID, game ID,
+  channel ID, and message ID values frozen while the existing authoritative
+  start transaction still owns its worker-local connection. Do not reload or
+  traverse broadcast models in the post-commit coroutine;
+- add a dedicated bounded worker service that can discover a capped,
+  deterministic set of tracking rows belonging to non-pending games, revalidate
+  one row/game target, and finalize only that exact row in a short synchronous
+  transaction. No Peewee or Discord object crosses the worker boundary;
+- resolve a channel from cache and then through `bot.fetch_channel()`. Treat a
+  confirmed missing channel/message as a terminal absence because no stale
+  public invitation remains; finalize that tracking row. Retain the row for
+  Forbidden, timeout, transient HTTP, unexpected Discord, database, or unknown
+  failures and report the exact game/channel/message target;
+- make the public transformation idempotent: append the started marker and
+  strike-through only when that exact marker is absent. If the marker is
+  already present, only reconcile the join reaction. A confirmed absent bot
+  join reaction is already the desired terminal state;
+- use the existing process-local per-game lock across revalidation, Discord
+  update, and row finalization. A locked or changed/deleted game becomes a
+  typed skip so a concurrent game deletion cannot be overwritten with a stale
+  "started" message; a later cycle may retry rows that still exist;
+- attempt every frozen target independently after the start commit. One target
+  failure must not suppress missing-member/name/season warnings, the started
+  card, channels, or league hooks;
+- use the tracking row itself as the durable retry token rather than adding a
+  schema-backed outbox. A bounded hourly reconciliation cycle may consume
+  retained started-game rows when background tasks are enabled. It should cap
+  and deterministically order work, isolate each row, publish at most one
+  staff-log summary per guild/cycle, and never run in the development beta
+  while `--skip_tasks` remains active;
+- preserve `/game start`, `$start`, `$startgame`, the existing start
+  transaction, card/channel/league effect ordering, and every deletion path.
+  No command registration or capability change belongs in this unit.
+
+Policy decisions required before implementation:
+
+1. **P5.15-A — Terminal versus retained targets:** finalize the row after a
+   successful idempotent update or confirmed Discord channel/message absence;
+   retain it after Forbidden, transient/unknown Discord failure, or database
+   finalization failure, with exact reconciliation context. **Recommended.**
+2. **P5.15-B — Durable recovery:** treat retained rows on non-pending games as
+   the retry queue and add a capped hourly background reconciliation cycle,
+   while still attempting the newly frozen rows immediately after each start.
+   Do not add schema or a public/admin command in this unit. **Recommended.**
+3. **P5.15-C — Concurrency and idempotency:** acquire the existing per-game
+   process lock around each public reconciliation attempt, skip locked/stale
+   targets, and make the started-message transformation safe to repeat before
+   enabling automatic retry. **Recommended.**
+4. **P5.15-D — Scope:** limit this unit to the post-start consumer and retire
+   the unused async model helper/fetch method. Leave message-send/row-create
+   atomicity, deletion publishers, command interfaces, schema, and production
+   task enablement unchanged; record the creation-side gap as a later bounded
+   follow-up. **Recommended.**
+
+No implementation, tests, PostgreSQL access, fixture mutation, Discord
+operation, beta lifecycle action, task-configuration change, production
+action, or dependency change occurred during this audit.
 
 ## P6 — Registration and player preferences
 
@@ -10886,6 +11005,29 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.15 post-start broadcast reconciliation audited
+
+- Traced the only remaining caller of `Game.update_external_broadcasts()`
+  from the committed start result through live-model reload, back-reference
+  traversal, Discord fetch/edit/reaction work, and unconditional row deletion.
+- Confirmed that cache misses and all Discord fetch failures collapse to the
+  same missing-message result, while edit/reaction failures are swallowed and
+  their tracking rows are still deleted.
+- Confirmed the helper's deletion branch has no caller because manual and
+  automatic deletion paths already own frozen post-commit broadcast effects.
+- Proposed freezing exact row/message targets inside the existing start
+  transaction, worker-local target discovery/finalization, explicit
+  terminal-versus-retained outcomes, idempotent Discord rendering, and the
+  existing per-game lock around each public attempt.
+- Proposed using retained non-pending rows as a schema-free durable retry queue
+  consumed by a capped hourly task when background tasks are enabled; the
+  guarded development beta remains task-disabled.
+- Recorded the separate send-before-row-create boundary as a later follow-up
+  rather than broadening this post-start unit.
+- Left implementation blocked on P5.15-A/B/C/D. Made no code, test, database,
+  fixture, Discord, beta, task-configuration, schema, dependency, or
+  production change.
 
 ### 2026-08-09 — P5.14 incomplete-game purge worker validated
 
