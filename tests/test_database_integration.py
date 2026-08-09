@@ -4068,6 +4068,186 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_member_identity_workers_commit_and_roll_back_real_graphs(self):
+        """Exercise P8.22 identity/moderation transactions on PostgreSQL."""
+
+        from modules import member_identity_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        other_guild_id = guild_id + 987
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P8.22 identity {suffix}'
+        discord_id = 9_084_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        old_name = f'P822Old{suffix}'
+        new_name = f'P822New{suffix}'
+        member_id = None
+        player_ids = []
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=old_name,
+            )
+            member_id = int(member.id)
+            local_player = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                nick='Local Nick',
+                name=f'{old_name} (Local Nick)',
+            )
+            other_player = self.models.Player.create(
+                discord_member=member,
+                guild_id=other_guild_id,
+                nick=None,
+                name=old_name,
+            )
+            player_ids.extend((int(local_player.id), int(other_player.id)))
+            username_request = workers.UsernameUpdateRequest(
+                discord_id=discord_id,
+                before_name=old_name,
+                after_name=new_name,
+                stored_name=new_name,
+                member_description=f'**{marker}** (`{discord_id}`)',
+            )
+
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.22 injected username audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'username audit failure',
+                ):
+                    asyncio.run(workers.run_username_update(username_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.DiscordMember.get_by_id(member_id).name,
+                old_name,
+            )
+            self.assertEqual(
+                self.models.Player.get_by_id(local_player.id).name,
+                f'{old_name} (Local Nick)',
+            )
+
+            self.models.db.close()
+            username_result = asyncio.run(
+                workers.run_username_update(username_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(username_result.registered)
+            self.assertEqual(
+                username_result.updated_player_ids,
+                tuple(sorted(player_ids)),
+            )
+            self.assertEqual(
+                self.models.DiscordMember.get_by_id(member_id).name,
+                new_name,
+            )
+            self.assertEqual(
+                self.models.Player.get_by_id(local_player.id).name,
+                f'{new_name} (Local Nick)',
+            )
+            self.assertEqual(
+                self.models.Player.get_by_id(other_player.id).name,
+                new_name,
+            )
+
+            nickname_request = workers.NicknameUpdateRequest(
+                guild_id=guild_id,
+                member_id=discord_id,
+                before_nick='Local Nick',
+                after_name=new_name,
+                after_nick='Changed Nick',
+                member_description=f'**{marker}** (`{discord_id}`)',
+            )
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.22 injected nickname audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'nickname audit failure',
+                ):
+                    asyncio.run(workers.run_nickname_update(nickname_request))
+            self.models.db.connect(reuse_if_open=True)
+            local_player = self.models.Player.get_by_id(local_player.id)
+            self.assertEqual(local_player.nick, 'Local Nick')
+            self.assertEqual(local_player.name, f'{new_name} (Local Nick)')
+
+            self.models.db.close()
+            nickname_result = asyncio.run(
+                workers.run_nickname_update(nickname_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(nickname_result.registered)
+            local_player = self.models.Player.get_by_id(local_player.id)
+            self.assertEqual(local_player.nick, 'Changed Nick')
+            self.assertEqual(local_player.name, f'{new_name} (Changed Nick)')
+
+            ban_request = workers.EloBanUpdateRequest(
+                guild_id=guild_id,
+                member_id=discord_id,
+                is_banned=True,
+                member_description=f'**{marker}** (`{discord_id}`)',
+            )
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError(
+                    'P8.22 injected ELO-ban audit failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'ELO-ban audit failure',
+                ):
+                    asyncio.run(workers.run_elo_ban_update(ban_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertFalse(
+                self.models.Player.get_by_id(local_player.id).is_banned
+            )
+
+            self.models.db.close()
+            ban_result = asyncio.run(workers.run_elo_ban_update(ban_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(ban_result.registered)
+            self.assertTrue(
+                self.models.Player.get_by_id(local_player.id).is_banned
+            )
+            self.assertEqual(
+                self.models.Player.get_by_id(other_player.id).is_banned,
+                False,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                3,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            if player_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(tuple(player_ids))
+                ).execute()
+            if member_id is not None:
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id == member_id
+                ).execute()
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 

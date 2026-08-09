@@ -25,6 +25,7 @@ from modules import player_timezone_workers
 from modules import player_timezone_values
 from modules import league_inactivity_workers
 from modules import channel_reference_workers
+from modules import member_identity_workers
 from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
@@ -599,44 +600,68 @@ class polygames(commands.Cog):
     @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
-            logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
-            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
-            utilities.connect()
             try:
-                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
-            except peewee.DoesNotExist:
+                result = await member_identity_workers.run_username_update(
+                    member_identity_workers.UsernameUpdateRequest(
+                        discord_id=int(after.id),
+                        before_name=str(before.name),
+                        after_name=str(after.name),
+                        stored_name=utilities.escape_role_mentions(after.name),
+                        member_description=models.GameLog.member_string(after),
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    'Could not persist username change for member %s',
+                    after.id,
+                )
                 return
-            discord_member.update_name(new_name=utilities.escape_role_mentions(after.name))
-            models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(after)} changed username from "{before.name}"" to "{after.name}"')
+            if result.registered:
+                logger.debug(
+                    'Updated username metadata for member %s across %s Player '
+                    'record(s)',
+                    after.id,
+                    len(result.updated_player_ids),
+                )
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        player_query = Player.select().join(DiscordMember).where(
-            (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
-        )
-
         banned_role = discord.utils.get(before.guild.roles, name='ELO Banned')
-        if banned_role not in before.roles and banned_role in after.roles:
-            utilities.connect()
+        banned_applied = (
+            banned_role is not None
+            and banned_role not in before.roles
+            and banned_role in after.roles
+        )
+        banned_removed = (
+            banned_role is not None
+            and banned_role in before.roles
+            and banned_role not in after.roles
+        )
+        if banned_applied or banned_removed:
             try:
-                player = player_query.get()
-            except peewee.DoesNotExist:
+                ban_result = await member_identity_workers.run_elo_ban_update(
+                    member_identity_workers.EloBanUpdateRequest(
+                        guild_id=int(after.guild.id),
+                        member_id=int(after.id),
+                        is_banned=banned_applied,
+                        member_description=models.GameLog.member_string(after),
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    'Could not persist ELO Ban role change for guild %s '
+                    'member %s',
+                    after.guild.id,
+                    after.id,
+                )
                 return
-            player.is_banned = True
-            player.save()
-            logger.info(f'ELO Ban added for player {player.id} {player.name}')
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role applied.')
-
-        if banned_role in before.roles and banned_role not in after.roles:
-            utilities.connect()
-            try:
-                player = player_query.get()
-            except peewee.DoesNotExist:
+            if not ban_result.registered:
                 return
-            player.is_banned = False
-            player.save()
-            logger.info(f'ELO Ban removed for player {player.id} {player.name}')
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role removed.')
+            logger.info(
+                'ELO Ban %s for player %s',
+                'added' if banned_applied else 'removed',
+                ban_result.player_id,
+            )
 
         inactive_role = discord.utils.get(
             before.guild.roles,
@@ -682,15 +707,34 @@ class polygames(commands.Cog):
             return
 
         if before.nick != after.nick:
-            logger.debug(f'Attempting to change member nick for {before.name}({before.nick}) to {after.name}({after.nick})')
-            utilities.connect()
-            # update nick in guild's Player record
             try:
-                player = player_query.get()
-            except peewee.DoesNotExist:
+                nickname_result = (
+                    await member_identity_workers.run_nickname_update(
+                        member_identity_workers.NicknameUpdateRequest(
+                            guild_id=int(after.guild.id),
+                            member_id=int(after.id),
+                            before_nick=before.nick,
+                            after_name=str(after.name),
+                            after_nick=after.nick,
+                            member_description=(
+                                models.GameLog.member_string(after)
+                            ),
+                        )
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    'Could not persist nickname change for guild %s member %s',
+                    after.guild.id,
+                    after.id,
+                )
                 return
-            player.generate_display_name(player_name=after.name, player_nick=after.nick)
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}" to "{after.nick}"')
+            if nickname_result.registered:
+                logger.debug(
+                    'Updated nickname metadata for guild %s player %s',
+                    after.guild.id,
+                    nickname_result.player_id,
+                )
 
     @staticmethod
     def _player_leaderboard_request(
