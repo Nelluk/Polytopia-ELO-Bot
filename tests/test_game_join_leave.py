@@ -817,6 +817,15 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_guild=lambda guild_id: guild,
         )
         cog.ignorable_join_reactions = set()
+        cog.load_reaction_game = mock.AsyncMock(return_value=
+            matchmaking.game_reaction_workers.ReactionGameSnapshot(
+                game_id=game.id,
+                exists=True,
+                guild_id=game.guild_id,
+                is_pending=True,
+                external_server_ids=(),
+            )
+        )
         return cog, payload, message, channel, member, game
 
     async def test_inactive_role_removal_happens_after_commit_and_reconciles(self):
@@ -1364,6 +1373,15 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_guild=lambda guild_id: game_guild,
         )
         cog.ignorable_join_reactions = set()
+        cog.load_reaction_game = mock.AsyncMock(return_value=
+            matchmaking.game_reaction_workers.ReactionGameSnapshot(
+                game_id=322,
+                exists=True,
+                guild_id=300,
+                is_pending=True,
+                external_server_ids=(400,),
+            )
+        )
         game = SimpleNamespace(guild_id=300, id=322)
         execute_join = mock.AsyncMock(return_value=result)
         cog.execute_join = execute_join

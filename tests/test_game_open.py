@@ -1126,7 +1126,6 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
     def test_join_reaction_parser_accepts_three_digit_game_ids(self):
         cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
-        game = object()
         message = (
             'Other players can join game 322 by reacting with '
             f'{matchmaking.settings.emoji_join_game}.'
@@ -1135,12 +1134,11 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             matchmaking.models.Game,
             'get_or_none',
-            return_value=game,
         ) as get_game:
-            parsed = cog.is_joingame_message(message)
+            parsed = cog.parse_joingame_message(message)
 
-        self.assertEqual(parsed, (322, game))
-        get_game.assert_called_once_with(id=322)
+        self.assertEqual(parsed, 322)
+        get_game.assert_not_called()
 
     async def test_native_open_acknowledges_before_showing_requester_draft(self):
         context = SimpleNamespace(invoked_with='opengame')
@@ -1656,6 +1654,15 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
         cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
         cog.bot = bot
         cog.ignorable_join_reactions = set()
+        cog.load_reaction_game = mock.AsyncMock(return_value=
+            matchmaking.game_reaction_workers.ReactionGameSnapshot(
+                game_id=game.id,
+                exists=True,
+                guild_id=game.guild_id,
+                is_pending=True,
+                external_server_ids=(),
+            )
+        )
         return cog, payload, message, channel, member, game
 
     async def test_three_digit_raw_reaction_add_calls_shared_join_and_cleans_up_failure(self):

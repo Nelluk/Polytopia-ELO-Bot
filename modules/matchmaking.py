@@ -13,6 +13,7 @@ from modules import game_side
 from modules import game_join_leave, game_join_workers, game_kick_workers
 from modules import game_search_workers
 from modules import game_start, game_start_workers
+from modules import game_reaction_workers
 import peewee
 import re
 import datetime
@@ -65,22 +66,18 @@ class matchmaking(commands.Cog):
             self.bg_task3 = asyncio.create_task(self.task_create_empty_matchmaking_lobbies())
             self.task_purge_expired_games.start()  # new task style
 
-    def is_joingame_message(self, message: str):
-        # If message is of a given format (currently 'join game GAMEID by reacting with ⚔️' inside message), load game by ID
-        # return (parsed_id: int, Game Object) if message is valid
-        # ie (52600, Game(id=52600)) or (52600, None)
-        # Game might be None if id is not valid
-        # return None, None if not valid
-
+    @staticmethod
+    def parse_joingame_message(message: str) -> int | None:
+        """Parse the advertised game ID without touching the database."""
         m = settings.re_join_game.search(message.lower())
-
         if not m:
-            return (None, None)
+            return None
+        return int(m[1])
 
-        game_id = int(m[1])
-        game = models.Game.get_or_none(id=game_id)
-
-        return (game_id, game)
+    async def load_reaction_game(self, game_id: int):
+        return await game_reaction_workers.run_load_reaction_game(
+            game_reaction_workers.ReactionGameRequest(game_id=int(game_id))
+        )
 
     async def execute_join(
         self,
@@ -188,10 +185,23 @@ class matchmaking(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         # Add ⚔️ join emoji to valid messages
-        game_id, game = self.is_joingame_message(message.content)
-        if not game_id or not game or not game.is_pending:
+        game_id = self.parse_joingame_message(message.content)
+        if not game_id or message.guild is None:
             return
-        if message.guild.id == game.guild_id or message.guild.id in models.Team.related_external_severs(game.guild_id):
+        try:
+            game = await self.load_reaction_game(game_id)
+        except Exception:
+            logger.exception(
+                'Could not load join-game message routing for game %s',
+                game_id,
+            )
+            return
+        if not game.exists or not game.is_pending:
+            return
+        if (
+            message.guild.id == game.guild_id
+            or message.guild.id in game.external_server_ids
+        ):
             # current guild is compatible with game guild (either same guild or a related external server)
             await message.add_reaction(settings.emoji_join_game)
 
@@ -223,42 +233,51 @@ class matchmaking(commands.Cog):
             # have beta bot ignore messages that are not from it
             return
 
-        game_id, game = self.is_joingame_message(message.content)
+        game_id = self.parse_joingame_message(message.content)
 
         if not game_id:
             return  # Message being reacted to is not parsed as a Join Game message
-
-        logger.debug(f'Matchmaking on_raw_reaction_removed: Joingame emoji removed from a Join Game message by {member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
 
         if channel.name == 'polychamps-game-announcements':
             feedback_destination = member
         else:
             feedback_destination = channel
 
-        if not game:
+        try:
+            game = await self.load_reaction_game(game_id)
+        except Exception:
+            logger.exception(
+                'Could not load reaction-leave routing for game %s',
+                game_id,
+            )
+            return await feedback_destination.send(
+                f'Game {game_id} could not be loaded. Please try again.'
+            )
+
+        logger.debug(f'Matchmaking on_raw_reaction_removed: Joingame emoji removed from a Join Game message by {member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game.exists else "no"}')
+
+        if not game.exists:
             return await feedback_destination.send(
                 f'Game {game_id} cannot be found or has been deleted.'
             )
 
         joining_member = member
         if member.guild.id != game.guild_id:
-            valid_external_servers = models.Team.related_external_severs(
-                game.guild_id
-            )
+            valid_external_servers = game.external_server_ids
             game_guild = self.bot.get_guild(game.guild_id)
             if member.guild.id not in valid_external_servers or not game_guild:
                 return await feedback_destination.send(
-                    f'Game {game.id} is associated with another server.'
+                    f'Game {game.game_id} is associated with another server.'
                 )
             joining_member = game_guild.get_member(member.id)
             if not joining_member:
                 return await feedback_destination.send(
-                    f'You are not a member of game {game.id}'
+                    f'You are not a member of game {game.game_id}'
                 )
 
         try:
             result = await self.execute_leave(
-                game_id=game.id,
+                game_id=game.game_id,
                 member=joining_member,
                 author_member=joining_member,
                 log_note='(via reaction)',
@@ -273,19 +292,19 @@ class matchmaking(commands.Cog):
         except peewee.PeeweeException:
             logger.exception(
                 'Database failure leaving game %s via reaction',
-                game.id,
+                game.game_id,
             )
             return await feedback_destination.send(
-                f'Game {game.id} could not be changed because the database '
+                f'Game {game.game_id} could not be changed because the database '
                 'operation failed.'
             )
         except Exception:
             logger.exception(
                 'Unexpected failure leaving game %s via reaction',
-                game.id,
+                game.game_id,
             )
             return await feedback_destination.send(
-                f'Game {game.id} could not be changed.'
+                f'Game {game.game_id} could not be changed.'
             )
 
         if result.host_warning:
@@ -324,21 +343,36 @@ class matchmaking(commands.Cog):
             # have beta bot ignore non-beta messages and production bot ignore beta messages
             return
 
-        game_id, game = self.is_joingame_message(message.content)
+        game_id = self.parse_joingame_message(message.content)
 
         if not game_id:
             return  # Message being reacted to is not parsed as a Join Game message
 
         self.ignorable_join_reactions.add((payload.message_id, payload.user_id))
 
-        logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
-
         if channel.name == 'polychamps-game-announcements':
             feedback_destination = payload.member
         else:
             feedback_destination = channel
 
-        if not game:
+        try:
+            game = await self.load_reaction_game(game_id)
+        except Exception:
+            logger.exception(
+                'Could not load reaction-join routing for game %s',
+                game_id,
+            )
+            self.ignorable_join_reactions.discard(
+                (payload.message_id, payload.user_id)
+            )
+            return await feedback_destination.send(
+                f'{payload.member.mention}, game {game_id} could not be loaded. '
+                'Please try again.'
+            )
+
+        logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game.exists else "no"}')
+
+        if not game.exists:
             await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but a game with that ID does not exist. Maybe it was deleted?')
             return await message.remove_reaction(payload.emoji.name, payload.member)
 
@@ -349,7 +383,7 @@ class matchmaking(commands.Cog):
             announce_channel = channel
         else:
             # guild does not match game guild. check to see if its a valid external server (PolyChamps teams)
-            valid_external_servers = models.Team.related_external_severs(game.guild_id)
+            valid_external_servers = game.external_server_ids
             guild = self.bot.get_guild(game.guild_id)
             if not guild:
                 return logger.warning(f'Matchmaking on_raw_reaction_add: could not load server {game.guild_id}')

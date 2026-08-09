@@ -4458,6 +4458,65 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.House.id == house.id
                 ).execute()
 
+    def test_game_reaction_lookup_reads_real_schema_without_writes(self):
+        """Exercise P5.9's bounded reaction-routing snapshot."""
+
+        from modules import game_reaction_workers as workers
+
+        game = (
+            self.models.Game
+            .select(
+                self.models.Game.id,
+                self.models.Game.guild_id,
+                self.models.Game.is_pending,
+            )
+            .order_by(self.models.Game.id)
+            .first()
+        )
+        if game is None:
+            self.skipTest('development database has no game to inspect')
+        expected_external = tuple(
+            int(external_id)
+            for (external_id,) in (
+                self.models.Team
+                .select(self.models.Team.external_server)
+                .where(
+                    (self.models.Team.guild_id == int(game.guild_id))
+                    & (self.models.Team.external_server > 0)
+                )
+                .distinct()
+                .order_by(self.models.Team.external_server)
+                .limit(workers.MAX_EXTERNAL_SERVERS + 1)
+                .tuples()
+            )
+        )
+        self.assertLessEqual(
+            len(expected_external),
+            workers.MAX_EXTERNAL_SERVERS,
+        )
+
+        before_logs = self.models.GameLog.select().count()
+        self.models.db.close()
+        result = asyncio.run(workers.run_load_reaction_game(
+            workers.ReactionGameRequest(game_id=int(game.id))
+        ))
+        self.models.db.connect(reuse_if_open=True)
+        self.assertTrue(result.exists)
+        self.assertEqual(result.game_id, int(game.id))
+        self.assertEqual(result.guild_id, int(game.guild_id))
+        self.assertEqual(result.is_pending, bool(game.is_pending))
+        self.assertEqual(result.external_server_ids, expected_external)
+        self.assertEqual(self.models.GameLog.select().count(), before_logs)
+
+        self.models.db.close()
+        missing = asyncio.run(workers.run_load_reaction_game(
+            workers.ReactionGameRequest(game_id=9_999_999_999)
+        ))
+        self.models.db.connect(reuse_if_open=True)
+        self.assertFalse(missing.exists)
+        self.assertIsNone(missing.guild_id)
+        self.assertEqual(missing.external_server_ids, ())
+
     def test_inactive_kick_preview_and_audit_use_real_schema_safely(self):
         """Exercise P8.19 selection and post-Discord audit under the gate."""
 
