@@ -484,15 +484,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.23 league team-channel cache loading is Implemented
-and locally green on `codex/p8-23-league-channel-cache` from exact clean
-accumulation checkpoint `b5ef342`; implementation/tests are checkpointed as
-`2dfd78a`. Synchronous startup and post-game cache queries now use a bounded
+Current active unit: **No code unit is active. P8.23 league team-channel cache
+loading is integrated, pushed, and running on the guarded development beta at
+`28aa323`. Synchronous startup and post-game cache queries now use a bounded
 read worker with event-loop assignment after success. All three refresh points
 preserve their timing; a failed load preserves the prior cache. Complete
-offline and targeted read-only real-schema validation passed while the beta
-remained online. Integration, push, and restart remain active. No command tree
-changes.**
+offline and targeted read-only real-schema validation passed without stopping
+the beta. No command tree changed, and no command synchronization or tester
+announcement was needed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8584,7 +8583,7 @@ Integration/deployment evidence:
 
 ### P8.23 — League team-channel cache loading
 
-Status: **Implemented and locally green; integration/deployment pending**
+Status: **Complete; integrated, pushed, and running on the development beta**
 
 The process-local `league_team_channels` list is refreshed by
 `populate_league_team_channels()`, which performs synchronous Team/GameSide/Game
@@ -8629,9 +8628,22 @@ Validation evidence:
   stopped-writer window was used;
 - touched-Python compilation and working-tree whitespace checks passed.
 
-Implementation/tests checkpoint: `2dfd78a`. Evidence checkpoint, integration,
-push, guarded beta restart, and final no-sync/no-announcement deployment record
-remain pending.
+Implementation/tests checkpoint: `2dfd78a`; roadmap evidence and integrated
+running-code checkpoint: `28aa323`.
+
+Integration/deployment evidence:
+
+- fast-forwarded the clean P8.23 branch into
+  `codex/database-slash-modernization` and pushed exact checkpoint `28aa323` to
+  GitHub;
+- restarted only `polybot-development-beta@main.service`. Its `ExecStartPre`
+  writer audit was clear, it authenticated as PolyELO Bot Beta
+  `479029527553638401`, and startup completed without a cache-loader error;
+- the guarded beta release-control status operation completed successfully;
+- made no application-command plan/apply/sync because the cache changes no
+  command definition or capability;
+- selected the explicit no-announcement route. This is an internal read/cache
+  boundary with no meaningful broad-pool smoke action.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -10147,9 +10159,12 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Ran only the new read-only real-schema case alongside the active beta; it
   passed the unchanged development/database/role/service gates and matched the
   current complete cache snapshot without writing any row.
-- Checkpointed implementation/tests as `2dfd78a`. Evidence checkpoint,
-  integration, push, guarded restart, and explicit no-sync/no-announcement
-  deployment evidence remain pending.
+- Checkpointed implementation/tests as `2dfd78a`; the evidence/integrated
+  running-code checkpoint is `28aa323`.
+- Fast-forwarded and pushed the accumulation branch, restarted only the guarded
+  development beta, verified expected identity/startup/release-control health,
+  made no command sync, and posted no tester announcement because the cache
+  boundary has no meaningful broad-pool smoke action.
 
 ### 2026-08-09 — P8.22 identity/moderation listeners implemented locally
 
