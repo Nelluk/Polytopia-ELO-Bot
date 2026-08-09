@@ -484,17 +484,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.15 post-start external-broadcast reconciliation has
-completed its read-only design audit and is blocked on P5.15-A/B/C/D policy
-acceptance before implementation. The audit confirms that
-`Game.update_external_broadcasts()` performs Peewee iteration/deletion on the
-event loop, hides Discord fetch/edit failure distinctions, and deletes the
-tracking row even when the public message was not updated. The proposed
-boundary freezes primitive row/message targets in the existing start
-transaction, performs idempotent Discord edits after commit, and uses bounded
-worker-local persistence for terminal completion while retaining uncertain
-failures for reconciliation. No code, database, Discord, beta, task, or
-production state changed during the audit. P5.14 older incomplete-game purge
+Current active unit: **P5.15 post-start external-broadcast reconciliation is
+implemented and validated at `c54a9c5`; integration, push, and guarded-beta
+restart remain pending. P5.15-A/B/C/D are accepted. Exact primitive targets
+are frozen in the start transaction, Discord updates are idempotent and
+post-commit, successful or confirmed-absent targets finalize through bounded
+worker-local persistence, and uncertain failures retain their rows for a
+capped hourly retry cycle under the existing background-task gate. Focused,
+complete offline, targeted PostgreSQL, and complete gated development-database
+validation are green. P5.14 older incomplete-game purge
 is complete, integrated, pushed, and loaded by the guarded development beta at
 `fcb7131`. P5.14-A/B/C/D are accepted.
 The task now owns only started incomplete games, preserves the age/season
@@ -5105,7 +5103,7 @@ reload used by reaction success paths.
 
 ### P5.15 — Post-start external-broadcast reconciliation design audit
 
-Status: **Design audited; awaiting P5.15-A/B/C/D acceptance**
+Status: **Implemented and validated; integration/deployment pending**
 
 `TeamServerBroadcastMessage` is the tracking table for open-game messages
 posted into external team servers. A row is created after the Discord message
@@ -5193,24 +5191,82 @@ Policy decisions required before implementation:
 1. **P5.15-A — Terminal versus retained targets:** finalize the row after a
    successful idempotent update or confirmed Discord channel/message absence;
    retain it after Forbidden, transient/unknown Discord failure, or database
-   finalization failure, with exact reconciliation context. **Recommended.**
+   finalization failure, with exact reconciliation context. **Accepted.**
 2. **P5.15-B — Durable recovery:** treat retained rows on non-pending games as
    the retry queue and add a capped hourly background reconciliation cycle,
    while still attempting the newly frozen rows immediately after each start.
-   Do not add schema or a public/admin command in this unit. **Recommended.**
+   Do not add schema or a public/admin command in this unit. **Accepted.**
 3. **P5.15-C — Concurrency and idempotency:** acquire the existing per-game
    process lock around each public reconciliation attempt, skip locked/stale
    targets, and make the started-message transformation safe to repeat before
-   enabling automatic retry. **Recommended.**
+   enabling automatic retry. **Accepted.**
 4. **P5.15-D — Scope:** limit this unit to the post-start consumer and retire
    the unused async model helper/fetch method. Leave message-send/row-create
    atomicity, deletion publishers, command interfaces, schema, and production
    task enablement unchanged; record the creation-side gap as a later bounded
-   follow-up. **Recommended.**
+   follow-up. **Accepted.**
 
-No implementation, tests, PostgreSQL access, fixture mutation, Discord
-operation, beta lifecycle action, task-configuration change, production
-action, or dependency change occurred during this audit.
+The user accepted P5.15-A/B/C/D as proposed on 2026-08-09. Implementation:
+
+- adds `modules/game_broadcast_workers.py` with immutable exact row/game/guild/
+  channel/message targets; 100-row per-game and per-guild bounds;
+  deterministic started-row discovery; authoritative target revalidation;
+  exact-row transactional finalization; two bounded worker threads; and
+  cancellation draining through actual worker completion;
+- freezes broadcast targets inside the existing worker-local synchronous start
+  transaction and carries them in `StartResult`. The post-commit publisher no
+  longer traverses a live broadcast back-reference or invokes an async model
+  method;
+- adds `modules/game_broadcasts.py` for cache-then-fetch channel resolution,
+  idempotent started-message rendering, own-join-reaction removal, explicit
+  confirmed-absence versus retained-failure outcomes, per-target isolation,
+  and exact public/staff reconciliation context;
+- uses the existing process-local game lock around revalidation, Discord
+  publication, and row finalization. Locked or changed targets defer safely;
+  success and confirmed absence finalize, while Forbidden, transient/unknown
+  Discord failure, and persistence failure retain the row;
+- adds a capped hourly reconciliation callback to the matchmaking cog under
+  the existing `settings.run_tasks` gate. It is inactive in the guarded beta's
+  `--skip_tasks` profile and emits at most one bounded staff summary per
+  guild/cycle;
+- removes the now-unused `Game.update_external_broadcasts()` and
+  `TeamServerBroadcastMessage.fetch_message()` methods. Manual deletion and
+  automatic purge publishers remain unchanged;
+- preserves `/game start`, `$start`, `$startgame`, the authoritative start
+  transaction, and every later card/channel/league effect even when one
+  external target remains pending.
+
+Validation evidence:
+
+- focused P5.15/start coverage: 32 passed;
+- affected start/open/reaction/deletion/purge/runtime coverage: 160 passed;
+- complete offline discovery: 1,306 passed with 53 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the targeted real-schema start/P5.15 case passed under exact `development` /
+  `polytopia_dev` / `polybot_dev` and disabled background/API gates. It proved
+  transaction-owned target freezing, deterministic discovery, exact-row
+  finalization, injected finalization rollback with row retention, and exact
+  cleanup;
+- the complete gated development suite passed 51 runnable cases with one
+  intentional operator-managed fixture round-trip skip;
+- implementation/tests checkpoint: `c54a9c5`.
+
+No command definition, capability, prefix handler, schema, fixture,
+message-creation behavior, deletion publisher, dependency, or production
+change is included. No application-command synchronization or broad-tester
+announcement is useful because the beta keeps background tasks disabled and
+the command interface did not change.
+
+Next action: commit this evidence separately, fast-forward the reviewed unit
+into `codex/database-slash-modernization`, push the approved accumulation
+branch, and restart only the guarded development beta. No command-tree apply
+is needed. Record the separate external-message-send/row-create boundary as a
+later P5.16 candidate.
+
+The preceding design-audit stage made no implementation, test, database,
+Discord, beta, task-configuration, schema, dependency, or production change.
 
 ## P6 — Registration and player preferences
 
@@ -11005,6 +11061,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.15 started-broadcast worker validated
+
+- Accepted P5.15-A/B/C/D and implemented immutable target freezing in the
+  authoritative start transaction plus bounded worker-local discovery,
+  revalidation, and exact-row finalization.
+- Made started-message edits idempotent, distinguished confirmed Discord
+  absence from uncertain failure, retained retryable rows, and isolated every
+  post-commit target so later start effects always continue.
+- Added a 100-row per-game/per-guild cap, existing per-game lock ownership,
+  hourly recovery under the unchanged background-task gate, and one bounded
+  staff summary per affected guild/cycle.
+- Removed the unused asynchronous model helper/fetch boundary while leaving
+  broadcast creation and every deletion publisher unchanged.
+- Passed 32 focused tests, 160 affected tests, and 1,306 complete offline tests
+  with 53 gated skips; touched compilation and diff checks passed.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed the targeted real-schema freeze/discovery/finalization/rollback case,
+  and passed all 51 runnable complete gated cases with one intentional
+  operator-fixture skip.
+- Recorded implementation/tests checkpoint `c54a9c5`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no command, capability, schema, fixture, creation-side, deletion-side,
+  dependency, announcement, or production change.
 
 ### 2026-08-09 — P5.15 post-start broadcast reconciliation audited
 
