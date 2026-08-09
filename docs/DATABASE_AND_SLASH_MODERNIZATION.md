@@ -484,12 +484,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.14 older incomplete-game purge analysis is complete
-and implementation is blocked on the four policy decisions recorded below.
-The legacy task mixes pending and started games, performs synchronous Peewee
-writes on the event loop, carries live models out of a generic executor,
-deletes Discord channels before the database commit, and contains a duplicate
-four-player deletion call. P5.13 hourly open-game broadcasting is complete,
+Current active unit: **P5.14 older incomplete-game purge is implemented and
+validated on `codex/p5-14-incomplete-purge-worker` at `5118aad`; accumulation
+integration and guarded-beta restart are pending. P5.14-A/B/C/D are accepted.
+The task now owns only started incomplete games, preserves the age/season
+matrix, adds two-player warning parity, records successful warnings per
+channel, commits one protected audit plus deletion per game through the ELO
+coordinator, and performs announcement/channel reconciliation only after
+commit. Focused, complete offline, targeted PostgreSQL, and complete gated
+development-database validation are green. P5.13 hourly open-game broadcasting is complete,
 integrated, pushed, and loaded by the guarded
 development beta at `b40b20d`. The unit preserves
 configured channel/ranked routing, the 12-game cap, descending game ordering,
@@ -4909,7 +4912,7 @@ explicitly accepted.
 
 ### P5.14 — Older incomplete-game purge design audit
 
-Status: **Analysis complete; implementation blocked on P5.14-A/B/C/D**
+Status: **Implemented and validated; integration/deployment pending**
 
 The retained five-hour task in `modules/administration.py` is a second,
 distinct automatic deletion workflow alongside P5.10. It currently waits 15
@@ -4995,25 +4998,73 @@ Recommended bounded implementation after policy acceptance:
   independently atomic writer through focused fault injection and the existing
   stopped-beta development-database gate before any production consideration.
 
-Policy decisions required:
+Accepted policy decisions:
 
 1. **P5.14-A — Ownership:** restrict this task to started incomplete games and
-   leave all pending/open expiration to P5.10. **Recommended.**
+   leave all pending/open expiration to P5.10. **Accepted.**
 2. **P5.14-B — Eligibility:** preserve the table above, strict calendar-date
    comparisons, actual started lineup population, explicit season exemption,
-   and the ranked-7+ exemption. **Recommended.**
+   and the ranked-7+ exemption. **Accepted.**
 3. **P5.14-C — Warning parity:** add the same best-effort three-day warning to
    channel-bearing two-player games; record a warning only after a successful
    send, retry/report failures, but do not make warning delivery a prerequisite
-   for eventual purge. **Recommended.**
+   for eventual purge. **Accepted.**
 4. **P5.14-D — Commit/effect boundary:** use one independent atomic audit plus
    deletion per game, then update the announcement/delete all captured channels
    post-commit with exact staff reconciliation and no schema-backed outbox or
    automatic mutation retry. This follows the accepted P5.10 precedent.
-   **Recommended.**
+   **Accepted.**
 
-This audit changes no code, task configuration, command, schema, database,
-fixture, Discord state, beta runtime, or production state.
+The user accepted P5.14-A/B/C/D as proposed on 2026-08-09. Implementation:
+
+- adds `modules/incomplete_game_purge_workers.py` with frozen discovery,
+  warning, marker, purge, result, and effect-plan values; bounded read and
+  warning-write executors; worker-local Peewee connections; cancellation
+  draining; and deterministic game-date/game-ID discovery capped at 500;
+- restricts discovery and authoritative revalidation to started,
+  non-completed, non-season games. Pending games remain exclusively owned by
+  P5.10, ranked games with seven or more players remain exempt, and the exact
+  strict calendar threshold matrix remains unchanged;
+- adds channel-bearing two-player games to the three-day warning window. Each
+  target send is observable and receives its own protected marker only after
+  successful delivery; failures remain retryable and old game-wide markers
+  continue suppressing duplicate warnings after upgrade;
+- sends every purge through the existing ELO coordinator and game lock. The
+  worker reloads and locks by primitive ID, revalidates mutable state, freezes
+  the shared in-progress deletion effect plan, writes a protected audit with
+  exact reconciliation targets, and calls the deletion graph exactly once in
+  one synchronous transaction;
+- adds `modules/incomplete_game_purge.py` for warning delivery, typed conflict
+  deferral, post-commit announcement updates, all-size channel deletion,
+  per-game/target reconciliation warnings, and chunked staff summaries;
+- reduces `administration.task_purge_incomplete` to its existing 15-minute
+  initial delay, frozen date, per-guild application-service call, and five-hour
+  sleep. A guild failure is contained and no Peewee object or Discord mutation
+  remains in the callback.
+
+Validation evidence:
+
+- focused P5.14 plus P5.10/unified-deletion coverage: 45 passed;
+- complete offline discovery: 1,289 passed with 53 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- stopped only `polybot-development-beta@main.service`, confirmed it inactive,
+  and required the host-wide writer audit to report no development writer;
+- the targeted P5.14 real-schema case passed under exact `development` /
+  `polytopia_dev` / `polybot_dev` and disabled background/API gates. It proved
+  deterministic started-game discovery, pending/season exclusions, two-player
+  warning planning, protected per-channel marker commit, frozen two-player
+  channel cleanup, committed graph/audit deletion, injected partial-delete
+  rollback, and exact zero-residue cleanup;
+- the complete gated development suite passed 51 runnable cases with one
+  intentional operator-managed fixture round-trip skip. The final targeted
+  rerun also passed cleanly after the test harness kept one event loop across
+  shared-coordinator calls;
+- implementation/tests checkpoint: `5118aad`.
+
+No command, capability, prefix handler, schema, configured task enablement,
+fixture, or production change is included. Development background tasks remain
+disabled, so loading this code does not execute the automatic purge and offers
+no useful broad-tester smoke or command sync.
 
 ## P6 — Registration and player preferences
 
@@ -10808,6 +10859,29 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.14 incomplete-game purge worker validated
+
+- Accepted P5.14-A/B/C/D and implemented bounded deterministic discovery for
+  started incomplete games only, leaving pending expiration to P5.10.
+- Preserved the exact age/rank/season rules, added two-player warning parity,
+  and made warning delivery markers protected and target-specific while
+  recognizing legacy game-wide markers.
+- Serialized every automatic deletion through the ELO coordinator/game lock
+  and committed one protected audit plus game graph deletion before any
+  announcement or channel effect.
+- Reused the shared frozen deletion effect plan, deleted captured channels for
+  every eligible game size post-commit, and isolated exact staff reconciliation
+  by game/target without automatic mutation retry.
+- Passed 45 focused tests, 1,289 complete offline tests with 53 gated skips,
+  touched compilation, and diff checks.
+- Stopped only the guarded beta, confirmed the host-wide writer audit clear,
+  passed the targeted real-schema commit/rollback/cleanup case, and passed all
+  51 runnable complete gated cases with one intentional operator-fixture skip.
+- Recorded implementation/tests checkpoint `5118aad`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no command, capability, schema, fixture, task-enablement, announcement,
+  or production change.
 
 ### 2026-08-09 — P5.14 older incomplete-game purge design audited
 
