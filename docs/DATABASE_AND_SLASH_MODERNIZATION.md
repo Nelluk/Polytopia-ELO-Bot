@@ -484,10 +484,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.19a started-game channel
-creation is complete, integrated, pushed, and loaded by the guarded beta at
-`389acf7`. P5.19-A/B/C/D are accepted, and P5.19b Nova graduation is the next
-code unit. P5.18 post-kick game-card presentation is complete, integrated,
+Current active unit: **P5.19b Nova graduation is locally validated on
+`codex/p5-19b-nova-graduation` from exact deployed accumulation checkpoint
+`26b26af` and is pending integration. P5.19a started-game channel creation is complete, integrated,
+pushed, and loaded by the guarded beta at `389acf7`. P5.19-A/B/C/D are
+accepted. P5.18 post-kick game-card presentation is complete, integrated,
 pushed, and loaded by the guarded beta at `e79ab1c`. P5.18-A/B/C/D are accepted.
 P5.17 post-join game-card presentation is complete, integrated, pushed, and
 loaded by the guarded beta at `452879f`. P5.17-A/B/C/D are accepted. P5.16 external-broadcast creation is complete,
@@ -5918,6 +5919,26 @@ units, all under this accepted audit:
   and
 - preserve the current PolyChampions/test-guild scope, role names, threshold,
   broad behavior, and absence of a new command or schema.
+
+Implemented and locally validated on `codex/p5-19b-nova-graduation` from exact
+clean deployed accumulation checkpoint `26b26af`; implementation/tests
+checkpoint `caebf39`. The shared start publisher now supplies committed
+primitive participant IDs, so a classic-card reload failure cannot suppress
+Nova follow-up. One bounded worker-local read loads candidate eligibility,
+global ELO/W-L, and optional draft state without writes or
+`Configuration.get_or_create()`. Discord role assignment and the established
+announcements remain event-loop effects with current-role revalidation and
+per-candidate reconciliation.
+
+Validation passed 66 focused start/Nova tests, complete offline discovery at
+1,347 tests with 55 intentional gated skips, and the complete stopped-writer
+development PostgreSQL suite at 54 tests with one intentional operator-fixture
+skip. The first targeted schema run exposed only a test-cleanup ordering defect:
+the test attempted to delete a winning side before clearing `Game.winner`.
+The cleanup was corrected, exactly two uniquely marked games and their one
+temporary player/member were removed, and both the targeted rerun and complete
+gate passed. No fixture residue, schema, command registration, capability, or
+production change remains. P5.19c remains separate and next.
 
 #### P5.19c — Final started-card and announcement publisher
 
@@ -11783,6 +11804,34 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.19b Nova graduation worker validated
+
+- Replaced event-loop per-player Peewee traversal and read-side
+  `Configuration.get_or_create()` with one bounded, worker-local, non-writing
+  eligibility snapshot over immutable started-participant and role facts.
+- Preserved the exact PolyChampions/test scope, `The Novas` / `Nova Grad`
+  roles, two non-pending team-game threshold, completed-team-game requirement,
+  global current-era ELO/W-L, and draft-signup wording.
+- Moved role assignment, staff/game-channel announcements, and reconciliation
+  to isolated event-loop effects. Each candidate is revalidated against current
+  roles, and one Discord failure does not suppress later candidates.
+- Routed the shared start publisher through committed game/participant IDs, so
+  legacy card reload failure no longer suppresses Nova graduation. Kept the
+  legacy wrapper as a thin adapter for remaining callers until P5.19c.
+- Focused Nova/start validation passed **66 tests**. Complete offline discovery
+  passed **1,347 tests with 55 intentional gated skips**; compilation and
+  `git diff --check` passed.
+- Stopped only the guarded development beta and confirmed the writer audit
+  clear. The targeted real-schema worker case passed after correcting its
+  foreign-key cleanup order; the complete gated `development` /
+  `polytopia_dev` / `polybot_dev` suite passed **54 tests with one intentional
+  operator-fixture skip**. Exactly marked residue from the failed cleanup was
+  removed before rerun.
+- Recorded implementation/tests checkpoint `caebf39`. Integration, push, and
+  guarded restart remain pending at this evidence checkpoint. No slash apply,
+  tester announcement, schema, dependency, production, or sudo action is
+  required. Next code unit is P5.19c final started-card/announcement migration.
 
 ### 2026-08-09 — P5.19a started-channel lifecycle validated
 
