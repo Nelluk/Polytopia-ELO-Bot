@@ -24,6 +24,7 @@ from modules import player_timezone
 from modules import player_timezone_workers
 from modules import player_timezone_values
 from modules import league_inactivity_workers
+from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
 from modules import game_win
@@ -294,74 +295,223 @@ class polygames(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        player, upserted = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
-        if player:
-            if upserted:
-                logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} and Player was upserted as an existing DiscordMember.')
-            logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
-        else:
-            return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} but does not have an existing DiscordMember record.')
+        try:
+            result = await member_join_workers.run_member_join(
+                member_join_workers.MemberJoinRequest(
+                    guild_id=int(member.guild.id),
+                    member_id=int(member.id),
+                    discord_name=str(member.name),
+                    discord_nick=(
+                        str(member.nick) if member.nick is not None else None
+                    ),
+                )
+            )
+        except Exception:
+            logger.exception(
+                'Member-join database reconciliation failed for guild %s '
+                'member %s',
+                member.guild.id,
+                member.id,
+            )
+            return
 
-        # add re-joining player back to any relevant game channels
+        if not result.registered:
+            logger.debug(
+                'on_member_join: %s joined guild %s but does not have an '
+                'existing DiscordMember record.',
+                member.display_name,
+                member.guild.name,
+            )
+            return
+        if result.local_player_created:
+            logger.debug(
+                'on_member_join: %s joined guild %s and Player was upserted '
+                'as an existing DiscordMember.',
+                member.display_name,
+                member.guild.name,
+            )
+        logger.debug(
+            'on_member_join: %s re-joined guild %s and has an existing '
+            'Player entry.',
+            member.display_name,
+            member.guild.name,
+        )
 
-        async def fix_channel_perm(channel, member):
+        async def fix_channel_perm(channel):
             try:
                 await channels.add_member_to_channel(channel, member)
                 logger.info(f'Re-adding {member.display_name} to channel {channel.id} {channel.name}')
                 await channel.send(f'{member.mention} has been added back to this channel after rejoining the server. :partying_face:')
             except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
-                logger.warn(f'Tried to re-add {member.display_name} to channel {channel.id} {channel.name} but got error: {e}')
+                logger.warning(
+                    'Tried to re-add %s to channel %s %s but got error: %s',
+                    member.display_name,
+                    channel.id,
+                    channel.name,
+                    e,
+                )
 
-        pending_lineups_with_side_channels = Lineup.select().join(GameSide).join(Game).where(
-            (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan > 0) &
-            ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
+        logger.debug(
+            'on_member_join: %s existing side channel target(s)',
+            len(result.side_channels),
         )
-
-        logger.debug(f'pending_lineups_with_side_channels {len(pending_lineups_with_side_channels)} ')
-        for lineup in pending_lineups_with_side_channels:
-
-            logger.debug(f'on_member_join: attempting to get_channel {lineup.gameside.team_chan} for game {lineup.game.id} (side_channels)')
-
-            channel = self.bot.get_channel(lineup.gameside.team_chan)
+        for target in result.side_channels:
+            logger.debug(
+                'on_member_join: attempting to get_channel %s for game %s '
+                '(side_channels)',
+                target.channel_id,
+                target.game_id,
+            )
+            channel = self.bot.get_channel(target.channel_id)
             if not channel:
                 logger.debug('no channel found')
                 continue
             elif channel.guild.id != member.guild.id:
                 logger.debug('channel.guild.id != member.guild.id')
                 continue
+            await fix_channel_perm(channel)
 
-            await fix_channel_perm(channel, member)
-            logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
-
-        pending_lineups_with_game_channels = Lineup.select().join(Game).where(
-            (Game.is_completed == 0) & (Lineup.player == player) & (Game.game_chan > 0) & (Game.guild_id == member.guild.id)
+        logger.debug(
+            'on_member_join: %s existing game channel target(s)',
+            len(result.game_channels),
         )
-        logger.debug(f'pending_lineups_with_game_channels {len(pending_lineups_with_game_channels)} ')
-        for lineup in pending_lineups_with_game_channels:
-
-            logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (game_channels)')
-            channel = self.bot.get_channel(lineup.game.game_chan)
+        for target in result.game_channels:
+            logger.debug(
+                'on_member_join: attempting to get_channel %s for game %s '
+                '(game_channels)',
+                target.channel_id,
+                target.game_id,
+            )
+            channel = self.bot.get_channel(target.channel_id)
             if not channel:
                 logger.debug('no channel found')
                 continue
             elif channel.guild.id != member.guild.id:
                 logger.debug('channel.guild.id != member.guild.id')
                 continue
+            await fix_channel_perm(channel)
 
-            await fix_channel_perm(channel, member)
-            logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
+        for missing in result.missing_side_channels:
+            if missing.game.notes and 'live' in missing.game.notes.lower():
+                logger.debug(
+                    'Skipping channel recreation for live game %s',
+                    missing.game.id,
+                )
+                continue
+            target_guild = (
+                discord.utils.get(
+                    self.bot.guilds,
+                    id=missing.preferred_guild_id,
+                )
+                if missing.preferred_guild_id else None
+            )
+            using_team_server = bool(
+                target_guild is not None
+                and not missing.force_pcplus_guild
+                and int(target_guild.id) != int(missing.game.guild_id)
+            )
+            if target_guild is None:
+                if missing.force_pcplus_guild:
+                    logger.warning(
+                        'Could not recreate game %s side %s because the '
+                        'configured PCPLUS guild is unavailable.',
+                        missing.game.id,
+                        missing.gameside_id,
+                    )
+                    continue
+                target_guild = member.guild
+                using_team_server = False
+            if (
+                len(member.guild.text_channels) > 460
+                and len(missing.players) < 3
+                and not using_team_server
+                and 'Nova' not in missing.team_name
+            ):
+                logger.warning(
+                    'Skipping re-creation of 2-player side channel for game '
+                    '%s because guild %s has %s text channels.',
+                    missing.game.id,
+                    member.guild.id,
+                    len(member.guild.text_channels),
+                )
+                continue
 
-        pending_lineups_with_no_channels = Lineup.select().join(GameSide).join(Game).where(
-            (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan == None) &
-            ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
-        )
-        logger.debug(f'pending_lineups_with_no_channels {len(pending_lineups_with_no_channels)} ')
-        for lineup in pending_lineups_with_no_channels:
-            logger.debug(f'on_member_join: no channel found for lineup {lineup.id} - recreating deleted channels')
+            logger.debug(
+                'on_member_join: recreating missing side channel for game %s '
+                'side %s',
+                missing.game.id,
+                missing.gameside_id,
+            )
             try:
-                await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id, side=lineup.gameside)
+                channel = await channels.create_game_channel(
+                    target_guild,
+                    game=missing.game,
+                    team_name=missing.team_name,
+                    player_list=missing.players,
+                    using_team_server_flag=using_team_server,
+                )
             except exceptions.MyBaseException as e:
                 logger.warning(f'Channel creation error: {e}')
+                continue
+            if channel is None:
+                continue
+            try:
+                await member_join_workers.run_persist_side_channel(
+                    member_join_workers.PersistSideChannelRequest(
+                        game_id=missing.game.id,
+                        gameside_id=missing.gameside_id,
+                        channel_id=int(channel.id),
+                        channel_guild_id=int(target_guild.id),
+                    )
+                )
+            except member_join_workers.MemberJoinConflictError:
+                logger.warning(
+                    'A concurrent member-join reconciliation claimed game '
+                    '%s side %s; deleting duplicate channel %s.',
+                    missing.game.id,
+                    missing.gameside_id,
+                    channel.id,
+                )
+                try:
+                    await channel.delete(
+                        reason='Duplicate member-join channel reconciliation',
+                    )
+                except discord.DiscordException:
+                    logger.exception(
+                        'Could not remove duplicate channel %s for game %s '
+                        'side %s.',
+                        channel.id,
+                        missing.game.id,
+                        missing.gameside_id,
+                    )
+                continue
+            except Exception:
+                logger.exception(
+                    'Could not persist recreated channel %s for game %s side '
+                    '%s; attempting compensation.',
+                    channel.id,
+                    missing.game.id,
+                    missing.gameside_id,
+                )
+                try:
+                    await channel.delete(
+                        reason='Failed member-join channel reconciliation',
+                    )
+                except discord.DiscordException:
+                    logger.exception(
+                        'Could not compensate channel %s after persistence '
+                        'failure.',
+                        channel.id,
+                    )
+                continue
+            await channels.greet_game_channel(
+                target_guild,
+                chan=channel,
+                player_list=missing.players,
+                roster_names=missing.roster_names,
+                game=missing.game,
+                full_game=False,
+            )
 
 
     @commands.Cog.listener()

@@ -3794,6 +3794,174 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 ).count() if game_ids else 0,
                 0,
             )
+
+    def test_member_join_worker_upserts_loads_and_claims_real_side_channel(self):
+        """Exercise the rejoin write/read/reconciliation graph off-loop."""
+
+        from modules import member_join_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex
+        marker = f'P8.20 member join {suffix}'
+        target_discord_id = 9_081_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        ally_discord_id = 9_082_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        game_id = None
+        target_member_id = None
+        ally_member_id = None
+        try:
+            target_member = self.models.DiscordMember.create(
+                discord_id=target_discord_id,
+                name=f'P820 Target {suffix}',
+                polytopia_name=f'P820T{suffix}',
+            )
+            target_member_id = int(target_member.id)
+            ally_member = self.models.DiscordMember.create(
+                discord_id=ally_discord_id,
+                name=f'P820 Ally {suffix}',
+                polytopia_name=f'P820A{suffix}',
+            )
+            ally_member_id = int(ally_member.id)
+            ally = self.models.Player.create(
+                discord_member=ally_member,
+                guild_id=guild_id,
+                name=ally_member.name,
+            )
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=ally,
+                expiration=datetime.datetime.now() + datetime.timedelta(days=1),
+                name=marker,
+                notes=marker,
+                is_pending=False,
+                is_completed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[2],
+            )
+            game_id = int(game.id)
+            side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=2,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=ally,
+            )
+            join_request = workers.MemberJoinRequest(
+                guild_id=guild_id,
+                member_id=target_discord_id,
+                discord_name=target_member.name,
+                discord_nick='Returned',
+            )
+
+            with mock.patch.object(
+                workers,
+                '_missing_side_channels',
+                side_effect=peewee.OperationalError(
+                    'P8.20 injected snapshot failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected snapshot failure',
+                ):
+                    asyncio.run(workers.run_member_join(join_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNone(
+                self.models.Player.get_or_none(
+                    (self.models.Player.discord_member == target_member_id)
+                    & (self.models.Player.guild_id == guild_id)
+                )
+            )
+
+            self.models.db.close()
+            upserted = asyncio.run(workers.run_member_join(join_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(upserted.registered)
+            self.assertTrue(upserted.local_player_created)
+            self.assertEqual(upserted.missing_side_channels, ())
+            target_player = self.models.Player.get(
+                (self.models.Player.discord_member == target_member_id)
+                & (self.models.Player.guild_id == guild_id)
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=target_player,
+            )
+
+            self.models.db.close()
+            loaded = asyncio.run(workers.run_member_join(join_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(loaded.registered)
+            self.assertFalse(loaded.local_player_created)
+            self.assertEqual(len(loaded.missing_side_channels), 1)
+            snapshot = loaded.missing_side_channels[0]
+            self.assertEqual(snapshot.game.id, game_id)
+            self.assertEqual(snapshot.gameside_id, side.id)
+            self.assertEqual(
+                tuple(player.discord_member.discord_id for player in snapshot.players),
+                (ally_discord_id, target_discord_id),
+            )
+
+            external_guild_id = guild_id + 123
+            self.models.db.close()
+            asyncio.run(workers.run_persist_side_channel(
+                workers.PersistSideChannelRequest(
+                    game_id=game_id,
+                    gameside_id=int(side.id),
+                    channel_id=9_999_001,
+                    channel_guild_id=external_guild_id,
+                )
+            ))
+            self.models.db.connect(reuse_if_open=True)
+            side = self.models.GameSide.get_by_id(side.id)
+            self.assertEqual(int(side.team_chan), 9_999_001)
+            self.assertEqual(
+                int(side.team_chan_external_server),
+                external_guild_id,
+            )
+            self.models.db.close()
+            with self.assertRaises(workers.MemberJoinConflictError):
+                asyncio.run(workers.run_persist_side_channel(
+                    workers.PersistSideChannelRequest(
+                        game_id=game_id,
+                        gameside_id=int(side.id),
+                        channel_id=9_999_002,
+                        channel_guild_id=guild_id,
+                    )
+                ))
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_id is not None:
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            member_ids = tuple(
+                value for value in (target_member_id, ally_member_id)
+                if value is not None
+            )
+            if member_ids:
+                self.models.Player.delete().where(
+                    self.models.Player.discord_member.in_(member_ids)
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(member_ids)
+                ).execute()
             self.assertEqual(
                 self.models.GameLog.select().where(
                     self.models.GameLog.message.contains(marker)
