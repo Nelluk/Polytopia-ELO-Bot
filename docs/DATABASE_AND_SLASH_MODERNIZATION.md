@@ -485,7 +485,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P6.3 asynchronous prefix
+Current active unit: **P7.14 read-heavy close-out audit is Complete on
+`codex/p7-closeout-audit` from exact clean accumulation checkpoint `4562f38`.
+The repository-backed inventory found one final consistency seam: the oldest
+player/activity/squad leaderboard submissions and the game-search submission
+do not drain their bounded thread before propagating cancellation, unlike all
+later P7 workers. P7.15 is the selected final code unit and is not yet
+started.** P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
 `DiscordMember` query used by 18 prefix handlers with a bounded, worker-local
@@ -6583,7 +6589,8 @@ Integration/deployment evidence:
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **Implemented; pending beta acceptance**
+Status: **In progress; P7.14 audit complete and P7.15 cancellation cleanup
+selected**
 
 Candidate scope:
 
@@ -8193,6 +8200,117 @@ the originating Sol task. Tier-2 review accepted the corrected serialized
 payload and accumulation merge `cddf636` integrated the unit. Development
 capability assignment, command synchronization, beta testing, and wider
 acceptance remain later reviewed actions.
+
+### P7.14 — Read-heavy phase close-out audit
+
+Status: **Complete**
+
+Risk tier: **Tier 1 read-only repository audit**. No code, database, Discord,
+runtime, command, capability, fixture, or production change is authorized by
+the audit itself.
+
+Branch/base: `codex/p7-closeout-audit` from exact clean accumulation
+checkpoint `4562f38`.
+
+Audit contract:
+
+- inventory every native and retained prefix surface covered by P7.1–P7.13:
+  player/activity/team/squad/role leaderboards, player profile/history and
+  analytics, game search/detail, team show, squad show, and squad identity;
+- trace each initial load, refinement/page action, graph/image render, and
+  mutation control to its worker/executor, connection, immutable DTO, and
+  post-commit Discord boundary;
+- search the actual command adapters and delegated services for live Peewee
+  objects, lazy queries, synchronous event-loop reads, unbounded result sets,
+  mutable/shared plotting state, blocking filesystem work, and undrained
+  cancellation;
+- distinguish active P7 debt from intentional compatibility, retired legacy
+  paths, wider-beta acceptance, and work owned by another phase; and
+- either mark P7 technically Complete or define one smallest final cleanup
+  unit with exact files, risks, tests, and gates.
+
+The audit ends with repository-backed evidence, a clean documentation
+checkpoint, and no beta restart or tester announcement.
+
+Audit inventory and result:
+
+| Surface | Initial blocking work | Loaded-state behavior | Audit result |
+|---|---|---|---|
+| `/leaderboard players`, `$lb` and aliases | Shared two-thread leaderboard reader; worker-local connection; frozen rows capped at 2,000 | Pages are in-memory; a previously uncached filter preset performs another bounded read | One cancellation-drain seam in the oldest submit wrapper |
+| `/leaderboard activity`, `$lbrecent` and aliases | Same reader; 500 local / 1,000 global row caps | Pages are in-memory | Same cancellation-drain seam |
+| `/leaderboard squads`, `$lbsquad` / `$squadlb` | Same reader; 500-row cap | Pages and jump are in-memory | Same cancellation-drain seam |
+| `/leaderboard teams`, `$lbteam` / `$teamlb` / legacy `$lbteamjr` | Shared bounded reader; worker-local connection; immutable team/history DTOs | Tier/archive/page changes are in-memory; each selected-page graph renders off-loop | Clean cancellation and plotting boundaries; configured-team/history rows have no hard numeric DB cap |
+| `/leaderboard roles`, retained `$freeagents` | Dedicated two-thread reader; worker-local connection; 5,000 captured-member and 2,000 loaded-row caps | Role matching, sort, scope, paging, and jump are in-memory | Clean; `$roleelo` / `$roleeloany` remain intentionally retired and CSV remains deferred |
+| `/player show`, `$player` and player deep-links from retained list commands | Dedicated two-thread player reader; worker-local connection; 500-game and 500-history-point caps | Sections/filtering are in-memory; history graphs render from the immutable snapshot and cache in the view | Clean cancellation, connection, and object-owned Agg plotting boundaries |
+| `/game search` and retained `allgames` / `incomplete` / `wins` families | Dedicated two-thread reader; worker-local connection; 500-row cap | Paging is in-memory; a changed search view performs another bounded read | One cancellation-drain seam in the submit wrapper |
+| `/game show`, numeric `$game` / `$match` | Dedicated two-thread reader; worker-local connection; one frozen full-game card DTO | Presentation is model-free; state-changing buttons delegate to their separately modernized P4/P5 workers and reload only after commit | Clean read boundary; mutation correctness remains owned by the command's write phase |
+| `/team show`, retained `$team` | Dedicated one-thread read/render worker; worker-local connection; frozen Discord role/member snapshots | Activity toggle uses one loaded result; graph and local image bytes are produced/read off-loop | Clean cancellation and object-owned Agg plotting boundaries; guild/team history scale is operationally rather than numerically bounded |
+| `/squad show` | Dedicated two-thread reader; worker-local connection; at most 50 matches and 10 recent games per card | Page/result selection is in-memory; typed member search deliberately performs one bounded reload | Clean after the prior discovery/publication correction |
+| `/squad name` and contextual Edit name | Dedicated one-thread write worker; worker-local connection; one synchronous name-plus-audit transaction | Public card reload and attribution happen only after commit | Clean transaction/cancellation boundary; this small write is retained in P7 because it completes the squad workspace |
+
+Repository searches confirmed that the P7 presentation/service modules do not
+import or dereference Peewee models, and no live model, lazy query, Discord
+object, mutable Matplotlib object, or filesystem graph path crosses the worker
+boundary. Player, team-leaderboard, and team-show graphs use object-owned
+`Figure`/`FigureCanvasAgg` instances and immutable in-memory PNG bytes; no P7
+renderer uses `pyplot` or shared `graph.png`. Team-show's optional local image
+read occurs in its bounded worker before immutable bytes return to Discord.
+
+The final active debt is narrow and observable. `run_player_leaderboard()`,
+`run_activity_leaderboard()`, `run_squad_leaderboard()`, and
+`run_game_search()` directly await `loop.run_in_executor()`. Cancellation or
+the game-search adapter's timeout can therefore return while the synchronous
+query still owns a worker thread/connection. Every later P7 entry point drains
+submitted work before propagating cancellation. P7.15 will make these four
+oldest entry points consistent without changing query, result, command,
+visibility, or pagination behavior.
+
+The absence of a hard team/history row cap is recorded as a limitation, not a
+P7.15 blocker. Those reads are off-loop, worker-local, limited to configured
+guild teams/current recorded team history, and their graphs cap displayed
+series/points. If real guild scale or measurement shows excessive read cost,
+database-side sampling/batching should be a separate data-performance unit so
+history semantics are not changed during cancellation cleanup.
+
+Validation evidence: the combined P7 leaderboard, player workspace,
+game-search/detail, team/squad workspace, squad-identity, slash-taxonomy, and
+beta-operations suites passed **281 tests**. Complete offline discovery passed
+**1,364 tests with 56 intentional database-gated skips**. `git diff --check`
+passed. No PostgreSQL suite was run because this audit changes no code, query,
+schema, fixture, or runtime state.
+
+### P7.15 — Drain the oldest bounded read submissions on cancellation
+
+Status: **Planned; not started**
+
+Risk tier: **Tier 2 internal concurrency cleanup**. No command registration,
+query, filter, permission, visibility, result, schema, fixture, or plotting
+change is intended.
+
+Exact scope:
+
+- route the player, activity, and squad leaderboard entry points through the
+  existing `_run_bounded_leaderboard_call()` submission/drain helper;
+- give `game_search_workers.run_game_search()` the same repeated-cancellation
+  drain semantics used by the later game-detail, player, team, squad, and role
+  readers;
+- preserve both two-thread executor bounds and every worker-local connection;
+- log a worker exception that completes after caller cancellation without
+  replacing the caller's `CancelledError`; and
+- add focused regressions proving the cancelled awaiter does not finish until
+  the worker and connection finish, including repeated cancellation, while
+  retaining the existing event-loop-responsiveness tests.
+
+Expected files: `modules/leaderboard_workers.py`,
+`modules/game_search_workers.py`, `tests/test_player_leaderboard.py`,
+`tests/test_activity_squad_leaderboards.py`, and
+`tests/test_game_search_workspace.py`, plus this evidence record.
+
+No PostgreSQL gate, command-tree apply, beta announcement, or manual smoke test
+is required if implementation changes only the submission wrappers and the
+focused plus complete offline suites pass. An ordinary guarded beta restart
+may load the internal cleanup after integration. P7 can then be marked
+technically Complete; wider-beta product acceptance remains tracked by WB1.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -12099,6 +12217,35 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P7.14 read-heavy close-out audit completed
+
+- Inventoried the native and retained-prefix surfaces from P7.1 through
+  P7.13 and traced initial reads, refreshed filters, pagination, graph/image
+  rendering, squad identity mutation, and post-commit card refreshes through
+  their actual adapters and workers.
+- Confirmed worker-local Peewee connection ownership and immutable primitive
+  result boundaries throughout the modernized P7 surfaces. Presentation code
+  contains no model/lazy-query access, and the three P7 graph paths use
+  object-owned Agg figures with in-memory bytes rather than `pyplot`, shared
+  state, or `graph.png`.
+- Confirmed later player/detail/team/squad/role workers drain non-cancellable
+  thread work before propagating cancellation. Found the one final phase seam:
+  the oldest player/activity/squad leaderboard submits and game-search submit
+  directly await `run_in_executor`, so timeout/cancellation can return before
+  the thread and worker-local connection finish.
+- Selected P7.15 as a narrow wrapper/test correction covering exactly those
+  four entry points. Query semantics, row caps, result DTOs, prefix/slash
+  interfaces, visibility, and interaction behavior remain out of scope.
+- Recorded configured team/history reads as operationally rather than
+  numerically bounded. They remain off-loop and are not a P7.15 blocker;
+  database-side sampling/batching requires a separately measured performance
+  unit if real scale justifies changing history retrieval.
+- Performed no code, PostgreSQL, fixture, Discord, capability, beta, service,
+  production, or dependency action. The combined P7/process suites passed 281
+  tests; complete offline discovery passed 1,364 tests with 56 intentional
+  gated skips; `git diff --check` passed. Next: checkpoint and integrate this
+  audit, then implement P7.15 from the resulting clean accumulation base.
 
 ### 2026-08-09 — P6.3 integrated, deployed, and P6 closed
 
