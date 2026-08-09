@@ -80,12 +80,18 @@ def string_to_user_id(input):
 
 def is_registered_member():
     async def predicate(ctx):
-        db.connect(reuse_if_open=True)
-        member_match = DiscordMember.select(DiscordMember.discord_id).where(
-            (DiscordMember.discord_id == ctx.author.id)
-        ).count()
+        # Import lazily because the worker module uses these model definitions.
+        # discord.py accepts coroutine check predicates, so the complete query
+        # can run on a bounded worker without changing decorator call sites.
+        from modules import registration_checks
 
-        if member_match:
+        result = await registration_checks.run_registration_check(
+            registration_checks.RegistrationCheckRequest(
+                discord_id=int(ctx.author.id),
+            )
+        )
+
+        if result.registered:
             return True
         if ctx.invoked_with == 'help' and ctx.command.name != 'help':
             return False

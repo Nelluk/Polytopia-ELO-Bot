@@ -135,6 +135,37 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
+    def test_registration_check_reads_real_schema_without_writes(self):
+        from modules import registration_checks
+
+        existing_id = (
+            self.models.DiscordMember
+            .select(self.models.DiscordMember.discord_id)
+            .order_by(self.models.DiscordMember.discord_id)
+            .scalar()
+        )
+        self.assertIsNotNone(existing_id)
+        missing_id = 9_000_000_000_000_000_000
+
+        self.models.db.close()
+        found = asyncio.run(registration_checks.run_registration_check(
+            registration_checks.RegistrationCheckRequest(
+                discord_id=int(existing_id),
+            )
+        ))
+        missing = asyncio.run(registration_checks.run_registration_check(
+            registration_checks.RegistrationCheckRequest(
+                discord_id=missing_id,
+            )
+        ))
+
+        self.assertTrue(self.models.db.is_closed())
+        self.assertTrue(found.registered)
+        self.assertFalse(missing.registered)
+        self.assertEqual(found.discord_id, int(existing_id))
+        self.assertEqual(missing.discord_id, missing_id)
+        self.models.db.connect(reuse_if_open=True)
+
     def test_readiness_inventory_reads_real_development_database_without_writes(self):
         from modules import beta_readiness
 
