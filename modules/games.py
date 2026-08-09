@@ -24,6 +24,7 @@ from modules import player_timezone
 from modules import player_timezone_workers
 from modules import player_timezone_values
 from modules import league_inactivity_workers
+from modules import channel_reference_workers
 from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
@@ -283,15 +284,39 @@ class polygames(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
-        query = GameSide.update(team_chan=None).where(GameSide.team_chan == channel.id)
-        res = query.execute()
-        if res:
-            logger.debug(f'on_guild_channel_delete: detected deletion of gameside channel {channel.id} {channel.name} and removed reference from db')
-
-        query = Game.update(game_chan=None).where(Game.game_chan == channel.id)
-        res = query.execute()
-        if res:
-            logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
+        try:
+            result = await channel_reference_workers.run_channel_reference_cleanup(
+                channel_reference_workers.ChannelDeleteRequest(
+                    channel_id=int(channel.id),
+                    guild_id=int(channel.guild.id),
+                    channel_name=str(channel.name),
+                )
+            )
+        except Exception:
+            logger.exception(
+                'Deleted-channel database reconciliation failed for guild %s '
+                'channel %s %s',
+                channel.guild.id,
+                channel.id,
+                channel.name,
+            )
+            return
+        if result.cleared_side_count:
+            logger.debug(
+                'on_guild_channel_delete: detected deletion of game-side '
+                'channel %s %s and removed %s reference(s) from the database',
+                channel.id,
+                channel.name,
+                result.cleared_side_count,
+            )
+        if result.cleared_game_count:
+            logger.debug(
+                'on_guild_channel_delete: detected deletion of full-game '
+                'channel %s %s and removed %s reference(s) from the database',
+                channel.id,
+                channel.name,
+                result.cleared_game_count,
+            )
 
     @commands.Cog.listener()
     async def on_member_join(self, member):

@@ -3962,6 +3962,105 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.DiscordMember.delete().where(
                     self.models.DiscordMember.id.in_(member_ids)
                 ).execute()
+
+    def test_channel_reference_worker_rolls_back_and_clears_real_graph(self):
+        """Exercise atomic deleted-channel cleanup on a worker connection."""
+
+        from modules import channel_reference_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex
+        marker = f'P8.21 channel cleanup {suffix}'
+        channel_id = 9_083_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        external_guild_id = guild_id + 123
+        game_id = None
+        try:
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                name=marker,
+                notes=marker,
+                is_pending=False,
+                is_completed=False,
+                is_ranked=False,
+                is_mobile=True,
+                game_chan=channel_id,
+                size=[2],
+            )
+            game_id = int(game.id)
+            side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=2,
+                team_chan=channel_id,
+                team_chan_external_server=external_guild_id,
+            )
+            cleanup_request = workers.ChannelDeleteRequest(
+                channel_id=channel_id,
+                guild_id=guild_id,
+                channel_name=f'p821-{suffix}',
+            )
+
+            with mock.patch.object(
+                workers,
+                '_clear_game_references',
+                side_effect=peewee.OperationalError(
+                    'P8.21 injected full-game update failure'
+                ),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected full-game update failure',
+                ):
+                    asyncio.run(
+                        workers.run_channel_reference_cleanup(cleanup_request)
+                    )
+            self.models.db.connect(reuse_if_open=True)
+            game = self.models.Game.get_by_id(game_id)
+            side = self.models.GameSide.get_by_id(side.id)
+            self.assertEqual(int(game.game_chan), channel_id)
+            self.assertEqual(int(side.team_chan), channel_id)
+            self.assertEqual(
+                int(side.team_chan_external_server),
+                external_guild_id,
+            )
+
+            self.models.db.close()
+            result = asyncio.run(
+                workers.run_channel_reference_cleanup(cleanup_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(result.gameside_ids, (int(side.id),))
+            self.assertEqual(result.side_game_ids, (game_id,))
+            self.assertEqual(result.game_ids, (game_id,))
+            game = self.models.Game.get_by_id(game_id)
+            side = self.models.GameSide.get_by_id(side.id)
+            self.assertIsNone(game.game_chan)
+            self.assertIsNone(side.team_chan)
+            self.assertEqual(
+                int(side.team_chan_external_server),
+                external_guild_id,
+            )
+
+            self.models.db.close()
+            repeated = asyncio.run(
+                workers.run_channel_reference_cleanup(cleanup_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(repeated.cleared_side_count, 0)
+            self.assertEqual(repeated.cleared_game_count, 0)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_id is not None:
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
             self.assertEqual(
                 self.models.GameLog.select().where(
                     self.models.GameLog.message.contains(marker)
