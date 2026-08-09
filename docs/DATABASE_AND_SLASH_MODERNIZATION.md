@@ -485,12 +485,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P6.3 asynchronous prefix registration checks is In
-progress on `codex/p6-3-async-registration-check` from exact clean
-accumulation checkpoint `189cabd`. It replaces the one remaining shared
-event-loop `DiscordMember` query used by 18 prefix handlers with a bounded,
-worker-local read while preserving every command, denial message, help
-suppression rule, and authoritative command-worker validation. P4.6 immutable metadata
+Current active unit: **No code unit is active. P6.3 asynchronous prefix
+registration checks is complete, integrated, pushed, and loaded by the
+guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
+`DiscordMember` query used by 18 prefix handlers with a bounded, worker-local
+read while preserving every command, denial message, help suppression rule,
+and authoritative command-worker validation. P4.6 immutable metadata
 presentation is complete, integrated, pushed, and loaded by the guarded beta
 at `5335443`. It preserves all existing command registrations, permissions,
 visibility, and mutation workers while replacing post-commit live Peewee card
@@ -6240,8 +6240,8 @@ database modernization.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0–P6.2 are integrated and deployed, and P6.3 is
-implemented pending accumulation integration**
+Status: **Complete; P6.0–P6.3 are integrated, pushed, and running on the
+development beta**
 
 Candidate scope:
 
@@ -6515,7 +6515,7 @@ wider-beta feedback for `/player register`, `/player timezone`, and retained
 
 ### P6.3 — Asynchronous shared prefix registration check
 
-Status: **Implemented; pending accumulation integration and guarded beta restart**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 Risk tier: **Tier 2 shared read-boundary cleanup**. No command schema,
 registration data, permission rule, or mutation path changes.
@@ -6568,6 +6568,18 @@ visibility changed. No compatibility-ledger entry is required. Next: commit
 this evidence, fast-forward the accumulation branch, push, and perform an
 ordinary guarded beta restart without command synchronization or tester
 announcement.
+
+Integration/deployment evidence:
+
+- fast-forwarded and pushed the accumulation branch through evidence
+  checkpoint `ea23fc7`;
+- restarted only `polybot-development-beta@main.service`, whose guarded writer
+  audit was clear;
+- authenticated as **PolyELO Bot Beta** (`479029527553638401`) with PID
+  `3272754` and completed the required read-only release-control status check;
+- performed no application-command apply/sync; and
+- sent no tester announcement because command interfaces and visible behavior
+  are unchanged and the event-loop boundary is covered by automated tests.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -12087,6 +12099,23 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P6.3 integrated, deployed, and P6 closed
+
+- Fast-forwarded and pushed the accumulation branch through `ea23fc7` after
+  focused, expanded, complete offline, and targeted read-only real-schema
+  validation passed.
+- Restarted only the guarded development beta without command synchronization;
+  it authenticated as application `479029527553638401`, PID `3272754`, and
+  the release-control status check completed.
+- Chose no tester announcement because the unit changes only where the shared
+  prefix registration query executes.
+- Marked P6 Complete: canonical registration, timezone preference, and the
+  final shared prefix registration-check seam are integrated and running.
+- Next: perform a bounded read-only P7 close-out audit across leaderboard,
+  profile, game-search/detail, team/squad/role read surfaces and retained
+  prefix adapters. Identify any remaining synchronous event-loop database or
+  plotting path before either closing P7 or selecting one final cleanup unit.
 
 ### 2026-08-09 — P6.3 asynchronous registration check implemented
 
