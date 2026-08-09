@@ -484,9 +484,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P5.13 hourly open-game broadcasting is Implemented and
-validated on `codex/p5-13-open-game-broadcasts` at `7fa58ce`, pending
-accumulation integration and guarded-beta restart. The unit preserves
+Current active unit: **No code unit is active. P5.13 hourly open-game
+broadcasting is complete, integrated, pushed, and loaded by the guarded
+development beta at `b40b20d`. The unit preserves
 configured channel/ranked routing, the 12-game cap, descending game ordering,
 temporary-message lifetime, purgable-message tracking, and useful row content
 while moving all Peewee selection/traversal into bounded immutable worker
@@ -4824,16 +4824,12 @@ change is included. Development background tasks remain disabled, so restart
 loads but does not execute automatic lobby creation; no command sync or tester
 announcement is useful.
 
-Next action after integration/deployment: P5.13 can modernize the hourly open-
-game list broadcaster as a bounded read/presentation unit. It should freeze at
-most the displayed pending-game rows on worker-local connections, render
-native `/game join` and `/game show` guidance post-read, and isolate each
-channel send. The older incomplete-game purge remains policy-gated.
+The recommended P5.13 broadcaster action was subsequently completed as
+recorded below. The older incomplete-game purge remains policy-gated.
 
 ### P5.13 — Hourly open-game list broadcaster
 
-Status: **Implemented and validated; accumulation integration and guarded-beta
-restart pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta**
 
 The retained background task previously selected and traversed pending games
 on the Discord event loop separately for each configured channel, built embeds
@@ -4874,6 +4870,24 @@ Validation evidence:
   beta remained active. It exercised real pending rows, enforced the 12-row
   bound, and proved GameLog count was unchanged;
 - implementation/tests checkpoint: `7fa58ce`.
+
+Integration/deployment evidence:
+
+- committed roadmap evidence as `b40b20d`, fast-forwarded the clean unit branch
+  into `codex/database-slash-modernization`, and pushed that exact checkpoint
+  to the approved GitHub origin;
+- restarted only `polybot-development-beta@main.service`; its `ExecStartPre`
+  writer audit was clear and the sole writer is PID `3171418`, running from the
+  clean accumulation checkout at exact checkpoint `b40b20d`;
+- the bot authenticated as PolyELO Bot Beta `479029527553638401`, connected to
+  Discord, completed startup, and answered the protected local release-control
+  status operation;
+- made no application-command plan/apply/sync because P5.13 changes no command
+  definition or capability;
+- selected the explicit no-announcement route because development background
+  tasks remain disabled, so the broadcaster does not run and there is no useful
+  tester action. Acceptance is owned by the focused and read-only real-schema
+  evidence above.
 
 No command registration, option, permission, prefix handler, schema, fixture,
 transaction writer, capability, background-task configuration, or production
@@ -10698,9 +10712,15 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Passed the targeted read-only real-schema case alongside the active beta
   under the unchanged development identity gate and proved no GameLog writes.
 - Recorded implementation/tests checkpoint `7fa58ce`; accumulation integration,
-  push, and guarded-beta restart remained pending at this evidence checkpoint.
+  push, and guarded-beta restart remained pending at that evidence checkpoint.
 - Made no command, capability, schema, fixture, writer, background-task
   configuration, announcement, or production change.
+- Subsequently committed roadmap evidence as `b40b20d`, fast-forwarded and
+  pushed the accumulation branch, and restarted only the guarded beta. Its
+  writer audit was clear, PID `3171418` authenticated as the expected beta
+  application, and the protected release-control status operation succeeded.
+- Made no command sync or tester announcement because this disabled background
+  path exposes no tester-facing action in development.
 
 ### 2026-08-09 — P5.12 automatic vacant-lobby worker validated
 
