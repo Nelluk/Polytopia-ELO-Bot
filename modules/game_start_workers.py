@@ -28,6 +28,7 @@ from modules import (
     exceptions,
     game_broadcast_workers,
     game_open_workers,
+    game_start_channel_workers,
     models,
     utilities,
 )
@@ -141,6 +142,9 @@ class StartResult:
     broadcast_targets: tuple[
         game_broadcast_workers.ExternalBroadcastTarget, ...
     ] = ()
+    channel_plan: (
+        game_start_channel_workers.StartedGameChannelPlan | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -560,6 +564,9 @@ def start_game(request: StartRequest) -> StartResult:
                 host_id=_host_id(game),
                 broadcast_targets=(
                     game_broadcast_workers.freeze_game_broadcast_targets(game)
+                ),
+                channel_plan=(
+                    game_start_channel_workers.freeze_started_channel_plan(game)
                 ),
             )
 

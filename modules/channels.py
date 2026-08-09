@@ -185,6 +185,8 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
             await chan.send(nova_message)
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
+        return False
+    return True
 
 
 async def delete_game_channel(guild, channel_id: int):

@@ -7,6 +7,7 @@ import logging
 import settings
 from modules import (
     game_broadcasts,
+    game_start_channels,
     game_start_workers,
     image_storage,
     league,
@@ -288,29 +289,66 @@ async def publish_start_result(
             error=exc,
         )
 
-    if game is not None:
-        for warning in result.missing_member_warnings:
-            await _safe_public_send(
+    # These committed lifecycle warnings do not depend on the compatibility
+    # reload used by the classic card and remaining P5.19 follow-ups.
+    for warning in result.missing_member_warnings:
+        await _safe_public_send(
+            send,
+            warning,
+            game_id=result.game_id,
+            effect='missing-member warning',
+        )
+    if result.name_warning:
+        await _safe_public_send(
+            send,
+            result.name_warning,
+            game_id=result.game_id,
+            effect='name override warning',
+        )
+    if result.league_warning:
+        await _safe_public_send(
+            send,
+            result.league_warning,
+            game_id=result.game_id,
+            effect='season warning',
+        )
+
+    channels_processed = False
+
+    async def publish_frozen_channels():
+        nonlocal channels_processed
+        channels_processed = True
+        try:
+            if (
+                result.channel_plan is not None
+                and settings.guild_setting(
+                    guild.id,
+                    'game_channel_categories',
+                )
+            ):
+                channel_result = (
+                    await game_start_channels.create_started_game_channels(
+                        plan=result.channel_plan,
+                        source_guild=guild,
+                        bot_guilds=bot_guilds,
+                    )
+                )
+                for warning in channel_result.warnings:
+                    await _safe_public_send(
+                        send,
+                        warning,
+                        game_id=result.game_id,
+                        effect='game-channel creation reconciliation',
+                    )
+        except Exception as exc:
+            await _safe_effect_warning(
                 send,
-                warning,
                 game_id=result.game_id,
-                effect='missing-member warning',
-            )
-        if result.name_warning:
-            await _safe_public_send(
-                send,
-                result.name_warning,
-                game_id=result.game_id,
-                effect='name override warning',
-            )
-        if result.league_warning:
-            await _safe_public_send(
-                send,
-                result.league_warning,
-                game_id=result.game_id,
-                effect='season warning',
+                effect='game-channel creation',
+                error=exc,
             )
 
+    if game is not None:
         season = None
         try:
             season = game.is_season_game()
@@ -417,19 +455,7 @@ async def publish_start_result(
                 error=exc,
             )
 
-        try:
-            if settings.guild_setting(guild.id, 'game_channel_categories'):
-                await game.create_game_channels(
-                    bot_guilds,
-                    guild.id,
-                )
-        except Exception as exc:
-            await _safe_effect_warning(
-                send,
-                game_id=result.game_id,
-                effect='game-channel creation',
-                error=exc,
-            )
+        await publish_frozen_channels()
 
         try:
             if game.is_uncaught_season_game():
@@ -482,29 +508,10 @@ async def publish_start_result(
                 effect='Nova follow-up',
                 error=exc,
             )
-    else:
-        # Keep lifecycle output public even if a compatibility reload fails.
-        for warning in result.missing_member_warnings:
-            await _safe_public_send(
-                send,
-                warning,
-                game_id=result.game_id,
-                effect='missing-member warning',
-            )
-        if result.name_warning:
-            await _safe_public_send(
-                send,
-                result.name_warning,
-                game_id=result.game_id,
-                effect='name override warning',
-            )
-        if result.league_warning:
-            await _safe_public_send(
-                send,
-                result.league_warning,
-                game_id=result.game_id,
-                effect='season warning',
-            )
+    if not channels_processed:
+        # Channel creation is fully represented by the committed primitive
+        # plan and must not be suppressed by a classic-card reload failure.
+        await publish_frozen_channels()
 
     await _safe_public_send(
         send,

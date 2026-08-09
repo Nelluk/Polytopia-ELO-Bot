@@ -2257,7 +2257,11 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
 
     def test_start_worker_real_graph_and_audit_rollback(self):
-        from modules import game_broadcast_workers, game_start_workers
+        from modules import (
+            game_broadcast_workers,
+            game_start_channel_workers,
+            game_start_workers,
+        )
 
         guild_id = self.profile.allowed_guild_ids[0]
         suffix = uuid.uuid4().hex
@@ -2441,6 +2445,73 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     ),
                 ),
             )
+            self.assertIsNotNone(first_result.channel_plan)
+            self.assertEqual(first_result.channel_plan.game.id, first_game.id)
+            self.assertEqual(first_result.channel_plan.side_targets, ())
+            self.assertIn(
+                f'Side **{host_player.name[:30]}**',
+                first_result.channel_plan.roster_names,
+            )
+
+            first_side = self.models.GameSide.get(
+                (self.models.GameSide.game == first_game.id)
+                & (self.models.GameSide.position == 1)
+            )
+            channel_id = id_base + 20
+            channel_guild_id = guild_id + 123
+            self.models.db.close()
+            persisted_channel = asyncio.run(
+                game_start_channel_workers.run_persist_started_channel(
+                    game_start_channel_workers.PersistStartedChannelRequest(
+                        game_id=int(first_game.id),
+                        guild_id=int(guild_id),
+                        channel_id=int(channel_id),
+                        channel_guild_id=int(channel_guild_id),
+                        kind='side',
+                        side_id=int(first_side.id),
+                    )
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertFalse(persisted_channel.already_persisted)
+            persisted_side = self.models.GameSide.get_by_id(first_side.id)
+            self.assertEqual(int(persisted_side.team_chan), channel_id)
+            self.assertEqual(
+                int(persisted_side.team_chan_external_server),
+                channel_guild_id,
+            )
+            self.models.db.close()
+            repeated_channel = asyncio.run(
+                game_start_channel_workers.run_persist_started_channel(
+                    game_start_channel_workers.PersistStartedChannelRequest(
+                        game_id=int(first_game.id),
+                        guild_id=int(guild_id),
+                        channel_id=int(channel_id),
+                        channel_guild_id=int(channel_guild_id),
+                        kind='side',
+                        side_id=int(first_side.id),
+                    )
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(repeated_channel.already_persisted)
+            self.models.db.close()
+            with self.assertRaises(
+                game_start_channel_workers.StartedChannelConflictError
+            ):
+                asyncio.run(
+                    game_start_channel_workers.run_persist_started_channel(
+                        game_start_channel_workers.PersistStartedChannelRequest(
+                            game_id=int(first_game.id),
+                            guild_id=int(guild_id),
+                            channel_id=int(channel_id + 1),
+                            channel_guild_id=int(guild_id),
+                            kind='side',
+                            side_id=int(first_side.id),
+                        )
+                    )
+                )
+            self.models.db.connect(reuse_if_open=True)
             started_game = self.models.Game.get_by_id(first_game.id)
             self.assertFalse(started_game.is_pending)
             self.assertEqual(started_game.name, f'Fields Of Fire {suffix}'.title()[:35])
