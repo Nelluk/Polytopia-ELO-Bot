@@ -484,13 +484,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.21 deleted-channel reference
-reconciliation is integrated, pushed, and running on the guarded development
-beta at `0a53bb4`. The two direct Peewee updates in
-`on_guild_channel_delete` now run in one bounded worker-owned transaction while
-preserving side/full-game reference cleanup and external-guild routing
-evidence. The stopped-beta real-schema gate passed. No command tree changed,
-and no command synchronization or tester announcement was needed.**
+Current active unit: **P8.22 member identity/moderation listener persistence is
+Implemented and locally green on `codex/p8-22-member-identity-listeners` from
+exact clean accumulation checkpoint `502f007`; implementation/tests are
+checkpointed as `d9e7712`. Account-wide username metadata, guild-local
+nickname/display metadata, and guild-local ELO-ban state plus each audit row
+now run in bounded worker-owned transactions. Existing global `guild_id=0`
+username audit, guild-local audit, unregistered-member, and
+ban→inactive→nickname sequencing semantics are preserved. The stopped-beta
+real-schema gate passed. Integration, push, and beta restart remain active. No
+command tree changes.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -8506,6 +8509,66 @@ Integration/deployment evidence:
 - selected the explicit no-announcement route. This is backend-only deleted-
   channel reconciliation with no normal command or safe broad-pool smoke action.
 
+### P8.22 — Member identity and moderation listener persistence
+
+Status: **Implemented and locally green; integration/deployment pending**
+
+The remaining `games.py` identity/moderation listener paths synchronously query
+and mutate Peewee on the Discord event loop:
+
+- `on_user_update` reloads a `DiscordMember`, updates its account-wide Discord
+  username metadata, regenerates every guild Player display name, and writes a
+  global audit row;
+- `on_member_update` reloads and writes one guild Player for ELO-ban role
+  application/removal and again for nickname/display-name changes, with a
+  guild-local audit for each mutation.
+
+Accepted bounded contract:
+
+- freeze only primitive member/guild IDs, before/after names or nicknames,
+  desired ELO-ban state, and pre-rendered safe audit descriptions before worker
+  submission; no live Discord or Peewee object crosses the boundary;
+- use one dedicated bounded single-worker executor and a worker-local Peewee
+  connection for every operation;
+- keep username metadata, all derived guild Player display names, and the
+  legacy global `guild_id=0` audit in one synchronous transaction;
+- keep each guild nickname/display-name update and audit in one synchronous
+  transaction;
+- keep each guild Player ELO-ban update and audit in one synchronous
+  transaction;
+- preserve unregistered-member no-ops and the existing early return after an
+  unregistered ELO-ban event;
+- preserve event ordering for simultaneous changes: ELO-ban persistence,
+  existing inactive-role audit, then nickname persistence;
+- contain database failures in the listener, drain cancellation until the
+  submitted transaction finishes, and add no Discord post-commit effects;
+- make no command, permission, capability, taxonomy, schema, or prefix change.
+
+Implementation adds `modules/member_identity_workers.py`, routes the two
+listeners through its three explicit transaction graphs, and adds focused plus
+gated real-schema rollback/commit coverage. This is a database-writer unit, so
+integration requires the standard stopped-beta writer audit and unchanged full
+development PostgreSQL gate. No application-command apply/sync or broad tester
+announcement is expected.
+
+Validation evidence:
+
+- focused member-identity worker/listener suite: 13 passed;
+- affected identity/inactivity/join/removal/channel-listener suites: 58 passed;
+- complete offline discovery: 1,197 passed with 45 intentional gated skips;
+- stopped-beta writer audit: clear;
+- full gated development PostgreSQL suite: 44 passed with one intentional
+  retained-fixture/operator skip under the unchanged `development` /
+  `polytopia_dev` / `polybot_dev` identity and disabled background/API gates;
+- the real-schema P8.22 case proved rollback and commit for account-wide
+  username plus derived Player names, guild nickname/display metadata, and
+  guild-local ELO-ban state; it also proved exactly three successful audit rows
+  and no cross-guild ELO-ban leakage;
+- touched-Python compilation and working-tree whitespace checks passed.
+
+Implementation/tests checkpoint: `d9e7712`. Integration, push, guarded beta
+restart, and final no-sync/no-announcement deployment evidence remain pending.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -10003,6 +10066,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.22 identity/moderation listeners implemented locally
+
+- Moved account-wide Discord username/derived Player-name persistence,
+  guild-local nickname/display-name persistence, and guild-local ELO-ban state
+  out of the Discord event loop into one bounded worker executor with
+  worker-local connections and synchronous transactions.
+- Kept each mutation and its audit row atomic, retained the legacy global
+  username audit scope, preserved unregistered no-ops and the existing
+  ban→inactive→nickname sequence, and added no Discord effects.
+- Added frozen primitive DTO, connection/transaction, audit failure,
+  responsiveness, cancellation, listener ordering, early-return, failure
+  containment, and real-schema rollback/commit coverage.
+- Focused identity coverage passed 13 tests; the broader affected listener
+  group passed 58. Complete offline discovery passed 1,197 tests with 45
+  intentional gated skips.
+- Stopped only the guarded development beta, confirmed the host-wide writer
+  audit was clear, and passed all 44 gated development PostgreSQL cases with
+  one intentional retained-fixture/operator skip. The real-schema P8.22 case
+  proved rollback, commit, account-wide derived-name updates, guild-local
+  nickname and ELO-ban isolation, and exact audit-row persistence.
+- Checkpointed implementation/tests as `d9e7712`. Evidence checkpoint,
+  integration, push, restart, and the explicit no-sync/no-announcement
+  deployment record remain pending.
 
 ### 2026-08-09 — P8.21 deleted-channel cleanup implemented and validated
 
