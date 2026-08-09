@@ -486,10 +486,10 @@ approved. Wider-beta card acceptance awaits an exact-role development Team
 with a stored image.**
 
 The exact GitHub push was subsequently approved and completed. The active
-bounded correction is the P4.2d game-tribe executor completion seam; its code
-and complete offline suite are green locally at `b1333e0`, with integration
-and beta restart pending. P8.16 `/league roster price` has been investigated
-but remains decision-gated rather than implemented.
+bounded P4.2d game-tribe executor completion correction is integrated, pushed,
+and loaded by the guarded beta at `1addc54`; the complete offline suite is
+green. P8.16 `/league roster price` has been investigated but remains
+decision-gated rather than implemented.
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -9440,6 +9440,14 @@ P8.16 section.
   formula-transparency, and retirement decisions required before P8.16.
 - No PostgreSQL, Discord command-tree, production, dependency, or fixture
   operation was performed for the correction or investigation.
+- Fast-forwarded and pushed `b1333e0` plus evidence `1addc54`, then restarted
+  only the guarded development beta. It authenticated as the expected beta
+  application at exact checkpoint `1addc54`; no slash schema changed, so no
+  command synchronization occurred.
+- No tester announcement was posted because the correction restores adapter
+  completion/test reliability without changing a user-visible command shape
+  or supplying a new behavior for testers to distinguish. The running
+  `/game tribe` checklist remains authoritative.
 
 ### 2026-08-09 — P8.15 native draft card implemented locally
 
