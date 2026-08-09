@@ -484,14 +484,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P5.10 expired-pending-game
-purge is complete, integrated, pushed, and loaded by the guarded development
-beta at `29dd80a`. The user accepted per-game atomicity, database commit before
-Discord effects, and operator-visible manual reconciliation without a new
-retry/outbox schema. Focused, complete offline, targeted real-schema, and
-complete gated development-database validation are green. Development
-background tasks remain disabled, so the beta does not execute the automatic
-purge and no command sync or tester announcement was needed.**
+Current active unit: **P5.11 ranked full-game reminder snapshots are
+Implemented and validated on `codex/p5-11-reminder-snapshot` at `be25914`,
+pending accumulation integration and guarded-beta restart. The retained task
+now delegates bounded deterministic discovery and immutable game-card
+snapshotting to a worker-local Peewee read, while guild/member resolution,
+dense rendering, and independent DMs remain post-read. Existing ranked/full,
+twelve-hour cadence, and recent-join suppression semantics are preserved.
+Focused, complete offline, and targeted read-only real-schema validation are
+green. No command definition, schema, fixture, capability, or production state
+changed.**
 
 The exact GitHub push was subsequently approved and completed. The bounded
 P4.2d game-tribe executor completion correction is integrated, pushed, and
@@ -4658,6 +4660,65 @@ surviving native guidance, and preserve the existing twelve-hour suppression
 rule. The automatic vacant-lobby creator is the next ready writer alternative.
 The older incomplete-game purge requires a separate policy audit before its
 destructive thresholds/effects are changed.
+
+### P5.11 — Ranked full-game reminder snapshots
+
+Status: **Implemented and validated; accumulation integration and guarded-beta
+restart pending**
+
+The retained twelve-hour reminder loop previously selected full ranked pending
+games, traversed related Peewee models, searched recent join logs, built the
+legacy game embed, and resolved the creator directly on the Discord event loop.
+One unexpected creator/model/configuration failure could also interrupt later
+reminders in the same cycle, and its copy advertised legacy `$game`, `$start`,
+and `$names` workflows.
+
+The bounded implementation:
+
+- adds `modules/game_reminder_workers.py` with one immutable request/batch
+  boundary, a dedicated two-thread read executor, and a worker-local Peewee
+  connection;
+- discovers at most 500 full ranked pending candidates in expiration/game-ID
+  order, marks overflow for the next cycle, and preserves the exact recent
+  `_<game>_ joined` log search with a twelve-hour cutoff;
+- freezes creator/guild IDs and the existing dense game-detail snapshot before
+  returning from the worker, without carrying a Peewee or Discord object across
+  the boundary;
+- adds `modules/game_reminders.py` to resolve the live guild/member and strict
+  bot channel only after the database read, render the shared dense classic
+  card in native presentation mode, and send each DM independently;
+- updates the message to use `/game show` for the card/draft names and
+  `/game start` for starting, without advertising retired name/code or prefix
+  workflows;
+- contains missing guilds, departed creators, malformed snapshots, missing
+  configuration, rendering errors, and Discord DM rejection per game so later
+  reminders still proceed;
+- reduces `task_dm_game_creators` to its unchanged twelve-hour sleep plus one
+  application-service call and cycle-level logging.
+
+Validation evidence:
+
+- focused reminder/game-card coverage: 31 active tests passed with 49
+  intentional gated skips in the combined integration module;
+- complete offline discovery: 1,252 passed with 50 intentional gated skips;
+- touched-Python compilation and `git diff --check`: passed;
+- the targeted unchanged-gate development test passed against exact
+  `development` / `polytopia_dev` / `polybot_dev` identity. It exercised the
+  real pending-game query and frozen snapshots while proving the GameLog count
+  was unchanged;
+- implementation/tests checkpoint: `be25914`.
+
+No command registration, slash option, prefix command, permission, schema,
+fixture, transaction writer, capability, background-task configuration, or
+production change is included. Development background tasks remain disabled,
+so loading this code into the beta will not send reminder DMs and offers no
+useful tester-facing smoke or announcement.
+
+Next action after integration/deployment: P5.12 can modernize automatic vacant-
+lobby creation. Because that task creates game graphs, it must capture Discord
+role/member inputs before submission, serialize through the pending-game
+coordinator, use worker-local synchronous transactions, and pass a stopped-beta
+writer gate. The retained older incomplete-game purge remains policy-gated.
 
 ## P6 — Registration and player preferences
 
@@ -10452,6 +10513,27 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P5.11 ranked reminder snapshots validated
+
+- Replaced event-loop Peewee discovery, recent-join lookup, relationship
+  traversal, and card snapshotting in `task_dm_game_creators` with one bounded
+  worker-local read and immutable primitive results.
+- Preserved full ranked pending eligibility, the twelve-hour task cadence, and
+  the twelve-hour recent-join suppression rule; added deterministic ordering
+  and a 500-candidate cycle bound.
+- Kept all guild/member/configuration resolution, dense-card rendering, and DM
+  publication after the read, with per-game failure containment.
+- Replaced legacy `$game`, `$start`, and `$names` reminder copy with `/game
+  show` and `/game start` guidance.
+- Passed 31 active focused tests, 1,252 complete offline tests with 50 gated
+  skips, compilation, and diff checks.
+- Passed the targeted read-only real-schema case under the unchanged
+  development safety gate and proved the worker made no GameLog writes.
+- Recorded implementation/tests checkpoint `be25914`; accumulation integration,
+  push, and guarded-beta restart remained pending at this evidence checkpoint.
+- Made no schema, command, capability, fixture, writer, background-task
+  configuration, Discord sync, announcement, or production change.
 
 ### 2026-08-09 — P5.10 expired purge worker validated
 
