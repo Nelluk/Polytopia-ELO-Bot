@@ -106,6 +106,15 @@ This is the running wider-beta checklist—not just the newest release. Please u
   adding/removing `🔆`; ineligible or closed signups should be rejected. As a
   Mod, close and reopen with `⏯`, then conclude the disposable post with `❎`
   and its confirmation. A non-Mod control attempt must change nothing.
+- `/league roster promote`: as a Helper or Mod, choose a player and destination
+  Team. Verify the player's profile image and stored Team image appear, custom
+  headline/footer text works, and the public card identifies who generated it.
+  Retry with one direct HTTP(S) image URL override. A non-Helper must be denied
+  privately, and an invalid/non-image URL must not publish a card.
+- `/league roster trade`: choose two members, verify both profile images and
+  the trade arrows, then try optional text and one raw URL override. Compare a
+  retained `$promote` or `$trade` using a Team/member/raw-URL mix; both prefix
+  commands should now require Helper access.
 - Retained `$tutorial`, `$imalive`, `$novas`, `$joinnovas`, `$season`,
   `$jrseason`, `$ps`, `$js`, `$seasonjr`, and `$newfreeagent` should continue
   to reach the same underlying behavior.

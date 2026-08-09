@@ -1009,8 +1009,8 @@ beta lifecycle action is part of this unit.
 | `imalive` | `/league mark-active` | P8.11 self-service by default with House Leader/Co-Leader/Mod targeting parity; `$imalive` retained |
 | `season` | `/league season` | P8.12 optional integer season/all-seasons public workspace with worker-backed aggregate; `$season` and aliases retained |
 | `novas` | `/league join-novas` | P8.11 worker-checked registration/team eligibility and public post-role success; `$novas`/`$joinnovas` retained |
-| `promote` | `/league roster promote` | Split alias-driven image modes |
-| `trade` alias | `/league roster trade` | Split from promote |
+| `promote` | `/league roster promote` | P8.14 Helper+ typed player/destination-Team card with optional text and advanced per-image HTTP(S) override; `$promote` retained for arbitrary Team/member/URL boxes |
+| `trade` alias | `/league roster trade` | P8.14 Helper+ typed two-player card with optional text and advanced per-image HTTP(S) override; `$trade` retained over the shared worker |
 | `draft` | `/league roster draft` | Strong candidate with member/team options |
 | `tradeprice` | `/league roster price` | Retain/review hidden read before exposure |
 | `league_export` | `/league maintenance export` | Redesign staff-only deferred generation |

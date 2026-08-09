@@ -369,6 +369,7 @@ would become unavailable if a prefix is retired.
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
 | C-016 `/house create` / `$house_add` | Mod-only `/house create name:<required>` validates one required House name, commits the globally modelled House and actual-guild actor-attributed audit atomically, and publishes the created ID/name only after commit. | Legacy recommendation: **retire** — explicitly approved. `$house_add` is removed with no adapter because this rare staff workflow is completely covered by the typed native command. The command creates database state only; it does not create or rename a Discord role. | If operational experience shows role creation should be coupled, design a separately confirmed Discord-role reconciliation step after the database commit. Do not place Discord effects inside the transaction. A future schema unit may guild-scope Houses if multi-league operation requires it. | Intentional P8.9 prefix retirement and database-only creation boundary; implemented at `7063801`, integrated/deployed at `a42ca7d` |
 | C-017 `/league tokens` / `$tokens` | Native `/league tokens house:[optional] amount:[optional] note:[optional]` opens a requester-bound Components v2 balance/history workspace. Reads retain broad league-guild access; supplying `amount` retains the legacy level-5-or-higher update boundary, commits the balance and actor-attributed audit atomically, and publishes the updated snapshot only after commit. | Legacy recommendation: **retire** — explicitly approved. `$tokens` is removed with no adapter because the native workspace covers all-House balances, recent changes, House-specific history, and audited updates. The command deliberately preserves the legacy absence of a bot-channel restriction; it does not silently narrow reads or Helper-level writes to Mod-only. | If token administration later needs more structure, add reason categories or a confirmed adjustment workflow over the same worker rather than restoring opaque prefix parsing. A future schema unit may guild-scope Houses if more than one league shares the database. | Intentional P8.10 prefix retirement with exact permission parity; implemented at `7abfbde`, integrated/deployed at `90d0ce5`; wider-beta acceptance pending |
+| C-018 `/league roster promote|trade` / `$promote` / `$trade` | Native promotion uses a typed player plus destination Team and its stored image; native trade uses two typed players. Both retain optional headline/footer text and per-side direct HTTP(S) image URL overrides. The retained prefix parser continues to accept any unambiguous Team, member, or raw URL in either image box through the same bounded worker. | Legacy recommendation: **retain** because the prefix's arbitrary Team/member combinations are a useful uncommon advanced path not represented by the streamlined native shapes. Both interfaces are intentionally tightened to Helper level or higher; the old prefix documentation claimed Mod-only while its check had been commented out and therefore did not enforce that claim. If message content is later removed, arbitrary mixed Team/member box selection becomes unavailable, but direct URL overrides remain native. | Add an interaction preview/source selector only if staff demonstrate a real need for arbitrary mixed source combinations after prefix retirement; keep remote fetches bounded and off the event loop. | P8.14 implemented locally; stopped-beta real-schema gate, integration, deployment, and wider-beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -478,11 +479,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.13b retains the Free Agent reaction interface while
-moving its signup, open/close, and conclude database work behind bounded
-worker-local operations. It is integrated and deployed under the temporary
-Sol omni workflow and now belongs to the wider tester pool. P8.13 and P8.12
-remain deployed with wider-beta acceptance pending.**
+Current active unit: **P8.14 adds Helper-or-higher native
+`/league roster promote|trade` cards while retaining `$promote`/`$trade` as
+the advanced arbitrary-source fallback. Implementation and offline validation
+are green; the stopped-beta development-database gate, integration,
+development-guild command update, restart, and wider-beta release remain.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7719,6 +7720,61 @@ already taxonomized `/league roster promote|trade` presentation unit. A later
 button experiment remains optional and should preserve or explicitly replace
 the reaction roster/count value.
 
+### P8.14 — League roster promotion and trade cards
+
+Status: **Implemented locally; stopped-beta gate and deployment pending**
+
+Branch/base: `codex/p8-14-roster-cards` from exact clean accumulation
+checkpoint `66a97e4`.
+
+Interface and permission decisions:
+
+- add `/league roster promote player team` with optional headline/footer and
+  advanced player/team direct HTTP(S) image URL overrides;
+- add `/league roster trade left_player right_player` with optional
+  headline/footer and advanced per-side direct HTTP(S) image URL overrides;
+- use the selected member's Discord profile image and the selected Team's
+  stored local/legacy image by default;
+- require Helper level or higher for both native and retained prefix paths.
+  This intentionally corrects the old mismatch where help said Mod-only but
+  the actual permission decorator was commented out;
+- retain `$promote` and `$trade` because their four-token grammar can still
+  resolve either image box as an arbitrary Team, member, or raw URL.
+
+Database, rendering, and Discord boundaries:
+
+- the event loop captures only primitive guild/member/avatar/role-colour data;
+- one bounded two-thread renderer owns any required worker-local Peewee
+  connection, resolves Team images, fetches/decode images, and performs Pillow
+  rendering. It returns immutable PNG bytes; no Discord/Peewee object crosses
+  the boundary;
+- native Team-image URL overrides still require the destination Team to
+  resolve in the invoking guild. Raw image inputs accept complete HTTP(S)
+  URLs only and are bounded by the existing image-fetch timeouts;
+- native invocation privately defers; validation, permission, lookup, fetch,
+  and render failures remain private. Successful cards are public and identify
+  the actor. Prefix success retains its compact image-only presentation;
+- there is no database write or transaction. The real-schema test is read-only
+  and verifies that Team/image resolution leaves Team and GameLog counts
+  unchanged.
+
+Validation evidence:
+
+- focused P8.14 tests: **9 passed**;
+- expanded affected league/taxonomy suites: **90 passed**;
+- complete offline discovery: **1,084 passed with 36 intentional gated
+  skips**;
+- touched-file compilation and `git diff --check`: passed;
+- the read-only real-schema case is present behind the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` identity gate and remains
+  deferred until the approved stopped-beta integration window.
+
+Next action: create separate implementation and roadmap checkpoints, stop only
+the guarded development beta, run the unchanged gated suite, integrate into
+the accumulation branch, explicitly update only the development guild's
+existing `league` root, restart the guarded beta, and publish the bounded
+**WHAT TO TEST** announcement.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -9183,7 +9239,39 @@ reliable recovery. Synchronize only when the slash schema changes, batch such
 changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
+### D-044 — Keep roster-card URLs as a Helper-level advanced path
+
+Status: **Accepted**
+
+Promotion/trade card generation is available to Helpers, Mods, and the bot
+owner, both natively and through the retained prefix commands. This is an
+intentional authorization correction: the legacy help called the command
+Mod-only while its runtime Mod check was commented out.
+
+Native common paths use typed members and a destination Team, but optional
+complete HTTP(S) image URLs remain available per image as an explicit advanced
+override. The destination Team is still guild-resolved even when its image is
+overridden. `$promote`/`$trade` remain during beta for arbitrary Team/member/
+URL combinations; their database resolution and image rendering use the same
+bounded worker as native commands.
+
 ## Progress log
+
+### 2026-08-08 — P8.14 roster cards implemented locally
+
+- Added Helper-or-higher `/league roster promote|trade` with typed common
+  member/Team inputs, optional text, and direct HTTP(S) per-image overrides.
+- Retained `$promote`/`$trade`, corrected their previously unenforced
+  permission boundary, and routed their Team/member/URL grammar through the
+  same worker rather than synchronous event-loop database/render work.
+- Added immutable source/result DTOs, a bounded renderer, worker-local Team
+  image lookup, private native failures, and public actor-attributed native
+  success.
+- Focused P8.14 tests passed **9**, expanded league/taxonomy tests passed
+  **90**, and complete offline discovery passed **1,084 tests with 36
+  intentional gated skips**. Compilation and diff checks passed.
+- The guarded beta and PostgreSQL were untouched during implementation. The
+  read-only P8.14 real-schema case remains for the approved stopped-beta gate.
 
 ### 2026-08-08 — P8.13b Free Agent reactions modernized locally
 
