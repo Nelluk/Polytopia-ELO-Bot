@@ -6021,8 +6021,113 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.Player.delete().where(
                     self.models.Player.id.in_(player_ids)
                 ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.discord_id.in_(discord_ids)
+                ).execute()
+
+    def test_league_invitation_workers_read_commit_and_roll_back_real_schema(self):
+        """Exercise P8.27's bounded scan and idempotent sent-date write."""
+
+        from modules import league_invitation_workers
+
+        suffix = uuid.uuid4().hex
+        first_discord_id = 8_826_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        second_discord_id = first_discord_id + 1
+        first = second = None
+        era_start, era_end = self.models.moonrise_or_air_date_range()
+
+        try:
+            first = self.models.DiscordMember.create(
+                discord_id=first_discord_id,
+                name=f'P827 Scan {suffix}',
+                elo_max=1100,
+                elo_max_moonrise=1200,
+                polytopia_name='P827 Scan',
+                date_polychamps_invite_sent=None,
+            )
+            request = league_invitation_workers.LeagueInvitationEligibilityRequest(
+                as_of=datetime.datetime.now(),
+                polychampions_guild_id=self.profile.allowed_guild_ids[0],
+                global_guild_ids=tuple(
+                    self.settings.servers_included_in_global_lb()
+                ),
+                era_start=era_start,
+                era_end=era_end,
+                after_member_id=first.id - 1,
+                limit=10,
+            )
+            batch = asyncio.run(
+                league_invitation_workers.run_load_invitation_eligibility(
+                    request
+                )
+            )
+            row = next(
+                row for row in batch.evaluations if row.member_id == first.id
+            )
+            self.assertEqual(row.discord_id, first_discord_id)
+            self.assertEqual(row.wins, 0)
+            self.assertEqual(row.losses, 0)
+            self.assertEqual(row.recent_games, 0)
+            self.assertFalse(row.eligible)
+            self.assertEqual(row.reason, 'insufficient_wins')
+
+            delivery = league_invitation_workers.LeagueInvitationDeliveryRequest(
+                member_id=first.id,
+                discord_id=first_discord_id,
+                sent_on=datetime.date.today(),
+            )
+            committed = asyncio.run(
+                league_invitation_workers.run_record_invitation_delivery(
+                    delivery
+                )
+            )
+            self.assertTrue(committed.recorded)
+            repeated = asyncio.run(
+                league_invitation_workers.run_record_invitation_delivery(
+                    delivery
+                )
+            )
+            self.assertFalse(repeated.recorded)
+
+            second = self.models.DiscordMember.create(
+                discord_id=second_discord_id,
+                name=f'P827 Rollback {suffix}',
+                elo_max=1100,
+                elo_max_moonrise=1200,
+                polytopia_name='P827 Rollback',
+                date_polychamps_invite_sent=None,
+            )
+            rollback_request = (
+                league_invitation_workers.LeagueInvitationDeliveryRequest(
+                    member_id=second.id,
+                    discord_id=second_discord_id,
+                    sent_on=datetime.date.today(),
+                )
+            )
+            original_update = league_invitation_workers._update_delivery
+
+            def update_then_fail(value):
+                original_update(value)
+                raise peewee.OperationalError('P827 forced rollback')
+
+            with mock.patch.object(
+                league_invitation_workers,
+                '_update_delivery',
+                side_effect=update_then_fail,
+            ):
+                with self.assertRaises(peewee.OperationalError):
+                    asyncio.run(
+                        league_invitation_workers.run_record_invitation_delivery(
+                            rollback_request
+                        )
+                    )
+            second = self.models.DiscordMember.get_by_id(second.id)
+            self.assertIsNone(second.date_polychamps_invite_sent)
+        finally:
             self.models.DiscordMember.delete().where(
-                self.models.DiscordMember.discord_id.in_(discord_ids)
+                self.models.DiscordMember.discord_id.in_(
+                    (first_discord_id, second_discord_id)
+                )
             ).execute()
             if team_id is not None:
                 self.models.Team.delete().where(

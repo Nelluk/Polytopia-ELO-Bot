@@ -50,6 +50,7 @@ import modules.league_inactive_kick_views as league_inactive_kick_views
 import modules.league_inactive_kick_workers as league_inactive_kick_workers
 import modules.league_channel_workers as league_channel_workers
 import modules.league_role_workers as league_role_workers
+import modules.league_invitation as league_invitation
 import modules.models as models
 import modules.nova_graduation as nova_graduation
 import modules.utilities as utilities
@@ -241,6 +242,7 @@ class league(commands.Cog):
 
         self.bot = bot
         self.announcement_message = None  # Will be populated from db if exists
+        self._polychamps_invite_cursor = None
         # self.auction_task.start()
         if settings.run_tasks:
             self.task_send_polychamps_invite.start()
@@ -2297,52 +2299,19 @@ class league(commands.Cog):
     @tasks.loop(minutes=120.0)
     async def task_send_polychamps_invite(self):
         await self.bot.wait_until_ready()
-
-        message = ('You have met the qualifications to be invited to the **PolyChampions** discord server! '
-                   'PolyChampions is a competitive Polytopia server organized into a league, with a focus on team (2v2 and 3v3) games.'
-                   '\n To join use this invite link: https://discord.gg/YcvBheS')
         logger.info('Running task task_send_polychamps_invite')
-        guild = self.bot.get_guild(settings.server_ids['main'])
-        if not guild:
-            logger.warning('Could not load guild via server_id')
+        try:
+            result = await league_invitation.run_invitation_cycle(
+                bot=self.bot,
+                after_member_id=self._polychamps_invite_cursor,
+            )
+        except Exception:
+            logger.exception(
+                'PolyChampions invitation cycle failed before completion; '
+                'the next scheduled cycle may retry.'
+            )
             return
-        utilities.connect()
-        dms = models.DiscordMember.members_not_on_polychamps()
-        logger.info(f'{len(dms)} discordmember results')
-        for dm in dms:
-            wins_count, losses_count = dm.wins().count(), dm.losses().count()
-            logger.debug(f'Evaluating {dm.name} - W:{wins_count} L:{losses_count} ELO_MAX_MOONRISE: {dm.elo_max_moonrise}')
-            if wins_count < 5:
-                logger.debug(f'Skipping {dm.name} - insufficient winning games {wins_count}')
-                continue
-            recent_count = dm.games_played(in_days=15).count()
-            if recent_count < 1:
-                logger.debug(f'Skipping {dm.name} - insufficient recent games ({recent_count})')
-                continue
-            if dm.elo_max_moonrise > 1150:
-                logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
-            elif wins_count > losses_count:
-                logger.debug(f'{dm.name} qualifies due to positive win ratio')
-            else:
-                logger.debug(f'Skipping {dm.name} - ELO or W/L record insufficient')
-                continue
-
-            if not dm.polytopia_id and not dm.polytopia_name:
-                logger.debug(f'Skipping {dm.name} - no mobile code or name')
-                continue
-
-            logger.debug(f'Sending invite to {dm.name}')
-            guild_member = guild.get_member(dm.discord_id)
-            if not guild_member:
-                logger.debug(f'Could not load {dm.name} from guild {guild.id}')
-                continue
-            try:
-                await guild_member.send(message)
-            except discord.DiscordException as e:
-                logger.warning(f'Error DMing member: {e}')
-            else:
-                dm.date_polychamps_invite_sent = datetime.datetime.today()
-                dm.save()
+        self._polychamps_invite_cursor = result.next_after_member_id
 
 
 class HouseSelectMenu(Select):
