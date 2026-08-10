@@ -613,7 +613,7 @@ class EloWorkerTests(unittest.TestCase):
                     self.workers.confirm_game
                 ).parameters
             ),
-            ['game_id', 'guild_id'],
+            ['game_id', 'guild_id', 'requester_description'],
         )
         self.assertEqual(
             list(
@@ -732,12 +732,51 @@ class EloWorkerTests(unittest.TestCase):
         models = fake_win_models(game, database, logs)
 
         with mock.patch.object(self.workers, 'models', models):
-            result = self.workers.confirm_game(84, 100)
+            result = self.workers.confirm_game(
+                84,
+                100,
+                '**Staff Tester** (`300`)',
+            )
 
         self.assertEqual(result.game_id, 84)
         self.assertEqual(result.winner_name, 'Alpha')
         self.assertTrue(game.is_confirmed)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]['game_id'], 84)
+        self.assertEqual(logs[0]['guild_id'], 100)
+        self.assertIn('**Staff Tester** (`300`)', logs[0]['message'])
+        self.assertIn('**Alpha**', logs[0]['message'])
         self.assertEqual(database.commits, 1)
+        self.assertEqual(database.connection_closed, 1)
+
+    def test_confirm_game_rolls_back_when_transactional_audit_fails(self):
+        game = FakeWinGame()
+        game.is_completed = True
+        game.winner = game.first_side
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+        models.GameLog.write = mock.Mock(
+            side_effect=peewee.OperationalError('audit write failed')
+        )
+
+        with mock.patch.object(self.workers, 'models', models):
+            with self.assertRaisesRegex(
+                peewee.OperationalError,
+                'audit write failed',
+            ):
+                self.workers.confirm_game(
+                    84,
+                    100,
+                    '**Staff Tester** (`300`)',
+                )
+
+        self.assertTrue(game.is_completed)
+        self.assertFalse(game.is_confirmed)
+        self.assertIs(game.winner, game.first_side)
+        self.assertEqual(logs, [])
+        self.assertEqual(database.commits, 0)
+        self.assertEqual(database.rollbacks, 1)
         self.assertEqual(database.connection_closed, 1)
 
     def test_delete_game_commits_in_worker_connection(self):
@@ -1409,6 +1448,223 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             any('No Discord channel updates were made' in message
                 for message in messages)
+        )
+
+    async def test_confirm_publication_skips_duplicate_post_commit_audit(self):
+        result = self.administration.elo_workers.ConfirmedWinResult(
+            game_id=99,
+            winner_name='Alpha',
+        )
+        winning_game = SimpleNamespace(id=99)
+        requester = SimpleNamespace(
+            id=300,
+            display_name='Staff Tester',
+        )
+        guild = SimpleNamespace(id=100)
+        channel = SimpleNamespace()
+        cog = object.__new__(self.administration.administration)
+        cog._run_confirm_game_job = mock.AsyncMock(return_value=result)
+
+        with mock.patch.object(
+            self.administration.models.GameLog,
+            'member_string',
+            return_value='**Staff Tester** (`300`)',
+        ), mock.patch.object(
+            self.administration.models.Game,
+            'load_full_game',
+            return_value=winning_game,
+        ), mock.patch.object(
+            self.administration,
+            'post_win_messaging',
+            new=mock.AsyncMock(),
+        ) as post_effects:
+            returned = await (
+                self.administration.administration
+                ._confirm_game_and_post(
+                    cog,
+                    game_id=99,
+                    guild=guild,
+                    prefix='$',
+                    channel=channel,
+                    requester=requester,
+                )
+            )
+
+        self.assertEqual(returned, result)
+        cog._run_confirm_game_job.assert_awaited_once_with(
+            game_id=99,
+            guild_id=100,
+            requester_id=300,
+            requester_name='Staff Tester',
+            requester_description='**Staff Tester** (`300`)',
+        )
+        post_effects.assert_awaited_once_with(
+            guild,
+            '$',
+            channel,
+            winning_game,
+            write_audit=False,
+        )
+
+    async def test_confirm_publication_failure_after_first_effect_is_reconcile(
+        self,
+    ):
+        result = self.administration.elo_workers.ConfirmedWinResult(
+            game_id=99,
+            winner_name='Alpha',
+        )
+        effects = []
+
+        async def partially_publish(*_args, **kwargs):
+            self.assertFalse(kwargs['write_audit'])
+            effects.append('first Discord effect')
+            raise RuntimeError('later Discord effect failed')
+
+        cog = object.__new__(self.administration.administration)
+        with mock.patch.object(
+            self.administration.models.Game,
+            'load_full_game',
+            return_value=SimpleNamespace(id=99),
+        ), mock.patch.object(
+            self.administration,
+            'post_win_messaging',
+            new=partially_publish,
+        ), mock.patch.object(
+            self.administration.logger,
+            'exception',
+        ):
+            with self.assertRaises(
+                self.administration.ConfirmedWinPublicationError
+            ) as raised:
+                await (
+                    self.administration.administration
+                    ._publish_confirmed_game(
+                        cog,
+                        result=result,
+                        guild=SimpleNamespace(id=100),
+                        prefix='$',
+                        channel=SimpleNamespace(),
+                    )
+                )
+
+        self.assertEqual(effects, ['first Discord effect'])
+        self.assertEqual(raised.exception.result, result)
+
+    async def test_manual_confirm_post_commit_failure_reports_reconciliation(
+        self,
+    ):
+        class Typing:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        result = self.administration.elo_workers.ConfirmedWinResult(
+            game_id=99,
+            winner_name='Alpha',
+        )
+        winning_game = SimpleNamespace(
+            id=99,
+            is_completed=True,
+            is_confirmed=False,
+            winner=SimpleNamespace(name=lambda: 'Alpha'),
+        )
+        messages = []
+        context = SimpleNamespace(
+            author=SimpleNamespace(
+                id=300,
+                display_name='Staff Tester',
+                mention='<@300>',
+            ),
+            guild=SimpleNamespace(id=100),
+            prefix='$',
+            channel=SimpleNamespace(),
+            typing=lambda: Typing(),
+            send=mock.AsyncMock(
+                side_effect=lambda message: messages.append(message)
+            ),
+        )
+        command = next(
+            command
+            for command in self.administration.administration.__cog_commands__
+            if command.name == 'confirm'
+        )
+        cog = SimpleNamespace(
+            _confirm_game_and_post=mock.AsyncMock(
+                side_effect=self.administration.ConfirmedWinPublicationError(
+                    result
+                )
+            )
+        )
+
+        with mock.patch.object(
+            self.administration.PolyGame,
+            'convert',
+            new=mock.AsyncMock(return_value=winning_game),
+        ):
+            await command.callback(cog, context, arg='99')
+
+        self.assertTrue(any('ELO changes committed' in m for m in messages))
+        self.assertTrue(any('Do not confirm it again' in m for m in messages))
+        self.assertFalse(any('rolled back' in m for m in messages))
+
+    async def test_auto_confirm_continues_after_publication_failure(self):
+        now = datetime.datetime.now()
+
+        def eligible_game(game_id):
+            return SimpleNamespace(
+                id=game_id,
+                is_ranked=True,
+                win_claimed_ts=now - datetime.timedelta(hours=25),
+                confirmations_count=lambda: (1, 2, False),
+            )
+
+        class FakeQuery(list):
+            def order_by(self, *_args):
+                return self
+
+        games = FakeQuery([eligible_game(99), eligible_game(100)])
+        results = [
+            self.administration.elo_workers.ConfirmedWinResult(99, 'Alpha'),
+            self.administration.elo_workers.ConfirmedWinResult(100, 'Beta'),
+        ]
+        publication_error = (
+            self.administration.ConfirmedWinPublicationError(results[0])
+        )
+        channel = SimpleNamespace(send=mock.AsyncMock())
+        cog = SimpleNamespace(
+            _run_confirm_game_job=mock.AsyncMock(side_effect=results),
+            _publish_confirmed_game=mock.AsyncMock(
+                side_effect=[publication_error, None]
+            ),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ), mock.patch.object(
+            self.administration.models.Game,
+            'search',
+            return_value=games,
+        ):
+            counts = await self.administration.administration.confirm_auto(
+                cog,
+                SimpleNamespace(id=100),
+                '$',
+                channel,
+            )
+
+        self.assertEqual(counts, (2, 2))
+        self.assertEqual(cog._run_confirm_game_job.await_count, 2)
+        self.assertEqual(cog._publish_confirmed_game.await_count, 2)
+        sent_messages = [call.args[0] for call in channel.send.await_args_list]
+        self.assertTrue(
+            any('Do not confirm it again' in m for m in sent_messages)
+        )
+        self.assertTrue(
+            any('Game 100 auto-confirmed' in m for m in sent_messages)
         )
 
     async def test_confirm_slash_defers_before_shared_confirmation(self):

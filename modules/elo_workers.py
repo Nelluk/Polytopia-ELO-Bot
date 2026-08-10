@@ -330,7 +330,11 @@ def record_win(
             )
 
 
-def confirm_game(game_id: int, guild_id: int) -> ConfirmedWinResult:
+def confirm_game(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+) -> ConfirmedWinResult:
     """Finalize a previously claimed winner in one worker transaction."""
 
     with models.db.connection_context():
@@ -349,6 +353,14 @@ def confirm_game(game_id: int, guild_id: int) -> ConfirmedWinResult:
                 )
             winner_name = game.winner.name()
             game.declare_winner(winning_side=game.winner, confirm=True)
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=guild_id,
+                message=(
+                    f'{requester_description} confirmed winner '
+                    f'**{winner_name}** and processed ELO changes.'
+                ),
+            )
             return ConfirmedWinResult(
                 game_id=game.id,
                 winner_name=winner_name,
