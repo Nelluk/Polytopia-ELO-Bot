@@ -490,14 +490,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7f champion-role reconciliation is Tier-3 reviewed
-on its isolated unit branch at implementation/tests checkpoint `ea03396`, from
-exact clean accumulation base `06dd954`; roadmap evidence and accumulation
-integration are in progress. The recurring task now loads bounded immutable
-champion plans on worker-owned connections, keeps Discord role publication
-model-free, audits only completed effects through a worker transaction, and
-reports partial role, audit, missing-member, and post-effect-plan failures as
-explicit reconciliation outcomes without terminating later cycles.**
+Current active unit: **P9.7f champion-role reconciliation is Complete in the
+accumulation branch at merge checkpoint `cb45bb9` (implementation/tests
+`ea03396`, evidence `71cb86a`), from exact clean accumulation base `06dd954`.
+The recurring task now loads bounded immutable champion plans on worker-owned
+connections, keeps Discord role publication model-free, audits only completed
+effects through a worker transaction, and reports partial role, audit,
+missing-member, and post-effect-plan failures as explicit reconciliation
+outcomes without terminating later cycles.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12892,12 +12892,12 @@ requires stricter destructive-effect review and beta cadence.
 
 ### P9.7f — Champion-role reconciliation workers
 
-Status: **Tier-3 reviewed on the unit branch; accumulation integration in
-progress; gated real-schema evidence deferred to the next stopped-writer
-batch**
+Status: **Complete in the accumulation branch; gated real-schema evidence
+deferred to the next stopped-writer batch**
 
 Branch/base: `codex/p9-7f-champion-reconciliation`, exact clean accumulation
 base `06dd954`. Implementation/tests checkpoint: `ea03396`.
+Roadmap evidence: `71cb86a`; accumulation merge: `cb45bb9`.
 
 This bounded Tier-3 H5 correction removes recurring champion discovery and
 audit writes from the Discord event loop while preserving the two-hour task,
@@ -13936,12 +13936,19 @@ branch.
   stop the healthy, recently announced beta for a disabled-background-task
   change. No database, fixture, Discord command, service, dependency,
   production, or announcement operation occurred.
-- Recorded the reviewed implementation and tests at checkpoint `ea03396`.
-  Roadmap evidence and accumulation integration remain in progress.
-- Next action: integrate P9.7f, retain its real-schema case for the next
-  stopped-writer batch, then select H5 completed-game channel purge as the
-  recommended bounded unit. The approved obsolete-command retirement is also
-  ready as a non-destructive alternative.
+- Recorded the reviewed implementation and tests at checkpoint `ea03396`,
+  roadmap evidence at `71cb86a`, and integrated the unit at accumulation merge
+  `cb45bb9`.
+- Reverified the authorized development service and host-wide writer state
+  after integration: one healthy `--skip_tasks` process (PID 3798910) remains
+  authenticated as application `479029527553638401` at announced checkpoint
+  `20a6d03`; its protected control socket responded and the latest release
+  remains posted. No restart, stopped-writer database gate, command plan/apply,
+  checklist edit, or announcement was warranted.
+- Next action: retain the P9.7d-f real-schema cases for the next stopped-writer
+  batch, then select H5 completed-game channel purge as the recommended bounded
+  unit. The approved obsolete-command retirement is also ready as a
+  non-destructive alternative.
 
 ### 2026-08-10 — P9.7e automatic confirmation workers reviewed
 
