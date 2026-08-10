@@ -1303,7 +1303,7 @@ touched.
 | `boost_from`, `boost_from_norole` | none | Approved retirement |
 | `migrate_player`, `migrate` | `/operator player migrate` | Complete in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; integrated and development-guild deployed at `6e0d36a` |
 | `delete_player`, `delplayer` | `/operator player delete` | Complete in P9.5: raw target ID, exact owner-only access, private account-wide orphan graph, fail-closed Lineup/host/bid/API blockers, exact typed confirmation, atomic explicit deletion/audit, and prefix retirement under C-028; integrated and development-guild deployed at `a13d440` |
-| `backup_db`, `dbb` | `/operator database backup` | P9.6 implemented at `9397755`: no-argument private owner confirmation, exact production/source-match boundary, bounded single-flight process-group lifecycle, structured private artifact result/logging, stable reporting-partial/host-lock outcomes, and complete prefix retirement under C-029; accumulation integration and separately approved production activation remain pending |
+| `backup_db`, `dbb` | `/operator database backup` | P9.6 implemented at `9397755` and integrated through `d702ed0`: no-argument private owner confirmation, exact production/source-match boundary, bounded single-flight process-group lifecycle, structured private artifact result/logging, stable reporting-partial/host-lock outcomes, and complete prefix retirement under C-029; separately approved production activation remains pending |
 | `gtest` | none | Approved retirement: hidden hard-coded diagnostic |
 
 ## Proposed top-level roots

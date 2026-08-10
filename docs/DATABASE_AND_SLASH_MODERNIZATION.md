@@ -380,7 +380,7 @@ would become unavailable if a prefix is retired.
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
 | C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `a13d440`; owner acceptance/first real use optional |
-| C-029 `/operator database backup` / `$backup_db` / `$dbb` | Owner-only native operation has no options and opens a private requester-bound confirmation. It runs only from the exact production identity after reviewed/deployed source matching, through a bounded single-flight asynchronous child-process lifecycle, and privately reports validated artifact metadata. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their hard-coded synchronous process could invoke production from development, block the event loop, expose raw output, and offered no confirmation, timeout, cancellation drain, or conflict state. | Cron remains the authoritative three-times-daily schedule. The native control is only an exceptional manual recovery point; beta can prove only registration and fail-closed development refusal. First real use remains a separately approved production operation. | P9.6 implementation/tests checkpoint `9397755`; focused and complete offline validation green; accumulation integration and production activation pending |
+| C-029 `/operator database backup` / `$backup_db` / `$dbb` | Owner-only native operation has no options and opens a private requester-bound confirmation. It runs only from the exact production identity after reviewed/deployed source matching, through a bounded single-flight asynchronous child-process lifecycle, and privately reports validated artifact metadata. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their hard-coded synchronous process could invoke production from development, block the event loop, expose raw output, and offered no confirmation, timeout, cancellation drain, or conflict state. | Cron remains the authoritative three-times-daily schedule. The native control is only an exceptional manual recovery point; beta can prove only registration and fail-closed development refusal. First real use remains a separately approved production operation. | P9.6 implementation/tests checkpoint `9397755`; evidence/integration checkpoint `d702ed0`; focused and complete offline validation green; production activation pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -490,8 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.6 is implemented at `9397755` and pending
-accumulation integration. Its accepted six-part contract keeps cron
+Current active unit: **P9.6 is Complete in the accumulation branch through
+`d702ed0`. Its accepted six-part contract keeps cron
 authoritative, replaces `$backup_db` / `$dbb` with private owner-only
 `/operator database backup`, refuses outside the exact production identity
 before reading production artifacts, requires reviewed/deployed source parity,
@@ -11690,8 +11690,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.5 complete; P9.6 implemented and pending
-integration/production activation**
+Status: **In progress; P9.0–P9.6 source units complete; production activation
+and rollout remain separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12421,8 +12421,8 @@ should defer entirely to the established operational backup mechanism.
 
 ### P9.6 — Owner-only production backup operation
 
-Status: **Implemented; accumulation integration and separately approved
-production activation pending**
+Status: **Complete in the accumulation branch; separately approved production
+activation pending**
 
 Risk tier: **Tier 3 production host process and disaster-recovery artifacts**.
 Audit branch: `codex/p9-6-backup-audit` from exact clean accumulation
@@ -12600,10 +12600,9 @@ inspect database row data, mutate either checkout, inspect or change
 Discord/application commands, touch the guarded beta, alter cron/services,
 install dependencies, or use sudo.
 
-Next action: integrate the reviewed implementation and evidence into the
-accumulation branch. A later explicit production deployment may install the
-updated script/command and perform the first native run only after confirming
-cron is idle; validate every artifact and the existing upload afterward. A
+Next action: a later explicit production deployment may install the updated
+script/command and perform the first native run only after confirming cron is
+idle; validate every artifact and the existing upload afterward. A
 development-guild sync is optional and can prove only fail-closed refusal.
 
 ## Standard work-unit template
@@ -13577,8 +13576,9 @@ branch.
 - Every child-process test used an injected fake. No backup, PostgreSQL,
   production artifact read, beta, Discord synchronization, cron, service,
   production checkout, dependency, or sudo action occurred.
-- Recorded implementation/tests checkpoint `9397755`; accumulation integration
-  and separately approved production activation remain pending.
+- Recorded implementation/tests checkpoint `9397755` and integrated the
+  separate roadmap/taxonomy evidence at accumulation checkpoint `d702ed0`.
+  Separately approved production activation remains pending.
 
 ### 2026-08-10 — Reporting export reconciled into P9.6 source
 
