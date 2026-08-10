@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import importlib
 import logging
 import os
 import sys
@@ -13,7 +14,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import beta_operations, image_storage, initialize_data, models, utilities
+from modules import beta_operations, image_storage
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -39,9 +40,13 @@ def configure_runtime_arguments(args: List[str] = None):
 def main(args: List[str] = None):
     args = configure_runtime_arguments(args)
     if args.add_default_data:
+        initialize_data = importlib.import_module('modules.initialize_data')
+
         initialize_data.initialize_data()
         exit(0)
     if args.recalc_elo:
+        models = importlib.import_module('modules.models')
+
         print('Recalculating all ELO')
         start = timer()
         # This is a standalone synchronous operator path, not a Discord
@@ -53,26 +58,13 @@ def main(args: List[str] = None):
         print(f'Recalculation complete - took {end - start} seconds.')
         exit(0)
     if args.game_export:
+        utilities = importlib.import_module('modules.utilities')
+
         print('Exporting game data to file')
         start = timer()
         utilities.export_game_data()
         print(f'Recalculation complete - took {timer() - start} seconds.')
         exit(0)
-    logger.info('Resetting Discord ID ban list')
-    with models.db:
-        models.DiscordMember.update(is_banned=False).execute()
-        if settings.discord_id_ban_list:
-            query = models.DiscordMember.update(is_banned=True).where(
-                (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
-            )
-            logger.info(f'{query.execute()} discord IDs are banned')
-
-        if settings.poly_id_ban_list:
-            query = models.DiscordMember.update(is_banned=True).where(
-                (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
-            )
-            logger.info(f'{query.execute()} polytopia IDs are banned')
-
 class MyBot(commands.Bot):
     intents = discord.Intents.default()
     intents.members = True
@@ -89,6 +81,9 @@ class MyBot(commands.Bot):
         self.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
         self.beta_release_control = None
+        self._startup_identity_validated = False
+        self._startup_bans_reconciled = False
+        self._startup_ban_lock = asyncio.Lock()
         # Guild commands are deployed out-of-process.  Keep runtime dispatch
         # failures observable and always acknowledge a delivered interaction
         # instead of leaving Discord's "Sending command..." state unresolved.
@@ -155,7 +150,68 @@ class MyBot(commands.Bot):
                 interaction.id,
             )
 
+    def _validate_startup_identity(self) -> None:
+        if self.user is None:
+            raise RuntimeError(
+                'Discord authentication must complete before startup effects.'
+            )
+        settings.runtime_profile.validate_logged_in_bot(int(self.user.id))
+        self._startup_identity_validated = True
+
+    async def _reconcile_startup_bans(self):
+        if not self._startup_identity_validated:
+            raise RuntimeError(
+                'Startup ban reconciliation requires validated bot identity.'
+            )
+        if self._startup_bans_reconciled:
+            return None
+        async with self._startup_ban_lock:
+            if self._startup_bans_reconciled:
+                return None
+            startup_ban_workers = importlib.import_module(
+                'modules.startup_ban_workers'
+            )
+
+            request = startup_ban_workers.StartupBanReconciliationRequest(
+                discord_ids=tuple(dict.fromkeys(
+                    int(value) for value in getattr(
+                        settings, 'discord_id_ban_list', ()
+                    )
+                )),
+                polytopia_ids=tuple(dict.fromkeys(
+                    str(value) for value in getattr(
+                        settings, 'poly_id_ban_list', ()
+                    )
+                )),
+            )
+            result = await startup_ban_workers.run_startup_ban_reconciliation(
+                request
+            )
+            self._startup_bans_reconciled = True
+            logger.info(
+                'Startup ban snapshot reconciled reset_rows=%s '
+                'discord_rows=%s polytopia_rows=%s',
+                result.reset_rows,
+                result.discord_rows,
+                result.polytopia_rows,
+            )
+            return result
+
     async def setup_hook(self):
+        try:
+            self._validate_startup_identity()
+        except Exception:
+            logger.critical(
+                'Authenticated Discord bot does not match the runtime profile; '
+                'startup effects were not enabled.',
+                exc_info=True,
+            )
+            raise
+
+        await self._reconcile_startup_bans()
+        utilities = importlib.import_module('modules.utilities')
+
+        utilities.connect()
         image_storage.ensure_image_directories()
         initial_extensions = [
             'modules.games', 'modules.customhelp', 'modules.matchmaking',
@@ -210,7 +266,6 @@ def get_prefix(bot, message):
 
 def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     main(args)
-    utilities.connect()
     bot = MyBot()
 
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
@@ -273,6 +328,8 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
+        utilities = importlib.import_module('modules.utilities')
+
         utilities.connect()
         logger.debug(
             f'Command invoked: {ctx.invoked_with}. '
@@ -294,7 +351,11 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 
         try:
-            settings.runtime_profile.validate_logged_in_bot(bot.user.id)
+            bot._validate_startup_identity()
+            if not bot._startup_bans_reconciled:
+                raise RuntimeError(
+                    'Startup ban reconciliation did not complete before ready.'
+                )
         except Exception:
             logger.critical(
                 'Authenticated Discord bot does not match the runtime profile.',
