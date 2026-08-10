@@ -490,13 +490,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7c is Complete in the accumulation branch at merge
-checkpoint `c1ba2b4` (code/test `237227c`, evidence `05ba88c`), from exact
-clean accumulation base `eb439ec`. Ordinary win and unwin now return bounded
-worker-loaded immutable publication snapshots after commit, while their
-Discord publishers are model-free and post-commit snapshot/publication
-failures report reconciliation truthfully. The accumulated P9.7 real-schema
-cases and development-beta rollout are the next gated actions.**
+Current active unit: **P9.7f champion-role reconciliation is Tier-3 reviewed
+on its isolated unit branch at implementation/tests checkpoint `ea03396`, from
+exact clean accumulation base `06dd954`; roadmap evidence and accumulation
+integration are in progress. The recurring task now loads bounded immutable
+champion plans on worker-owned connections, keeps Discord role publication
+model-free, audits only completed effects through a worker transaction, and
+reports partial role, audit, missing-member, and post-effect-plan failures as
+explicit reconciliation outcomes without terminating later cycles.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12889,6 +12890,69 @@ non-destructive recurring role workflow before channel deletion work. Also
 ready is H5's completed-game channel purge worker/reconciliation slice, which
 requires stricter destructive-effect review and beta cadence.
 
+### P9.7f — Champion-role reconciliation workers
+
+Status: **Tier-3 reviewed on the unit branch; accumulation integration in
+progress; gated real-schema evidence deferred to the next stopped-writer
+batch**
+
+Branch/base: `codex/p9-7f-champion-reconciliation`, exact clean accumulation
+base `06dd954`. Implementation/tests checkpoint: `ea03396`.
+
+This bounded Tier-3 H5 correction removes recurring champion discovery and
+audit writes from the Discord event loop while preserving the two-hour task,
+role name, guild scope, local/global eligibility, effect ordering, reasons,
+staff destination, and disabled-background-task development posture:
+
+- one capped immutable plan freezes primitive global and per-guild champion
+  Discord IDs on a dedicated worker connection; empty/default-1000
+  leaderboards now produce `None` instead of dereferencing a discarded model;
+- the publisher resolves only Discord guild/member/role objects, performs no
+  ORM access, removes stale holders before adding local/global champions, and
+  continues after an individual guild/member role failure;
+- only role effects that actually returned successfully are written to
+  `GameLog` in one worker-local transaction and mirrored to the established
+  staff log; failed effects are not falsely audited;
+- overlapping result-triggered and recurring invocations are serialized, and
+  a failed candidate, guild, audit, or whole scheduled cycle does not suppress
+  a later guild or cycle;
+- a second worker-owned authoritative plan load after Discord effects marks
+  changed or unavailable eligibility for the next-cycle reconciliation; and
+- missing planned members and missing roles remain explicitly unconverged
+  instead of being reported as successful.
+
+Focused champion/confirmation/ELO/gated-suite validation passed **135 tests
+with 65 intentional database-gated skips**. The broader affected matrix passed
+**252 tests with 65 intentional skips**. Compilation and `git diff --check`
+passed.
+
+Complete offline discovery executed **1,522 tests with 66 intentional skips**
+and reached only the three documented unsynchronized-environment failures:
+the missing `duckdb` import, missing `duckdb` dependency inventory entry, and
+the resulting reporting-export import error. With those exact cases excluded,
+all **1,519 remaining tests passed with 66 skips**; equivalently, **1,453 tests
+passed** in complete discovery. Dependencies were not installed or
+synchronized.
+
+The strict development-database suite now includes an owned, self-cleaning
+real-schema champion-plan/audit round trip. The healthy durable beta remains
+active at announced checkpoint `20a6d03` with background tasks disabled, so
+P9.7d-f database cases remain deferred to the next accumulated stopped-writer
+window. P9.7f changes no application-command registration and does not warrant
+interrupting current beta testing.
+
+No schema-backed audit retry queue is introduced. A Discord role effect whose
+subsequent audit write fails is logged as reconciliation-required, but its
+missing historical audit needs operator follow-up; ordinary later cycles
+reconcile current role state. Eligibility changes during publication are
+deliberately handled by the next serialized cycle rather than an unbounded
+immediate retry.
+
+P9.7f closes H5's champion-role slice. Recommended next is H5 completed-game
+channel purge discovery/reconciliation under destructive-effect review. Also
+ready is the bounded H6 retirement of approved obsolete operator commands;
+the destructive manual purge replacement remains a separate H6 decision.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13841,6 +13905,43 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7f champion-role reconciliation reviewed
+
+- Reconciled the clean local and GitHub accumulation ref at `06dd954`; the
+  durable development beta remained healthy at announced checkpoint
+  `20a6d03` with background tasks disabled.
+- Created isolated branch/worktree `codex/p9-7f-champion-reconciliation` from
+  that exact base and verified the development-only profile, database
+  identity, disabled background tasks, and disabled API.
+- Replaced synchronous leaderboard traversal and retained Peewee publication
+  graphs with one bounded immutable worker plan. Discord role effects are
+  model-free, independently contained, and followed by a worker-local audit of
+  only completed effects plus an authoritative post-effect eligibility reload.
+- Preserved role ordering/reasons and staff logging, fixed the default-global
+  `None` dereference, retained meaningful global assignment when the local
+  board is default, corrected removed-member attribution, serialized
+  overlapping cycles, and kept missing members/roles explicitly
+  unconverged.
+- Added worker connection/transaction/rollback, slow-query heartbeat,
+  cancellation drain, model-free publication, concurrent-cycle, partial role
+  failure, audit failure, missing/default champion, changing eligibility, and
+  later-cycle survival coverage.
+- Focused validation passed 135 tests with 65 gated skips; the affected matrix
+  passed 252 with 65 gated skips. Complete discovery ran 1,522 tests: 1,453
+  passed, 66 skipped, and only the three known missing-`duckdb` environment
+  failures remained. Excluding those exact cases passed all 1,519 remaining
+  tests with 66 skips. Compilation and diff checks passed.
+- Added a strict-gate real-schema champion plan/audit round trip but did not
+  stop the healthy, recently announced beta for a disabled-background-task
+  change. No database, fixture, Discord command, service, dependency,
+  production, or announcement operation occurred.
+- Recorded the reviewed implementation and tests at checkpoint `ea03396`.
+  Roadmap evidence and accumulation integration remain in progress.
+- Next action: integrate P9.7f, retain its real-schema case for the next
+  stopped-writer batch, then select H5 completed-game channel purge as the
+  recommended bounded unit. The approved obsolete-command retirement is also
+  ready as a non-destructive alternative.
 
 ### 2026-08-10 — P9.7e automatic confirmation workers reviewed
 
