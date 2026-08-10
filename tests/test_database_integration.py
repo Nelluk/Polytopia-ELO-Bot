@@ -6021,9 +6021,19 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.Player.delete().where(
                     self.models.Player.id.in_(player_ids)
                 ).execute()
-                self.models.DiscordMember.delete().where(
-                    self.models.DiscordMember.discord_id.in_(discord_ids)
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(discord_ids)
+            ).execute()
+            if team_id is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team_id
                 ).execute()
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
 
     def test_league_invitation_workers_read_commit_and_roll_back_real_schema(self):
         """Exercise P8.27's bounded scan and idempotent sent-date write."""
@@ -6129,16 +6139,6 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     (first_discord_id, second_discord_id)
                 )
             ).execute()
-            if team_id is not None:
-                self.models.Team.delete().where(
-                    self.models.Team.id == team_id
-                ).execute()
-            self.assertEqual(
-                self.models.GameLog.select().where(
-                    self.models.GameLog.message.contains(marker)
-                ).count(),
-                0,
-            )
 
 
 if __name__ == '__main__':
