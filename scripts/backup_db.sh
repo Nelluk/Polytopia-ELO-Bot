@@ -10,10 +10,14 @@ umask 077
 DAY=$(/usr/bin/date +%A)
 TARGET=/home/nelluk/backups/polytopia_bak-${DAY}.sqlc
 LOGTARGET=/home/nelluk/backups/polytopia_gamelogs.csv.gz
+REPORTTARGET=/home/nelluk/backups/polytopia_reporting.duckdb
 FULLTARGET=/home/nelluk/polytopia_full_backup.sqlc
 IMAGEDIR=/home/nelluk/PolyBot39/data/images
 IMAGETARGET=/home/nelluk/backups/polytopia_images-${DAY}.tar.gz
 LOCKFILE=/home/nelluk/.backup_db.lock
+REPORTLOCK=/home/nelluk/.polybot-reporting.lock
+REPORTEXPORTER=/home/nelluk/PolyBot39/scripts/export_reporting_duckdb.py
+REPORTPYTHON=/home/nelluk/PolyBot39/.venv/bin/python
 
 TARGET_TMP=
 LOGTARGET_TMP=
@@ -137,8 +141,19 @@ FULLTARGET_TMP=
   || fail "cannot publish image archive"
 IMAGETARGET_TMP=
 
+if ! "$REPORTPYTHON" "$REPORTEXPORTER" \
+  --output "$REPORTTARGET" \
+  --lock-file "$REPORTLOCK" \
+  --replace
+then
+  echo "Core backup successful, but reporting export failed." >&2
+  echo "The previous reporting snapshot, if any, was preserved." >&2
+  exit 1
+fi
+
 echo "Backup successful:"
 echo "  partial database: $TARGET"
 echo "  public gamelog:   $LOGTARGET"
+echo "  reporting data:   $REPORTTARGET"
 echo "  full database:    $FULLTARGET"
 echo "  local images:     $IMAGETARGET"
