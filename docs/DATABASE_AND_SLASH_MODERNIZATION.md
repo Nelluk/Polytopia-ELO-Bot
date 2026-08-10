@@ -501,8 +501,9 @@ green at 77 tests. Complete discovery runs 1,560 tests with 68 skips and reaches
 only the three known missing-`duckdb` environment failures. The stopped-writer
 development PostgreSQL gate passed 67 tests with one intentional fixture skip.
 The single development guild applied exactly the changed `operator` root and a
-repeat inspection is unchanged. Accumulation close-out/push and beta reload
-remain pending.**
+repeat inspection is unchanged. Clean accumulation close-out `90d3d94` is
+pushed, and the guarded beta is healthy at that exact startup checkpoint as
+PID `3853290`.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13085,8 +13086,8 @@ remain pending an explicit guarded-systemd workflow decision.
 
 ### P9.9 — Owner-only manual channel purge
 
-Status: **Complete in the accumulation branch; development-guild command tree
-applied**
+Status: **Complete in the accumulation branch; development-guild deployed and
+loaded by the guarded beta**
 
 Branch/base: `codex/p9-9-manual-channel-purge`, exact clean accumulation base
 `3ae0b68`. Implementation/tests checkpoint: `843a8cb`; database-gate
@@ -14147,10 +14148,19 @@ Retire `$purge_game_channels` with this replacement.
   ten other roots unchanged. The exact guild-only apply succeeded with the
   environment/guild/scope/no-global-sync confirmations; repeat inspection
   reported all eleven roots unchanged.
-- Pending: accumulation close-out/push and guarded beta reload/health
-  verification. No checklist edit, tester ping, reporter notification, or
-  announcement is planned because this is an owner-only maintenance tool;
-  owner acceptance remains the later live-interaction route.
+- Clean accumulation close-out `90d3d94` was pushed and the exact GitHub ref
+  verified. The guarded beta prestart audit was clear, then PID `3853290`
+  launched only the primary checkout with `--skip_tasks`, authenticated as
+  beta application `479029527553638401`, recorded exact startup checkpoint
+  `90d3d94cd3ce130d10189344005737d8ae00e4eb`, and reported ready through its
+  protected inventory socket. The host-wide audit found exactly that one
+  development writer.
+- Selected no-announcement acceptance: no `BETA_WHAT_TO_TEST` edit, tester
+  ping, reporter notification, or announcement was sent because this is an
+  owner-only destructive maintenance tool. Remote registration and runtime
+  identity are accepted; the owner may exercise a private no-confirm preview
+  or a disposable owned target later, but no arbitrary development channel was
+  deleted merely to manufacture a live smoke test.
 
 ### 2026-08-10 — P9.8 obsolete operator-command retirements implemented
 
