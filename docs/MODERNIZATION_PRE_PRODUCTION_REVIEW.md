@@ -228,6 +228,13 @@ and operator-safety contracts.
 
 ### H7 — Repeated cancellation can abandon a live backup child and clear coordinator ownership
 
+**Resolution:** Closed by P9.10 implementation checkpoint `fd3ff8d`. Manual
+backup cancellation now shields one terminate/reap/both-pipe-drain cleanup task
+through repeated cancellation and retains coordinator ownership until that task
+finishes. The focused regression blocks termination and output drain
+independently, rejects overlap throughout, and proves cleanup precedes
+cancellation propagation.
+
 - **Location:** cleanup at `modules/operator_backup.py:400`; coordinator
   clearing at `modules/operator_backup.py:497`.
 - **Observable failure:** after the first `CancelledError`, termination and

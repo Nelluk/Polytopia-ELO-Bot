@@ -343,6 +343,40 @@ async def _terminate_process(process, wait_task: asyncio.Task) -> None:
     await asyncio.shield(wait_task)
 
 
+async def _drain_output_tasks(stdout_task, stderr_task):
+    """Drain both child pipes before surfacing either reader failure."""
+
+    results = await asyncio.gather(
+        stdout_task,
+        stderr_task,
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            raise result
+    return tuple(results)
+
+
+async def _terminate_and_drain_process(
+    process,
+    wait_task: asyncio.Task,
+    output_task: asyncio.Task,
+) -> None:
+    await _terminate_process(process, wait_task)
+    await asyncio.shield(output_task)
+
+
+async def _wait_for_cleanup(cleanup_task: asyncio.Task) -> None:
+    """Keep cleanup shielded through every repeated caller cancellation."""
+
+    while not cleanup_task.done():
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            continue
+    cleanup_task.result()
+
+
 def _bounded_diagnostic(value: bytes, truncated: bool) -> str:
     text = value.decode('utf-8', errors='replace').replace('\x00', '')
     text = ' '.join(text.split())
@@ -385,6 +419,9 @@ async def execute_backup(
 
     stdout_task = asyncio.create_task(_read_bounded(process.stdout))
     stderr_task = asyncio.create_task(_read_bounded(process.stderr))
+    output_task = asyncio.create_task(
+        _drain_output_tasks(stdout_task, stderr_task)
+    )
     wait_task = asyncio.create_task(process.wait())
     timed_out = False
     try:
@@ -397,9 +434,14 @@ async def execute_backup(
             timed_out = True
             await _terminate_process(process, wait_task)
             returncode = None
-    except asyncio.CancelledError:
-        await _terminate_process(process, wait_task)
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+        stdout_result, stderr_result = await asyncio.shield(output_task)
+    except asyncio.CancelledError as cancellation:
+        cleanup_task = asyncio.create_task(_terminate_and_drain_process(
+            process,
+            wait_task,
+            output_task,
+        ))
+        await _wait_for_cleanup(cleanup_task)
         logger.warning(
             'Operator backup cancelled after child drain requester=%s '
             'guild=%s channel=%s duration=%.3f',
@@ -408,12 +450,8 @@ async def execute_backup(
             request.channel_id,
             max(0.0, time.monotonic() - started_monotonic),
         )
-        raise
+        raise cancellation
 
-    stdout_result, stderr_result = await asyncio.gather(
-        stdout_task,
-        stderr_task,
-    )
     duration = max(0.0, time.monotonic() - started_monotonic)
     stdout, stdout_truncated = stdout_result
     stderr, stderr_truncated = stderr_result
