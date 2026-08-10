@@ -6562,6 +6562,150 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.GameLog.message == marker
             ).execute()
 
+    def test_p97g_completed_channel_discovery_and_reconciliation_real_schema(self):
+        """Exercise completed-channel planning and exact reference clearing."""
+
+        from modules import completed_game_channel_purge_workers as workers
+
+        guild_id = self.settings.server_ids['polychampions']
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P9.7g-{suffix}'
+        id_base = 9_700_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        now = datetime.datetime.now()
+        game_ids = []
+
+        def make_game(label, *, age, season=None, notes=None):
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                name=f'{marker}-{label}',
+                notes=notes or marker,
+                is_pending=False,
+                is_completed=True,
+                is_confirmed=True,
+                is_ranked=False,
+                is_mobile=True,
+                completed_ts=now - datetime.timedelta(days=age),
+                league_season=season,
+                league_tier=1 if season else None,
+                size=[2],
+                game_chan=id_base + len(game_ids) * 10,
+            )
+            game_ids.append(int(game.id))
+            return game
+
+        try:
+            eligible = make_game('eligible', age=2)
+            side = self.models.GameSide.create(
+                game=eligible,
+                position=1,
+                sidename='Alpha',
+                size=2,
+                team_chan=id_base + 1,
+                team_chan_external_server=guild_id + 1,
+            )
+            too_recent = make_game('recent', age=0.25)
+            too_old = make_game('old', age=15)
+            season = make_game('season', age=2, season=99)
+            nova = make_game(
+                'nova',
+                age=2,
+                notes=f'{marker} Nova Red Nova Blue',
+            )
+
+            self.models.db.close()
+            discovered = asyncio.run(
+                workers.run_discover_completed_game_channels(
+                    workers.CompletedPurgeDiscoveryRequest((guild_id,), now)
+                )
+            )
+            self.assertTrue(self.models.db.is_closed())
+            discovered_ids = tuple(plan.game_id for plan in discovered.plans)
+            self.assertIn(int(eligible.id), discovered_ids)
+            self.assertNotIn(int(too_recent.id), discovered_ids)
+            self.assertNotIn(int(too_old.id), discovered_ids)
+            self.assertNotIn(int(season.id), discovered_ids)
+            self.assertNotIn(int(nova.id), discovered_ids)
+            eligible_plan = next(
+                plan for plan in discovered.plans
+                if plan.game_id == int(eligible.id)
+            )
+            self.assertEqual(
+                tuple((target.kind, target.channel_id)
+                      for target in eligible_plan.targets),
+                (
+                    (workers.SIDE_TARGET, id_base + 1),
+                    (workers.GAME_TARGET, id_base),
+                ),
+            )
+            central_target = next(
+                target for target in eligible_plan.targets
+                if target.kind == workers.GAME_TARGET
+            )
+            side_target = next(
+                target for target in eligible_plan.targets
+                if target.kind == workers.SIDE_TARGET
+            )
+
+            with mock.patch.object(
+                workers.models.Game,
+                'save',
+                side_effect=peewee.OperationalError(
+                    'P9.7g injected reconcile failure'
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected reconcile failure',
+                ):
+                    asyncio.run(workers.run_reconcile_deleted_channel(
+                        workers.CompletedChannelReconcileRequest(
+                            int(eligible.id), guild_id, central_target,
+                        )
+                    ))
+            self.assertTrue(self.models.db.is_closed())
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                int(self.models.Game.get_by_id(eligible.id).game_chan),
+                id_base,
+            )
+
+            self.models.db.close()
+            central_result = asyncio.run(
+                workers.run_reconcile_deleted_channel(
+                    workers.CompletedChannelReconcileRequest(
+                        int(eligible.id), guild_id, central_target,
+                    )
+                )
+            )
+            side_result = asyncio.run(
+                workers.run_reconcile_deleted_channel(
+                    workers.CompletedChannelReconcileRequest(
+                        int(eligible.id), guild_id, side_target,
+                    )
+                )
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(central_result.status, workers.RECONCILED)
+            self.assertEqual(side_result.status, workers.RECONCILED)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNone(
+                self.models.Game.get_by_id(eligible.id).game_chan
+            )
+            self.assertIsNone(
+                self.models.GameSide.get_by_id(side.id).team_chan
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_ids:
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game.in_(tuple(game_ids))
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id.in_(tuple(game_ids))
+                ).execute()
+
     def test_p97e_auto_confirmation_revalidates_real_schema(self):
         """Exercise discovery and stale revalidation on development DB."""
 

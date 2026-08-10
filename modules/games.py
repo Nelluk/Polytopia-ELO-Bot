@@ -5,6 +5,7 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
+from modules import completed_game_channel_purge
 from modules import confirmation_publication
 from modules import image_storage
 from modules import leaderboard_views
@@ -6068,33 +6069,27 @@ class polygames(commands.Cog):
     async def task_purge_game_channels(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            # purge game channels from games that were concluded at least 24 hours ago
-            # restricted games to those that concluded less than 14 days ago
-            # previously was limiting it to 7 days, but made a change May 2023 to check season game status more efficiently instead of
-            # once per game, which should make this task more efficient.
-            
             await asyncio.sleep(900)
             logger.debug('Task running: task_purge_game_channels')
-            yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
-            last_week = (datetime.datetime.now() + datetime.timedelta(days=-14))
-
-            utilities.connect()
-            old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
-                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) & (Game.completed_ts > last_week) &
-                ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
-            )
-
-            logger.info(f'running task_purge_game_channels on {len(old_games)} games')
-
-            for game in old_games:
-                if game.league_season:
-                    logger.debug(f'Skipping purge of game {game.id} since it is a season game')
-                    continue
-                guild = self.bot.get_guild(game.guild_id)
-                if guild:
-                    await game.delete_game_channels(self.bot.guilds, game.guild_id)
+            await self.run_completed_channel_purge_cycle()
 
             await asyncio.sleep(60 * 60 * 6)
+
+    async def run_completed_channel_purge_cycle(self):
+        """Contain one completed-channel cycle without hiding cancellation."""
+
+        try:
+            return await completed_game_channel_purge.purge_completed_game_channels(
+                bot=self.bot,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                'Completed-game channel purge cycle failed; the next '
+                'scheduled cycle remains available'
+            )
+            return None
 
     async def run_champion_role_cycle(self):
         """Contain one recurring champion cycle without hiding cancellation."""
