@@ -96,6 +96,9 @@ and operator-safety contracts.
 
 ### H1 — Unset `POLYBOT_ENV` silently selects production
 
+Status: **Resolved by P9.12 implementation checkpoint `5038282`; Tier-3
+review and offline validation are green.**
+
 - **Location:** `runtime_config.py:483` and production defaults at
   `runtime_config.py:71`.
 - **Observable failure:** an ad hoc invocation without `POLYBOT_ENV` loads
@@ -109,8 +112,16 @@ and operator-safety contracts.
 - **Focused regression:** unset, blank, and whitespace-only values must fail
   before reading profile files, importing server settings, creating
   directories, or touching a database.
+- **Resolution:** the raw environment value must now be exactly `production`
+  or `development`. Missing, blank, whitespace-only, padded, and unknown values
+  all fail before the first profile or filesystem effect; both tracked service
+  units already set exact values.
 
 ### H2 — Native start paths bypass the prefix-wide ban gate
+
+Status: **Resolved by P9.12 implementation checkpoint `5038282` and
+real-schema correction checkpoint `7660b3e`; Tier-3 review and the stopped-
+writer development-database gate are green.**
 
 - **Location:** prefix-only checks at `bot.py:218`; slash entry at
   `modules/games.py:3269`; component entry at
@@ -130,6 +141,11 @@ and operator-safety contracts.
 - **Focused regression:** invoke slash and component starts for configured-ID,
   role-banned, account-banned, and guild-player-banned hosts; assert no commit,
   channel creation, public result, or card mutation.
+- **Resolution:** `/game start` and the pending-card Start action now share a
+  model-free configured-ID/role check and private denial. Both worker phases
+  independently reload and reject current account or guild-player ban state,
+  including a ban applied between preflight and transaction, before any
+  mutation or publication.
 
 ### H3 — Guild-only command management never proves the remote global tree is empty
 
