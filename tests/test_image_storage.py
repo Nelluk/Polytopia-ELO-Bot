@@ -135,7 +135,10 @@ class ImageStorageTests(unittest.TestCase):
         destination = image_storage.team_image_path(1)
         data = image_bytes('PNG', size=(3, 2))
         with mock.patch.object(image_storage, 'MAX_IMAGE_PIXELS', 5):
-            with self.assertRaises(image_storage.ImageStorageError):
+            with self.assertRaisesRegex(
+                image_storage.ImageStorageError,
+                r'3x2 \(6 pixels\).*5-pixel limit',
+            ):
                 image_storage._normalise_image(data, destination)
 
     def test_attachment_reported_size_is_checked_before_read(self):

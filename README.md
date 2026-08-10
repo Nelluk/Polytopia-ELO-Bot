@@ -32,7 +32,9 @@ Make a copy of config.ini and server_settings.py using the example template file
 
 Change the required settings inside config.ini, which include the API key from the developer portal above.
 
-Create an empty postgresql database and add the database's name and a psql user name into config.ini
+Create an empty PostgreSQL database and configure its name, role, password,
+host, and port. See the [test database setup guide](docs/DATABASE_SETUP.md) for
+a complete development example.
 
 Select the runtime profile explicitly and run the bot through the synced
 environment:
