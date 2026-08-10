@@ -14,6 +14,7 @@ import re
 import functools
 from modules.games import PolyGame
 import modules.achievements as achievements
+from modules import auto_confirmation_workers
 from modules import confirmation_publication, confirmation_publication_workers
 from modules import elo_workers, game_correction_publication, game_workers
 from modules import nova_graduation_workers
@@ -178,6 +179,9 @@ class administration(commands.Cog):
         requester_id: int | None,
         requester_name: str,
         requester_description: str,
+        auto_policy: (
+            auto_confirmation_workers.AutoConfirmationPolicy | None
+        ) = None,
     ):
         nova_guild_ids = tuple(dict.fromkeys(
             int(settings.server_ids[key])
@@ -224,6 +228,7 @@ class administration(commands.Cog):
                     guild_id,
                     requester_description,
                     publication_context,
+                    auto_policy,
                 ),
             )
         finally:
@@ -764,45 +769,38 @@ class administration(commands.Cog):
             logger.info('Skipping confirm_auto due to active ELO job')
             return (0, 0)
 
-        game_query = models.Game.search(status_filter=5, guild_id=guild.id).order_by(models.Game.win_claimed_ts)
-        old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
-        old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
+        policy = auto_confirmation_workers.AutoConfirmationPolicy(
+            as_of=datetime.datetime.now(),
+        )
+        batch = await (
+            auto_confirmation_workers.run_discover_auto_confirmations(
+                auto_confirmation_workers.AutoConfirmationDiscoveryRequest(
+                    guild_id=guild.id,
+                    policy=policy,
+                )
+            )
+        )
         games_confirmed = 0
-        unconfirmed_count = len(game_query)
+        unconfirmed_count = batch.unconfirmed_count
+        if batch.truncated:
+            logger.warning(
+                'Automatic-confirmation discovery for guild %s reached its '
+                'per-cycle limit; remaining records are deferred',
+                guild.id,
+            )
 
-        for game in game_query:
-
-            logger.debug(f'auto_confirm checking game {game.id}')
-            (confirmed_count, side_count, _) = game.confirmations_count()
-
-            if not game.win_claimed_ts:
-                logger.error(f'Game {game.id} does not have a value for win_claimed_ts - cannot auto confirm.')
-                continue
-
-            confirmation_reason = None
-            if game.is_ranked and game.win_claimed_ts < old_24h:
-                confirmation_reason = (
-                    'Ranked win claimed more than 24 hours ago.'
-                )
-            elif not game.is_ranked and game.win_claimed_ts < old_6h:
-                confirmation_reason = (
-                    'Unranked win claimed more than 6 hours ago.'
-                )
-            elif side_count < 5 and confirmed_count > 1:
-                confirmation_reason = 'Due to partial confirmations.'
-            elif side_count >= 5 and confirmed_count > 2:
-                confirmation_reason = 'Due to partial confirmations.'
-
-            if confirmation_reason is None:
-                continue
+        for candidate in batch.candidates:
+            game_id = candidate.game_id
+            logger.debug(f'auto_confirm checking game {game_id}')
 
             try:
                 result = await self._run_confirm_game_job(
-                    game_id=game.id,
+                    game_id=game_id,
                     guild_id=guild.id,
                     requester_id=None,
                     requester_name='automatic confirmation task',
                     requester_description='Automatic confirmation task',
+                    auto_policy=batch.policy,
                 )
             except elo_workers.ConfirmedWinSnapshotError as exc:
                 games_confirmed += 1
@@ -819,7 +817,13 @@ class administration(commands.Cog):
                 continue
             except exceptions.RecordLocked:
                 logger.info(
-                    'Cannot auto-confirm game %s - it is locked', game.id
+                    'Cannot auto-confirm game %s - it is locked', game_id
+                )
+                continue
+            except elo_workers.AutoConfirmationIneligible:
+                logger.info(
+                    'Skipping stale automatic-confirmation candidate %s',
+                    game_id,
                 )
                 continue
             except EloJobConflict:
@@ -832,7 +836,7 @@ class administration(commands.Cog):
                 exceptions.CheckFailedError,
                 peewee.PeeweeException,
             ):
-                logger.exception('Could not auto-confirm game %s', game.id)
+                logger.exception('Could not auto-confirm game %s', game_id)
                 continue
 
             games_confirmed += 1
@@ -857,10 +861,14 @@ class administration(commands.Cog):
                 continue
 
             try:
+                evidence = (
+                    result.auto_confirmation
+                    or candidate.discovered_evidence
+                )
                 await current_channel.send(
-                    f'Game {game.id} auto-confirmed. '
-                    f'{confirmation_reason} {confirmed_count} of '
-                    f'{side_count} sides had confirmed.'
+                    f'Game {game_id} auto-confirmed. '
+                    f'{evidence.reason} {evidence.confirmed_count} of '
+                    f'{evidence.side_count} sides had confirmed.'
                 )
             except Exception:
                 logger.exception(
@@ -872,6 +880,57 @@ class administration(commands.Cog):
         logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
         return (unconfirmed_count, games_confirmed)
 
+    async def run_confirm_auto_cycle(self):
+        """Run one isolated recurring cycle without retaining database state."""
+
+        if settings.elo_job_coordinator.is_active:
+            logger.debug(
+                'Skipping task_confirm_auto while an ELO job is active.'
+            )
+            return
+        for guild in self.bot.guilds:
+            try:
+                staff_output_channel = guild.get_channel(
+                    settings.guild_setting(guild.id, 'log_channel')
+                )
+                if not staff_output_channel:
+                    logger.debug(
+                        'Could not load log_channel for server %s - skipping',
+                        guild.id,
+                    )
+                    continue
+                logger.debug('Loaded log_channel for server %s', guild.id)
+                prefix = settings.guild_setting(
+                    guild.id,
+                    'command_prefix',
+                )
+                unconfirmed_count, games_confirmed = await self.confirm_auto(
+                    guild,
+                    prefix,
+                    staff_output_channel,
+                )
+                if games_confirmed:
+                    message = (
+                        'Autoconfirm process complete. '
+                        f'{games_confirmed} games auto-confirmed. '
+                        f'{unconfirmed_count - games_confirmed} games left '
+                        'unconfirmed.'
+                    )
+                    await staff_output_channel.send(message)
+                    logger.debug(message)
+                else:
+                    logger.debug(
+                        'No games_confirmed for guild %s', guild.id
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    'Automatic-confirmation cycle failed for guild %s; '
+                    'later guilds and cycles remain available',
+                    guild.id,
+                )
+
     async def task_confirm_auto(self):
         await self.bot.wait_until_ready()
         sleep_cycle = (60 * 60 * 0.5)  # half hour cycle
@@ -880,24 +939,7 @@ class administration(commands.Cog):
             await asyncio.sleep(8)
             logger.debug('Task running: task_confirm_auto')
 
-            if settings.elo_job_coordinator.is_active:
-                logger.debug('Skipping task_confirm_auto while an ELO job is active.')
-            else:
-                utilities.connect()
-                for guild in self.bot.guilds:
-                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
-                    if not staff_output_channel:
-                        logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
-                        continue
-
-                    logger.debug(f'Loaded log_channel for server {guild.id}')
-                    prefix = settings.guild_setting(guild.id, 'command_prefix')
-                    (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
-                    if games_confirmed:
-                        await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
-                        logger.debug(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
-                    else:
-                        logger.debug(f'No games_confirmed for guild {guild.id}')
+            await self.run_confirm_auto_cycle()
 
             await asyncio.sleep(sleep_cycle)
 

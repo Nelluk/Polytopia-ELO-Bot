@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import peewee
 
 from modules import (
+    auto_confirmation_workers,
     confirmation_publication_workers,
     game_deletion_workers,
     game_result_publication_workers,
@@ -25,6 +26,10 @@ class RecalculationValidationError(RuntimeError):
 
 class WinValidationError(RuntimeError):
     """The game changed or is not eligible for the requested win."""
+
+
+class AutoConfirmationIneligible(WinValidationError):
+    """A discovered automatic confirmation is no longer eligible."""
 
 
 class UnwinSnapshotError(RuntimeError):
@@ -92,6 +97,9 @@ class ConfirmedWinResult:
     winner_name: str
     publication: (
         confirmation_publication_workers.ConfirmationPublicationSnapshot | None
+    ) = None
+    auto_confirmation: (
+        auto_confirmation_workers.AutoConfirmationEvidence | None
     ) = None
 
 
@@ -435,23 +443,42 @@ def confirm_game(
     publication_context: (
         confirmation_publication_workers.ConfirmationPublicationContext
     ) = confirmation_publication_workers.ConfirmationPublicationContext(),
+    auto_policy: (
+        auto_confirmation_workers.AutoConfirmationPolicy | None
+    ) = None,
 ) -> ConfirmedWinResult:
     """Finalize a previously claimed winner in one worker transaction."""
 
     with models.db.connection_context():
         with models.db.atomic():
-            game = _load_game(
-                game_id, guild_id, error_type=WinValidationError
+            validation_error = (
+                AutoConfirmationIneligible
+                if auto_policy is not None
+                else WinValidationError
             )
+            game = _load_game(game_id, guild_id, error_type=validation_error)
             if not game.is_completed or not game.winner:
-                raise WinValidationError(
+                raise validation_error(
                     f'Game {game.id} has no declared winner yet.'
                 )
             if game.is_confirmed:
-                raise WinValidationError(
+                raise validation_error(
                     f'Game with ID {game.id} is already confirmed as '
                     'completed.'
                 )
+            auto_confirmation = None
+            if auto_policy is not None:
+                auto_confirmation = (
+                    auto_confirmation_workers.game_eligibility_evidence(
+                        game,
+                        auto_policy,
+                    )
+                )
+                if auto_confirmation is None:
+                    raise AutoConfirmationIneligible(
+                        f'Game {game.id} is no longer eligible for automatic '
+                        'confirmation.'
+                    )
             winner_name = game.winner.name()
             game.declare_winner(winning_side=game.winner, confirm=True)
             models.GameLog.write(
@@ -465,6 +492,7 @@ def confirm_game(
             committed_result = ConfirmedWinResult(
                 game_id=game.id,
                 winner_name=winner_name,
+                auto_confirmation=auto_confirmation,
             )
         try:
             publication = (
@@ -481,6 +509,7 @@ def confirm_game(
             game_id=committed_result.game_id,
             winner_name=committed_result.winner_name,
             publication=publication,
+            auto_confirmation=committed_result.auto_confirmation,
         )
 
 
