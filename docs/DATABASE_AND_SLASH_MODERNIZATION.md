@@ -499,7 +499,8 @@ absent from the prefix registry. Restart aliases and manual owner-only
 `$purge_game_channels` remain explicitly separate. Complete offline discovery
 reaches only the three known missing-`duckdb` environment failures; all 1,536
 available cases pass with 67 skips when those exact cases are excluded. The
-prefix-registry beta reload remains the final lifecycle action.**
+guarded beta is healthy at code-equivalent close-out checkpoint `3a8c73a`; no
+command sync or tester announcement was warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13026,8 +13027,8 @@ the destructive manual channel-purge replacement.
 
 ### P9.8 — Approved obsolete operator-command retirements
 
-Status: **Complete in the accumulation branch; development-beta reload
-pending**
+Status: **Complete in the accumulation branch and loaded by the development
+beta**
 
 Branch/base: `codex/p9-8-obsolete-command-retirements`, exact clean
 accumulation base `3d74ff5`. Implementation/tests checkpoint: `de608c9`.
@@ -13061,10 +13062,19 @@ passed**. Dependencies were not installed or synchronized.
 P9.8 changes no database worker, schema, data, application command, capability,
 or Discord effect. The P9.7g full stopped-writer database gate is current, so
 another development-database window is not warranted. No application-command
-plan/apply is needed. The durable beta does require one restart after
-integration so its in-memory prefix registry loads the retirements; because
-these were hidden or owner/mod-only obsolete paths, no tester checklist edit,
-tester ping, or public beta announcement is planned.
+plan/apply was needed. The durable beta restarted cleanly from accumulation
+close-out `3a8c73a`; PID `3846144` runs the primary checkout with `--skip_tasks`,
+records that exact full startup checkpoint, authenticated as application
+`479029527553638401`, and exposed a healthy protected control socket. The
+host-wide audit found exactly that one development writer, and the runtime
+profile still disables background tasks and the API.
+
+Deployment used the explicit no-announcement acceptance route. These paths
+were hidden or owner/mod-only obsolete commands with no replacement workflow
+for wider testers, so no live retired-command invocation, tester checklist
+edit, tester ping, reporter notification, or public beta announcement was
+warranted. The registry regression and guarded process/identity checks are the
+acceptance evidence.
 
 Remaining H6 work is deliberately separate: decide whether to retire manual
 `$purge_game_channels` or replace it with a bounded owner-only
@@ -14050,9 +14060,17 @@ branch.
   integrated at accumulation merge `cf461c4`.
 - No database, application-command tree, capability, or tester-facing workflow
   changed, so no development-database gate or guild command sync is warranted.
-  Next action is push this clean accumulation close-out, then perform one
-  guarded beta restart to reload the prefix registry without a tester
-  announcement.
+  Pushed clean accumulation close-out `3a8c73a`, refreshed the exact tracking
+  ref, and restarted only the guarded development beta.
+- PID `3846144` now runs the primary checkout with `--skip_tasks`, exact startup
+  checkpoint `3a8c73a`, expected beta application `479029527553638401`, and a
+  responsive protected control socket. The host-wide audit found exactly that
+  one development writer; background tasks and API remain disabled.
+- Selected the no-announcement acceptance route: these hidden/owner/mod-only
+  retirements add no tester workflow, so no checklist edit, live retired-name
+  invocation, tester/reporter ping, or Discord announcement was warranted.
+  Next recommended is the separate H6 manual channel-purge disposition/design;
+  H7 repeated-cancellation hardening for the backup child is also ready.
 
 ### 2026-08-10 — P9.7g completed-channel purge reviewed and database-validated
 
