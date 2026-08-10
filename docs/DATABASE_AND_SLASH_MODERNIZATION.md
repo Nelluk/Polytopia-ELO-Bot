@@ -378,7 +378,7 @@ would become unavailable if a prefix is retired.
 | C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; integrated, pushed, and loaded by the guarded beta through `e78601b` |
 | C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
-| C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline discovery green; stopped-beta real-schema validation and development-guild apply pending |
+| C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema commit/rollback/cleanup validation green; integration and development-guild apply pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -494,8 +494,10 @@ Current active unit: **P9.4 is implemented on
 preview, stale fingerprint, complete worker-local atomic dependency merge and
 audit, and post-commit public attribution; `$migrate_player`/`$migrate` are
 retired under C-027. Focused tests and complete offline discovery are green.
-The stopped-beta real-schema commit/rollback/cleanup gate and guild-only apply
-remain before integration/deployment.** P8.26 is
+The stopped-beta real-schema suite passed 58 tests with one intentional
+retained-fixture skip, including complete P9.4 commit/rollback/cleanup
+evidence. Integration and the guild-only `/operator` update remain before
+deployment.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -11658,8 +11660,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.3 complete; P9.4 implemented with stopped-beta
-real-schema and development-guild deployment gates pending**
+Status: **In progress; P9.0–P9.3 complete; P9.4 implementation and real-schema
+gate green with integration/development-guild deployment pending**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11976,8 +11978,9 @@ retiring `$migrate_player`/`$migrate` with the complete native replacement.
 
 ### P9.4 — Configured-superuser player migration
 
-Status: **Implemented on `codex/p9-4-player-migration`; stopped-beta
-real-schema and development-guild deployment gates pending**
+Status: **Implemented and real-schema validated on
+`codex/p9-4-player-migration`; integration and development-guild deployment
+pending**
 
 Risk tier: **Tier 3 cross-guild identity merge and destructive account
 consolidation**. Audit branch: `codex/p9-4-player-migration-audit` from exact
@@ -12151,13 +12154,21 @@ and stale fingerprint.
   offline discovery passed **1,424 tests with 60 intentional database-gated
   skips**. Python compilation and `git diff --check` passed.
 - Implementation/tests checkpoint: `2ded1f2`; self-review preview/result
-  evidence checkpoint: `92830d2`. The new real-schema commit/rollback/cleanup
-  test remains behind the unchanged stopped-beta development gate.
+  evidence checkpoint: `92830d2`.
+- After stopping only the guarded beta and confirming the host-wide
+  development-writer audit was clear, the unchanged gate verified
+  `development`, `polytopia_dev`, `polybot_dev`, background tasks disabled,
+  and API disabled. The complete gated suite ran **59 tests: 58 passed and one
+  retained-fixture round trip skipped intentionally**.
+- The P9.4 real-schema case committed an overlapping-guild merge, reparented a
+  destination-only guild Player, moved lineup/host/bid dependencies,
+  deduplicated squad and House relationships, retained source canonical
+  metadata, wrote one audit, injected an audit failure to prove full rollback,
+  and explicitly removed all temporary rows.
 
-Next action: stop the guarded development beta, verify no other development
-writer remains, run the complete gated PostgreSQL suite as
-`development` / `polytopia_dev` / `polybot_dev`, correct any graph finding,
-then integrate and apply only the reviewed guild-scoped `/operator` update.
+Next action: integrate the clean P9.4 branch into the accumulation branch,
+inspect/apply only the reviewed guild-scoped `/operator` update, restart the
+guarded beta, and verify the expected application identity and remote tree.
 
 ## Standard work-unit template
 
@@ -13111,6 +13122,17 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.4 stopped-beta real-schema gate passed
+
+- Stopped only `polybot-development-beta@main.service` and confirmed the
+  host-wide development-writer audit was clear.
+- The unchanged development identity gate ran 59 tests: 58 passed and the
+  retained operator-managed fixture round trip skipped intentionally.
+- P9.4 committed and rolled back its complete PostgreSQL dependency graph and
+  cleaned every temporary row; no production database or service was touched.
+- Left the beta stopped for integration and the reviewed guild-only
+  `/operator` command update.
 
 ### 2026-08-10 — P9.4 configured-superuser migration implemented
 
