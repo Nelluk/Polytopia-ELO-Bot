@@ -18,6 +18,8 @@ LOCKFILE=/home/nelluk/.backup_db.lock
 REPORTLOCK=/home/nelluk/.polybot-reporting.lock
 REPORTEXPORTER=/home/nelluk/PolyBot39/scripts/export_reporting_duckdb.py
 REPORTPYTHON=/home/nelluk/PolyBot39/.venv/bin/python
+REPORTING_PARTIAL_EXIT=20
+LOCK_BUSY_EXIT=75
 
 TARGET_TMP=
 LOGTARGET_TMP=
@@ -51,7 +53,8 @@ trap 'exit 143' TERM
 exec 9>"$LOCKFILE" || fail "cannot open lock file $LOCKFILE"
 if ! /usr/bin/flock -n 9
 then
-  fail "another backup run already holds $LOCKFILE"
+  echo "Backup deferred: another run already holds $LOCKFILE" >&2
+  exit "$LOCK_BUSY_EXIT"
 fi
 
 if [ ! -d /home/nelluk/backups ]
@@ -148,7 +151,7 @@ if ! "$REPORTPYTHON" "$REPORTEXPORTER" \
 then
   echo "Core backup successful, but reporting export failed." >&2
   echo "The previous reporting snapshot, if any, was preserved." >&2
-  exit 1
+  exit "$REPORTING_PARTIAL_EXIT"
 fi
 
 echo "Backup successful:"

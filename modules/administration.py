@@ -37,6 +37,8 @@ from modules import operator_player_migration_workers
 from modules import operator_player_deletion as operator_player_deletion_service
 from modules import operator_player_deletion_views
 from modules import operator_player_deletion_workers
+from modules import operator_backup
+from modules import operator_backup_views
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -116,6 +118,12 @@ class administration(commands.Cog):
     operator_player_group = discord.app_commands.Group(
         name='player',
         description='Run restricted player identity workflows.',
+        parent=operator_group,
+        guild_only=True,
+    )
+    operator_database_group = discord.app_commands.Group(
+        name='database',
+        description='Run restricted database operations.',
         parent=operator_group,
         guild_only=True,
     )
@@ -1077,6 +1085,65 @@ class administration(commands.Cog):
             requester_id=int(interaction.user.id),
             preview=preview,
             confirmer=confirm,
+        )
+        await interaction.edit_original_response(content=None, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
+
+    @operator_database_group.command(
+        name='backup',
+        description='Confirm an exceptional production recovery backup.',
+    )
+    async def operator_database_backup_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.', ephemeral=True
+            )
+        if int(interaction.user.id) != int(settings.owner_id):
+            return await interaction.response.send_message(
+                'Only the configured bot owner can run a production backup.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await operator_backup.validate_runtime(int(interaction.user.id))
+        except operator_backup.BackupError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator backup preflight failure')
+            return await interaction.followup.send(
+                'The production backup preflight failed. No backup was '
+                'started.',
+                ephemeral=True,
+            )
+
+        def request_for(component_interaction):
+            actor_name = str(
+                getattr(component_interaction.user, 'display_name', None)
+                or getattr(component_interaction.user, 'name', None)
+                or f'user-{component_interaction.user.id}'
+            )
+            return operator_backup.BackupRequest(
+                guild_id=int(component_interaction.guild_id),
+                channel_id=int(component_interaction.channel_id or 0),
+                requester_id=int(component_interaction.user.id),
+                requester_description=actor_name,
+            )
+
+        async def run_backup(component_interaction):
+            return await operator_backup.backup_coordinator.run(
+                request_for(component_interaction)
+            )
+
+        view = operator_backup_views.BackupConfirmationView(
+            requester_id=int(interaction.user.id),
+            runner=run_backup,
         )
         await interaction.edit_original_response(content=None, view=view)
         try:
@@ -2645,25 +2712,6 @@ class administration(commands.Cog):
             format_elo_job_status(settings.elo_job_coordinator.active_job),
             ephemeral=True,
         )
-
-    @commands.command(aliases=['dbb'])
-    @commands.is_owner()
-    async def backup_db(self, ctx):
-        """*Owner*: Backup PSQL database to a file
-        """
-        import subprocess
-        from subprocess import PIPE
-
-        async with ctx.typing():
-            await ctx.send('Executing backup script')
-            process = subprocess.run(['/home/nelluk/backup_db.sh'], stdout=PIPE, stderr=PIPE)
-            if process.returncode == 0:
-                logger.info('Backup script executed')
-                return await ctx.send(f'Execution successful: {str(process.stdout)}')
-            else:
-                logger.error('Error during execution')
-                return await ctx.send(f'Error during execution: {str(process.stderr)}')
-
 
 async def setup(bot):
     await bot.add_cog(administration(bot))

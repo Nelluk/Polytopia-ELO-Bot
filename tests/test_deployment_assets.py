@@ -78,6 +78,10 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             'Core backup successful, but reporting export failed.',
             source,
         )
+        self.assertIn('REPORTING_PARTIAL_EXIT=20', source)
+        self.assertIn('LOCK_BUSY_EXIT=75', source)
+        self.assertIn('exit "$REPORTING_PARTIAL_EXIT"', source)
+        self.assertIn('exit "$LOCK_BUSY_EXIT"', source)
         self.assertGreater(
             source.index('"$REPORTPYTHON" "$REPORTEXPORTER"'),
             source.index(
