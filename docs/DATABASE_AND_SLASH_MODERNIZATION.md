@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 Status: Active
 
@@ -490,14 +490,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7b is Complete in the accumulation branch at merge
-checkpoint `3444d5d` (code/test `c6355a3`, evidence `16c52c1`), from exact
-clean accumulation base `3cfb2de`. Confirmation now returns one bounded
-worker-loaded immutable publication/effect snapshot after its transaction
-commits. Discord publication is model-free, and snapshot/publication failures
-retain P9.7a's truthful reconciliation semantics. The extended real-schema
-regression remains behind the unchanged development gate and is deferred to a
-stopped-writer window.**
+Current active unit: **P9.7c implementation/tests and Tier-3 complete-diff
+review are complete on `codex/p9-7c-win-unwin-snapshot` at checkpoint
+`237227c`, from exact clean accumulation base `eb439ec`. Ordinary win and
+unwin now return bounded worker-loaded immutable publication snapshots after
+commit, while their Discord publishers are model-free and post-commit
+snapshot/publication failures report reconciliation truthfully. The extended
+real-schema regression remains behind the unchanged development gate and is
+deferred to the next stopped-writer batch. Accumulation integration and
+close-out are the next actions.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12719,6 +12720,62 @@ corrections. H5 automatic candidate discovery and authoritative eligibility
 revalidation remains a separate recurring-task unit after those publisher
 boundaries.
 
+### P9.7c — Immutable ordinary win/unwin publication snapshots
+
+Status: **Implementation and Tier-3 review complete; accumulation integration
+pending**
+
+Branch/base: `codex/p9-7c-win-unwin-snapshot`, exact clean accumulation base
+`eb439ec`. Implementation/tests checkpoint: `237227c`.
+
+This bounded H4 correction replaces ordinary win/unwin event-loop ORM reloads
+and live-model Discord publication graphs:
+
+- ordinary result workers commit their mutation/audit transaction first, then
+  load one bounded immutable snapshot on the same worker-owned connection while
+  the ELO coordinator and keyed game claim remain held;
+- confirmed ordinary wins reuse P9.7b's immutable confirmation effect/card
+  snapshot and model-free publisher without changing manual/automatic
+  confirmation behavior;
+- pending wins and reset unwins freeze only the game/card-independent channel,
+  roster, and status inputs they need; confirmed unwins additionally freeze
+  post-reversal experience/champion role effects;
+- the legacy ordinary-win confirmation/ELO audit is now inside the result
+  transaction, so an audit failure rolls back before snapshot or Discord work;
+- snapshot failure after commit and failure after any Discord effect return a
+  committed reconciliation outcome and never claim rollback or invite a
+  duplicate unwin; and
+- prefix, slash, and in-progress-card win routing retain their permissions,
+  messages, public visibility, coordinator serialization, announcement/card
+  behavior, channel routing, role effects, and Nova handling.
+
+Focused/affected validation passed **224 tests with 62 intentional
+database-gated skips**. Unit-specific coverage includes transactional audit
+rollback, committed snapshot failures for both operations, partial publication
+failure, frozen/model-free publishers, worker connection ownership, event-loop
+heartbeat, cancellation drain, coordinator cleanup, and prefix/slash
+registration/defer parity. Complete Python compilation and `git diff --check`
+passed.
+
+Complete offline discovery executed **1,482 tests with 63 intentional skips**
+and reached only the three already documented unsynchronized-environment
+failures: missing `duckdb` import, missing `duckdb` dependency-inventory entry,
+and the resulting reporting-export import error. The other **1,416 tests
+passed**. Dependencies were not installed or synchronized.
+
+The development-gated real-schema suite now includes an owned ordinary
+win/unwin snapshot round-trip and also removes a stale undefined assertion
+from the adjacent P9.7a cleanup. The new case and the accumulated P9.7a/P9.7b
+cases remain unrun behind the unchanged `POLYBOT_ENV=development` /
+`polytopia_dev` / `polybot_dev` gate because the healthy durable beta writer
+remains active at checkpoint `a13d440`. This schema-free unit extends the
+validated ELO worker/coordinator pattern, so the documented cadence defers the
+suite to the next stopped-writer batch.
+
+P9.7c closes ordinary win/unwin only. Rank/unstart correction publishers remain
+the next H4 slice; H5 automatic candidate discovery and authoritative
+eligibility revalidation remains separate.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13671,6 +13728,30 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7c ordinary result snapshots implemented and reviewed
+
+- Created isolated branch `codex/p9-7c-win-unwin-snapshot` from exact clean,
+  remote-reconciled accumulation checkpoint `eb439ec`; recorded code/tests at
+  `237227c`.
+- Replaced ordinary win/unwin synchronous post-commit reloads and live-model
+  publication with bounded worker-loaded frozen snapshots while preserving
+  command parity, channel/card/announcement behavior, role effects, Nova
+  handling, coordinator ownership, and truthful reconciliation.
+- Moved the legacy confirmed ordinary-win audit inside the result transaction;
+  forced audit failure now rolls back before snapshot or Discord effects.
+- Tier-3 complete-diff review found no remaining blocker. Focused/affected
+  validation passed **224 tests with 62 gated skips**; compilation and diff
+  checks passed. Full discovery executed **1,482 tests with 63 skips** and
+  reached only the three known missing-`duckdb` environment failures; **1,416
+  tests passed**.
+- Added a gated real-schema ordinary win/unwin snapshot round-trip and repaired
+  one stale undefined cleanup assertion in the adjacent P9.7a gated case. The
+  accumulated database cases remain deferred under the documented cadence
+  while the healthy durable beta writer runs at `a13d440`.
+- Next action: commit this evidence, integrate the reviewed unit into the
+  accumulation branch, record its merge/close-out checkpoint, push, and decide
+  the beta rollout without taking an unnecessary stopped-writer window.
 
 ### 2026-08-10 — P9.7b confirmation publication snapshot implemented
 
