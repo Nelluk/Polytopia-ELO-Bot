@@ -499,8 +499,9 @@ repeated caller cancellation; only then does cancellation propagate. Focused
 and adjacent validation passes 44 tests. Complete discovery runs 1,561 tests
 with 68 skips and reaches only the three known missing-`duckdb` environment
 failures. No production path/artifact was read or executed, and no database or
-command-tree operation is warranted. Accumulation close-out/push and guarded
-beta reload remain pending.**
+command-tree operation is warranted. Clean accumulation close-out `b554adf` is
+pushed, and the guarded beta is healthy at that exact startup checkpoint as PID
+`3855239`.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13135,16 +13136,15 @@ skipped**.
 Because P9.9 adds an application command and a destructive reconciliation
 boundary, completion required stopping only the guarded beta and proving no
 development writer before the now-green `development` / `polytopia_dev` /
-`polybot_dev` gate. The configured development-guild tree is applied and the
-unit is integrated. Remaining deployment work is to close out and push the
-accumulation branch, then restart and verify the guarded beta with startup
-synchronization disabled. This
+`polybot_dev` gate. The configured development-guild tree was applied, the
+unit integrated, clean close-out pushed, and the guarded beta verified with
+startup synchronization disabled. This
 owner-only maintenance workflow does not warrant a tester checklist entry or
 `@testers` announcement unless live validation reveals a tester-facing effect.
 
 ### P9.10 — H7 repeated-cancellation-safe manual backup cleanup
 
-Status: **Complete in the accumulation branch**
+Status: **Complete in the accumulation branch and loaded by the guarded beta**
 
 Branch/base: `codex/h7-backup-repeated-cancellation`, exact clean accumulation
 base `fc861f1`. Implementation/tests checkpoint: `fd3ff8d`.
@@ -14171,9 +14171,19 @@ Retire `$purge_game_channels` with this replacement.
 - Integrated the reviewed unit into accumulation at merge checkpoint
   `2d561ae`. No database gate or command plan/apply is warranted because H7
   changes neither database behavior nor the registered command tree.
-- Next: record and push the clean accumulation close-out, reload only the
-  guarded development beta, then select H8 startup identity ordering as
-  recommended.
+- Clean accumulation close-out `b554adf` was pushed and the exact GitHub ref
+  verified. Restarted only the guarded development beta; its prestart writer
+  audit was clear, PID `3855239` runs the primary checkout with `--skip_tasks`,
+  recorded exact startup checkpoint
+  `b554adf17149ec8aaf8067e96a7ad154447e7121`, authenticated as beta application
+  `479029527553638401`, and returned a ready protected inventory. The host-wide
+  audit found exactly that one development writer.
+- Selected no-announcement acceptance. Development refuses this production-only
+  operation before spawn, the command tree is unchanged, and no real backup may
+  be used as a beta smoke test. No command plan/apply, checklist edit, tester
+  ping, reporter notification, or announcement was warranted.
+- Next recommended: H8 task-disabled startup identity ordering. Also ready:
+  decide the guarded replacement or retirement of restart/force/quit aliases.
 
 ### 2026-08-10 — P9.9 manual channel purge implemented for Tier-3 gate
 
