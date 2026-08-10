@@ -490,8 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7a is Implemented on
-`codex/p9-7a-confirmation` at code/test checkpoint `c230b69`, from exact
+Current active unit: **P9.7a is Complete in the accumulation branch at merge
+checkpoint `6f83aa2` (code/test `c230b69`, evidence `254372b`), from exact
 adversarial-review base `71568ff`. It corrects finding B3 by committing
 confirmation state, ELO, and actor/system audit together; post-commit Discord
 failures now report reconciliation rather than rollback, and auto-confirm
@@ -12616,8 +12616,8 @@ development-guild sync is optional and can prove only fail-closed refusal.
 
 ### P9.7a — Confirmation commit/publication truthfulness
 
-Status: **Implemented on the bounded unit branch; accumulation integration
-and stopped-writer real-schema evidence pending**
+Status: **Complete in the accumulation branch; stopped-writer real-schema
+evidence pending**
 
 Branch/base: `codex/p9-7a-confirmation`, exact base `71568ff` containing the
 unchanged adversarial review.
@@ -13630,9 +13630,10 @@ branch.
   discovery passed **1,464 tests with 62 intentional skips**; compilation and
   diff checks passed. The PostgreSQL case was not run while the durable beta
   writer remained active.
-- Recorded implementation/tests checkpoint `c230b69`. H4's immutable,
-  model-free confirmation publisher and H5's automatic candidate selection
-  remain explicitly separate follow-up units.
+- Recorded implementation/tests checkpoint `c230b69`, evidence checkpoint
+  `254372b`, and accumulation merge `6f83aa2`. H4's immutable, model-free
+  confirmation publisher and H5's automatic candidate selection remain
+  explicitly separate follow-up units.
 
 ### 2026-08-10 — P9.6 production backup operation implemented
 
