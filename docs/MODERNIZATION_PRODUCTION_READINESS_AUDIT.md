@@ -139,7 +139,10 @@ That exposes `game`, `leaderboard`, `player`, `team`, `league`, `house`, and
 - `tools_support`: `/staffhelp` still has a development-only authoritative
   store;
 - `beta_testing`: `/whattotest` is development-only; and
-- `operator_only`: it has no application-command roots and cannot be assigned.
+- `operator`: omit it from the initial user canary. P9.2 supersedes the audit's
+  earlier operator-only assumption by reserving a separately reviewed,
+  Administrator-default `/operator` root with authoritative configured-ID
+  checks and explicit all-allowed-guild deployment policy.
 
 Before apply, produce a redacted production runtime check, offline desired
 plan, remote guild-only inspection, and exact diff. Apply requires separate
@@ -163,10 +166,10 @@ re-inspect for convergence.
   signed off. Before release, derive a bounded canary matrix covering startup,
   retained-prefix parity, one representative read and write per assigned root,
   permissions, public/private visibility, and rollback of the command tree.
-- Existing operator-only prefix commands are not made more exposed by the
-  canary. Their P8 carry-forward decisions remain required before final
-  modernization closure, but should not be mixed into the upstream merge or
-  schema unit.
+- The initial user canary omits the separately reviewed `operator` capability.
+  P9.2 resolves its authorization/registration infrastructure; each actual
+  operator workflow still requires its own bounded implementation and explicit
+  capability deployment before retiring the corresponding prefix command.
 - Discord permissions apply at the top-level root, not to individual
   subcommands. Ordinary PolyChampions members may therefore see staff-only
   entries inside the assigned `game`, `team`, or `league` roots and receive an

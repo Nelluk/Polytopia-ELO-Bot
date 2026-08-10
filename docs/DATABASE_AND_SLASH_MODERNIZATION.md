@@ -11655,7 +11655,7 @@ success without `Unknown Message` noise.
 ## P9 — Production rollout and prefix lifecycle
 
 Status: **In progress; P9.0 audit and P9.1 upstream reconciliation complete;
-rollout blocked on production schema preparation and release runbook**
+P9.2 operator capability infrastructure implemented, integration pending**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11829,6 +11829,68 @@ checkpoint `057b0a5` into `codex/database-slash-modernization` and pushed the
 reconciled history. Next: resolve the operator carry-forward decisions that
 affect the release candidate before implementing the separate production
 timezone migration.
+
+### P9.2 — Configurable superusers and operator capability infrastructure
+
+Status: **Implemented; integration pending**
+
+Risk tier: **Tier 2 runtime authorization and command-deployment policy**.
+Branch: `codex/p9-2-operator-capability` from exact clean accumulation
+checkpoint `f2faadd`.
+
+Approved contract:
+
+- replace the hard-coded three-person superuser check with `owner_id` plus an
+  optional comma-separated `superuser_ids` runtime-profile setting;
+- keep superuser identity global rather than pretending it is a guild-role
+  user level;
+- reserve one `/operator` top-level root with Administrator-default Discord
+  visibility and authoritative configured-ID checks in every future handler
+  and worker;
+- allow an explicitly configured operator capability to expand across every
+  guild in the runtime allowlist without manually repeating roughly twenty
+  assignments;
+- keep all-guild assignment omitted and default-deny until a real reviewed
+  operator subcommand exists; do not synchronize or publish an empty root;
+- retain configured-superuser access for restart and player migration, while
+  the remaining accepted operator commands retain owner-only authorization;
+  and
+- retire each legacy prefix only when its complete native replacement lands.
+
+No database, Discord, command registration, service lifecycle, schema, or
+production configuration change belongs in this infrastructure unit. The
+ignored development runtime profile may receive the two existing non-owner
+superuser IDs so current beta prefix authorization does not regress on the
+next restart. Production configuration remains a later explicit deployment
+step.
+
+Implementation evidence:
+
+- `RuntimeProfile.superuser_ids` is an immutable, sorted effective identity
+  set. Missing configuration yields owner-only access; malformed, empty-item,
+  duplicate, non-integer, and non-positive values fail closed.
+- `settings.is_superuser()` now reads only that runtime-profile set. The
+  ignored development profile contains the two existing non-owner IDs, and a
+  redacted runtime check confirmed exactly three effective identities without
+  printing them.
+- The policy vocabulary reserves `operator -> /operator` and accepts optional
+  `application_command_all_guild_capabilities`. Omission remains default-deny;
+  explicit values validate like per-guild assignments, expand only across the
+  runtime allowlist, and reject redundant per-guild duplication.
+- No `/operator` source group exists yet and neither development nor
+  production settings assign the capability. No Discord plan/apply, sync,
+  beta restart, database access, or production configuration change occurred.
+- Focused runtime/policy/management/operator tests passed **48 tests**. The
+  broader affected authorization, deployment, taxonomy, readiness, and runtime
+  recheck passed **77 tests**. Complete offline discovery passed **1,399 tests
+  with 58 intentional database-gated skips**. Compilation and
+  `git diff --check` passed.
+
+Implementation/tests checkpoint: `28df76e`.
+
+Next action after completion: implement the owner-only Tribe emoji read/edit
+command as the first real `/operator` subcommand, then explicitly assign and
+apply the operator capability to the development guild for beta acceptance.
 
 ## Standard work-unit template
 
@@ -12755,7 +12817,50 @@ recommendations. P8.16 preserves broad league-guild read access and the
 incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
+### D-046 — Configure cross-guild operator identities and deployment explicitly
+
+Status: **Accepted**
+
+The existing restart and player-migration access class remains the owner plus
+two explicitly configured superusers. It is global identity authorization,
+not a guild-role-derived numeric user level. `owner_id` remains a required
+runtime setting; optional `superuser_ids` are parsed fail-closed and the owner
+is always included automatically. No application source may hard-code the
+additional identities.
+
+Useful operator workflows may move under one `/operator` root. The root is
+Administrator-visible by Discord default and every handler/worker must still
+revalidate the exact configured owner or superuser policy. Discord
+administrators outside that set may see the root but receive private denial.
+The root is guild-scoped rather than global and may be explicitly assigned to
+every guild in the runtime allowlist through one all-guild capability setting.
+That setting remains empty until a real reviewed subcommand exists.
+
+Restart and player migration preserve configured-superuser access. Player
+deletion, database backup, Tribe emoji, and channel purge preserve owner-only
+access. `gtest`, `ptrophies`, and both `boost_from` forms are approved for
+retirement. Each useful legacy prefix retires with its complete native
+replacement; no prolonged hybrid window is required on the modernization
+branch.
+
 ## Progress log
+
+### 2026-08-09 — P9.2 operator authorization infrastructure implemented
+
+- Removed the two additional superuser IDs from application source and moved
+  them into optional fail-closed runtime configuration, with the owner always
+  included automatically.
+- Reserved the Administrator-default `/operator` family and added one explicit
+  setting that can expand it across all runtime-allowed guilds without a
+  manually repeated assignment list.
+- Kept both the new capability and the not-yet-existent root unassigned, so
+  this infrastructure checkpoint changes no Discord tree and needs no beta
+  restart or announcement.
+- Passed 48 focused tests, 77 broader affected tests, and 1,399 complete
+  offline tests with 58 intentional gated skips. No PostgreSQL test was needed
+  because no database path changed.
+- Recorded implementation checkpoint `28df76e`; integration into the
+  accumulation branch remains the completion gate.
 
 ### 2026-08-09 — P9.1 current-master reconciliation validated
 

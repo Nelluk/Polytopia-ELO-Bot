@@ -17,17 +17,29 @@ application_command_capabilities = {
 ```
 
 The guild ID must already be in that profile's `server_list`. The policy is
-default-deny. Current families are `core_user`, `elo_maintenance`, and
-reserved `team`, `league`, `house`, `squad`, and `tools_support`; operator-only
-work has no application-command capability. The current `tools_support` family
-exposes `/staffhelp` only. The taxonomy names `/about`, `/guide`, `/help`,
-`/support`, and `/tools` remain unloaded and reserved; an assignment must not
-silently invent them. See
+default-deny. Current families are `core_user`, `elo_maintenance`, `operator`,
+and reserved `team`, `league`, `house`, `squad`, and `tools_support`. The
+current `tools_support` family exposes `/staffhelp` only. The taxonomy names
+`/about`, `/guide`, `/help`, `/support`, and `/tools` remain unloaded and
+reserved; an assignment must not silently invent them. See
 `modules/application_command_policy.py` for the authoritative membership.
+
+An explicitly configured capability may apply to every allowed guild without
+copying the same assignment into each entry:
+
+```python
+application_command_all_guild_capabilities = ('operator',)
+```
+
+This setting is also default-deny when missing or empty. Do not assign
+`operator` until the loaded source contains a reviewed `/operator` root;
+planning must reject an assigned but unloaded root.
 
 Discord can filter only top-level roots. A capability cannot hide an
 individual staff subcommand inside an otherwise-enabled public root. Use a
 runtime permission check or a separately approved root for that case.
+`/operator` is Administrator-visible by default, but its exact configured
+owner/superuser checks remain the authoritative authorization boundary.
 
 ## Required sequence
 

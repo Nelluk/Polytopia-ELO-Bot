@@ -1288,7 +1288,7 @@ matrices or form modals. ELO recalculation and other long jobs should retain
 immediate confirmation/defer behavior; a modal adds little to a two-option
 command.
 
-### Prefix/operator-only and repair commands
+### Operator and repair commands
 
 These operations should not inflate the public slash tree. Their internals
 still require the same database, transaction, and event-loop review when
@@ -1296,15 +1296,15 @@ touched.
 
 | Current prefix handler(s) | Native home | Disposition / note |
 |---|---|---|
-| `restart` | none | Prefix/operator only; service lifecycle separately approved |
-| `purge_game_channels` | none | Destructive bulk Discord operation |
-| `tribe_emoji` | none initially | Rare owner configuration |
-| `ptrophies` | none | Retire/review hidden repair |
-| `boost_from` | none | Owner bulk repair |
-| `migrate_player` | none initially | Sensitive cross-record migration |
-| `delete_player` | none | Destructive owner repair |
-| `backup_db` | none | Operational backup |
-| `test` | none | Retire hidden diagnostic |
+| `restart`, `restart_force`, `quit` | `/operator bot restart` | Preserve configured-superuser access; explicit force confirmation; retire prefixes with replacement |
+| `purge_game_channels` | `/operator channels purge` | Owner-only preview/confirm/reconciliation workflow; retire prefix with replacement |
+| `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit; first planned native operator command |
+| `ptrophies` | none | Approved retirement: obsolete 2021 repair |
+| `boost_from`, `boost_from_norole` | none | Approved retirement |
+| `migrate_player`, `migrate` | `/operator player migrate` | Preserve configured-superuser access; typed preview and atomic audit; retire prefixes with replacement |
+| `delete_player`, `delplayer` | `/operator player delete` | Preserve owner-only access; typed preview and confirmation; retire prefixes with replacement |
+| `backup_db`, `dbb` | `/operator database backup` | Owner-only bounded, environment-aware host operation; retire prefixes with replacement |
+| `gtest` | none | Approved retirement: hidden hard-coded diagnostic |
 
 ## Proposed top-level roots
 
@@ -1406,12 +1406,14 @@ top-level roots into explicit capability families:
 | `house` | `house` | reserved future family |
 | `squad` | `squad` | reserved future family |
 | `tools_support` | `about`, `guide`, `help`, `staffhelp`, `support`, `tools` | reserved future family |
-| `operator_only` | none | never an application command |
+| `operator` | `operator` | Administrator-visible by default; exact owner/configured-superuser checks remain authoritative |
 
 Each server-settings profile may assign only known capabilities to guild IDs
 already present in that runtime profile's allowlist. Missing or empty
-assignments register nothing. Unknown capabilities/roots, duplicate or
-conflicting root definitions, operator-only assignments, and out-of-profile
+assignments register nothing. A separate explicit all-guild capability list
+may expand `operator` to every allowed guild without repeating assignments;
+it remains empty until a real reviewed subcommand is ready. Unknown
+capabilities/roots, duplicate or conflicting assignments, and out-of-profile
 guild IDs fail before remote work.
 
 Discord filters application commands at top-level-root granularity. A policy
