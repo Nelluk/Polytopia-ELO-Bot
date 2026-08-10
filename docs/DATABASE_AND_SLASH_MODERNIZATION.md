@@ -486,13 +486,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.26 is Complete, integrated,
-pushed, guild-applied, and loaded by the guarded development beta at
-`41da49e`. It adds confirmed Mod-only `/team archive`, retires the virtually
-unused `$team_edit` registration without an adapter, and preserves
-`$team_tier` as a dedicated worker-backed prefix command. P8.27, moving the
-production-only PolyChampions invitation task off the event loop, is the next
-bounded unit before P8 closes.** P8.25 is Complete, integrated, and pushed at
+Current active unit: **P8.27 PolyChampions invitation task database separation
+is Implemented and validated on `codex/p8-27-polychamps-invitations` from exact
+clean accumulation checkpoint `104dd75`; integration, push, and guarded beta
+restart remain. Development background tasks remain disabled, so this unit has
+no beta task execution or slash-tree apply.** P8.26 is
+Complete, integrated, pushed, guild-applied, and loaded by the guarded
+development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
 development beta through `a247641`; P7 is technically Complete. P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
@@ -10963,7 +10963,10 @@ retained development Team.
 
 ### P8.27 — PolyChampions invitation task database boundary
 
-Status: **Planned after P8.26**
+Status: **Implemented and validated; integration/push/restart pending**
+
+Branch/base: `codex/p8-27-polychamps-invitations` from exact clean
+accumulation checkpoint `104dd75`.
 
 Move the two-hour invitation eligibility scan and committed invitation-
 timestamp write to bounded worker-local operations. Capture immutable eligible
@@ -10973,6 +10976,57 @@ awaits. Preserve the existing qualification thresholds and production-only
 task policy. Do not enable background tasks on the beta merely to test this
 unit; use offline fault injection, the gated development schema, and an
 explicit production-parity review before P9.
+
+Implementation/evidence:
+
+- implementation and focused tests: `78a3aa3`; gated-test cleanup correction:
+  `98754a2`, both on `codex/p8-27-polychamps-invitations` from exact clean
+  checkpoint `104dd75`;
+- `modules/league_invitation_workers.py` owns a dedicated bounded one-thread
+  executor, worker-local Peewee connections, frozen primitive eligibility and
+  delivery DTOs, a cursor-bounded candidate scan, batched record/activity
+  aggregates, and an atomic conditional invitation-date update;
+- `modules/league_invitation.py` performs Discord guild/member resolution and
+  the unchanged direct-message copy on the event loop, then records the sent
+  date only after successful delivery. A failed DM is not recorded; a failed
+  post-DM write is logged as reconciliation rather than misreported as an
+  unsent invitation;
+- `modules/league.py` now delegates each cycle to that service, advances a
+  bounded scan cursor, and catches cycle failures so one error does not kill
+  the recurring task. The task still starts only when `settings.run_tasks` is
+  enabled; the development profile remains disabled;
+- preserved the exact legacy qualification matrix: account-wide peak ELO,
+  ban/PolyChampions membership/sent-date exclusions, current-era confirmed
+  ranked wins, recent activity, Moonrise peak-or-winning-record condition, and
+  the existing Polytopia identity requirement;
+- removed the dead synchronous `DiscordMember.members_not_on_polychamps()`
+  helper after the active task moved to the worker boundary;
+- focused invitation coverage: **12 passed**; affected runtime/league suite:
+  **118 passed with 57 intentional database-gated skips**; complete offline
+  discovery after the gate correction: **1,392 passed with 58 intentional
+  skips**; compilation and `git diff --check` passed; and
+- with only the guarded beta stopped, the unchanged gate confirmed
+  `development`, `polytopia_dev`, `polybot_dev`, and disabled background
+  tasks/API. The focused P8.27 real-schema case passed, followed by the full
+  suite: **57 tests run, 56 passed, one intentional operator-fixture
+  preservation skip**. The test proves bounded reads, idempotent sent-date
+  commit, forced rollback, and exact cleanup of its temporary members.
+
+Limitations:
+
+- Discord delivery and the database acknowledgement cannot be one atomic
+  transaction. If a DM succeeds and the following database write fails, the
+  task logs reconciliation; a later process restart/cursor wrap can deliver a
+  duplicate. A durable outbox/schema change is intentionally deferred rather
+  than added to this bounded unit.
+- Each cycle inspects at most 1,000 base candidates and advances a process-
+  local cursor. This bounds event-loop/worker pressure but does not persist
+  progress across restarts.
+- The legacy `polytopia_id or polytopia_name` identity condition remains for
+  production parity even though player identity is being simplified elsewhere.
+- No beta live smoke is meaningful: development background tasks remain
+  intentionally disabled. Production enablement requires P9 production-
+  parity review rather than temporarily enabling the task in development.
 
 After P8.26 and P8.27, rerun this phase's residual direct-database search. If
 only the explicitly deferred operator-only paths and dead helpers remain, mark
@@ -12475,6 +12529,27 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.27 invitation task worker validated
+
+- Moved the production-only two-hour eligibility scan and successful-delivery
+  timestamp write out of the Discord event-loop task into bounded worker-local
+  operations while preserving its qualification thresholds and DM copy.
+- Added frozen eligibility/delivery DTOs, batched aggregates, bounded cursor
+  pagination, worker connection ownership, atomic conditional/idempotent
+  persistence, cancellation draining, and recurring-cycle exception cleanup.
+- Implementation checkpoint `78a3aa3`; a first stopped-writer gate exposed a
+  test insertion that split the preceding fixture cleanup. Correction
+  `98754a2` restored both cleanup boundaries; the focused real-schema case and
+  complete gated suite then passed.
+- Final evidence: focused **12 passed**; affected **118 passed with 57 gated
+  skips**; offline **1,392 passed with 58 intentional skips**; gated
+  PostgreSQL **57 run, 56 passed, one intentional fixture skip**; compile and
+  diff checks passed.
+- The beta remains stopped for integration. No command tree changed and the
+  development profile keeps background tasks disabled, so the remaining
+  deployment action is integration/push plus a guarded beta restart with no
+  slash apply or tester announcement.
 
 ### 2026-08-09 — P8.26 integrated and deployed without unsafe archive smoke
 
