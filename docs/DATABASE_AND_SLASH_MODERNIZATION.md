@@ -490,8 +490,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.6 is Complete in the accumulation branch through
-`d702ed0`. Its accepted six-part contract keeps cron
+Current active unit: **P9.7a is Implemented on
+`codex/p9-7a-confirmation` at code/test checkpoint `c230b69`, from exact
+adversarial-review base `71568ff`. It corrects finding B3 by committing
+confirmation state, ELO, and actor/system audit together; post-commit Discord
+failures now report reconciliation rather than rollback, and auto-confirm
+contains publication failures and continues. The real-schema regression is
+present behind the unchanged development gate and remains deferred to a
+stopped-writer window.**
+
+P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
+six-part contract keeps cron
 authoritative, replaces `$backup_db` / `$dbb` with private owner-only
 `/operator database backup`, refuses outside the exact production identity
 before reading production artifacts, requires reviewed/deployed source parity,
@@ -499,7 +508,7 @@ and uses bounded single-flight process-group execution with distinct reporting
 partial-success and host-lock outcomes. No real backup was run. The first
 native production execution remains a separately approved P9 deployment gate.
 The reporting-export source prerequisite is resolved through reviewed `master`
-checkpoint `c35e2f1` and accumulation merge `fe98b57`.**
+checkpoint `c35e2f1` and accumulation merge `fe98b57`.
 
 P9.5 is Complete,
 integrated, and development-guild
@@ -12605,6 +12614,52 @@ script/command and perform the first native run only after confirming cron is
 idle; validate every artifact and the existing upload afterward. A
 development-guild sync is optional and can prove only fail-closed refusal.
 
+### P9.7a — Confirmation commit/publication truthfulness
+
+Status: **Implemented on the bounded unit branch; accumulation integration
+and stopped-writer real-schema evidence pending**
+
+Branch/base: `codex/p9-7a-confirmation`, exact base `71568ff` containing the
+unchanged adversarial review.
+
+Finding B3 in `docs/MODERNIZATION_PRE_PRODUCTION_REVIEW.md` proved that manual
+and automatic confirmation committed before Discord publication, while the
+authoritative audit happened later. A reload, Discord effect, or audit failure
+could therefore leave the game confirmed while the command claimed rollback;
+the automatic cycle could also terminate after the commit.
+
+The bounded correction:
+
+- passes only primitive requester attribution to the dedicated confirmation
+  worker and writes the confirmation/ELO audit inside the same synchronous
+  transaction as `declare_winner()`;
+- rolls confirmation and ELO back when that audit write fails, before any
+  Discord effect can run;
+- suppresses the old duplicate post-commit audit only for this confirmation
+  path while preserving the shared publisher's default behavior for existing
+  callers;
+- classifies reload or Discord failure after commit as a typed reconciliation
+  outcome and explicitly tells staff not to reconfirm the game;
+- counts an automatically confirmed game according to committed database
+  state, contains publication/reporting exceptions, and continues processing
+  later eligible games; and
+- preserves prefix/slash permissions, coordinator serialization, worker-local
+  connection ownership, and command interfaces.
+
+Focused ELO/win/taxonomy validation passed **113 tests with 61 intentionally
+gated database cases skipped**. Complete offline discovery passed **1,464
+tests with 62 intentional skips**. Compilation and `git diff --check` passed.
+The new real-schema commit/rollback regression remains behind the unchanged
+`POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate and was not
+run while the durable beta writer remained active.
+
+This unit deliberately does not close H4 or all of H5. The confirmation
+publisher still reloads a live Peewee graph synchronously and the automatic
+eligibility query still runs on the event loop. The next bounded correction
+should replace the confirmation reload/live-model publisher with a worker-read
+immutable effect snapshot; automatic candidate discovery and authoritative
+eligibility revalidation should then follow as a separate recurring-task unit.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13557,6 +13612,27 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7a confirmation semantics corrected
+
+- Committed the unchanged adversarial pre-production review at `71568ff`, then
+  created the isolated P9.7a branch from that exact checkpoint.
+- Moved the actor/system confirmation audit into the worker transaction,
+  removed duplicate post-commit auditing from this path, and distinguished
+  pre-commit rollback from committed Discord reconciliation failures.
+- Contained automatic-confirmation publication and summary failures so one
+  committed game cannot terminate processing of later candidates.
+- Added fault injection for transactional audit rollback, a failure after the
+  first Discord effect, truthful prefix reconciliation output, duplicate-audit
+  suppression, and automatic-cycle continuation. Added a real-schema
+  commit/rollback case behind the unchanged development safety gate.
+- Focused validation passed **113 tests with 61 gated skips**; complete offline
+  discovery passed **1,464 tests with 62 intentional skips**; compilation and
+  diff checks passed. The PostgreSQL case was not run while the durable beta
+  writer remained active.
+- Recorded implementation/tests checkpoint `c230b69`. H4's immutable,
+  model-free confirmation publisher and H5's automatic candidate selection
+  remain explicitly separate follow-up units.
 
 ### 2026-08-10 — P9.6 production backup operation implemented
 

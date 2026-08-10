@@ -43,6 +43,29 @@ from modules import operator_backup_views
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
+
+class ConfirmedWinPublicationError(RuntimeError):
+    """The confirmation committed, but its Discord effects did not finish."""
+
+    def __init__(self, result: elo_workers.ConfirmedWinResult):
+        self.result = result
+        super().__init__(
+            f'Committed game {result.game_id} confirmation requires '
+            'Discord reconciliation.'
+        )
+
+
+def format_confirmed_win_reconciliation(
+    result: elo_workers.ConfirmedWinResult,
+) -> str:
+    return (
+        f'Game {result.game_id} was confirmed as **{result.winner_name}** '
+        'and its ELO changes committed, but one or more Discord updates '
+        'failed. Do not confirm it again; staff should reconcile its '
+        'channels, roles, and announcement.'
+    )
+
+
 def load_unconfirmed_game_summaries(guild_id: int):
     """Load display-only unconfirmed game data on a local connection."""
 
@@ -152,6 +175,7 @@ class administration(commands.Cog):
         guild_id: int,
         requester_id: int | None,
         requester_name: str,
+        requester_description: str,
     ):
         utilities.lock_game(game_id)
         try:
@@ -161,7 +185,7 @@ class administration(commands.Cog):
                 requester_id=requester_id,
                 requester_name=requester_name,
                 worker=elo_workers.confirm_game,
-                worker_args=(game_id, guild_id),
+                worker_args=(game_id, guild_id, requester_description),
             )
         finally:
             utilities.unlock_game(game_id)
@@ -180,15 +204,40 @@ class administration(commands.Cog):
             guild_id=guild.id,
             requester_id=requester.id,
             requester_name=requester.display_name,
+            requester_description=models.GameLog.member_string(requester),
         )
-        winning_game = models.Game.load_full_game(result.game_id)
-        await post_win_messaging(
-            guild,
-            prefix,
-            channel,
-            winning_game,
+        await self._publish_confirmed_game(
+            result=result,
+            guild=guild,
+            prefix=prefix,
+            channel=channel,
         )
         return result
+
+    async def _publish_confirmed_game(
+        self,
+        *,
+        result: elo_workers.ConfirmedWinResult,
+        guild,
+        prefix: str,
+        channel,
+    ) -> None:
+        try:
+            winning_game = models.Game.load_full_game(result.game_id)
+            await post_win_messaging(
+                guild,
+                prefix,
+                channel,
+                winning_game,
+                write_audit=False,
+            )
+        except Exception as exc:
+            logger.exception(
+                'Game %s confirmation committed but Discord publication '
+                'failed',
+                result.game_id,
+            )
+            raise ConfirmedWinPublicationError(result) from exc
 
     async def _run_recalculation_job(
         self,
@@ -544,6 +593,10 @@ class administration(commands.Cog):
             return await ctx.send(str(exc))
         except exceptions.CheckFailedError as exc:
             return await ctx.send(f'*Error*: {exc}')
+        except ConfirmedWinPublicationError as exc:
+            return await ctx.send(
+                format_confirmed_win_reconciliation(exc.result)
+            )
         except peewee.PeeweeException:
             logger.exception(
                 'Database failure confirming game %s', winning_game.id
@@ -592,6 +645,10 @@ class administration(commands.Cog):
             return await interaction.followup.send(str(exc))
         except exceptions.CheckFailedError as exc:
             return await interaction.followup.send(f'*Error*: {exc}')
+        except ConfirmedWinPublicationError as exc:
+            return await interaction.followup.send(
+                format_confirmed_win_reconciliation(exc.result)
+            )
         except peewee.PeeweeException:
             logger.exception(
                 'Database failure confirming game %s from slash command',
@@ -652,6 +709,7 @@ class administration(commands.Cog):
                     guild_id=guild.id,
                     requester_id=None,
                     requester_name='automatic confirmation task',
+                    requester_description='Automatic confirmation task',
                 )
             except exceptions.RecordLocked:
                 logger.info(
@@ -671,18 +729,39 @@ class administration(commands.Cog):
                 logger.exception('Could not auto-confirm game %s', game.id)
                 continue
 
-            confirmed_game = models.Game.load_full_game(result.game_id)
-            await post_win_messaging(
-                guild,
-                prefix,
-                current_channel,
-                confirmed_game,
-            )
             games_confirmed += 1
-            await current_channel.send(
-                f'Game {game.id} auto-confirmed. {confirmation_reason} '
-                f'{confirmed_count} of {side_count} sides had confirmed.'
-            )
+            try:
+                await self._publish_confirmed_game(
+                    result=result,
+                    guild=guild,
+                    prefix=prefix,
+                    channel=current_channel,
+                )
+            except ConfirmedWinPublicationError as exc:
+                try:
+                    await current_channel.send(
+                        format_confirmed_win_reconciliation(exc.result)
+                    )
+                except Exception:
+                    logger.exception(
+                        'Could not report reconciliation warning for '
+                        'auto-confirmed game %s',
+                        result.game_id,
+                    )
+                continue
+
+            try:
+                await current_channel.send(
+                    f'Game {game.id} auto-confirmed. '
+                    f'{confirmation_reason} {confirmed_count} of '
+                    f'{side_count} sides had confirmed.'
+                )
+            except Exception:
+                logger.exception(
+                    'Game %s auto-confirmed but its completion summary '
+                    'could not be sent',
+                    result.game_id,
+                )
 
         logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
         return (unconfirmed_count, games_confirmed)

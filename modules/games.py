@@ -6165,7 +6165,14 @@ class polygames(commands.Cog):
             await asyncio.sleep(60 * 60 * 2)
 
 
-async def post_win_messaging(guild, prefix, current_chan, winning_game):
+async def post_win_messaging(
+    guild,
+    prefix,
+    current_chan,
+    winning_game,
+    *,
+    write_audit: bool = True,
+):
 
     purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category has "archive" in the name, or has "Manage Channel" denied to me.'
     reminder_message = ''
@@ -6176,7 +6183,8 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
         reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
-    models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message='Win is confirmed and ELO changes processed.')
+    if write_audit:
+        models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message='Win is confirmed and ELO changes processed.')
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
