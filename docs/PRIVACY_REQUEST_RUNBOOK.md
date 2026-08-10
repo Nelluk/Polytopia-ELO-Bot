@@ -59,8 +59,11 @@ raw database dump containing internal data or information about other users.
 ## 4. Choose deletion or anonymization
 
 If the user has no associated games, the owner-only `delete_player` command may
-remove the player record after the maintainer confirms that it covers the full
-request scope.
+remove an orphan database identity only after the maintainer confirms its
+relational blockers and intended cleanup scope. It is not a complete privacy
+workflow: audit/support records, tournament sheets, operational logs, and
+backups require the separate checks below, and API credentials or auction bids
+must be reconciled before database identity deletion.
 
 If competitive history depends on the record, irreversibly anonymize it rather
 than deleting shared game history:

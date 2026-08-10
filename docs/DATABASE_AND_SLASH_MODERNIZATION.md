@@ -488,8 +488,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.4 is Complete, integrated, and deployed from
-checkpoint `6e0d36a`.
+Current active unit: **P9.5's read-only player-deletion audit is complete on
+`codex/p9-5-player-deletion-audit` from exact accumulation checkpoint
+`9a96abc`. It found that `$delete_player` is an orphan-identity cleanup, not a
+general game-history or privacy-erasure command: it blocks any Lineup but has
+no preview/audit, silently cascades several relationships, can null hosts, and
+can fail on bids or API ownership. Six recommended implementation decisions
+are recorded below for acceptance before source changes. No command, database,
+Discord tree, beta process, or production state changed.** P9.4 is Complete,
+integrated, and deployed from checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
 audit, and post-commit public attribution; `$migrate_player`/`$migrate` are
@@ -11661,7 +11668,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.4 complete**
+Status: **In progress; P9.0–P9.4 complete; P9.5 player-deletion audit complete
+with implementation decisions pending acceptance**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12182,11 +12190,156 @@ Deployment evidence:
   private graph carefully; a safe nonexistent-source invocation may be used
   for an optional adapter smoke without database mutation.
 
-Next action: P9.5 should audit owner-only `$delete_player` / `$delplayer` and
-define a native `/operator player delete` preview/confirmation contract. The
-audit must identify all account-wide and per-guild dependencies, distinguish
-hard blockers from explicitly selected deletion scope, and keep the current
-owner-only authorization. No source change should precede those decisions.
+P9.4 selected the owner-only `$delete_player` / `$delplayer` graph audit as its
+next action. That P9.5 audit is now recorded below; implementation remains
+blocked only on acceptance or revision of its six decisions.
+
+### P9.5 — Owner-only orphan player deletion
+
+Status: **Audit complete; implementation decisions pending acceptance**
+
+Risk tier: **Tier 3 destructive account-wide identity deletion**. Audit
+branch: `codex/p9-5-player-deletion-audit` from exact clean accumulation
+checkpoint `9a96abc`.
+
+#### Legacy behavior and concrete findings
+
+The retained `$delete_player` / `$delplayer` command accepts one raw Discord
+ID or mention and is restricted to the configured bot owner through
+`commands.is_owner()`. It loads a `DiscordMember`, counts every associated
+`Lineup` regardless of game status through `DiscordMember.games_played()`, and
+calls `DiscordMember.delete_instance()` only when that count is zero.
+
+That narrow zero-Lineup rule is useful, but the current implementation is not
+a safe native deletion workflow:
+
+- its Peewee lookup, Lineup count, and delete execute on the Discord event
+  loop;
+- it has no preview, confirmation, stale fingerprint, row lock, cancellation
+  drain, actor-attributed `GameLog`, or rollback-focused tests;
+- deleting the identity cascades every per-guild `Player`. That in turn
+  cascades `SquadMember` and `PlayerHousePreference` rows and discards Team,
+  nick, rating, trophy, and ban metadata without showing the operator;
+- the zero-Lineup check does not inspect `Game.host`. A zero-Lineup Player can
+  still host a game, and deletion silently sets that game's host to null;
+- `Bid.player` and `Bid.bidder` have no cascade policy, so retained auction
+  rows can reject the delete. Silently deleting or rewriting historical bids
+  would be a separate league-data decision;
+- an owned `ApiApplication` can also reject deletion. Revoking or moving API
+  credentials is security-sensitive and outside this command;
+- the success message is public only after the single delete statement, but
+  it does not identify the actor and there is no durable audit; and
+- despite its mention in `PRIVACY_REQUEST_RUNBOOK.md`, this command cannot by
+  itself satisfy a privacy erasure. `GameLog` text, staffhelp/support records,
+  tournament sheets, active/rotated logs, and backups are not relational
+  children and remain governed by the manual privacy workflow.
+
+No other checked-in Peewee model outside this graph has a foreign key to
+`DiscordMember` or `Player`. The relevant relational graph is therefore:
+
+- `DiscordMember -> Player` (`CASCADE`);
+- `Player -> Lineup` (`RESTRICT`), which the legacy zero-game rule catches;
+- `Player -> Game.host` (`SET NULL`), currently missed;
+- `Player -> SquadMember` and `PlayerHousePreference` (`CASCADE`);
+- `Player -> Bid.player` and `Bid.bidder` (no explicit deletion action); and
+- `DiscordMember -> ApiApplication.owner` (no explicit deletion action).
+
+#### Recommended implementation decisions
+
+**P9.5-A — Exact native scope and authorization**
+
+- Add `/operator player delete player_id:<required string>` under the existing
+  guild-scoped operator root. Keep the target as a raw validated Discord ID or
+  mention because orphan/departed accounts may not be selectable as current
+  guild members.
+- Preserve exact owner-only authorization in both adapter and worker. Do not
+  broaden deletion to the additional configured migration superusers.
+- Reject the owner, every configured superuser, production/beta bot IDs, a
+  malformed ID, missing guild context, and an unknown stored identity
+  privately.
+- Keep one account-wide deletion scope. Do not add guild-only or selectable
+  cascade modes: those would make the name misleading and create partial
+  identity states.
+
+**P9.5-B — Fail-closed eligibility policy**
+
+- Preserve and revalidate the zero-Lineup rule across completed, incomplete,
+  pending, ranked, and unranked games. This command never deletes or
+  anonymizes game history.
+- Also block any hosted game, `Bid.player`/`Bid.bidder` reference, or owned
+  `ApiApplication`. Operators must reassign/delete those records through their
+  domain-specific process before retrying.
+- Allow deletion of otherwise-unreferenced per-guild Players, their
+  `SquadMember` rows, and their `PlayerHousePreference` rows. These are the
+  explicitly reviewed orphan-profile children of this cleanup.
+- Treat non-default global/guild rating, Team, trophy, ban, canonical-name,
+  timezone, and legacy identity fields as prominent warnings, not automatic
+  blockers, because zero-game test/duplicate identities can legitimately
+  carry them. The exact confirmation must acknowledge their loss.
+
+**P9.5-C — Mandatory private inventory and typed confirmation**
+
+- Privately defer and load one immutable account-wide preview showing the
+  stored ID/name, account metadata fields present, global rating values, every
+  guild Player with Team/rating/nick state, squad/preference counts, and all
+  Lineup/host/bid/API blockers.
+- Use requester-bound, expiry-safe controls. A **Delete** button opens a modal
+  requiring exact `DELETE <discord_id>`; Cancel makes no database change. A
+  bare Boolean confirmation is insufficient for an irreversible identity
+  deletion.
+- Fingerprint the complete graph. Confirm locks/reloads it and rejects stale
+  state privately with guidance to rerun the preview.
+- State explicitly that audit/support/sheet/log/backup privacy work is outside
+  this command so an operator cannot mistake database cleanup for complete
+  erasure.
+
+**P9.5-D — Explicit atomic deletion graph**
+
+- Inside one transaction, explicitly delete the previewed
+  `SquadMember` and `PlayerHousePreference` rows, then the zero-reference
+  Player rows and surviving target `DiscordMember`.
+- Write one actual-invocation-guild, actor-attributed `GameLog` entry in that
+  same transaction. The audit retains the deleted ID/name and exact row
+  counts; it is intentionally not a privacy-redaction mechanism.
+- Rely on no implicit cascade for the reviewed children, and abort if the
+  exact affected-row counts differ from the confirmed preview.
+
+**P9.5-E — Worker, transaction, and Discord lifecycle**
+
+- Use a dedicated one-thread executor with frozen primitive requests,
+  worker-local Peewee connection, cancellation drain, and deterministic
+  PostgreSQL `FOR UPDATE` locks on the identity, Players, and reviewed
+  dependency rows.
+- Keep all validation, deletion, count verification, and audit synchronous
+  inside `db.atomic()` with no Discord await.
+- Publish exactly one public actor/target/count result after commit. Permission,
+  validation, blockers, stale preview, typed-confirmation mismatch, and
+  rollback failures remain private. A post-commit publication failure is
+  terminal reconciliation and never restores the Delete control.
+
+**P9.5-F — Prefix lifecycle, tests, and deployment gate**
+
+- Retire `$delete_player` and `$delplayer` with the complete native
+  replacement; add the intentional retirement to the compatibility ledger.
+- Require focused tests for owner versus configured-non-owner superuser,
+  protected identities, missing target, every blocker, warning-only metadata,
+  exact typed confirmation, stale preview, cancellation, atomic count checks,
+  rollback including audit, public-after-commit ordering, prefix retirement,
+  and exact nested registration.
+- Require a stopped-beta `development` / `polytopia_dev` / `polybot_dev`
+  commit/rollback/cleanup graph before integration. The nested command then
+  requires the explicit development-guild `/operator` update and guarded
+  restart. No wider-tester announcement is appropriate; one owner acceptance
+  or first real use is sufficient.
+
+#### Audit boundaries and next action
+
+This audit changed documentation only. It did not inspect or mutate
+PostgreSQL, fixtures, Discord, application-command state, the guarded beta,
+production, dependencies, or services. No implementation branch should begin
+until P9.5-A through P9.5-F are accepted or revised. The recommended design is
+one bounded Tier-3 unit because preview, fingerprint, typed confirmation,
+locked deletion, exact counts, and audit must share one graph definition.
 
 ## Standard work-unit template
 
@@ -13140,6 +13293,22 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.5 orphan player-deletion graph audited
+
+- Traced `$delete_player` / `$delplayer` through every checked-in
+  `DiscordMember` and `Player` foreign key and the manual privacy runbook.
+- Confirmed the useful zero-Lineup boundary, but found missing host/bid/API
+  blockers, silent cascade loss, event-loop I/O, and absent preview/audit/
+  locking/rollback evidence.
+- Proposed P9.5-A through P9.5-F: raw target ID, exact owner-only authorization,
+  one account-wide orphan-cleanup scope, fail-closed blockers, private
+  inventory plus exact typed confirmation, explicit atomic child deletion and
+  audit, post-commit public attribution, and prefix retirement.
+- Clarified that the command is not automated privacy erasure; logs, support
+  records, sheets, and backups remain a manual runbook scope.
+- Made no source, database, Discord, beta, production, dependency, fixture, or
+  service change. Implementation awaits acceptance or revision.
 
 ### 2026-08-10 — P9.4 integrated and deployed guild-only
 
