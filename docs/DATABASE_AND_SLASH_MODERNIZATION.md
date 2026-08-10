@@ -490,15 +490,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7c implementation/tests and Tier-3 complete-diff
-review are complete on `codex/p9-7c-win-unwin-snapshot` at checkpoint
-`237227c`, from exact clean accumulation base `eb439ec`. Ordinary win and
-unwin now return bounded worker-loaded immutable publication snapshots after
-commit, while their Discord publishers are model-free and post-commit
-snapshot/publication failures report reconciliation truthfully. The extended
-real-schema regression remains behind the unchanged development gate and is
-deferred to the next stopped-writer batch. Accumulation integration and
-close-out are the next actions.**
+Current active unit: **P9.7c is Complete in the accumulation branch at merge
+checkpoint `c1ba2b4` (code/test `237227c`, evidence `05ba88c`), from exact
+clean accumulation base `eb439ec`. Ordinary win and unwin now return bounded
+worker-loaded immutable publication snapshots after commit, while their
+Discord publishers are model-free and post-commit snapshot/publication
+failures report reconciliation truthfully. The accumulated P9.7 real-schema
+cases and development-beta rollout are the next gated actions.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12722,11 +12720,11 @@ boundaries.
 
 ### P9.7c — Immutable ordinary win/unwin publication snapshots
 
-Status: **Implementation and Tier-3 review complete; accumulation integration
-pending**
+Status: **Complete in the accumulation branch; development-beta gate pending**
 
 Branch/base: `codex/p9-7c-win-unwin-snapshot`, exact clean accumulation base
 `eb439ec`. Implementation/tests checkpoint: `237227c`.
+Roadmap evidence: `05ba88c`; accumulation merge: `c1ba2b4`.
 
 This bounded H4 correction replaces ordinary win/unwin event-loop ORM reloads
 and live-model Discord publication graphs:
@@ -13749,9 +13747,16 @@ branch.
   one stale undefined cleanup assertion in the adjacent P9.7a gated case. The
   accumulated database cases remain deferred under the documented cadence
   while the healthy durable beta writer runs at `a13d440`.
-- Next action: commit this evidence, integrate the reviewed unit into the
-  accumulation branch, record its merge/close-out checkpoint, push, and decide
-  the beta rollout without taking an unnecessary stopped-writer window.
+- Integrated the reviewed unit into the accumulation branch at merge
+  checkpoint `c1ba2b4`. The beta is healthy but remains at P9.5 checkpoint
+  `a13d440`; because a P9.7a-c rollout is a wider-beta checkpoint, the cadence
+  requires one accumulated stopped-writer real-schema batch before restart.
+  No application-command registration changed, so no guild apply is planned.
+- Next action: commit/push the accumulation close-out, stop only the guarded
+  development beta, run the unchanged gated suite plus offline command-tree
+  plan, restart at the clean close-out checkpoint with startup sync disabled,
+  verify health/identity, update WHAT TO TEST, and deliver the reviewed
+  development-only announcement last.
 
 ### 2026-08-10 — P9.7b confirmation publication snapshot implemented
 
