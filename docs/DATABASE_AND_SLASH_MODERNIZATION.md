@@ -379,6 +379,7 @@ would become unavailable if a prefix is retired.
 | C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
+| C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused and complete offline validation green; stopped-beta real-schema validation and guild-only deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -488,15 +489,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.5's read-only player-deletion audit is complete on
-`codex/p9-5-player-deletion-audit` from exact accumulation checkpoint
-`9a96abc`. It found that `$delete_player` is an orphan-identity cleanup, not a
-general game-history or privacy-erasure command: it blocks any Lineup but has
-no preview/audit, silently cascades several relationships, can null hosts, and
-can fail on bids or API ownership. Nelluk accepted all six implementation
-decisions on 2026-08-10; the next checkpoint is the bounded Tier-3 source
-implementation. No command, database, Discord tree, beta process, or
-production state changed during the audit.** P9.4 is Complete,
+Current active unit: **P9.5 is Implemented on
+`codex/p9-5-player-deletion` at checkpoint `6ea6a55`, based on accepted
+checkpoint `9f961c7`. Owner-only `/operator player delete` now provides the
+private account-wide orphan inventory, protected-identity and dependency
+checks, stale fingerprint, exact typed confirmation, explicit locked
+transaction/audit graph, cancellation drain, and post-commit public result;
+`$delete_player`/`$delplayer` are retired under C-028. Focused validation
+passed 47 tests and complete offline discovery passed 1,439 with 61 intentional
+database-gated skips. The next gate is stopped-beta real-schema validation;
+no database, Discord tree, beta process, or production state changed during
+implementation.** P9.4 is Complete,
 integrated, and deployed from checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
@@ -11669,8 +11672,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.4 complete; P9.5 player-deletion contract
-accepted for implementation**
+Status: **In progress; P9.0–P9.4 complete; P9.5 implemented pending its
+stopped-beta real-schema and deployment gates**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12197,11 +12200,12 @@ blocked only on acceptance or revision of its six decisions.
 
 ### P9.5 — Owner-only orphan player deletion
 
-Status: **Contract accepted; implementation pending**
+Status: **Implemented; stopped-beta real-schema validation pending**
 
 Risk tier: **Tier 3 destructive account-wide identity deletion**. Audit
 branch: `codex/p9-5-player-deletion-audit` from exact clean accumulation
-checkpoint `9a96abc`.
+checkpoint `9a96abc`. Implementation branch:
+`codex/p9-5-player-deletion` from accepted checkpoint `9f961c7`.
 
 #### Legacy behavior and concrete findings
 
@@ -12341,6 +12345,39 @@ production, dependencies, or services. Nelluk accepted P9.5-A through P9.5-F
 without revision on 2026-08-10. The implementation may therefore proceed as
 one bounded Tier-3 unit because preview, fingerprint, typed confirmation,
 locked deletion, exact counts, and audit must share one graph definition.
+
+#### Implementation evidence
+
+Implementation/tests checkpoint `6ea6a55` on
+`codex/p9-5-player-deletion` adds the accepted native adapter, service,
+requester-bound private Components v2 preview and confirmation modal, dedicated
+worker, exact-count transaction, prefix retirement, focused offline coverage,
+and a complete stopped-beta PostgreSQL commit/block/rollback/cleanup case.
+
+The worker receives frozen primitive requests, revalidates exact owner access
+and every protected target, owns its Peewee connection, deterministically
+locks and rebuilds the complete graph, and drains cancellation before returning
+from destructive work. Lineups, hosted games, bids, and API ownership fail
+closed. Squad memberships and House preferences are explicitly deleted before
+the exact Player and DiscordMember counts are verified; one actor-attributed
+actual-guild GameLog is written inside the same transaction. No Discord await
+occurs in that transaction. The private preview can retry only after a
+pre-commit failure; committed publication failure is terminal reconciliation.
+
+Validation at the implementation checkpoint:
+
+- operator/deletion/migration/Tribe/access/taxonomy focus: **47 passed**;
+- complete offline discovery: **1,439 passed, 61 intentional gated skips**;
+- touched-tree `compileall` and `git diff --check`: passed; and
+- the strict `development` / `polytopia_dev` / `polybot_dev` real-schema case
+  exists but has not yet run because the durable beta remains active.
+
+No PostgreSQL, fixture, Discord, beta, production, dependency, or service
+operation occurred during source implementation. Next: stop only the guarded
+development beta, prove a clear single-writer state, run the unchanged complete
+database gate including the P9.5 commit/block/rollback/cleanup graph, then
+integrate and perform an explicit development-guild `/operator` update and
+guarded restart if the gate remains green.
 
 ## Standard work-unit template
 
@@ -13294,6 +13331,21 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.5 owner-only orphan deletion implemented
+
+- Added `/operator player delete player_id` with exact owner-only adapter and
+  worker authorization, protected owner/superuser/bot identities, and raw-ID
+  support for departed users.
+- Added a private immutable account/guild/dependency inventory, prominent
+  metadata warnings, blocker-disabled Delete control, and exact
+  `DELETE <discord_id>` confirmation modal.
+- Added the worker-local, deterministic-lock, stale-fingerprint, exact-count,
+  atomic child/Player/identity deletion and actor-attributed audit graph with
+  cancellation drain and public-after-commit attribution.
+- Retired `$delete_player` and `$delplayer` under C-028.
+- Passed 47 focused tests and 1,439 complete offline tests with 61 intentional
+  database-gated skips; the stopped-beta PostgreSQL gate remains next.
 
 ### 2026-08-10 — P9.5 deletion contract accepted
 
