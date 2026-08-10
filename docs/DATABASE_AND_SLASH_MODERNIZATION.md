@@ -11654,8 +11654,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0 audit and P9.1 upstream reconciliation complete;
-P9.2 operator capability infrastructure implemented, integration pending**
+Status: **In progress; P9.0–P9.2 complete; next is the first native operator
+workflow**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11832,7 +11832,7 @@ timezone migration.
 
 ### P9.2 — Configurable superusers and operator capability infrastructure
 
-Status: **Implemented; integration pending**
+Status: **Complete; integrated through `087fabe`**
 
 Risk tier: **Tier 2 runtime authorization and command-deployment policy**.
 Branch: `codex/p9-2-operator-capability` from exact clean accumulation
@@ -11887,6 +11887,11 @@ Implementation evidence:
   `git diff --check` passed.
 
 Implementation/tests checkpoint: `28df76e`.
+
+Integration result: fast-forwarded the reviewed unit through formatting
+checkpoint `087fabe` into `codex/database-slash-modernization`. No command root
+was loaded or assigned, so integration required no beta restart, Discord
+synchronization, database gate, or tester announcement.
 
 Next action after completion: implement the owner-only Tribe emoji read/edit
 command as the first real `/operator` subcommand, then explicitly assign and
@@ -12860,7 +12865,7 @@ branch.
   offline tests with 58 intentional gated skips. No PostgreSQL test was needed
   because no database path changed.
 - Recorded implementation checkpoint `28df76e`; integration into the
-  accumulation branch remains the completion gate.
+  accumulation branch completed through `087fabe`.
 
 ### 2026-08-09 — P9.1 current-master reconciliation validated
 
