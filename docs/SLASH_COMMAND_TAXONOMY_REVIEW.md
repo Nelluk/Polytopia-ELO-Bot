@@ -1024,7 +1024,7 @@ beta lifecycle action is part of this unit.
 | `house_add` | `/house create` | P8.9 Mod-only atomic House/audit creation; legacy prefix fully retired; exact Discord role remains a separate staff step |
 | `house_rename` alias | `/house name` | P8.8 public read/Mod edit; legacy alias retired; names remain required and cannot be cleared |
 | `house_image` alias | `/house image` | P8.8 effective-image read, typed attachment replacement, explicit clear; legacy alias/URL replacement retired |
-| `gtest` | none | Retire/review hidden hard-coded test command |
+| `gtest` | none | Retired in P9.8 under D-046: hidden hard-coded test command |
 
 The deeper `roster` and `maintenance` paths reserve the short `/league`
 surface for ordinary league participants. They also make destructive batch
@@ -1299,12 +1299,12 @@ touched.
 | `restart`, `restart_force`, `quit` | `/operator bot restart` | Preserve configured-superuser access; explicit force confirmation; retire prefixes with replacement |
 | `purge_game_channels` | `/operator channels purge` | Owner-only preview/confirm/reconciliation workflow; retire prefix with replacement |
 | `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit implemented in P9.3; prefix retired under C-026 |
-| `ptrophies` | none | Approved retirement: obsolete 2021 repair |
-| `boost_from`, `boost_from_norole` | none | Approved retirement |
+| `ptrophies` | none | Retired in P9.8 under D-046: obsolete 2021 repair |
+| `boost_from`, `boost_from_norole` | none | Retired in P9.8 under D-046 |
 | `migrate_player`, `migrate` | `/operator player migrate` | Complete in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; integrated and development-guild deployed at `6e0d36a` |
 | `delete_player`, `delplayer` | `/operator player delete` | Complete in P9.5: raw target ID, exact owner-only access, private account-wide orphan graph, fail-closed Lineup/host/bid/API blockers, exact typed confirmation, atomic explicit deletion/audit, and prefix retirement under C-028; integrated and development-guild deployed at `a13d440` |
 | `backup_db`, `dbb` | `/operator database backup` | P9.6 implemented at `9397755` and integrated through `d702ed0`: no-argument private owner confirmation, exact production/source-match boundary, bounded single-flight process-group lifecycle, structured private artifact result/logging, stable reporting-partial/host-lock outcomes, and complete prefix retirement under C-029; separately approved production activation remains pending |
-| `gtest` | none | Approved retirement: hidden hard-coded diagnostic |
+| `gtest` | none | Retired in P9.8 under D-046: hidden hard-coded diagnostic |
 
 ## Proposed top-level roots
 

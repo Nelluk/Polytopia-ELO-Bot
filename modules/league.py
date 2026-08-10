@@ -1398,37 +1398,6 @@ class league(commands.Cog):
                 'House image operation failed and rolled back.', ephemeral=True
             )
     
-    @commands.command(hidden=True)
-    @settings.is_mod_check()
-    async def gtest(self, ctx, *, arg=None):
-        args = arg.split() if arg else []
-        game = models.Game.get(135855)
-        logger.debug(f'calling gtest on game {game.id}')
-        await auto_grad_novas(guild=ctx.guild, game=game, output_channel=ctx)
-
-        return
-
-        # total_games = (models.GameSide
-        #            .select()
-        #            .join(models.Game)
-        #            .where((models.GameSide.team_id == team_id) &
-        #                   (models.Game.league_season == league_season))
-        #            )
-        
-        # for g in total_games:
-        #     print(g.id, g.game.id, g.game.name)
-        # await ctx.send(len(total_games))
-
-        team = models.Team.get(team_id)
-        # records = team.get_season_record(season=league_season)
-
-        records = team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
-        # records = models.Team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
-        print(records)
-        print(len(records))
-        for record in records:
-            print(record.name, record.id, record.emoji, record.regular_season_wins, record.regular_season_losses, record.regular_season_incomplete, record.post_season_wins, record.post_season_losses, record.post_season_incomplete)
-    
     @commands.command(name='team_tier', usage='team_name tier')
     @settings.is_mod_check()
     async def team_tier(self, ctx, *, arg=None):

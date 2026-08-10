@@ -13,7 +13,6 @@ import discord
 import re
 import functools
 from modules.games import PolyGame
-import modules.achievements as achievements
 from modules import auto_confirmation_workers
 from modules import confirmation_publication, confirmation_publication_workers
 from modules import elo_workers, game_correction_publication, game_workers
@@ -2723,93 +2722,6 @@ class administration(commands.Cog):
                 ctx.guild.id,
             )
             return await ctx.send('Team server operation failed and rolled back.')
-
-    @commands.command(usage='@Player <New Trophies Value>', hidden=True)
-    @settings.is_mod_check()
-    async def ptrophies(self, ctx, *, args=None):
-        """*Mod*: Set the trophies earned during the 2021 Polympics. Can only be used by mods on the server that the bot has tagged as named "Polympics"
-
-        **Example:**
-        `[p]ptrophies @Nelluk` 🥇🥈🥈🥉
-        `[p]ptrophies @koric None` - Clear existing trophies
-        """
-
-        if settings.guild_setting(ctx.guild.id, 'display_name') != 'Polympics' and settings.get_user_level(ctx.author) < 7:
-            return await ctx.send('This command must be used from the "Polympics" server or by the bot owner.')
-
-        usage = f'**Example Usage**: {ctx.prefix}{ctx.invoked_with} @PlayerName 🥇🥈🥈🥉\nUse "None" to clear trophies.\nPlayer can be a raw discord ID. Command must be used by a mod on Polympics server.'
-        args = args.split() if args else []
-        if len(args) != 2:
-            return await ctx.send(f'Wrong number of arguments.\n{usage}')
-
-        p_id = utilities.string_to_user_id(args[0])
-        if not p_id:
-            return await ctx.send(f'Could not parse a discord ID or player mention.\n{usage}')
-
-        trophies_key = 'polympics2021'
-
-        try:
-            dm = models.DiscordMember.select().where(models.DiscordMember.discord_id == p_id).get()
-            if dm.trophies:
-                old_trophies = dm.trophies.get(trophies_key, None)
-            else:
-                old_trophies = None
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{p_id}`')
-
-        if args[1].upper() == 'NONE':
-            new_trophies = None
-        else:
-            new_trophies = str(args[1])
-
-        logger.debug(f'Attempting to update Polympics 2021 trophies of user {dm.name} from {old_trophies} to {new_trophies}')
-        if new_trophies:
-            if dm.trophies:
-                dm.trophies[trophies_key] = new_trophies
-            else:
-                dm.trophies = {trophies_key: new_trophies}
-        else:
-            if dm.trophies and trophies_key in dm.trophies:
-                del dm.trophies[trophies_key]
-                
-        if not dm.trophies:
-            dm.trophies = None
-        dm.save()
-
-        await ctx.send(f'Polympics 2021 trophies field for *{dm.name}* updated with new value "{new_trophies}". The previous value was "{old_trophies}".')
-   
-    
-    @commands.command(aliases=['boost_from_norole'])
-    @commands.is_owner()
-    async def boost_from(self, ctx, p_string: str):
-        """*Owner*: Award booster roles to a member who has donated
-        Use a @Mention or raw user ID as an argument. This will attempt to set the role on ALL servers the bot shares with the player.
-        It will look for a role that contains the word 'ELO' and 'BOOST' in the name. It will also mark the player as a booster in the database.
-
-        **Examples**
-        `[p]boost_from @FrontDoor Matt`
-
-        Use `[p]boost_from_norole` to skip the role setting (for the shy).
-        """
-
-        p_id = utilities.string_to_user_id(p_string)
-        if not p_id:
-            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} @BoostingUser`')
-
-        try:
-            dm = models.DiscordMember.select().where(models.DiscordMember.discord_id == p_id).get()
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{p_id}`')
-
-        if ctx.invoked_with == 'boost_from_norole':
-            counter = 0
-        else:
-            counter = await achievements.award_booster_role(dm)
-
-        dm.boost_level = 1
-        dm.save()
-
-        await ctx.send(f'Marking **{dm.name}** as a booster and successfully applied the role across {counter} server(s).')
 
     @commands.command(hidden=True)
     @commands.is_owner()

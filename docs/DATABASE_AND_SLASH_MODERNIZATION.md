@@ -490,14 +490,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7g completed-game channel purge is Complete in the
-accumulation branch at merge checkpoint `6adb4ae` (implementation/tests
-`247b243`, evidence `cbf75a5`) and close-out checkpoint `364d53a`, from exact
-clean accumulation base `1c2f4ef`. The recurring task now discovers bounded
-immutable channel targets off-loop, preserves every deletion protection and
-eligibility window, and conditionally clears exact database references only
-after Discord confirms deletion. The accumulated P9.7d-g stopped-writer suite
-is green, and the guarded beta is healthy at `364d53a`.**
+Current active unit: **P9.8 approved obsolete operator-command retirement is
+Implemented on `codex/p9-8-obsolete-command-retirements` at checkpoint
+`de608c9`, from exact clean accumulation base `3d74ff5`. The hidden hard-coded
+`$gtest`, obsolete 2021 `$ptrophies`, and owner-only `$boost_from` /
+`$boost_from_norole` handlers are absent from the prefix registry. Restart
+aliases and manual owner-only `$purge_game_channels` remain explicitly
+separate. Complete offline discovery reaches only the three known missing-
+`duckdb` environment failures; all 1,536 available cases pass with 67 skips
+when those exact cases are excluded. Accumulation integration and the
+prefix-registry beta reload remain pending.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13022,6 +13024,52 @@ next is the bounded H6 retirement of approved obsolete `$gtest`, `$ptrophies`,
 and `$boost_from` commands. Also ready is the separate H6 design decision for
 the destructive manual channel-purge replacement.
 
+### P9.8 — Approved obsolete operator-command retirements
+
+Status: **Implemented in the isolated unit branch; accumulation integration
+and development-beta reload pending**
+
+Branch/base: `codex/p9-8-obsolete-command-retirements`, exact clean
+accumulation base `3d74ff5`. Implementation/tests checkpoint: `de608c9`.
+
+This bounded Tier-2 H6 cleanup implements the accepted D-046 retirement
+decision without inventing native replacements for obsolete functionality:
+
+- removes the hidden hard-coded `$gtest` handler and its unreachable debug
+  body;
+- removes the obsolete Polympics 2021 `$ptrophies` repair;
+- removes owner-only `$boost_from` and its `$boost_from_norole` alias, together
+  with the now-unused achievements import; and
+- keeps `$restart`, `$restart_force`, `$quit`, and owner-only
+  `$purge_game_channels` executable with explicit dispositions pending their
+  separate replacement or retirement decisions.
+
+The command-registry regression enumerates both administration and league
+prefix names, requires all four approved retired names to be absent, and
+requires every retained H6 operator name to remain registered. Adjacent
+operator replacement/retirement coverage passed **53 tests**. Compilation and
+`git diff --check` passed.
+
+Complete offline discovery ran **1,539 tests with 67 intentional skips** and
+reached only the three documented unsynchronized-environment failures: the
+missing `duckdb` import, missing `duckdb` dependency-inventory entry, and the
+resulting reporting-export import error. With those exact cases excluded, all
+**1,536 remaining tests passed with 67 skips**; equivalently, **1,469 tests
+passed**. Dependencies were not installed or synchronized.
+
+P9.8 changes no database worker, schema, data, application command, capability,
+or Discord effect. The P9.7g full stopped-writer database gate is current, so
+another development-database window is not warranted. No application-command
+plan/apply is needed. The durable beta does require one restart after
+integration so its in-memory prefix registry loads the retirements; because
+these were hidden or owner/mod-only obsolete paths, no tester checklist edit,
+tester ping, or public beta announcement is planned.
+
+Remaining H6 work is deliberately separate: decide whether to retire manual
+`$purge_game_channels` or replace it with a bounded owner-only
+preview/confirmation/reconciliation worker. The restart aliases likewise
+remain pending an explicit guarded-systemd workflow decision.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13974,6 +14022,33 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.8 obsolete operator-command retirements implemented
+
+- Reconciled the clean local, tracking, and exact GitHub accumulation ref at
+  `3d74ff5`; no P9.8/H6 unit branch or worktree existed. The sole guarded
+  development beta was healthy with one writer at running code checkpoint
+  `364d53a`, while the newer accumulation checkpoint was documentation-only.
+- Created isolated branch/worktree
+  `codex/p9-8-obsolete-command-retirements` from that exact base and verified
+  the development-only profile, `polytopia_dev`, `polybot_dev`, disabled
+  background tasks, and disabled API.
+- Removed only `$gtest`, `$ptrophies`, `$boost_from`, and
+  `$boost_from_norole`, plus the handler-only achievements import. Preserved
+  restart/force/quit and manual owner-only channel purge unchanged.
+- Added exact administration/league prefix-registry coverage for all retired
+  names and an explicit retained-H6 disposition inventory. The focused
+  adjacent operator matrix passed 53 tests; compilation and diff checks
+  passed.
+- Complete discovery ran 1,539 tests: 1,469 passed, 67 skipped, and only the
+  three known missing-`duckdb` environment failures remained. Excluding those
+  exact cases passed all 1,536 remaining tests with 67 skips. No dependency
+  was installed or synchronized.
+- Recorded implementation/tests at `de608c9`. No database, application-command
+  tree, capability, or tester-facing workflow changed, so no development-
+  database gate or guild command sync is warranted. Next action is Tier-2
+  complete-diff review, accumulation integration/push, then one guarded beta
+  restart to reload the prefix registry without a tester announcement.
 
 ### 2026-08-10 — P9.7g completed-channel purge reviewed and database-validated
 
