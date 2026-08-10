@@ -69,7 +69,7 @@ class ConfirmationPublicationSnapshot:
     nova: nova_graduation_workers.NovaGraduationResult | None
 
 
-def _normalise_context(
+def normalise_publication_context(
     context: ConfirmationPublicationContext,
 ) -> ConfirmationPublicationContext:
     bot_guild_ids = tuple(dict.fromkeys(int(value) for value in context.bot_guild_ids))
@@ -150,7 +150,9 @@ def _earned_experience_roles(discord_member) -> tuple[str | None, tuple[str, ...
     return earned[-1], tuple(earned[:-1])
 
 
-def _experience_role_effects(full_game) -> tuple[ExperienceRoleEffect, ...]:
+def build_experience_role_effects(
+    full_game,
+) -> tuple[ExperienceRoleEffect, ...]:
     effects = []
     seen = set()
     for side in full_game.gamesides:
@@ -219,7 +221,7 @@ def _leaderboard_champion(query) -> int | None:
     return int(champion.discord_member.discord_id)
 
 
-def _champion_role_effect(
+def build_champion_role_effect(
     full_game,
     context: ConfirmationPublicationContext,
 ) -> ChampionRoleEffect | None:
@@ -279,7 +281,7 @@ def build_confirmation_publication_snapshot(
 ) -> ConfirmationPublicationSnapshot:
     """Freeze every database-derived publication input on the ELO worker."""
 
-    context = _normalise_context(context)
+    context = normalise_publication_context(context)
     full_game = models.Game.load_full_game(game_id)
     if int(full_game.guild_id) != int(guild_id):
         raise ConfirmationPublicationSnapshotError(
@@ -321,7 +323,7 @@ def build_confirmation_publication_snapshot(
         roster_mentions=tuple(f'<@{discord_id}>' for discord_id in roster_ids),
         side_channel_targets=side_targets,
         game_channel_id=snapshot.game_channel_id,
-        experience_roles=_experience_role_effects(full_game),
-        champion_roles=_champion_role_effect(full_game, context),
+        experience_roles=build_experience_role_effects(full_game),
+        champion_roles=build_champion_role_effect(full_game, context),
         nova=_nova_snapshot(snapshot, context),
     )

@@ -110,6 +110,16 @@ class WinServiceBoundaryTests(unittest.TestCase):
 
 
 class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def publication(*, confirmed=False):
+        return SimpleNamespace(
+            game=SimpleNamespace(name='Test Game'),
+            roster_mentions=('<@900>', '<@901>'),
+            side_channel_targets=(),
+            game_channel_id=None,
+            confirmed_publication=(object() if confirmed else None),
+        )
+
     def request(self, *, staff=False):
         return game_win.WinRequest(
             game_id=77,
@@ -192,6 +202,7 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
             previous_winner_name=None,
             previous_confirmed_count=0,
             previous_side_count=0,
+            publication=self.publication(),
         )
 
         class Coordinator:
@@ -200,14 +211,6 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
             async def run(self, **_kwargs):
                 return result
 
-        committed_game = SimpleNamespace(
-            id=77,
-            name='Test Game',
-            mentions=lambda: ['<@900>', '<@901>'],
-            update_squad_channels=mock.AsyncMock(
-                side_effect=lambda **_kwargs: events.append('squad-channels'),
-            ),
-        )
         public_messages = []
 
         async def send_public(content):
@@ -232,9 +235,13 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             mock.patch.object(
-                game_win.models.Game,
-                'load_full_game',
-                return_value=committed_game,
+                game_win.game_result_publication.confirmation_publication,
+                'publish_game_channels',
+                new=mock.AsyncMock(
+                    side_effect=lambda *_args, **_kwargs: events.append(
+                        'squad-channels'
+                    ),
+                ),
             ),
         ):
             returned = await game_win.run_win(
@@ -267,6 +274,7 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
             previous_winner_name=None,
             previous_confirmed_count=0,
             previous_side_count=0,
+            publication=self.publication(confirmed=True),
         )
 
         class Coordinator:
@@ -275,12 +283,6 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
             async def run(self, **_kwargs):
                 return result
 
-        committed_game = SimpleNamespace(
-            id=77,
-            name='Test Game',
-            mentions=lambda: ['<@900>', '<@901>'],
-            update_squad_channels=mock.AsyncMock(),
-        )
         errors = []
 
         async def send_error(content):
@@ -305,9 +307,9 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             mock.patch.object(
-                game_win.models.Game,
-                'load_full_game',
-                return_value=committed_game,
+                game_win.game_result_publication.confirmation_publication,
+                'publish_game_channels',
+                new=mock.AsyncMock(),
             ),
         ):
             returned = await game_win.run_win(
@@ -327,6 +329,63 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn('was updated', errors[0])
         self.assertNotIn('No public game change', errors[0])
+
+    async def test_snapshot_failure_reports_committed_reconciliation(self):
+        committed = elo_workers.WinResult(
+            game_id=77,
+            confirmed=False,
+            all_sides_confirmed=False,
+            winner_name='Blue Team',
+            confirmed_count=1,
+            side_count=2,
+            new_confirmation=True,
+            first_claim=True,
+            previous_winner_name=None,
+            previous_confirmed_count=0,
+            previous_side_count=0,
+        )
+
+        class Coordinator:
+            is_active = False
+
+            async def run(self, **_kwargs):
+                raise elo_workers.WinSnapshotError(committed)
+
+        errors = []
+        publisher = mock.AsyncMock()
+        with (
+            mock.patch.object(
+                game_win.settings,
+                'elo_job_coordinator',
+                Coordinator(),
+            ),
+            mock.patch.object(
+                game_win.game_win_workers,
+                'run_prepare_win',
+                new=mock.AsyncMock(
+                    return_value=SimpleNamespace(winning_side_id=202),
+                ),
+            ),
+            mock.patch.object(game_win.logger, 'exception'),
+        ):
+            outcome = await game_win.run_win(
+                self.request(),
+                guild=SimpleNamespace(id=10),
+                current_channel=SimpleNamespace(),
+                send_public=mock.AsyncMock(),
+                send_error=lambda content: self._append(errors, content),
+                post_win_publisher=publisher,
+                acknowledged=True,
+            )
+
+        self.assertFalse(outcome.public_effects_published)
+        publisher.assert_not_awaited()
+        self.assertIn('was updated', errors[0])
+        self.assertIn('snapshot could not be loaded', errors[0])
+
+    @staticmethod
+    async def _append(values, content):
+        values.append(content)
 
     async def test_side_parser_check_failure_keeps_prefix_error_shape(self):
         errors = []
@@ -374,6 +433,7 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
             previous_winner_name=None,
             previous_confirmed_count=0,
             previous_side_count=0,
+            publication=self.publication(confirmed=True),
         )
 
         class Coordinator:
@@ -386,15 +446,6 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                     return result
                 finally:
                     kwargs['after_complete']()
-
-        committed_game = SimpleNamespace(
-            id=77,
-            name='Test Game',
-            mentions=lambda: ['<@900>', '<@901>'],
-            update_squad_channels=mock.AsyncMock(
-                side_effect=lambda **kwargs: events.append('squad-channels'),
-            ),
-        )
 
         async def send_public(content):
             events.append(('public', content))
@@ -418,9 +469,13 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             mock.patch.object(
-                game_win.models.Game,
-                'load_full_game',
-                return_value=committed_game,
+                game_win.game_result_publication.confirmation_publication,
+                'publish_game_channels',
+                new=mock.AsyncMock(
+                    side_effect=lambda *_args, **_kwargs: events.append(
+                        'squad-channels'
+                    ),
+                ),
             ),
             mock.patch.object(
                 game_win.utilities,

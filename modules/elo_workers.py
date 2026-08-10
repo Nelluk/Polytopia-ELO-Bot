@@ -7,7 +7,12 @@ from dataclasses import dataclass
 
 import peewee
 
-from modules import confirmation_publication_workers, game_deletion_workers, models
+from modules import (
+    confirmation_publication_workers,
+    game_deletion_workers,
+    game_result_publication_workers,
+    models,
+)
 
 
 class UnwinValidationError(RuntimeError):
@@ -20,6 +25,22 @@ class RecalculationValidationError(RuntimeError):
 
 class WinValidationError(RuntimeError):
     """The game changed or is not eligible for the requested win."""
+
+
+class UnwinSnapshotError(RuntimeError):
+    """An unwin committed, but its publication snapshot did not load."""
+
+    def __init__(self, result: UnwinResult):
+        self.result = result
+        super().__init__(f'Committed game {result.game_id} unwin snapshot failed.')
+
+
+class WinSnapshotError(RuntimeError):
+    """An ordinary win committed, but its publication snapshot did not load."""
+
+    def __init__(self, result: WinResult):
+        self.result = result
+        super().__init__(f'Committed game {result.game_id} win snapshot failed.')
 
 
 class ConfirmedWinSnapshotError(RuntimeError):
@@ -42,6 +63,9 @@ class UnwinResult:
     message: str
     post_unwin_messaging: bool
     previously_confirmed: bool
+    publication: (
+        game_result_publication_workers.GameResultPublicationSnapshot | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +81,9 @@ class WinResult:
     previous_winner_name: str | None
     previous_confirmed_count: int
     previous_side_count: int
+    publication: (
+        game_result_publication_workers.GameResultPublicationSnapshot | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +127,9 @@ def unwin_game(
     requester_id: int,
     requester_description: str,
     is_staff: bool,
+    publication_context: (
+        confirmation_publication_workers.ConfirmationPublicationContext
+    ) = confirmation_publication_workers.ConfirmationPublicationContext(),
 ) -> UnwinResult:
     """Mutate an unwin entirely within one worker-local transaction."""
 
@@ -147,93 +177,114 @@ def unwin_game(
                             f'Unranked game {game.id} has been marked as '
                             '*Incomplete*.'
                         )
-                    return UnwinResult(
+                    committed_result = UnwinResult(
                         game_id=game.id,
                         message=message,
                         post_unwin_messaging=True,
                         previously_confirmed=True,
                     )
-
-                game.completed_ts = None
-                game.is_completed = False
-                game.winner = None
-                game.save()
-                return UnwinResult(
-                    game_id=game.id,
-                    message=(
-                        f'Unconfirmed Game {game.id} has been marked as '
-                        '*Incomplete*.'
-                    ),
-                    post_unwin_messaging=True,
-                    previously_confirmed=False,
+                else:
+                    game.completed_ts = None
+                    game.is_completed = False
+                    game.winner = None
+                    game.save()
+                    committed_result = UnwinResult(
+                        game_id=game.id,
+                        message=(
+                            f'Unconfirmed Game {game.id} has been marked as '
+                            '*Incomplete*.'
+                        ),
+                        post_unwin_messaging=True,
+                        previously_confirmed=False,
+                    )
+            else:
+                has_player, author_side = game.has_player(
+                    discord_id=requester_id
                 )
+                if not has_player:
+                    raise UnwinValidationError(
+                        f'You are not a player in game {game.id} and do not have '
+                        'server staff permissions.'
+                    )
+                if game.is_confirmed:
+                    raise UnwinValidationError(
+                        f'Game {game.id} has been confirmed already. Only server '
+                        'staff can use this command on confirmed games.'
+                    )
+                if not author_side.win_confirmed:
+                    raise UnwinValidationError(
+                        f'Your side **{author_side.name()}** has no record of '
+                        f'confirming a win from game {game.id} - this command '
+                        'cannot be used.'
+                    )
 
-            has_player, author_side = game.has_player(
-                discord_id=requester_id
+                if author_side == game.winner:
+                    models.GameLog.write(
+                        game_id=game.id,
+                        guild_id=guild_id,
+                        message=(
+                            f'{requester_description} removes their self-win '
+                            'claim and confirmations have reset.'
+                        ),
+                    )
+                    game.confirmations_reset()
+                    game.completed_ts = None
+                    game.is_completed = False
+                    game.winner = None
+                    game.save()
+                    committed_result = UnwinResult(
+                        game_id=game.id,
+                        message=(
+                            f'Your unconfirmed win in game {game.id} has been '
+                            'reset and the game is now marked as *Incomplete*.'
+                        ),
+                        post_unwin_messaging=True,
+                        previously_confirmed=False,
+                    )
+                else:
+                    models.GameLog.write(
+                        game_id=game.id,
+                        guild_id=guild_id,
+                        message=(
+                            f'{requester_description} removed their confirmation of '
+                            'the game winner.'
+                        ),
+                    )
+                    author_side.win_confirmed = False
+                    author_side.save()
+                    confirmed_count, side_count, _ = game.confirmations_count()
+                    committed_result = UnwinResult(
+                        game_id=game.id,
+                        message=(
+                            f'Your confirmation that **{game.winner.name()}** won '
+                            f'game {game.id} has been *removed*. The win is still '
+                            f'pending confirmation. {confirmed_count} of {side_count} '
+                            'sides are marked as confirming.'
+                        ),
+                        post_unwin_messaging=False,
+                        previously_confirmed=False,
+                    )
+
+        if not committed_result.post_unwin_messaging:
+            return committed_result
+        try:
+            publication = (
+                game_result_publication_workers.build_unwin_publication_snapshot(
+                    committed_result.game_id,
+                    guild_id,
+                    previously_confirmed=committed_result.previously_confirmed,
+                    context=publication_context,
+                )
             )
-            if not has_player:
-                raise UnwinValidationError(
-                    f'You are not a player in game {game.id} and do not have '
-                    'server staff permissions.'
-                )
-            if game.is_confirmed:
-                raise UnwinValidationError(
-                    f'Game {game.id} has been confirmed already. Only server '
-                    'staff can use this command on confirmed games.'
-                )
-            if not author_side.win_confirmed:
-                raise UnwinValidationError(
-                    f'Your side **{author_side.name()}** has no record of '
-                    f'confirming a win from game {game.id} - this command '
-                    'cannot be used.'
-                )
-
-            if author_side == game.winner:
-                models.GameLog.write(
-                    game_id=game.id,
-                    guild_id=guild_id,
-                    message=(
-                        f'{requester_description} removes their self-win '
-                        'claim and confirmations have reset.'
-                    ),
-                )
-                game.confirmations_reset()
-                game.completed_ts = None
-                game.is_completed = False
-                game.winner = None
-                game.save()
-                return UnwinResult(
-                    game_id=game.id,
-                    message=(
-                        f'Your unconfirmed win in game {game.id} has been '
-                        'reset and the game is now marked as *Incomplete*.'
-                    ),
-                    post_unwin_messaging=True,
-                    previously_confirmed=False,
-                )
-
-            models.GameLog.write(
-                game_id=game.id,
-                guild_id=guild_id,
-                message=(
-                    f'{requester_description} removed their confirmation of '
-                    'the game winner.'
-                ),
-            )
-            author_side.win_confirmed = False
-            author_side.save()
-            confirmed_count, side_count, _ = game.confirmations_count()
-            return UnwinResult(
-                game_id=game.id,
-                message=(
-                    f'Your confirmation that **{game.winner.name()}** won '
-                    f'game {game.id} has been *removed*. The win is still '
-                    f'pending confirmation. {confirmed_count} of {side_count} '
-                    'sides are marked as confirming.'
-                ),
-                post_unwin_messaging=False,
-                previously_confirmed=False,
-            )
+        except Exception as exc:
+            raise UnwinSnapshotError(committed_result) from exc
+        return UnwinResult(
+            game_id=committed_result.game_id,
+            message=committed_result.message,
+            post_unwin_messaging=committed_result.post_unwin_messaging,
+            previously_confirmed=committed_result.previously_confirmed,
+            publication=publication,
+        )
 
 
 def record_win(
@@ -243,6 +294,9 @@ def record_win(
     requester_id: int,
     requester_description: str,
     is_staff: bool,
+    publication_context: (
+        confirmation_publication_workers.ConfirmationPublicationContext
+    ) = confirmation_publication_workers.ConfirmationPublicationContext(),
 ) -> WinResult:
     """Record a win claim or finalize it in one worker transaction."""
 
@@ -328,7 +382,13 @@ def record_win(
                     f'winner **{winning_side.name()}**'
                 ),
             )
-            return WinResult(
+            if confirm_win:
+                models.GameLog.write(
+                    game_id=game.id,
+                    guild_id=guild_id,
+                    message='Win is confirmed and ELO changes processed.',
+                )
+            committed_result = WinResult(
                 game_id=game.id,
                 confirmed=confirm_win,
                 all_sides_confirmed=all_sides_confirmed,
@@ -341,6 +401,31 @@ def record_win(
                 previous_confirmed_count=previous_confirmed_count,
                 previous_side_count=previous_side_count,
             )
+        try:
+            publication = (
+                game_result_publication_workers.build_win_publication_snapshot(
+                    committed_result.game_id,
+                    guild_id,
+                    confirmed=committed_result.confirmed,
+                    context=publication_context,
+                )
+            )
+        except Exception as exc:
+            raise WinSnapshotError(committed_result) from exc
+        return WinResult(
+            game_id=committed_result.game_id,
+            confirmed=committed_result.confirmed,
+            all_sides_confirmed=committed_result.all_sides_confirmed,
+            winner_name=committed_result.winner_name,
+            confirmed_count=committed_result.confirmed_count,
+            side_count=committed_result.side_count,
+            new_confirmation=committed_result.new_confirmation,
+            first_claim=committed_result.first_claim,
+            previous_winner_name=committed_result.previous_winner_name,
+            previous_confirmed_count=committed_result.previous_confirmed_count,
+            previous_side_count=committed_result.previous_side_count,
+            publication=publication,
+        )
 
 
 def confirm_game(

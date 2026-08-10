@@ -527,13 +527,19 @@ class EloWorkerTests(unittest.TestCase):
         database = FakeDatabase(game, logs)
         models = fake_models(game, database, logs)
 
-        with mock.patch.object(self.workers, 'models', models):
+        publication = object()
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_unwin_publication_snapshot',
+            return_value=publication,
+        ):
             result = self.workers.unwin_game(
                 42, 100, 200, '**Tester** (`200`)', True
             )
 
         self.assertEqual(result.game_id, 42)
         self.assertTrue(result.post_unwin_messaging)
+        self.assertIs(result.publication, publication)
         self.assertEqual(database.connection_opened, 1)
         self.assertEqual(database.connection_closed, 1)
         self.assertEqual(database.commits, 1)
@@ -581,6 +587,29 @@ class EloWorkerTests(unittest.TestCase):
         self.assertEqual(database.connection_opened, 1)
         self.assertEqual(database.connection_closed, 1)
 
+    def test_unwin_snapshot_failure_is_post_commit_and_closes_connection(self):
+        game = FakeGame(ranked=False)
+        logs = []
+        database = FakeDatabase(game, logs)
+        models = fake_models(game, database, logs)
+
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_unwin_publication_snapshot',
+            side_effect=peewee.OperationalError('snapshot failed'),
+        ):
+            with self.assertRaises(self.workers.UnwinSnapshotError) as raised:
+                self.workers.unwin_game(
+                    42, 100, 200, '**Tester** (`200`)', True
+                )
+
+        self.assertEqual(raised.exception.result.game_id, 42)
+        self.assertFalse(game.is_completed)
+        self.assertIsNone(game.winner)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(database.rollbacks, 0)
+        self.assertEqual(database.connection_closed, 1)
+
     def test_worker_interface_accepts_only_primitive_job_inputs(self):
         parameters = inspect.signature(self.workers.unwin_game).parameters
         self.assertEqual(
@@ -591,6 +620,7 @@ class EloWorkerTests(unittest.TestCase):
                 'requester_id',
                 'requester_description',
                 'is_staff',
+                'publication_context',
             ],
         )
         win_parameters = inspect.signature(
@@ -605,6 +635,7 @@ class EloWorkerTests(unittest.TestCase):
                 'requester_id',
                 'requester_description',
                 'is_staff',
+                'publication_context',
             ],
         )
         self.assertEqual(
@@ -683,7 +714,12 @@ class EloWorkerTests(unittest.TestCase):
         database = FakeWinDatabase(game, logs)
         models = fake_win_models(game, database, logs)
 
-        with mock.patch.object(self.workers, 'models', models):
+        publication = object()
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_win_publication_snapshot',
+            return_value=publication,
+        ):
             result = self.workers.record_win(
                 84, 100, 1, 200, '**Tester** (`200`)', False
             )
@@ -691,6 +727,7 @@ class EloWorkerTests(unittest.TestCase):
         self.assertFalse(result.confirmed)
         self.assertTrue(result.first_claim)
         self.assertTrue(result.new_confirmation)
+        self.assertIs(result.publication, publication)
         self.assertEqual(result.confirmed_count, 1)
         self.assertEqual(result.side_count, 2)
         self.assertTrue(game.is_completed)
@@ -726,6 +763,103 @@ class EloWorkerTests(unittest.TestCase):
         self.assertEqual(logs, [])
         self.assertEqual(database.commits, 0)
         self.assertEqual(database.rollbacks, 1)
+        self.assertEqual(database.connection_closed, 1)
+
+    def test_record_win_confirm_audits_before_post_commit_snapshot(self):
+        game = FakeWinGame()
+        game.first_side.win_confirmed = True
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+        publication = object()
+        snapshot_events = []
+
+        def build_snapshot(*_args, **_kwargs):
+            snapshot_events.append((database.commits, len(logs)))
+            return publication
+
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_win_publication_snapshot',
+            side_effect=build_snapshot,
+        ):
+            result = self.workers.record_win(
+                84, 100, 1, 201, '**Opponent** (`201`)', False
+            )
+
+        self.assertTrue(result.confirmed)
+        self.assertIs(result.publication, publication)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(len(logs), 2)
+        self.assertIn('Win confirm logged', logs[0]['message'])
+        self.assertEqual(
+            logs[1]['message'],
+            'Win is confirmed and ELO changes processed.',
+        )
+        self.assertEqual(snapshot_events, [(1, 2)])
+
+    def test_record_win_confirm_audit_failure_rolls_back_before_snapshot(self):
+        game = FakeWinGame()
+        game.first_side.win_confirmed = True
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+        write_count = 0
+
+        def fail_second_audit(**kwargs):
+            nonlocal write_count
+            write_count += 1
+            if write_count == 2:
+                raise peewee.OperationalError('confirmed audit failed')
+            logs.append(kwargs)
+
+        models.GameLog.write = fail_second_audit
+        snapshot_builder = mock.Mock()
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_win_publication_snapshot',
+            new=snapshot_builder,
+        ):
+            with self.assertRaisesRegex(
+                peewee.OperationalError,
+                'confirmed audit failed',
+            ):
+                self.workers.record_win(
+                    84, 100, 1, 201, '**Opponent** (`201`)', False
+                )
+
+        self.assertFalse(game.is_completed)
+        self.assertFalse(game.is_confirmed)
+        self.assertIsNone(game.winner)
+        self.assertEqual(logs, [])
+        self.assertEqual(database.commits, 0)
+        self.assertEqual(database.rollbacks, 1)
+        self.assertEqual(database.connection_closed, 1)
+        snapshot_builder.assert_not_called()
+
+    def test_record_win_snapshot_failure_is_post_commit(self):
+        game = FakeWinGame()
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_win_publication_snapshot',
+            side_effect=peewee.OperationalError('snapshot failed'),
+        ):
+            with self.assertRaises(self.workers.WinSnapshotError) as raised:
+                self.workers.record_win(
+                    84, 100, 1, 200, '**Tester** (`200`)', False
+                )
+
+        self.assertEqual(raised.exception.result.game_id, 84)
+        self.assertTrue(game.is_completed)
+        self.assertFalse(game.is_confirmed)
+        self.assertIs(game.winner, game.first_side)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
 
     def test_confirm_game_uses_worker_transaction(self):
@@ -833,6 +967,109 @@ class EloWorkerTests(unittest.TestCase):
         self.assertEqual(database.commits, 0)
         self.assertEqual(database.rollbacks, 1)
         self.assertEqual(database.connection_closed, 1)
+
+
+class ResultSnapshotCoordinatorTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workers = import_offline_runtime('modules.elo_workers')
+
+    async def asyncSetUp(self):
+        self.coordinator = EloJobCoordinator()
+
+    async def asyncTearDown(self):
+        self.coordinator.shutdown()
+
+    async def _wait_for_thread_event(self, event):
+        for _ in range(100):
+            if event.is_set():
+                return
+            await asyncio.sleep(0.005)
+        self.fail('worker snapshot did not start')
+
+    async def test_snapshot_load_stays_off_loop_and_owns_connection(self):
+        game = FakeGame(ranked=False)
+        logs = []
+        database = FakeDatabase(game, logs)
+        models = fake_models(game, database, logs)
+        snapshot_started = threading.Event()
+        snapshot_release = threading.Event()
+        publication = object()
+
+        def block_snapshot(*_args, **_kwargs):
+            snapshot_started.set()
+            snapshot_release.wait(timeout=2)
+            return publication
+
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_unwin_publication_snapshot',
+            side_effect=block_snapshot,
+        ):
+            task = asyncio.create_task(self.coordinator.run(
+                operation='unwin',
+                game_id=42,
+                requester_id=200,
+                requester_name='Tester',
+                worker=self.workers.unwin_game,
+                worker_args=(42, 100, 200, '**Tester** (`200`)', True),
+            ))
+            await self._wait_for_thread_event(snapshot_started)
+            self.assertEqual(database.connection_opened, 1)
+            self.assertEqual(database.connection_closed, 0)
+
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_later(0.01, heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.2)
+            self.assertTrue(self.coordinator.is_active)
+
+            snapshot_release.set()
+            await asyncio.sleep(0.05)
+            result = await task
+
+        self.assertIs(result.publication, publication)
+        self.assertEqual(database.connection_closed, 1)
+        self.assertFalse(self.coordinator.is_active)
+
+    async def test_cancellation_drains_snapshot_and_connection_before_release(self):
+        game = FakeGame(ranked=False)
+        logs = []
+        database = FakeDatabase(game, logs)
+        models = fake_models(game, database, logs)
+        snapshot_started = threading.Event()
+        snapshot_release = threading.Event()
+
+        def block_snapshot(*_args, **_kwargs):
+            snapshot_started.set()
+            snapshot_release.wait(timeout=2)
+            return object()
+
+        with mock.patch.object(self.workers, 'models', models), mock.patch.object(
+            self.workers.game_result_publication_workers,
+            'build_unwin_publication_snapshot',
+            side_effect=block_snapshot,
+        ):
+            task = asyncio.create_task(self.coordinator.run(
+                operation='unwin',
+                game_id=42,
+                requester_id=200,
+                requester_name='Tester',
+                worker=self.workers.unwin_game,
+                worker_args=(42, 100, 200, '**Tester** (`200`)', True),
+            ))
+            await self._wait_for_thread_event(snapshot_started)
+            task.cancel()
+            await asyncio.sleep(0)
+            self.assertTrue(self.coordinator.is_active)
+            self.assertEqual(database.connection_closed, 0)
+
+            snapshot_release.set()
+            await asyncio.sleep(0.05)
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        self.assertEqual(database.connection_closed, 1)
+        self.assertFalse(self.coordinator.is_active)
 
 
 class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
