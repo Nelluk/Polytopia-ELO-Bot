@@ -490,14 +490,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7g completed-game channel purge is Tier-3 reviewed
-on its isolated unit branch at implementation/tests checkpoint `247b243`, from
-exact clean accumulation base `1c2f4ef`; roadmap evidence and accumulation
-integration are in progress. The recurring task now discovers bounded
-immutable channel targets off-loop, preserves every deletion protection and
-eligibility window, and conditionally clears exact database references only
-after Discord confirms deletion. The accumulated P9.7d-g stopped-writer suite
-is green.**
+Current active unit: **P9.7g completed-game channel purge is Complete in the
+accumulation branch at merge checkpoint `6adb4ae` (implementation/tests
+`247b243`, evidence `cbf75a5`), from exact clean accumulation base `1c2f4ef`.
+The recurring task now discovers bounded immutable channel targets off-loop,
+preserves every deletion protection and eligibility window, and conditionally
+clears exact database references only after Discord confirms deletion. The
+accumulated P9.7d-g stopped-writer suite is green.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12952,11 +12951,12 @@ the destructive manual purge replacement remains a separate H6 decision.
 
 ### P9.7g — Completed-game channel purge reconciliation
 
-Status: **Tier-3 reviewed on the unit branch; accumulation integration in
-progress; stopped-writer real-schema validation passed**
+Status: **Complete in the accumulation branch; stopped-writer real-schema
+validation passed**
 
 Branch/base: `codex/p9-7g-completed-channel-purge`, exact clean accumulation
 base `1c2f4ef`. Implementation/tests checkpoint: `247b243`.
+Roadmap evidence: `cbf75a5`; accumulation merge: `6adb4ae`.
 
 This bounded Tier-3 H5 correction replaces the retained completed-game purge's
 event-loop query and live-model delete/save graph while preserving the strict
@@ -14006,13 +14006,15 @@ branch.
   66 tests: 65 passed and one operator-owned fixture round trip intentionally
   skipped. P9.7d-g all passed; the targeted P9.7g rerun also passed with exact
   rollback and cleanup evidence.
-- Recorded the reviewed implementation and tests at checkpoint `247b243`.
-  Roadmap evidence and accumulation integration remain in progress. The beta
-  remains intentionally stopped until the clean final accumulation checkpoint
-  is ready, avoiding a redundant intermediate restart.
-- Next action: integrate and push P9.7g, restart the guarded beta at that exact
-  clean checkpoint without command synchronization, and select the approved
-  obsolete-command retirements as the recommended H6 unit.
+- Recorded the reviewed implementation and tests at checkpoint `247b243`,
+  roadmap evidence at `cbf75a5`, and integrated the unit at accumulation merge
+  `6adb4ae`.
+- The beta remains intentionally stopped until the clean close-out checkpoint
+  is pushed, avoiding a redundant intermediate restart. P9.7g changes no
+  application command or capability, so no command plan/apply is required.
+- Next action: push the P9.7g close-out, restart the guarded beta at that exact
+  clean checkpoint, verify identity/health without an announcement, and select
+  the approved obsolete-command retirements as the recommended H6 unit.
 
 ### 2026-08-10 — P9.7f champion-role reconciliation reviewed
 
