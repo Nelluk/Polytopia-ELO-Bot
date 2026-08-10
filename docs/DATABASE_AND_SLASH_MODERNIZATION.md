@@ -487,12 +487,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.4's read-only player-migration audit is complete on
+Current active unit: **P9.4's read-only player-migration audit is complete and
+P9.4-A through P9.4-F are accepted on
 `codex/p9-4-player-migration-audit` from exact accumulation checkpoint
 `91e4191`. It found that the legacy command's apparent two-ID rewrite is a
 cross-guild identity merge whose incomplete dependency handling can lose host,
-squad, House-preference, and guild metadata. Six recommended implementation
-decisions are recorded below for acceptance before source changes. No command,
+squad, House-preference, and guild metadata. The accepted implementation
+contract is recorded below. No command,
 database, Discord tree, beta process, or production state changed.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
@@ -11656,8 +11657,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.3 complete; P9.4 player-migration audit
-complete with implementation decisions pending acceptance**
+Status: **In progress; P9.0–P9.3 complete; P9.4 player-migration audit and
+implementation contract accepted**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12020,7 +12021,7 @@ It allows incomplete participation to follow the old established identity
 without combining two rating histories. Therefore this unit requires no ELO
 recalculation when that rule remains true at commit.
 
-#### Recommended implementation decisions
+#### Accepted implementation decisions
 
 **P9.4-A — Native inputs and authorization**
 
@@ -12116,9 +12117,10 @@ recalculation when that rule remains true at commit.
 This audit changed documentation only. It did not inspect or mutate
 PostgreSQL, fixtures, Discord, application-command state, the guarded beta,
 production, dependencies, or services. No implementation branch may begin
-until P9.4-A through P9.4-F are accepted or revised. After acceptance, the
-implementation remains one bounded Tier-3 unit because the preview and commit
-must share one authoritative graph definition and stale fingerprint.
+until P9.4-A through P9.4-F are accepted or revised. Nelluk accepted all six
+decisions on 2026-08-10. The implementation remains one bounded Tier-3 unit
+because the preview and commit must share one authoritative graph definition
+and stale fingerprint.
 
 ## Standard work-unit template
 
@@ -13072,6 +13074,16 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.4 migration contract accepted
+
+- Accepted P9.4-A through P9.4-F without revision.
+- Authorized the raw-source/typed-destination native interface, mandatory
+  private graph preview, fail-closed conflict policy, complete atomic
+  dependency merge, configured-superuser parity, and immediate prefix
+  retirement with the replacement.
+- Kept the implementation as one Tier-3 unit so preview, fingerprint, locking,
+  mutation, audit, and post-commit publication share one graph definition.
 
 ### 2026-08-10 — P9.4 player-migration graph audited
 
