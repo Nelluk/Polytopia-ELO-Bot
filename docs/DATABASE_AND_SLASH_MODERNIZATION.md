@@ -11701,7 +11701,8 @@ After a stable observation period, separately decide whether to:
 
 ### P9.0 — Production-readiness audit
 
-Status: **Complete; integrated as `5f69726`; push pending**
+Status: **Complete; integrated and pushed (audit `5f69726`, integration
+evidence `9b49a83`)**
 
 Risk tier: **Tier 1 read-only repository and runbook audit**. Exact base:
 `3947298` on `codex/database-slash-modernization`. Branch:
@@ -12729,9 +12730,10 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   discovery passed **1,392 tests with 58 intentional database-gated skips**.
   No PostgreSQL, production, Discord, beta, schema, dependency, fixture, or
   sudo operation occurred.
-- Integrated the audit record as `5f69726`. Next: push the accumulation
-  checkpoint, then implement P9.1 upstream reconciliation without combining it
-  with production DDL or deployment.
+- Integrated the audit record as `5f69726` and pushed the accumulation branch
+  through integration-evidence checkpoint `9b49a83`. Next: implement P9.1
+  upstream reconciliation without combining it with production DDL or
+  deployment.
 
 ### 2026-08-09 — P8 final residual audit completed
 
