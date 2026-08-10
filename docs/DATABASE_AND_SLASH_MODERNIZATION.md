@@ -490,14 +490,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7f champion-role reconciliation is Complete in the
-accumulation branch at merge checkpoint `cb45bb9` (implementation/tests
-`ea03396`, evidence `71cb86a`), from exact clean accumulation base `06dd954`.
-The recurring task now loads bounded immutable champion plans on worker-owned
-connections, keeps Discord role publication model-free, audits only completed
-effects through a worker transaction, and reports partial role, audit,
-missing-member, and post-effect-plan failures as explicit reconciliation
-outcomes without terminating later cycles.**
+Current active unit: **P9.7g completed-game channel purge is Tier-3 reviewed
+on its isolated unit branch at implementation/tests checkpoint `247b243`, from
+exact clean accumulation base `1c2f4ef`; roadmap evidence and accumulation
+integration are in progress. The recurring task now discovers bounded
+immutable channel targets off-loop, preserves every deletion protection and
+eligibility window, and conditionally clears exact database references only
+after Discord confirms deletion. The accumulated P9.7d-g stopped-writer suite
+is green.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12782,8 +12782,8 @@ eligibility revalidation remains separate.
 
 ### P9.7d — Immutable rank/unstart correction publication snapshots
 
-Status: **Complete in the accumulation branch; gated real-schema evidence
-deferred to the next stopped-writer batch**
+Status: **Complete in the accumulation branch; real-schema validation passed
+in the P9.7g stopped-writer batch**
 
 Branch/base: `codex/p9-7d-rank-unstart-snapshot`, exact clean accumulation
 base `8249eac`. Implementation/tests checkpoint: `222cc9b`.
@@ -12822,12 +12822,11 @@ the missing `duckdb` import, missing `duckdb` dependency inventory entry, and
 the resulting reporting-export import error. The other **1,428 tests passed**;
 dependencies were not installed or synchronized.
 
-The strict development-database suite now includes an owned, self-cleaning
-real-schema ranked-state to unstart snapshot round trip. The healthy durable
-beta remains active at checkpoint `20a6d03` immediately after the meaningful
-P9.7a-c tester announcement, so the documented cadence defers this new case to
-the next stopped-writer batch rather than interrupting active testing for one
-schema-free extension. P9.7d changes no application-command registration.
+The strict development-database suite includes an owned, self-cleaning
+real-schema ranked-state to unstart snapshot round trip. It passed in the
+P9.7g accumulated stopped-writer batch, whose complete suite ran **66 tests:
+65 passed and one operator-owned fixture round trip intentionally skipped**.
+P9.7d changes no application-command registration.
 
 P9.7d closes the remaining rank/unstart slice of H4. H5 automatic confirmation
 candidate discovery and authoritative eligibility revalidation is the next
@@ -12835,8 +12834,8 @@ bounded ELO recurring-task unit.
 
 ### P9.7e — Automatic confirmation discovery and revalidation
 
-Status: **Complete in the accumulation branch; gated real-schema evidence
-deferred to the next stopped-writer batch**
+Status: **Complete in the accumulation branch; real-schema validation passed
+in the P9.7g stopped-writer batch**
 
 Branch/base: `codex/p9-7e-auto-confirmation`, exact clean accumulation base
 `d17dd6c`. Implementation/tests checkpoint: `1457962`.
@@ -12877,12 +12876,11 @@ excluded, all **1,505 remaining tests passed with 65 skips**; equivalently,
 **1,440 tests passed** in the complete discovery. Dependencies were not
 installed or synchronized.
 
-The strict development-database suite now includes an owned, self-cleaning
-real-schema discovery/stale-revalidation/partial-confirmation round trip. The
-healthy durable beta remains active at announced checkpoint `20a6d03` with
-background tasks disabled, so P9.7d and P9.7e database cases remain deferred
-to the next accumulated stopped-writer window. P9.7e changes no application
-command registration and does not warrant interrupting current beta testing.
+The strict development-database suite includes an owned, self-cleaning
+real-schema discovery/stale-revalidation/partial-confirmation round trip. It
+passed in the P9.7g accumulated stopped-writer batch, whose complete suite ran
+**66 tests: 65 passed and one operator-owned fixture round trip intentionally
+skipped**. P9.7e changes no application-command registration.
 
 P9.7e closes only H5's automatic-confirmation slice. Recommended next is the
 separate H5 champion-role reconciliation because it fixes the remaining
@@ -12892,8 +12890,8 @@ requires stricter destructive-effect review and beta cadence.
 
 ### P9.7f — Champion-role reconciliation workers
 
-Status: **Complete in the accumulation branch; gated real-schema evidence
-deferred to the next stopped-writer batch**
+Status: **Complete in the accumulation branch; real-schema validation passed
+in the P9.7g stopped-writer batch**
 
 Branch/base: `codex/p9-7f-champion-reconciliation`, exact clean accumulation
 base `06dd954`. Implementation/tests checkpoint: `ea03396`.
@@ -12934,12 +12932,11 @@ all **1,519 remaining tests passed with 66 skips**; equivalently, **1,453 tests
 passed** in complete discovery. Dependencies were not installed or
 synchronized.
 
-The strict development-database suite now includes an owned, self-cleaning
-real-schema champion-plan/audit round trip. The healthy durable beta remains
-active at announced checkpoint `20a6d03` with background tasks disabled, so
-P9.7d-f database cases remain deferred to the next accumulated stopped-writer
-window. P9.7f changes no application-command registration and does not warrant
-interrupting current beta testing.
+The strict development-database suite includes an owned, self-cleaning
+real-schema champion-plan/audit round trip. It passed in the P9.7g accumulated
+stopped-writer batch, whose complete suite ran **66 tests: 65 passed and one
+operator-owned fixture round trip intentionally skipped**. P9.7f changes no
+application-command registration.
 
 No schema-backed audit retry queue is introduced. A Discord role effect whose
 subsequent audit write fails is logged as reconciliation-required, but its
@@ -12952,6 +12949,76 @@ P9.7f closes H5's champion-role slice. Recommended next is H5 completed-game
 channel purge discovery/reconciliation under destructive-effect review. Also
 ready is the bounded H6 retirement of approved obsolete operator commands;
 the destructive manual purge replacement remains a separate H6 decision.
+
+### P9.7g — Completed-game channel purge reconciliation
+
+Status: **Tier-3 reviewed on the unit branch; accumulation integration in
+progress; stopped-writer real-schema validation passed**
+
+Branch/base: `codex/p9-7g-completed-channel-purge`, exact clean accumulation
+base `1c2f4ef`. Implementation/tests checkpoint: `247b243`.
+
+This bounded Tier-3 H5 correction replaces the retained completed-game purge's
+event-loop query and live-model delete/save graph while preserving the strict
+24-hour/14-day window, confirmed-only scope, explicit season exemption,
+four-day Nova Red/Nova Blue exemption, source/external guild routing,
+side-before-central ordering, archive/name/permission protections, deletion
+reason, 15-minute initial delay, and six-hour cadence:
+
+- one worker-owned read returns at most 100 deterministic game plans and 1,000
+  primitive channel targets, ordered by completion time and game ID; excess
+  games are reported and deferred, while an excessive target graph fails
+  closed;
+- only frozen game/side record IDs, guild IDs, channel IDs, and completion
+  timestamps cross to the Discord publisher; no Peewee instance or live model
+  graph remains on the event loop;
+- failed, archived, permission-blocked, or unresolved-guild deletions retain
+  their database references for a later cycle; already-absent channels count
+  as successful deletion under the established channel helper;
+- each successful deletion conditionally clears only the exact still-matching
+  `Game.game_chan` or `GameSide.team_chan` reference in an independent
+  worker-local transaction. A replacement channel is never cleared;
+- Discord-success/database-failure and changed-target outcomes are logged as
+  reconciliation-required and do not stop later targets or games; and
+- an in-flight Discord delete plus its submitted database reconciliation is
+  drained through completion before cancellation propagates, while whole-cycle
+  failures remain contained so the next six-hour cycle survives.
+
+Focused completed/incomplete purge and gated-suite validation passed **97
+tests with 66 intentional database-gated skips**. The broader affected
+channel-reference, deletion, correction, champion, runtime, and gated matrix
+passed **181 tests with 66 intentional skips**. Compilation and
+`git diff --check` passed.
+
+Complete offline discovery executed **1,537 tests with 67 intentional skips**
+and reached only the three documented unsynchronized-environment failures:
+the missing `duckdb` import, missing `duckdb` dependency inventory entry, and
+the resulting reporting-export import error. With those exact cases excluded,
+all **1,534 remaining tests passed with 67 skips**; equivalently, **1,467 tests
+passed** in complete discovery. Dependencies were not installed or
+synchronized.
+
+The final H5 unit warranted one accumulated stopped-writer window. The beta
+service stopped cleanly, the host-wide audit proved no development writer, and
+the unchanged `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate
+ran the complete suite: **66 tests, 65 passed, one intentional operator-owned
+fixture skip**. The P9.7d rank/unstart, P9.7e auto-confirmation, P9.7f champion,
+and P9.7g completed-channel cases all passed. The targeted P9.7g rerun also
+passed and proved strict recent/old/season/Nova exclusions, immutable source
+and external targets, injected write rollback, exact central/side reference
+clearing, connection closure, and zero-residue cleanup.
+
+No schema-backed reconciliation queue is introduced. A Discord deletion whose
+database reference cannot be cleared remains automatically retryable only
+while the confirmed game remains inside the preserved 14-day discovery
+window; persistent failures after that window require operator repair. The
+manual owner-only `$purge_game_channels` workflow and its H6 replacement or
+retirement decision remain completely separate.
+
+P9.7g closes H5's completed-channel slice and therefore closes H5. Recommended
+next is the bounded H6 retirement of approved obsolete `$gtest`, `$ptrophies`,
+and `$boost_from` commands. Also ready is the separate H6 design decision for
+the destructive manual channel-purge replacement.
 
 ## Standard work-unit template
 
@@ -13905,6 +13972,47 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7g completed-channel purge reviewed and database-validated
+
+- Reconciled the clean local and GitHub accumulation ref at `1c2f4ef`; no
+  P9.7g branch/worktree existed, and the sole guarded development beta was
+  healthy at announced checkpoint `20a6d03` with background tasks disabled.
+- Created isolated branch/worktree `codex/p9-7g-completed-channel-purge` from
+  that exact base and verified the development-only profile, `polytopia_dev`,
+  `polybot_dev`, disabled background tasks, and disabled API.
+- Replaced the completed-game task's synchronous joined query and retained
+  Game/GameSide publication graph with a bounded immutable worker plan. Kept
+  Discord deletion model-free and conditionally cleared each exact reference
+  in a separate worker transaction only after deletion succeeded or the
+  channel was confirmed absent.
+- Preserved the 24-hour/14-day, confirmed, season, recent-Nova, routing,
+  ordering, archive/permission, deletion-reason, initial-delay, and six-hour
+  behavior. Added hard guild/game/target bounds, changed-target protection,
+  per-target/cycle containment, and cancellation draining across each
+  delete/reconcile pair. Left manual `$purge_game_channels` unchanged.
+- Added immutable/bounded discovery, worker connection/transaction/rollback,
+  slow-query heartbeat, cancellation drain, model-free publisher, partial
+  Discord failure, Discord-success/database-failure, target-change, routing,
+  and later-cycle survival coverage.
+- Focused validation passed 97 tests with 66 gated skips; the affected matrix
+  passed 181 with 66 gated skips. Complete discovery ran 1,537 tests: 1,467
+  passed, 67 skipped, and only the three known missing-`duckdb` environment
+  failures remained. Excluding those exact cases passed all 1,534 remaining
+  tests with 67 skips. Compilation and diff checks passed.
+- Because this destructive-effect unit closes H5 and four real-schema cases
+  had accumulated, stopped only the guarded development beta and proved the
+  host-wide writer audit clear. The complete unchanged development gate ran
+  66 tests: 65 passed and one operator-owned fixture round trip intentionally
+  skipped. P9.7d-g all passed; the targeted P9.7g rerun also passed with exact
+  rollback and cleanup evidence.
+- Recorded the reviewed implementation and tests at checkpoint `247b243`.
+  Roadmap evidence and accumulation integration remain in progress. The beta
+  remains intentionally stopped until the clean final accumulation checkpoint
+  is ready, avoiding a redundant intermediate restart.
+- Next action: integrate and push P9.7g, restart the guarded beta at that exact
+  clean checkpoint without command synchronization, and select the approved
+  obsolete-command retirements as the recommended H6 unit.
 
 ### 2026-08-10 — P9.7f champion-role reconciliation reviewed
 
