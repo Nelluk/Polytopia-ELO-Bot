@@ -20,7 +20,7 @@ games = import_offline_runtime('modules.games')
 
 
 class GameUnstartWorkerTests(unittest.TestCase):
-    def run_worker(self, *, log_effect=None):
+    def run_worker(self, *, log_effect=None, snapshot_effect=None):
         now = datetime.datetime(2026, 7, 29, 12)
         state = {
             'pending': False,
@@ -58,10 +58,33 @@ class GameUnstartWorkerTests(unittest.TestCase):
                 raise log_effect
 
         game.save = save
+        publication = SimpleNamespace(
+            game=SimpleNamespace(
+                game_id=42,
+                is_pending=True,
+                is_completed=False,
+                is_confirmed=False,
+            ),
+            roster_mentions=('<@1>', '<@2>'),
+        )
+
+        def freeze(*_args):
+            self.assertEqual(database.commits, 1)
+            self.assertEqual(database.connection_closed, 0)
+            if snapshot_effect is not None:
+                raise snapshot_effect
+            return publication
+
         with mock.patch.object(
             game_workers.models, 'db', database
         ), mock.patch.object(
             game_workers.models.Game, 'get_by_id', return_value=game
+        ), mock.patch.object(
+            game_workers.models.Game, 'load_full_game', return_value=game
+        ), mock.patch.object(
+            game_workers.game_result_publication_workers,
+            'freeze_loaded_game',
+            side_effect=freeze,
         ), mock.patch.object(
             game_workers.models.GameLog, 'write', side_effect=write_log
         ):
@@ -71,6 +94,14 @@ class GameUnstartWorkerTests(unittest.TestCase):
                         42, 300, 'Staff', '$unstart', now=now
                     )
                 result = None
+            elif snapshot_effect:
+                with self.assertRaises(
+                    game_workers.GameUnstartSnapshotError
+                ) as raised:
+                    game_workers.unstart_game(
+                        42, 300, 'Staff', '$unstart', now=now
+                    )
+                result = raised.exception.result
             else:
                 result = game_workers.unstart_game(
                     42, 300, 'Staff', '$unstart', now=now
@@ -87,6 +118,8 @@ class GameUnstartWorkerTests(unittest.TestCase):
         )
         self.assertEqual(len(state['logs']), 1)
         self.assertEqual(result.mentions, ('<@1>', '<@2>'))
+        self.assertIsNotNone(result.publication)
+        self.assertEqual(result.publication.game.game_id, 42)
         self.assertEqual(
             result.channel_targets,
             (
@@ -95,6 +128,18 @@ class GameUnstartWorkerTests(unittest.TestCase):
             ),
         )
         self.assertEqual(database.commits, 1)
+        self.assertEqual(database.connection_closed, 1)
+
+    def test_snapshot_failure_reports_committed_unstart(self):
+        state, database, result = self.run_worker(
+            snapshot_effect=peewee.OperationalError('snapshot failure')
+        )
+
+        self.assertTrue(state['pending'])
+        self.assertEqual(result.game_id, 42)
+        self.assertIsNone(result.publication)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
 
     def test_log_failure_rolls_back_state_and_closes_connection(self):
@@ -519,3 +564,37 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
             release.set()
             await asyncio.sleep(0.05)
             self.assertEqual((await task).game_id, 42)
+
+    async def test_cancellation_waits_for_unstart_worker_to_finish(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow(*args):
+            started.set()
+            release.wait(timeout=2)
+            return game_workers.GameUnstartResult(
+                42,
+                'Test Game',
+                None,
+                None,
+                ('<@1>', '<@2>'),
+                (),
+                datetime.datetime(2026, 7, 30),
+            )
+
+        with mock.patch.object(
+            game_workers, 'unstart_game', side_effect=slow
+        ):
+            task = asyncio.create_task(
+                game_workers.run_game_unstart(
+                    42, 300, 'Staff', '$unstart'
+                )
+            )
+            while not started.is_set():
+                await asyncio.sleep(0.005)
+            task.cancel()
+            await asyncio.sleep(0.02)
+            self.assertFalse(task.done())
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task

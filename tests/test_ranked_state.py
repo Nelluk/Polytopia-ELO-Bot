@@ -34,10 +34,31 @@ class RankedStateWorkerTests(unittest.TestCase):
             state['ranked'] = game.is_ranked
 
         game.save = save
+        publication = SimpleNamespace(
+            game=SimpleNamespace(
+                game_id=42,
+                is_completed=False,
+                is_confirmed=False,
+                is_ranked=True,
+            ),
+            roster_mentions=('<@1>', '<@2>'),
+        )
+
+        def freeze(*_args):
+            self.assertEqual(database.commits, 1)
+            self.assertEqual(database.connection_closed, 0)
+            return publication
+
         with mock.patch.object(
             game_workers.models, 'db', database
         ), mock.patch.object(
             game_workers.models.Game, 'get_by_id', return_value=game
+        ), mock.patch.object(
+            game_workers.models.Game, 'load_full_game', return_value=game
+        ), mock.patch.object(
+            game_workers.game_result_publication_workers,
+            'freeze_loaded_game',
+            side_effect=freeze,
         ), mock.patch.object(
             game_workers.models.GameLog,
             'write',
@@ -48,9 +69,48 @@ class RankedStateWorkerTests(unittest.TestCase):
             )
 
         self.assertTrue(result.is_ranked)
+        self.assertIs(result.publication, publication)
         self.assertTrue(state['ranked'])
         self.assertEqual(len(state['logs']), 1)
         self.assertEqual(database.commits, 1)
+        self.assertEqual(database.connection_closed, 1)
+
+    def test_snapshot_failure_reports_committed_ranked_state(self):
+        state = {'ranked': False, 'logs': []}
+        database = FakeDatabase(state)
+        game = SimpleNamespace(
+            id=42,
+            guild_id=300,
+            is_completed=False,
+            is_confirmed=False,
+            is_ranked=False,
+            save=lambda: state.update(ranked=game.is_ranked),
+        )
+        with mock.patch.object(
+            game_workers.models, 'db', database
+        ), mock.patch.object(
+            game_workers.models.Game, 'get_by_id', return_value=game
+        ), mock.patch.object(
+            game_workers.models.Game, 'load_full_game', return_value=game
+        ), mock.patch.object(
+            game_workers.game_result_publication_workers,
+            'freeze_loaded_game',
+            side_effect=peewee.OperationalError('snapshot failure'),
+        ), mock.patch.object(
+            game_workers.models.GameLog,
+            'write',
+            side_effect=lambda **kwargs: state['logs'].append(kwargs),
+        ):
+            with self.assertRaises(
+                game_workers.RankedStateSnapshotError
+            ) as raised:
+                game_workers.set_game_ranked_state(42, 300, True, 'Staff')
+
+        self.assertTrue(state['ranked'])
+        self.assertTrue(raised.exception.result.is_ranked)
+        self.assertIsNone(raised.exception.result.publication)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
 
     def test_log_failure_rolls_back_ranked_state(self):
@@ -229,3 +289,29 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
             release.set()
             await asyncio.sleep(0.05)
             self.assertTrue((await task).is_ranked)
+
+    async def test_cancellation_waits_for_rank_worker_to_finish(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow(*args):
+            started.set()
+            release.wait(timeout=2)
+            return game_workers.RankedStateResult(42, True)
+
+        with mock.patch.object(
+            game_workers, 'set_game_ranked_state', side_effect=slow
+        ):
+            task = asyncio.create_task(
+                game_workers.run_ranked_state_correction(
+                    42, 300, True, 'Staff'
+                )
+            )
+            while not started.is_set():
+                await asyncio.sleep(0.005)
+            task.cancel()
+            await asyncio.sleep(0.02)
+            self.assertFalse(task.done())
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task

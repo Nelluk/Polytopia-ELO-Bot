@@ -6507,6 +6507,119 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
 
+    def test_p97d_rank_unstart_snapshots_use_real_schema(self):
+        """Exercise correction snapshots on development PostgreSQL."""
+
+        from modules import game_workers
+
+        guild_id = self.settings.server_ids['polychampions']
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P9.7d-{suffix}'
+        id_base = 8_700_000_000_000_000_000 + (
+            uuid.uuid4().int % 100_000_000
+        )
+        member_ids = []
+        player_ids = []
+        game_id = None
+
+        try:
+            for index, label in enumerate(('Alpha', 'Bravo')):
+                member = self.models.DiscordMember.create(
+                    discord_id=id_base + index,
+                    name=f'{marker}-{label}',
+                    polytopia_name=f'{marker}{label}',
+                )
+                player = self.models.Player.create(
+                    discord_member=member,
+                    guild_id=guild_id,
+                    name=member.name,
+                )
+                member_ids.append(member.id)
+                player_ids.append(player.id)
+
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=player_ids[0],
+                name=marker,
+                notes=marker,
+                is_pending=False,
+                is_completed=False,
+                is_confirmed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_id = game.id
+            for position, player_id in enumerate(player_ids, start=1):
+                side = self.models.GameSide.create(
+                    game=game,
+                    position=position,
+                    sidename=f'Side {position}',
+                    size=1,
+                )
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=side,
+                    player=player_id,
+                )
+
+            self.models.db.close()
+            ranked = game_workers.set_game_ranked_state(
+                game_id,
+                guild_id,
+                True,
+                marker,
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertTrue(ranked.is_ranked)
+            self.assertIsNotNone(ranked.publication)
+            self.assertTrue(ranked.publication.game.is_ranked)
+            self.assertEqual(
+                ranked.publication.roster_mentions,
+                tuple(f'<@{id_base + index}>' for index in range(2)),
+            )
+
+            unstarted = game_workers.unstart_game(
+                game_id,
+                guild_id,
+                marker,
+                '$unstart',
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertIsNotNone(unstarted.publication)
+            self.assertTrue(unstarted.publication.game.is_pending)
+            self.assertEqual(
+                unstarted.mentions,
+                tuple(f'<@{id_base + index}>' for index in range(2)),
+            )
+
+            self.models.db.connect(reuse_if_open=True)
+            restored = self.models.Game.get_by_id(game_id)
+            self.assertTrue(restored.is_pending)
+            self.assertTrue(restored.is_ranked)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                if game_id is not None:
+                    self.models.Lineup.delete().where(
+                        self.models.Lineup.game == game_id
+                    ).execute()
+                    self.models.GameSide.delete().where(
+                        self.models.GameSide.game == game_id
+                    ).execute()
+                    self.models.Game.delete().where(
+                        self.models.Game.id == game_id
+                    ).execute()
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids or (-1,))
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(member_ids or (-1,))
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
+
     def test_operator_player_migration_commits_dependencies_and_rolls_back(self):
         """Exercise P9.4's complete graph on real development PostgreSQL."""
 

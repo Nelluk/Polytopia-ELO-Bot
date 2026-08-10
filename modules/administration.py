@@ -15,7 +15,7 @@ import functools
 from modules.games import PolyGame
 import modules.achievements as achievements
 from modules import confirmation_publication, confirmation_publication_workers
-from modules import elo_workers, game_workers
+from modules import elo_workers, game_correction_publication, game_workers
 from modules import nova_graduation_workers
 from modules.elo_jobs import EloJobConflict
 from modules import team_emoji as team_emoji_service
@@ -308,25 +308,54 @@ class administration(commands.Cog):
     ):
         utilities.lock_game(game_id)
         try:
-            result = await game_workers.run_ranked_state_correction(
-                game_id,
-                guild.id,
-                is_ranked,
-                models.GameLog.member_string(requester),
-            )
-            game = models.Game.load_full_game(result.game_id)
+            try:
+                result = await game_workers.run_ranked_state_correction(
+                    game_id,
+                    guild.id,
+                    is_ranked,
+                    models.GameLog.member_string(requester),
+                )
+            except game_workers.RankedStateSnapshotError as exc:
+                logger.exception(
+                    'Game %s ranked-state correction committed but its '
+                    'publication snapshot failed',
+                    game_id,
+                )
+                result = exc.result
+                state = 'ranked' if result.is_ranked else 'unranked'
+                return (
+                    f'Game {result.game_id} is now marked as {state}, but '
+                    'its committed Discord publication snapshot could not be '
+                    'loaded. Do not run the correction again; staff should '
+                    'reconcile its game-channel notice.'
+                )
             state = 'ranked' if result.is_ranked else 'unranked'
-            await game.update_squad_channels(
-                guild_list=settings.bot.guilds,
-                guild_id=guild.id,
-                message=(
-                    f'Staff member **{requester.display_name}** has set this '
-                    f'game to be *{state}*.'
-                ),
-            )
+            if result.publication is None:
+                raise RuntimeError(
+                    'Committed ranked-state correction has no publication '
+                    'snapshot.'
+                )
+            try:
+                await game_correction_publication.publish_ranked_state(
+                    result.publication,
+                    requester_display_name=requester.display_name,
+                    bot=settings.bot,
+                )
+            except game_correction_publication.GameCorrectionPublicationError:
+                logger.exception(
+                    'Game %s ranked-state correction committed but Discord '
+                    'publication failed',
+                    result.game_id,
+                )
+                return (
+                    f'Game {result.game_id} is now marked as {state}, but '
+                    'its game-channel notice failed. Do not run the '
+                    'correction again; staff should reconcile the notice.'
+                )
             return (
-                f'Game {game.id} is now marked as {state}.\n'
-                f'Notifying players: {" ".join(game.mentions())}'
+                f'Game {result.game_id} is now marked as {state}.\n'
+                'Notifying players: '
+                f'{" ".join(result.publication.roster_mentions)}'
             )
         finally:
             utilities.unlock_game(game_id)
@@ -360,32 +389,53 @@ class administration(commands.Cog):
     ):
         utilities.lock_game(game_id)
         try:
-            result = await game_workers.run_game_unstart(
-                game_id,
-                guild.id,
-                models.GameLog.member_string(requester),
-                invoked_with or f'{prefix}unstart',
-                invocation_channel_id,
-            )
-
             warnings = []
+            try:
+                result = await game_workers.run_game_unstart(
+                    game_id,
+                    guild.id,
+                    models.GameLog.member_string(requester),
+                    invoked_with or f'{prefix}unstart',
+                    invocation_channel_id,
+                )
+            except game_workers.GameUnstartSnapshotError as exc:
+                logger.exception(
+                    'Game %s unstart committed but its publication snapshot '
+                    'failed',
+                    game_id,
+                )
+                result = exc.result
+                warnings.append(
+                    'the committed announcement snapshot needs reconciliation'
+                )
             if (
                 result.announcement_channel_id is not None
                 and result.announcement_message_id is not None
+                and result.publication is not None
             ):
                 try:
-                    game = models.Game.load_full_game(result.game_id)
-                    # Render the same cancelled in-progress card as the
-                    # legacy command without persisting the display-only name.
-                    game.is_pending = False
-                    game.name = f'~~{result.game_name}~~ GAME CANCELLED'
-                    await game.update_announcement(
-                        guild=guild,
-                        prefix=prefix,
+                    await (
+                        game_correction_publication
+                        .publish_cancelled_unstart_announcement(
+                            result.publication,
+                            game_name=result.game_name,
+                            announcement_channel_id=(
+                                result.announcement_channel_id
+                            ),
+                            announcement_message_id=(
+                                result.announcement_message_id
+                            ),
+                            guild=guild,
+                            prefix=prefix,
+                            bot=self.bot,
+                        )
                     )
-                except (peewee.PeeweeException, exceptions.MyBaseException):
+                except (
+                    game_correction_publication
+                    .GameCorrectionPublicationError
+                ):
                     logger.exception(
-                        'Could not update the cancelled announcement for '
+                        'Could not publish the cancelled announcement for '
                         'unstarted game %s',
                         result.game_id,
                     )
