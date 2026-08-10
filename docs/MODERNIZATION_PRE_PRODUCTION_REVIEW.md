@@ -1,0 +1,481 @@
+# Modernization adversarial pre-production review
+
+Date: 2026-08-10
+
+Reviewed branch: `codex/database-slash-modernization`
+
+Reviewed checkpoint: `8cb47aa`
+
+Production baseline: `origin/master` at `c35e2f1`
+
+Review mode: read-only. No PostgreSQL, Discord, production data, service,
+dependency, sudo, or filesystem mutation was performed during the review.
+
+## Recommendation
+
+`8cb47aa` is **not ready to become a release candidate**.
+
+The branch is correctly based on current `origin/master`, but it has three
+blockers: the production schema migration is absent, the modernization
+cutover/rollback procedure is absent, and confirmation can commit database
+state yet report a rollback after post-commit publication fails. Several
+active production paths also still violate the branch's async, permission,
+and operator-safety contracts.
+
+## Blocker
+
+### B1 — The production timezone migration does not exist
+
+- **Location:** `modules/models.py:365`,
+  `modules/player_timezone_migration.py:3`,
+  `scripts/migrate_player_timezone.py:119`, and
+  `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:88`.
+- **Observable failure:** the model now selects `timezone_offset_minutes` and
+  `timezone_offset_cleared`, but the only migration deliberately refuses
+  production. Against the unchanged production table, ordinary
+  `DiscordMember` reads can fail with undefined-column errors.
+- **Why tests do not catch it:** `tests/test_player_timezone_migration.py:84`
+  and `tests/test_player_timezone_migration.py:261` positively assert
+  production refusal. There is no production plan/apply/verify implementation
+  to test.
+- **Smallest bounded correction:** add the already-specified production-only
+  additive tool: connection-free plan by default, exact
+  environment/configured/live database and role checks, exact
+  acknowledgement, transactional/idempotent DDL, read-only verification, and
+  no destructive rollback.
+- **Focused regression:** offline identity/schema mismatch and transaction
+  fault injection, plus a separately gated non-production
+  apply/verify/idempotency test.
+
+### B2 — There is no modernization cutover and rollback runbook
+
+- **Location:** `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:105`,
+  `docs/PRODUCTION_CUTOVER.md:1`, and `docs/PRODUCTION_CUTOVER.md:44`.
+- **Observable failure:** the only runbook is the completed Python 3.12 upgrade
+  record. It explicitly says there is no schema migration and contains a
+  retired rollback. It cannot safely govern modernization schema ordering,
+  single-writer proof, task-disabled canary, command-tree changes, or
+  independent code/schema/tree rollback.
+- **Why tests do not catch it:** `tests/test_deployment_assets.py:23` merely
+  asserts that the historical Python upgrade checkpoints and legacy
+  interpreter rollback remain present.
+- **Smallest bounded correction:** create a modernization-specific runbook
+  containing every R-004 requirement and clearly label the old document as
+  historical only.
+- **Focused regression:** a deployment-asset test enforcing the required
+  ordering and rejecting the historical "no schema migration" procedure as
+  modernization authority.
+
+### B3 — A committed confirmation can be reported as rolled back
+
+- **Location:** transaction commit at `modules/elo_workers.py:333`;
+  post-commit reload/publication at `modules/administration.py:178`; Discord
+  effect before audit at `modules/games.py:6178`; rollback wording at
+  `modules/administration.py:547` and `modules/administration.py:595`; automatic
+  path at `modules/administration.py:666`.
+- **Observable failure:** `confirm_game()` commits first.
+  `post_win_messaging()` then performs Discord updates and only afterward
+  writes `GameLog`. If that write or another post-commit query fails, the
+  database remains confirmed and Discord may already be changed, while prefix
+  and slash handlers say "failed and rolled back" and "No Discord channel
+  updates were made." The automatic task can die after the committed mutation.
+- **Why tests do not catch it:** `tests/test_elo_jobs.py:1352` mocks the whole
+  `_confirm_game_and_post()` helper as failing, so it models only a pre-commit
+  failure.
+- **Smallest bounded correction:** write the authoritative actor/system audit
+  inside the worker transaction. Return a committed immutable publication plan
+  and treat subsequent failures explicitly as reconciliation failures, never
+  rollbacks.
+- **Focused regression:** inject failure after worker commit and after the
+  first Discord effect; assert committed state and transactional audit remain,
+  and user output says publication requires reconciliation. Separately inject
+  audit failure inside the worker and assert rollback with zero Discord
+  effects.
+
+## High
+
+### H1 — Unset `POLYBOT_ENV` silently selects production
+
+- **Location:** `runtime_config.py:483` and production defaults at
+  `runtime_config.py:71`.
+- **Observable failure:** an ad hoc invocation without `POLYBOT_ENV` loads
+  production configuration and enables production-default tasks/API/Bullet.
+  This contradicts the documented requirement that deployed commands
+  explicitly select a profile.
+- **Why tests do not catch it:** `tests/test_runtime_config.py:139` positively
+  asserts that an unset environment selects production.
+- **Smallest bounded correction:** require an explicit, exact `production` or
+  `development` value.
+- **Focused regression:** unset, blank, and whitespace-only values must fail
+  before reading profile files, importing server settings, creating
+  directories, or touching a database.
+
+### H2 — Native start paths bypass the prefix-wide ban gate
+
+- **Location:** prefix-only checks at `bot.py:218`; slash entry at
+  `modules/games.py:3269`; component entry at
+  `modules/game_detail_actions.py:1194`; worker authorization at
+  `modules/game_start_workers.py:247`.
+- **Observable failure:** application commands and components do not run
+  `bot.check`. `/game start` and the public Start component reach the worker
+  without checking configured banned IDs or the `ELO Banned` role. The worker
+  loads `DiscordMember` only to check registration and ignores persisted
+  account/guild ban state. A banned host can therefore commit a start that
+  `$start` rejects.
+- **Why tests do not catch it:** `tests/test_game_start.py:465` covers
+  staff/host authority but has no banned requester case.
+- **Smallest bounded correction:** add a shared native-interaction ban adapter
+  and revalidate persisted account/guild ban flags in the authoritative start
+  worker.
+- **Focused regression:** invoke slash and component starts for configured-ID,
+  role-banned, account-banned, and guild-player-banned hosts; assert no commit,
+  channel creation, public result, or card mutation.
+
+### H3 — Guild-only command management never proves the remote global tree is empty
+
+- **Location:** guild-only inspection at
+  `scripts/manage_application_commands.py:278` and remote workflow at
+  `scripts/manage_application_commands.py:360`.
+- **Observable failure:** inspection and apply can report guild convergence
+  while stale global registrations remain. Because corresponding callbacks are
+  loaded locally, those registrations can be delivered in every guild,
+  bypassing the default-deny capability assignment and PolyChampions-only
+  canary boundary.
+- **Why tests do not catch it:**
+  `tests/test_application_command_management.py:138` deliberately preserves
+  `global-only` and treats that as success.
+- **Smallest bounded correction:** fetch and display the global command set
+  read-only in remote modes, and refuse apply if it is nonempty. Removal can
+  remain separately approved.
+- **Focused regression:** a nonempty global snapshot must be reported and stop
+  apply before any guild sync; an empty global tree preserves current behavior.
+
+### H4 — Converted result and correction paths still perform synchronous ORM reloads and carry live models through awaits
+
+- **Location:** ordinary win at `modules/game_win.py:250`; unwin at
+  `modules/games.py:4546`; confirm/rank/unstart at
+  `modules/administration.py:184`, `modules/administration.py:225`, and
+  `modules/administration.py:285`; shared publishers at
+  `modules/games.py:6168` and `modules/games.py:6201`.
+- **Observable failure:** after worker commit and coordinator cleanup, adapters
+  call `Game.load_full_game()` synchronously on the Discord event loop, retain
+  the graph across channel/role awaits, and perform later ORM traversal and
+  writes. A slow query stalls all interactions; lazy access can query from the
+  event-loop connection after unrelated awaits; output can observe newer state
+  after the game lock has been released.
+- **Why tests do not catch it:** `tests/test_game_win_service.py:421` mocks
+  `load_full_game()` and explicitly asserts unlock before post-effects;
+  correction tests similarly replace the reload/publisher with mocks.
+- **Smallest bounded correction:** worker-load one immutable post-commit
+  effect/card snapshot containing only frozen channel, roster, season, mention,
+  audit, and role inputs. Publishers must be model-free.
+- **Focused regression:** block snapshot loading while an event-loop heartbeat
+  runs; assert publishers receive no Peewee instances and cause no ORM calls.
+  Allow a conflicting mutation after commit and verify publication remains
+  based on the committed snapshot.
+
+### H5 — Enabled production background tasks remain synchronous and non-reconciling
+
+- **Location:** task activation at `modules/games.py:271` and
+  `modules/administration.py:131`; channel purge at `modules/games.py:6125`;
+  delete-before-save at `modules/models.py:1347`; champion task at
+  `modules/achievements.py:19`; auto-confirm selection at
+  `modules/administration.py:617`.
+- **Observable failure:**
+  - completed-game purge runs a broad query on-loop, passes live `Game` objects
+    through Discord deletion, and saves channel IDs only after deletion;
+    cancellation/DB failure leaves stale IDs;
+  - champion reconciliation performs synchronous leaderboard queries, retains
+    models across role awaits, and audits after effects; when the global result
+    is discarded at default ELO, line 65 dereferences `None` and can terminate
+    the coroutine;
+  - auto-confirm eligibility is selected on-loop and is not authoritatively
+    revalidated inside the confirmation transaction.
+- **Why tests do not catch it:** no test references
+  `task_purge_game_channels`, `task_set_champion_role`, `confirm_auto`, or
+  `task_confirm_auto`; modernized purge tests cover a different incomplete-game
+  task.
+- **Smallest bounded correction:** worker-owned immutable candidate discovery,
+  transactional authoritative revalidation, and explicit post-effect
+  reconciliation. Contain cycle exceptions so one record cannot kill a
+  recurring task.
+- **Focused regression:** slow-query heartbeat tests, stale auto-confirm
+  eligibility, Discord-delete-success/DB-reconcile-failure, partial role
+  failure, and proof that a later cycle still runs after an exception.
+
+### H6 — Approved operator retirements remain executable, and destructive channel purge is unresolved
+
+- **Location:** `$gtest` at `modules/league.py:1401`; `$ptrophies` at
+  `modules/administration.py:2500`; `$boost_from` at
+  `modules/administration.py:2555`; `$purge_game_channels` at
+  `modules/administration.py:393`; accepted decision at
+  `docs/DATABASE_AND_SLASH_MODERNIZATION.md:13552`; purge gate at
+  `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:192`.
+- **Observable failure:** `gtest` loads hard-coded game `135855` and invokes
+  Nova role logic; `ptrophies` performs direct writes; `boost_from` applies
+  roles across guilds before saving the database flag. Purge interleaves direct
+  ORM access, public messages, audit writes, and irreversible Discord channel
+  deletion with no preview or reconciliation.
+- **Why tests do not catch it:** no retirement inventory checks these names;
+  safe command discovery still registers `gtest`, `ptrophies`, `boost_from`,
+  `boost_from_norole`, and `purge_game_channels`.
+- **Smallest bounded correction:** remove the three explicitly approved
+  obsolete handlers. Resolve purge separately by retirement or its
+  already-specified preview/confirm/worker/reconciliation replacement.
+- **Focused regression:** enumerate all prefix commands and aliases and assert
+  approved retirements are absent; require every retained operator command to
+  map to an explicit recorded disposition.
+
+### H7 — Repeated cancellation can abandon a live backup child and clear coordinator ownership
+
+- **Location:** cleanup at `modules/operator_backup.py:400`; coordinator
+  clearing at `modules/operator_backup.py:497`.
+- **Observable failure:** after the first `CancelledError`, termination and
+  stream draining are awaited without protection from a second cancellation. A
+  second `cancel()` can interrupt cleanup; the coordinator's `finally` then
+  clears `active` while the separately sessioned process group may still run
+  and its pipes remain undrained.
+- **Why tests do not catch it:** `tests/test_operator_backup.py:190` cancels
+  once and its fake signal immediately releases the child.
+- **Smallest bounded correction:** make termination, reaping, and pipe draining
+  resistant to repeated cancellation and keep coordinator ownership until all
+  cleanup completes.
+- **Focused regression:** block termination, cancel twice, verify the
+  coordinator remains active and rejects another request, then release the
+  process and assert it is reaped/drained before cancellation propagates.
+
+### H8 — The task-disabled startup canary writes the database before Discord identity validation
+
+- **Location:** unconditional ban reconciliation at `bot.py:61`;
+  `--skip_tasks` behavior at `bot.py:32`; authenticated application validation
+  at `bot.py:296`.
+- **Observable failure:** `--skip_tasks` does not prevent startup database
+  writes. A wrong Discord token/application can reset and reapply ban state
+  before the bot notices the ID mismatch and closes.
+- **Why tests do not catch it:** `tests/test_runtime_config.py:479` checks only
+  that `run_tasks` becomes false.
+- **Smallest bounded correction:** authenticate and validate the bot identity
+  before ban reconciliation, then perform reconciliation through a bounded
+  connection-owning startup service.
+- **Focused regression:** a wrong authenticated bot ID must cause zero ban
+  writes or background effects; the expected ID runs reconciliation exactly
+  once.
+
+## Medium
+
+### M1 — Retained prefix adapters still create event-loop ORM boundaries
+
+- **Location:** `PolyGame` at `modules/games.py:115`; canonical-name reads at
+  `modules/games.py:2841` and `modules/games.py:2902`.
+- **Observable risk:** mutation converters synchronously connect/load a live
+  `Game` before the authoritative worker repeats the lookup. `$getname` and
+  `$getnames` perform synchronous/lazy ORM reads and retain models across
+  multiple Discord sends.
+- **Why tests do not catch it:** `tests/test_player_registration.py:819` mocks
+  the single `getname` ORM read; command tests commonly inject
+  `SimpleNamespace` games instead of exercising conversion.
+- **Smallest bounded correction:** parse mutation IDs as integers and let
+  workers own lookup; add bounded immutable readers for canonical names/draft
+  order.
+- **Focused regression:** slow converter/name readers with an event-loop
+  heartbeat; require primitive-only renderer inputs and zero ORM calls between
+  sends.
+
+### M2 — Backup execution can outlive both its view and Discord interaction token
+
+- **Location:** 30-minute process limit at `modules/operator_backup.py:29`;
+  five-minute view at `modules/operator_backup_views.py:25`; timeout wording at
+  `modules/operator_backup_views.py:137`; final webhook work at
+  `modules/operator_backup_views.py:122`; locked library's 15-minute interaction
+  expiry at
+  `.venv/lib/python3.12/site-packages/discord/interactions.py:423`.
+- **Observable risk:** after five minutes the UI can say "expired; run again"
+  while the backup remains active. After 15 minutes the swallowed message edit
+  and final followup cannot reliably deliver the terminal result.
+- **Why tests do not catch it:** `tests/test_operator_backup.py:135` uses
+  immediate or millisecond processes and never advances view/token expiry.
+- **Smallest bounded correction:** prevent timeout while busy and either bound
+  execution below token lifetime with margin or deliver the terminal result
+  through an approved durable private destination.
+- **Focused regression:** fake both five- and fifteen-minute expiry; assert no
+  false rerun guidance and exactly one terminal result through the approved
+  route.
+
+### M3 — Backup source validation is not tied to a reviewed release
+
+- **Location:** `modules/operator_backup.py:164`; additional executed exporter
+  at `scripts/backup_db.sh:19` and `scripts/backup_db.sh:147`.
+- **Observable risk:** `Path.stat()` follows symlinks, source ownership/type is
+  not independently trusted, and preflight accepts any two identical shell
+  scripts. It also executes the checkout's unvalidated reporting
+  exporter/interpreter. Matching locally modified files therefore satisfy the
+  "reviewed source" claim.
+- **Why tests do not catch it:** `tests/test_operator_backup.py:96` creates
+  arbitrary matching temporary scripts and considers them trusted; there is no
+  symlink, dirty exporter, or pinned-release case.
+- **Smallest bounded correction:** reject symlinks with `lstat` and bind the
+  shell plus invoked exporter/runtime identity to a reviewed release manifest
+  or pinned digests.
+- **Focused regression:** matching-but-unpinned scripts, either symlink,
+  modified exporter, and wrong checkout checkpoint must fail before spawn.
+
+### M4 — Two public read fallbacks inherit private deferred visibility
+
+- **Location:** private defer and fallback at `modules/games.py:1010` and
+  `modules/games.py:1063`; team-show fallback at `modules/team_show.py:452`;
+  prior live evidence at `docs/DATABASE_AND_SLASH_MODERNIZATION.md:18874`.
+- **Observable risk:** when `interaction.channel` is unavailable,
+  `followup.send(ephemeral=False)` after an ephemeral defer remains private.
+  The branch can claim successful public publication although only the
+  requester sees it.
+- **Why tests do not catch it:** `tests/test_team_show.py:664` and
+  `tests/test_team_leaderboard.py:677` always provide a working channel sender.
+- **Smallest bounded correction:** resolve/fetch the destination by
+  `channel_id` and publish through the channel, otherwise return an explicit
+  private publication failure.
+- **Focused regression:** use the inheritance-aware fake with no
+  `interaction.channel`; assert resolved channel publication or a private
+  failure, never a purported public webhook followup.
+
+### M5 — Unexpected prefix exceptions leak raw text publicly
+
+- **Location:** `bot.py:270`.
+- **Observable risk:** exception text may contain database details, host paths,
+  identifiers, or user-provided values, and is interpolated directly into a
+  Discord message.
+- **Why tests do not catch it:** there is no observable test for the prefix-wide
+  unexpected-error handler.
+- **Smallest bounded correction:** retain the full traceback only in server
+  logs, add a correlation token, and send a generic public message.
+- **Focused regression:** inject an exception containing a secret sentinel; it
+  may appear in captured logs but never in Discord output.
+
+### M6 — The production support/privacy fallback is still unspecified
+
+- **Location:** `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11709`,
+  `docs/PRIVACY_READINESS_CHECKLIST.md:14`, and `PRIVACY.md:127`.
+- **Observable risk:** production omits the development-only `/staffhelp` flow,
+  but the repository records no exact community route, ownership, monitoring,
+  or verification evidence for the promised fallback.
+- **Why tests do not catch it:** capability tests correctly omit the command but
+  no readiness check requires a concrete alternative.
+- **Smallest bounded correction:** record and verify the exact support/privacy
+  route for each production community, or retain an existing intake until that
+  evidence exists.
+- **Focused regression:** release-readiness validation must fail if
+  `tools_support` is unassigned and no reviewed support-route record is
+  supplied.
+
+### M7 — No final-HEAD release-candidate evidence exists
+
+- **Location:** required gates at
+  `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11699`, audit R-002 at
+  `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:80`, and audit sequence at
+  `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:204`.
+- **Observable risk:** evidence is per-unit and historical; nothing binds
+  complete offline, stopped-writer development PostgreSQL, and bounded beta
+  validation to exact candidate `8cb47aa`.
+- **Why tests do not catch it:** no readiness manifest or validator compares
+  recorded evidence with HEAD.
+- **Smallest bounded correction:** after corrections, freeze one candidate and
+  record exact-SHA evidence for every required gate.
+- **Focused regression:** a readiness validator must reject evidence referring
+  to any other checkpoint or omitting a required gate.
+
+## Low / documentation
+
+### L1 — Roadmap and evidence records are internally stale
+
+- **Exact records:**
+  - "Last updated" remains 2026-08-09 at
+    `docs/DATABASE_AND_SLASH_MODERNIZATION.md:3`, despite later 2026-08-10 work.
+  - P9 is `Planned` at `docs/DATABASE_AND_SLASH_MODERNIZATION.md:949`, but
+    `In progress; P9.0–P9.6 source units complete` at line 11691.
+  - C-012/C-013 still carry resolved stall language at
+    `docs/DATABASE_AND_SLASH_MODERNIZATION.md:365`; C-025 remains
+    "implementation pending" at line 379.
+  - P9.6's next action jumps toward later production execution at
+    `docs/DATABASE_AND_SLASH_MODERNIZATION.md:12603`, bypassing unresolved
+    R-003/R-004.
+  - Taxonomy "current implementation" omits many current roots at
+    `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md:1331`.
+  - The readiness audit says ten roots at
+    `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:54`; current source loads
+    eleven with `/operator`.
+  - `config.ini-EXAMPLE` still names `polytopia` at line 8, while reviewed
+    production identity is `polytopia2`.
+  - `git diff --check` fails on trailing whitespace at
+    `modules/league.py:1400`, contradicting recorded clean-diff evidence.
+- **Observable risk:** reviewers and operators cannot identify the true active
+  phase, command surface, or next gate reliably.
+- **Why tests do not catch it:** no consistency check links summary tables,
+  capability/source inventory, compatibility decisions, and current HEAD.
+- **Smallest bounded correction:** reconcile the summary, ledgers, taxonomy,
+  audit source count, next-action pointer, example configuration, and
+  whitespace claim.
+- **Focused regression:** one model-free command/compatibility/status
+  consistency check plus `git diff --check`.
+
+## Areas reviewed with no defect found
+
+- HEAD is exactly `8cb47aa`; the worktree was clean at the start of review.
+- `origin/master` is `c35e2f1` and is an ancestor of HEAD. The branch is zero
+  commits behind and 592 ahead; no current-master divergence remains.
+- `pyproject.toml` and `uv.lock` do not differ from `origin/master`.
+- Normal startup does not synchronize application commands. Every sync call in
+  the manager supplies an explicit guild.
+- Capability policy is default-deny and current model-free loading produced
+  eleven guild-only roots.
+- ELO coordinator completion/cancellation accounting retains ownership until
+  its worker future completes.
+- Operator player migration/deletion and Tribe mutation workers use frozen
+  requests/results, worker-local connections, atomic mutation/audit
+  transactions, locks, and authoritative revalidation.
+- Modernized incomplete-game purge, started-broadcast reconciliation, and
+  sampled pending-game component flows use immutable discovery/state and
+  reject stale, duplicate, expired, or requester-mismatched actions.
+- Sampled component cleanup treats Discord error `10008` as benign; no separate
+  Unknown Message defect was found.
+- Apart from the findings above, backup handling correctly refuses
+  non-owner/development identities before production-path reads, uses
+  asynchronous subprocesses, rejects in-process and host-lock conflicts,
+  bounds output, distinguishes partial/busy failures, validates artifact
+  freshness, and returns private bounded summaries.
+- Feedback attachments are development-only, count/size/type bounded, stored
+  under restricted paths, and mirrored with mentions disabled.
+- Tracked production/development systemd units explicitly select their
+  profiles.
+
+## Validation evidence
+
+The safe offline suite ran with database integration forcibly disabled:
+
+- 1,454 tests executed;
+- 61 intentionally skipped;
+- one failure and two errors, all caused by the existing `.venv` lacking the
+  locked `duckdb` package, including the reporting-export module import;
+- dependencies were not installed or synchronized; and
+- no gated PostgreSQL tests ran.
+
+That prevents claiming a green final-HEAD offline checkpoint. It does not by
+itself establish a repository dependency defect because the lockfile includes
+DuckDB and the current environment is unsynchronized.
+
+## Prioritized correction sequence
+
+1. Correct confirmation transaction/publication semantics.
+2. Remove live ORM graphs from post-commit publishers and modernize the enabled
+   background tasks.
+3. Restore native ban parity and authoritative worker checks; fail closed on
+   unset profiles and nonempty global command state.
+4. Remove approved obsolete prefixes, resolve destructive channel purge, and
+   move identity validation before startup writes.
+5. Harden backup cancellation, interaction lifetime, and release provenance.
+6. Implement the production-only additive migration.
+7. Write the modernization cutover/rollback runbook and record the concrete
+   production support route.
+8. Reconcile roadmap/taxonomy/status records, freeze a new exact candidate, and
+   complete its required validation evidence.
+
+The branch should remain a modernization work branch until those corrections
+and gates are closed.
