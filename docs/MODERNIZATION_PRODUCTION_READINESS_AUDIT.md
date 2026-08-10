@@ -2,7 +2,8 @@
 
 Date: 2026-08-09
 
-Status: Read-only audit complete; production rollout is not yet ready
+Status: Read-only audit complete and integrated as `5f69726`; production
+rollout is not yet ready
 
 This audit reconciles the accumulated database/slash modernization work with
 the current production baseline. It authorizes no production checkout,

@@ -4,7 +4,7 @@ Last updated: 2026-08-09
 
 Status: Active
 
-Current branch at last update: `codex/p9-0-readiness-audit`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -11701,7 +11701,7 @@ After a stable observation period, separately decide whether to:
 
 ### P9.0 — Production-readiness audit
 
-Status: **Complete locally; documentation integration/push pending**
+Status: **Complete; integrated as `5f69726`; push pending**
 
 Risk tier: **Tier 1 read-only repository and runbook audit**. Exact base:
 `3947298` on `codex/database-slash-modernization`. Branch:
@@ -12729,8 +12729,9 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
   discovery passed **1,392 tests with 58 intentional database-gated skips**.
   No PostgreSQL, production, Discord, beta, schema, dependency, fixture, or
   sudo operation occurred.
-- Next: integrate this audit record, then implement P9.1 upstream
-  reconciliation without combining it with production DDL or deployment.
+- Integrated the audit record as `5f69726`. Next: push the accumulation
+  checkpoint, then implement P9.1 upstream reconciliation without combining it
+  with production DDL or deployment.
 
 ### 2026-08-09 — P8 final residual audit completed
 
