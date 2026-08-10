@@ -46,7 +46,8 @@ class PlayerMigrationPreviewView(discord.ui.LayoutView):
         for row in self.preview.guilds:
             guild_lines.append(
                 f'- `{row.guild_id}`: {row.disposition}; destination deps '
-                f'L{row.lineups}/H{row.hosted_games}/S{row.squad_memberships}/'
+                f'G{row.incomplete_games}/L{row.lineups}/H{row.hosted_games}/'
+                f'S{row.squad_memberships}/'
                 f'P{row.house_preferences}/B{row.bids}'
             )
         metadata = ', '.join(self.preview.destination_metadata) or 'none'
@@ -75,7 +76,9 @@ class PlayerMigrationPreviewView(discord.ui.LayoutView):
                 f'`{self.preview.destination_id}`\n'
                 f'**Existing destination identity:** {self.preview.destination_exists}\n'
                 f'**Destination completed games:** {self.preview.destination_completed_games}\n'
-                f'**Destination metadata that will not be merged:** {metadata}'
+                f'**Destination metadata that will not be merged:** {metadata}\n'
+                '**Retained:** source account identity/rating history; only '
+                'the destination Discord ID and current Discord name replace it.'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
@@ -102,6 +105,14 @@ class PlayerMigrationPreviewView(discord.ui.LayoutView):
         except workers.PlayerMigrationError as exc:
             self.busy = False
             self.status = str(exc)
+            self.rebuild()
+            return await interaction.edit_original_response(view=self)
+        except Exception:
+            self.busy = False
+            self.status = (
+                'Migration failed before a confirmed result. Run the command '
+                'again; if the database committed, reconcile before retrying.'
+            )
             self.rebuild()
             return await interaction.edit_original_response(view=self)
         self.finished = True

@@ -61,7 +61,9 @@ def completion_message(result, actor) -> str:
         f'{result.hosts_reassigned} host reference(s), '
         f'{result.squad_memberships_reassigned} squad membership(s), '
         f'{result.house_preferences_reassigned} House preference(s), and '
-        f'{result.bids_reassigned} bid reference(s).'
+        f'{result.bids_reassigned} bid reference(s); deduplicated '
+        f'{result.squad_memberships_deduplicated} squad and '
+        f'{result.house_preferences_deduplicated} House relationship(s).'
     )
 
 

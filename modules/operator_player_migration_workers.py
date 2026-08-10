@@ -59,6 +59,7 @@ class PlayerMigrationGuildPreview:
     disposition: str
     source_team_id: int | None
     destination_team_id: int | None
+    incomplete_games: int
     lineups: int
     hosted_games: int
     squad_memberships: int
@@ -227,14 +228,16 @@ def _build_graph(request) -> _Graph:
     destination_lineups = tuple(
         row for row in lineups if row.player_id in destination_player_ids
     )
-    destination_game_ids = tuple(sorted({row.game_id for row in destination_lineups}))
-    completed_game_ids = () if not destination_game_ids else tuple(
-        row.id for row in models.Game.select(models.Game.id)
-        .where(
-            models.Game.id.in_(destination_game_ids)
-            & (models.Game.is_completed == True)
-        )
+    destination_game_ids = tuple(
+        sorted({row.game_id for row in destination_lineups})
+    )
+    destination_games = () if not destination_game_ids else _rows(
+        models.Game.select(models.Game.id, models.Game.is_completed)
+        .where(models.Game.id.in_(destination_game_ids))
         .order_by(models.Game.id)
+    )
+    completed_game_ids = tuple(
+        row.id for row in destination_games if row.is_completed
     )
     source_game_ids = {row.game_id for row in lineups if row.player_id in source_player_ids}
     shared_game_ids = tuple(sorted(source_game_ids.intersection(destination_game_ids)))
@@ -282,6 +285,9 @@ def _build_graph(request) -> _Graph:
             disposition = 'retain source player'
         destination_id = destination_player.id if destination_player else None
         destination_ids = () if destination_id is None else (destination_id,)
+        guild_destination_game_ids = {
+            row.game_id for row in lineups if row.player_id in destination_ids
+        }
         guild_previews.append(PlayerMigrationGuildPreview(
             guild_id=guild_id,
             source_player_id=source_player.id if source_player else None,
@@ -290,6 +296,10 @@ def _build_graph(request) -> _Graph:
             source_team_id=source_player.team_id if source_player else None,
             destination_team_id=(
                 destination_player.team_id if destination_player else None
+            ),
+            incomplete_games=sum(
+                row.id in guild_destination_game_ids and not row.is_completed
+                for row in destination_games
             ),
             lineups=sum(row.player_id in destination_ids for row in lineups),
             hosted_games=sum(row.host_id in destination_ids for row in hosted_games),

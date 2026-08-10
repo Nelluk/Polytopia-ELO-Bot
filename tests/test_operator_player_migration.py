@@ -34,6 +34,7 @@ def preview(**overrides):
             disposition='merge destination player into source player',
             source_team_id=10,
             destination_team_id=10,
+            incomplete_games=1,
             lineups=2,
             hosted_games=1,
             squad_memberships=1,
