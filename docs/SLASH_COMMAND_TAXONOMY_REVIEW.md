@@ -1301,7 +1301,7 @@ touched.
 | `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit implemented in P9.3; prefix retired under C-026 |
 | `ptrophies` | none | Approved retirement: obsolete 2021 repair |
 | `boost_from`, `boost_from_norole` | none | Approved retirement |
-| `migrate_player`, `migrate` | `/operator player migrate` | Implemented in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; real-schema/deployment gates pending |
+| `migrate_player`, `migrate` | `/operator player migrate` | Complete in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; integrated and development-guild deployed at `6e0d36a` |
 | `delete_player`, `delplayer` | `/operator player delete` | Preserve owner-only access; typed preview and confirmation; retire prefixes with replacement |
 | `backup_db`, `dbb` | `/operator database backup` | Owner-only bounded, environment-aware host operation; retire prefixes with replacement |
 | `gtest` | none | Approved retirement: hidden hard-coded diagnostic |

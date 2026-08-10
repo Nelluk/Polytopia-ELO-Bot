@@ -378,7 +378,7 @@ would become unavailable if a prefix is retired.
 | C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; integrated, pushed, and loaded by the guarded beta through `e78601b` |
 | C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
-| C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema commit/rollback/cleanup validation green; integration and development-guild apply pending |
+| C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -488,16 +488,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.4 is implemented on
-`codex/p9-4-player-migration` from accepted audit checkpoint `41b1bcc`.
+Current active unit: **P9.4 is Complete, integrated, and deployed from
+checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
 audit, and post-commit public attribution; `$migrate_player`/`$migrate` are
 retired under C-027. Focused tests and complete offline discovery are green.
 The stopped-beta real-schema suite passed 58 tests with one intentional
 retained-fixture skip, including complete P9.4 commit/rollback/cleanup
-evidence. Integration and the guild-only `/operator` update remain before
-deployment.** P8.26 is
+evidence. Remote inspection/apply updated only `/operator`, post-apply
+inspection converged across all eleven roots, and the guarded beta
+authenticated as the expected application with one development writer.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -11660,8 +11661,7 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.3 complete; P9.4 implementation and real-schema
-gate green with integration/development-guild deployment pending**
+Status: **In progress; P9.0–P9.4 complete**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11978,9 +11978,8 @@ retiring `$migrate_player`/`$migrate` with the complete native replacement.
 
 ### P9.4 — Configured-superuser player migration
 
-Status: **Implemented and real-schema validated on
-`codex/p9-4-player-migration`; integration and development-guild deployment
-pending**
+Status: **Complete; integrated and loaded by the guarded development beta at
+`6e0d36a`**
 
 Risk tier: **Tier 3 cross-guild identity merge and destructive account
 consolidation**. Audit branch: `codex/p9-4-player-migration-audit` from exact
@@ -12166,9 +12165,28 @@ and stale fingerprint.
   metadata, wrote one audit, injected an audit failure to prove full rollback,
   and explicitly removed all temporary rows.
 
-Next action: integrate the clean P9.4 branch into the accumulation branch,
-inspect/apply only the reviewed guild-scoped `/operator` update, restart the
-guarded beta, and verify the expected application identity and remote tree.
+Deployment evidence:
+
+- fast-forwarded the complete unit into `codex/database-slash-modernization`;
+- offline desired state contained the same eleven approved development-guild
+  roots; remote inspection found exactly one update, `/operator`, with no
+  creates or removals;
+- explicit guild-only apply used all no-global-sync acknowledgements, and
+  post-apply inspection reported all eleven roots unchanged;
+- restarted only `polybot-development-beta@main.service` from clean checkpoint
+  `6e0d36a`; it authenticated as **PolyELO Bot Beta** application
+  `479029527553638401`, background tasks/API remained disabled, and the
+  host-wide audit found exactly that one development writer; and
+- no broad tester announcement was sent because this is a rare destructive
+  configured-superuser operation. Its first real use should still review the
+  private graph carefully; a safe nonexistent-source invocation may be used
+  for an optional adapter smoke without database mutation.
+
+Next action: P9.5 should audit owner-only `$delete_player` / `$delplayer` and
+define a native `/operator player delete` preview/confirmation contract. The
+audit must identify all account-wide and per-guild dependencies, distinguish
+hard blockers from explicitly selected deletion scope, and keep the current
+owner-only authorization. No source change should precede those decisions.
 
 ## Standard work-unit template
 
@@ -13122,6 +13140,20 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.4 integrated and deployed guild-only
+
+- Fast-forwarded the reviewed implementation and real-schema evidence into
+  the accumulation branch.
+- Remote inspection found exactly one update to the existing development
+  guild's `operator` root; explicit apply and post-inspection converged with
+  all eleven roots unchanged and no global operation.
+- Restarted the guarded beta from clean code checkpoint `6e0d36a`; it
+  authenticated as the expected beta application with exactly one development
+  writer and no startup error.
+- Sent no wider-beta announcement because the command is configured-superuser
+  only and destructive; first real use remains the meaningful acceptance.
+- Selected a read-only P9.5 deletion-graph audit as the next bounded unit.
 
 ### 2026-08-10 — P9.4 stopped-beta real-schema gate passed
 
