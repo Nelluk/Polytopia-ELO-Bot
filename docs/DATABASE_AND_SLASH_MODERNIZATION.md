@@ -491,9 +491,9 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.12/H1-H2 explicit runtime selection and native start
-ban parity is Complete in the accumulation branch at merge checkpoint
-`102d64a`, from exact clean base `6812899`. Implementation/tests checkpoint
-`5038282` makes runtime selection
+ban parity is Complete and loaded by the guarded beta. Accumulation merge
+checkpoint `102d64a` starts from exact clean base `6812899`;
+implementation/tests checkpoint `5038282` makes runtime selection
 fail before effects unless `POLYBOT_ENV` is exactly `production` or
 `development`, adds model-free configured-ID/role denials to `/game start` and
 the pending-card Start action, and revalidates persisted account/guild-player
@@ -504,7 +504,10 @@ known missing-`duckdb` environment failures. The corrected H2 real-schema
 verifier passes, followed by the complete stopped-writer gate at 69 tests: 68
 passed and one operator-owned fixture round trip intentionally skipped.
 The unchanged offline development-guild plan still has the established eleven
-roots, so no remote apply is warranted. Clean push and beta reload remain.**
+roots, so no remote apply is warranted. Clean close-out `7dbda64` is pushed
+and runs as exact beta startup checkpoint under PID `3863626`, with the
+expected ready application and exactly one development writer. No tester
+announcement was warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13227,7 +13230,7 @@ global Discord operation is involved.
 
 ### P9.12 — H1-H2 explicit runtime selection and native start ban parity
 
-Status: **Complete in the accumulation branch; guarded-beta reload pending**
+Status: **Complete in the accumulation branch and loaded by the guarded beta**
 
 Branch/base: `codex/h1-h2-runtime-ban-safety`, exact clean accumulation base
 `6812899331113e6a0cf2146619954b622c320a54`. Implementation/tests checkpoint:
@@ -14264,8 +14267,22 @@ Retire `$purge_game_channels` with this replacement.
   `102d64a`. The offline desired development-guild plan still contains exactly
   the established eleven roots; H1/H2 changes no registered shape, so no
   remote inspect/apply is warranted.
-- Next: push a clean accumulation close-out and reload/verify only the guarded
-  beta.
+- Clean accumulation close-out `7dbda64` was pushed and the exact GitHub ref
+  verified. The guarded beta prestart audit was clear; PID `3863626` runs only
+  the primary checkout with `--skip_tasks`, records exact startup checkpoint
+  `7dbda64634ee570390c18595288cd99bd310fce6`, authenticates as expected beta
+  application `479029527553638401`, and returns a ready protected inventory.
+  The final host-wide audit finds exactly that one development writer.
+- Selected no-announcement acceptance. Explicit-environment startup is proven
+  live; configured/role/persisted ban denial is fully covered offline and on
+  real development rows, and no suitable banned tester identity should be
+  manufactured merely for live invocation. No checklist edit, remote command
+  apply, tester/reporter ping, or release message was warranted.
+- Next recommended: close H3 by making remote guild inspect/apply read and
+  report the global command tree and refuse apply if it is nonempty, without
+  adding any global mutation operation. Also ready: a separately decided
+  supervised Discord restart unit; prefer a deliberate restart exit status
+  over granting the bot general service-manager authority.
 
 ### 2026-08-10 — P9.11/H8 startup identity ordering reviewed and gated
 
