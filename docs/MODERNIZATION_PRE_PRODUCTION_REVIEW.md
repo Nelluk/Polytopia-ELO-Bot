@@ -253,6 +253,9 @@ cancellation propagation.
 
 ### H8 — The task-disabled startup canary writes the database before Discord identity validation
 
+Status: **Resolved by P9.11 implementation checkpoint `27d4a1c`; Tier-3
+review and stopped-writer development-database gate are green.**
+
 - **Location:** unconditional ban reconciliation at `bot.py:61`;
   `--skip_tasks` behavior at `bot.py:32`; authenticated application validation
   at `bot.py:296`.
@@ -267,6 +270,12 @@ cancellation propagation.
 - **Focused regression:** a wrong authenticated bot ID must cause zero ban
   writes or background effects; the expected ID runs reconciliation exactly
   once.
+- **Resolution:** ordinary startup now reaches the authenticated client user in
+  `setup_hook()` before importing models or utilities. It validates that ID
+  first, then runs one bounded immutable ban replacement on a worker-owned
+  connection and atomic transaction before enabling any other startup effect.
+  Focused ordering/rollback/cancellation coverage and the real-schema gate
+  prove the corrected boundary.
 
 ## Medium
 
