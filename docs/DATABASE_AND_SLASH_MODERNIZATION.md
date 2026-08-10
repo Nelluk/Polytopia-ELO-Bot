@@ -491,15 +491,15 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.8 approved obsolete operator-command retirement is
-Implemented on `codex/p9-8-obsolete-command-retirements` at checkpoint
-`de608c9`, from exact clean accumulation base `3d74ff5`. The hidden hard-coded
-`$gtest`, obsolete 2021 `$ptrophies`, and owner-only `$boost_from` /
-`$boost_from_norole` handlers are absent from the prefix registry. Restart
-aliases and manual owner-only `$purge_game_channels` remain explicitly
-separate. Complete offline discovery reaches only the three known missing-
-`duckdb` environment failures; all 1,536 available cases pass with 67 skips
-when those exact cases are excluded. Accumulation integration and the
-prefix-registry beta reload remain pending.**
+Complete in the accumulation branch at merge checkpoint `cf461c4`
+(implementation/tests `de608c9`, evidence `29709ab`), from exact clean
+accumulation base `3d74ff5`. The hidden hard-coded `$gtest`, obsolete 2021
+`$ptrophies`, and owner-only `$boost_from` / `$boost_from_norole` handlers are
+absent from the prefix registry. Restart aliases and manual owner-only
+`$purge_game_channels` remain explicitly separate. Complete offline discovery
+reaches only the three known missing-`duckdb` environment failures; all 1,536
+available cases pass with 67 skips when those exact cases are excluded. The
+prefix-registry beta reload remains the final lifecycle action.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13026,11 +13026,12 @@ the destructive manual channel-purge replacement.
 
 ### P9.8 — Approved obsolete operator-command retirements
 
-Status: **Implemented in the isolated unit branch; accumulation integration
-and development-beta reload pending**
+Status: **Complete in the accumulation branch; development-beta reload
+pending**
 
 Branch/base: `codex/p9-8-obsolete-command-retirements`, exact clean
 accumulation base `3d74ff5`. Implementation/tests checkpoint: `de608c9`.
+Roadmap evidence: `29709ab`; accumulation merge: `cf461c4`.
 
 This bounded Tier-2 H6 cleanup implements the accepted D-046 retirement
 decision without inventing native replacements for obsolete functionality:
@@ -14044,11 +14045,14 @@ branch.
   three known missing-`duckdb` environment failures remained. Excluding those
   exact cases passed all 1,536 remaining tests with 67 skips. No dependency
   was installed or synchronized.
-- Recorded implementation/tests at `de608c9`. No database, application-command
-  tree, capability, or tester-facing workflow changed, so no development-
-  database gate or guild command sync is warranted. Next action is Tier-2
-  complete-diff review, accumulation integration/push, then one guarded beta
-  restart to reload the prefix registry without a tester announcement.
+- Recorded implementation/tests at `de608c9` and roadmap/taxonomy evidence at
+  `29709ab`. Tier-2 complete-diff review found no correction, and the unit was
+  integrated at accumulation merge `cf461c4`.
+- No database, application-command tree, capability, or tester-facing workflow
+  changed, so no development-database gate or guild command sync is warranted.
+  Next action is push this clean accumulation close-out, then perform one
+  guarded beta restart to reload the prefix registry without a tester
+  announcement.
 
 ### 2026-08-10 — P9.7g completed-channel purge reviewed and database-validated
 
