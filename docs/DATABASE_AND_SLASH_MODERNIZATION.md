@@ -487,13 +487,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.3 is Complete, integrated and development-guild
-deployed through `015afad`. The guarded beta is healthy at that checkpoint and
-remote inspection reports all eleven desired roots unchanged, including the
-new `/operator` root. No tester announcement was sent because this workflow is
-owner-only. The next recommended bounded unit is a read-only P9.4 audit/design
-of the rare configured-superuser player-migration workflow before implementing
-`/operator player migrate` and retiring `$migrate_player`/`$migrate`.** P8.26 is
+Current active unit: **P9.4's read-only player-migration audit is complete on
+`codex/p9-4-player-migration-audit` from exact accumulation checkpoint
+`91e4191`. It found that the legacy command's apparent two-ID rewrite is a
+cross-guild identity merge whose incomplete dependency handling can lose host,
+squad, House-preference, and guild metadata. Six recommended implementation
+decisions are recorded below for acceptance before source changes. No command,
+database, Discord tree, beta process, or production state changed.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -11656,8 +11656,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.3 complete; next is P9.4 configured-superuser
-player migration audit/design**
+Status: **In progress; P9.0–P9.3 complete; P9.4 player-migration audit
+complete with implementation decisions pending acceptance**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11971,6 +11971,154 @@ Next action: P9.4 should first audit the existing rare player-migration graph
 and define a typed preview/confirmation contract for
 `/operator player migrate`, preserving configured-superuser authorization and
 retiring `$migrate_player`/`$migrate` with the complete native replacement.
+
+### P9.4 — Configured-superuser player migration
+
+Status: **Audit complete; implementation decisions pending acceptance**
+
+Risk tier: **Tier 3 cross-guild identity merge and destructive account
+consolidation**. Audit branch: `codex/p9-4-player-migration-audit` from exact
+clean accumulation checkpoint `91e4191`.
+
+#### Legacy graph and concrete findings
+
+The retained `$migrate_player` / `$migrate` command accepts two mention/raw-ID
+strings. It requires the destination to be a current member of the invoking
+guild and permits the owner plus the configured superusers. Its intended
+identity rule is: keep the old `DiscordMember` and its established ELO/game
+history, replace its Discord ID/name with the destination account, then remove
+an existing destination `DiscordMember` only when that destination has no
+completed games.
+
+The existing implementation is not safe to carry forward literally:
+
+- every Peewee read/write and the cross-guild loop run on the Discord event
+  loop;
+- the destination-absent path publishes a migration notice before commit,
+  while the actor audit is written after the transaction in both paths;
+- source and destination equality is not rejected. A zero-completed-game
+  self-migration can delete the only identity before attempting to update it;
+- when source and destination both have a `Player` in one guild, only the
+  destination `Lineup` rows move. Deleting the destination identity can null
+  its `Game.host`, cascade away `SquadMember` and `PlayerHousePreference`
+  rows, discard guild profile/team metadata, and interact unsafely with `Bid`
+  references;
+- an `ApiApplication` owned by the destination is a security-sensitive legacy
+  dependency and may prevent deletion; silently transferring its credentials
+  is outside player migration;
+- if both identities appear in the same incomplete game, blindly reassigning
+  the destination lineup creates two lineups for one person because `Lineup`
+  has no uniqueness constraint for that condition;
+- destination account-wide canonical-name/timezone and other metadata are
+  deleted without being surfaced, while source-versus-destination Team
+  conflicts are silently resolved in favor of the source record; and
+- no immutable preview, stale-state fingerprint, row locks, cancellation
+  drain, focused tests, or real-schema rollback coverage exists.
+
+The destination's zero-completed-game rule is still the right ELO boundary.
+It allows incomplete participation to follow the old established identity
+without combining two rating histories. Therefore this unit requires no ELO
+recalculation when that rule remains true at commit.
+
+#### Recommended implementation decisions
+
+**P9.4-A — Native inputs and authorization**
+
+- Add `/operator player migrate source_id:<required string>
+  destination:<required member>` under the existing guild-scoped root.
+- Keep the source as a validated raw Discord-ID string because an abandoned
+  account may no longer be selectable in the invoking guild. Use a typed
+  destination member so the current-guild-membership requirement remains
+  explicit.
+- Preserve exact configured-superuser authorization in both the adapter and
+  worker. Reject missing guild context, source equals destination, malformed
+  IDs, bot destinations, and requesters outside the runtime policy privately.
+
+**P9.4-B — Mandatory private preview and confirmation**
+
+- The slash invocation privately defers and loads one immutable preview. It
+  shows source/destination IDs and names, destination existence, per-guild
+  Player disposition, incomplete games/lineups, host/squad/preference/bid
+  dependency counts, metadata that will be retained or discarded, and every
+  blocking conflict.
+- Use requester-bound, expiry-safe Confirm/Cancel controls; do not make a
+  `confirm:true` option substitute for the preview.
+- Confirm submits the preview fingerprint. The worker reloads and compares
+  all identity, Player, game, and dependency rows; stale state fails privately
+  and requires a fresh preview.
+
+**P9.4-C — Eligibility and conflict policy**
+
+- Require the source `DiscordMember` to exist and the destination to have zero
+  completed games of any ranked/confirmed state at both preview and commit.
+- Fail closed if source and destination occur in the same game, if the
+  destination owns an `ApiApplication`, or if both overlapping guild Players
+  have different non-null Team IDs. These cases require deliberate manual
+  reconciliation rather than data loss or invented merge semantics.
+- Account-wide source identity/rating fields remain authoritative. Only the
+  destination Discord ID and current Discord name replace source identity;
+  destination canonical-name/timezone/legacy fields are listed in preview but
+  are not silently merged. They can be reapplied through the canonical player
+  commands after migration.
+- For an overlapping guild Player, preserve the source competitive fields;
+  fill a missing source Team only from a non-null destination Team, and retain
+  destination stored nick/presentation metadata when available. For a
+  destination-only guild, reparent that existing Player row to the source
+  identity so its complete local dependency graph and stable Player ID remain.
+
+**P9.4-D — Complete dependency merge**
+
+- For overlapping guild Players, reassign destination `Lineup` and
+  `Game.host` references to the source Player.
+- Union `SquadMember` and `PlayerHousePreference` rows deterministically,
+  deleting only exact duplicate squad/House relationships.
+- Reassign both `Bid.player` and `Bid.bidder` references. Then delete the
+  destination Player and, only after all guilds are reconciled, the destination
+  `DiscordMember`.
+- Update the surviving source Discord ID/name and affected Player display
+  names last inside the same transaction. Return a frozen summary of exact
+  row counts for public completion and audit evidence.
+
+**P9.4-E — Transaction, locking, and Discord boundary**
+
+- Use a dedicated single-worker executor with worker-local Peewee connection,
+  frozen primitive inputs, cancellation drain, and no Discord objects or
+  awaits in the worker.
+- Lock both identity rows in deterministic order plus their Player and
+  dependent game rows using PostgreSQL `FOR UPDATE`; revalidate the complete
+  eligibility/fingerprint inside one synchronous `db.atomic()`.
+- Put every reassignment, deduplication, identity update, destination delete,
+  and actual-invocation-guild actor-attributed `GameLog` in that transaction.
+- Publish exactly one actor/source/destination/count summary publicly only
+  after commit. Validation, permission, stale-preview, and rollback failures
+  remain private; a post-commit publication failure is terminal
+  reconciliation and must not offer retry.
+
+**P9.4-F — Prefix lifecycle and validation gate**
+
+- Retire `$migrate_player` and `$migrate` when the complete native workflow
+  lands; add the intentional retirement to the compatibility ledger. Do not
+  preserve the event-loop mutation as a fallback.
+- Require focused graph tests for destination-absent, destination-only guild,
+  overlapping guild, safe deduplication, each blocking conflict, exact
+  permission parity, stale preview, concurrent/cancelled submission, complete
+  rollback including audit, public-after-commit ordering, prefix retirement,
+  and exact nested registration.
+- Because this introduces a new multi-table transactional graph, integration
+  requires the stopped-beta `development` / `polytopia_dev` / `polybot_dev`
+  gate with real commit/rollback/cleanup evidence. Adding the nested command
+  then requires a separately reviewed development-guild apply and guarded
+  restart. No broad tester announcement is needed; one configured-superuser
+  acceptance is sufficient.
+
+#### Audit boundaries and next action
+
+This audit changed documentation only. It did not inspect or mutate
+PostgreSQL, fixtures, Discord, application-command state, the guarded beta,
+production, dependencies, or services. No implementation branch may begin
+until P9.4-A through P9.4-F are accepted or revised. After acceptance, the
+implementation remains one bounded Tier-3 unit because the preview and commit
+must share one authoritative graph definition and stale fingerprint.
 
 ## Standard work-unit template
 
@@ -12924,6 +13072,25 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.4 player-migration graph audited
+
+- Traced the unchanged 2019/2020 migration implementation through current
+  `DiscordMember`, per-guild `Player`, `Lineup`, `Game.host`, `SquadMember`,
+  `PlayerHousePreference`, `Bid`, and `ApiApplication` relationships.
+- Found that the legacy merge handles only destination lineups when both
+  accounts have a Player in one guild, leaving several current dependencies
+  vulnerable to nulling, cascade deletion, discarded metadata, or constraint
+  failure. Also recorded event-loop I/O, pre-commit output, out-of-transaction
+  audit, self-migration, same-game duplication, and stale-state gaps.
+- Proposed P9.4-A through P9.4-F: raw source ID plus typed destination, exact
+  configured-superuser authorization, mandatory private graph preview,
+  fail-closed conflicts, complete dependency merge, deterministic row locks,
+  one worker-local atomic audit boundary, public post-commit attribution, and
+  immediate prefix retirement with the complete replacement.
+- Made no source, database, Discord, beta, service, production, dependency, or
+  fixture change. Implementation remains blocked only on acceptance or
+  revision of the six recorded decisions.
 
 ### 2026-08-09 — P9.3 first native operator workflow implemented
 
