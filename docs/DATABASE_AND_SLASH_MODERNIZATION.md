@@ -491,9 +491,11 @@ check:
 
 Current active unit: **P9.6's read-only `$backup_db` / `$dbb` audit is
 complete and its six-part implementation contract is pending acceptance or
-revision. The scheduled host backup is healthy, but implementation is blocked
-on first reconciling the production-only reporting-export changes into
-reviewed repository source. P9.5 is Complete, integrated, and development-guild
+revision. The scheduled host backup is healthy. Its reporting-export source
+prerequisite is now resolved: reviewed `master` checkpoint `c35e2f1` is merged
+into the accumulation lineage at `fe98b57`, and the production checkout and
+deployed backup script match that reviewed source. P9.5 is Complete,
+integrated, and development-guild
 deployed from code checkpoint `a13d440`. Owner-only
 `/operator player delete` now provides the
 private account-wide orphan inventory, protected-identity and dependency
@@ -12439,16 +12441,27 @@ the full dump, GameLog export, and reporting snapshot present; the current
 Monday database dumps, GameLog gzip, and image archive passed their native
 read-only validators. No backup was executed for this audit.
 
-One source-of-truth gate must be resolved before any native trigger is built.
-The deployed script does not byte-match this accumulation branch. Its only
+At audit time, one source-of-truth gate remained before any native trigger
+could be built. The deployed script did not byte-match the accumulation
+branch. Its only
 functional difference is a post-core-backup DuckDB reporting export, but the
 exporter, its documentation/tests, dependency changes, and matching tracked
-script changes currently exist only as uncommitted work in the production
+script changes then existed only as uncommitted work in the production
 checkout. The 01:00 reporting artifact is fresh and the live operation is not
 shown to be broken; nevertheless, `origin/master` and the accumulation branch
-do not currently reproduce the installed operation. The production checkout
-must remain untouched by P9.6, and those changes require their own review,
+did not reproduce the installed operation at that point. The production
+checkout remained untouched by the audit, and those changes required review,
 commit, and branch reconciliation first.
+
+That gate was resolved after the audit. The reporting export was committed as
+`1527ce0` on top of the independently published cryptography 50 lock update;
+the canonical service-asset test correction followed as `c35e2f1`. The
+production checkout was safely aligned to that clean remote checkpoint without
+a force push, dependency synchronization, or service restart, and the deployed
+backup script byte-matched tracked source. Updated `origin/master` was then
+merged into this accumulation lineage as `fe98b57`. The original local DuckDB
+commit remains preserved on safety branch `safety/duckdb-export-b5154a2` until
+routine cleanup.
 
 #### Recommended implementation decisions
 
@@ -12457,8 +12470,8 @@ commit, and branch reconciliation first.
 - Keep the three-times-daily host schedule as the primary backup mechanism.
   The Discord command is only an owner convenience for an exceptional manual
   recovery point; it must not become a scheduler or replace cron.
-- Reconcile and review the reporting-export source before implementing the
-  trigger. After reconciliation, require the deployed
+- The reporting-export source prerequisite is complete through reviewed
+  `master` checkpoint `c35e2f1` and accumulation merge `fe98b57`. Require the deployed
   `/home/nelluk/backup_db.sh` to byte-match the reviewed tracked script before
   every manual execution. Drift fails closed.
 - Do not modify the schedule, upload job, retention paths, or production
@@ -12544,10 +12557,9 @@ inspect database row data, mutate either checkout, inspect or change
 Discord/application commands, touch the guarded beta, alter cron/services,
 install dependencies, or use sudo.
 
-Next action: accept or revise P9.6-A through P9.6-F. Implementation must then
-wait until the separate reporting-export work is reviewed and reconciled into
-the accumulation branch; it should not copy uncommitted production files into
-this audit branch.
+Next action: accept or revise P9.6-A through P9.6-F. The prior reporting-source
+sequencing blocker is resolved; implementation may begin after those decisions
+without copying from or modifying the production checkout.
 
 ## Standard work-unit template
 
@@ -13501,6 +13513,27 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — Reporting export reconciled into P9.6 source
+
+- Preserved the original unpushed production-checkout DuckDB commit on local
+  safety branch `safety/duckdb-export-b5154a2`, then rebased the same patch in
+  an isolated worktree over remote `master`'s cryptography 50 lock update.
+- Added the already-reviewed canonical systemd service-asset test correction,
+  pushed the resulting `c35e2f1` fast-forward to `master`, and aligned the
+  production checkout cleanly without force push, dependency synchronization,
+  or service restart.
+- Confirmed the production checkout and deployed backup script match reviewed
+  source. Merged updated `origin/master` into the accumulation lineage at
+  `fe98b57` and brought the P9.6 audit evidence forward.
+- Built an isolated locked environment under `/tmp` without changing the beta
+  or production environments. Reporting/dependency/deployment/taxonomy focus
+  passed **29 tests**; complete offline discovery passed **1,444 tests with 61
+  intentional database-gated skips**; lock resolution covered **81 packages**
+  including DuckDB 1.4.3 and cryptography 50.0.0; script syntax, Python
+  compilation, and `git diff --check` passed.
+- Removed the reporting-source sequencing blocker from P9.6. Its six-part
+  native backup contract remains pending acceptance or revision.
 
 ### 2026-08-10 — P9.6 production backup operation audited
 
