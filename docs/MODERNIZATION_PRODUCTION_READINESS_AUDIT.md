@@ -181,12 +181,12 @@ re-inspect for convergence.
 
 Handle the operator paths as a separate pre-rollout cleanup after R-001:
 
-- retire `$gtest`, `$ptrophies`, and `$backup_db`/`$dbb`;
+- P9.6/P9.8 retire `$backup_db`/`$dbb`, `$gtest`, `$ptrophies`, and both
+  `$boost_from` forms under their accepted replacement/retirement decisions;
 - prefer guarded systemd operations over `$restart`, `$restart_force`, and
   `$quit`, subject to one explicit owner workflow decision;
-- ask whether `$tribe_emoji` and `$boost_from` are still operationally used;
-  retire them if not, otherwise move their writes/effects behind bounded
-  operator services;
+- keep the P9.3 owner-only `/operator tribe emoji` replacement and retired
+  `$tribe_emoji` prefix as the accepted Tribe disposition;
 - preserve account migration/deletion capability only as reviewed,
   confirmation-heavy offline/worker operations; and
 - replace or retire `$purge_game_channels`; never publish its current
