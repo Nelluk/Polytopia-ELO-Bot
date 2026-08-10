@@ -41,6 +41,9 @@ from modules import operator_player_deletion_views
 from modules import operator_player_deletion_workers
 from modules import operator_backup
 from modules import operator_backup_views
+from modules import operator_channel_purge as operator_channel_purge_service
+from modules import operator_channel_purge_views
+from modules import operator_channel_purge_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -149,6 +152,12 @@ class administration(commands.Cog):
     operator_database_group = discord.app_commands.Group(
         name='database',
         description='Run restricted database operations.',
+        parent=operator_group,
+        guild_only=True,
+    )
+    operator_channels_group = discord.app_commands.Group(
+        name='channels',
+        description='Review restricted channel-maintenance operations.',
         parent=operator_group,
         guild_only=True,
     )
@@ -535,101 +544,6 @@ class administration(commands.Cog):
 
         await ctx.send('Shutting down')
         await self.bot.close()
-
-    @commands.is_owner()
-    @commands.command()
-    async def purge_game_channels(self, ctx, *, arg: str = None):
-
-        purged_channels = 0
-        current_number_of_channels = len(ctx.guild.text_channels)
-
-        if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
-            return await ctx.send('Cannot purge - this guild has no `game_channel_categories` setting')
-
-        category_channels = [chan.id for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
-
-        common_game_channels = models.Game.select(models.Game.game_chan).where(
-            (models.Game.is_completed == 0) &
-            (models.Game.guild_id == ctx.guild.id) &
-            (models.Game.game_chan > 0)
-        ).tuples()
-
-        game_side_channels = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
-            (models.Game.is_completed == 0) &
-            (models.Game.guild_id == ctx.guild.id) &
-            (models.GameSide.team_chan > 0) &
-            (models.GameSide.team_chan_external_server.is_null(True))
-        ).tuples()
-
-        game_side_channels = [gc[0] for gc in game_side_channels]
-        common_game_channels = [gc[0] for gc in common_game_channels]
-
-        logger.debug(f'game_side_channels: {game_side_channels}\ncommon_game_channels:{common_game_channels}')
-
-        potential_channels = set(category_channels + common_game_channels + game_side_channels)
-        channels = [chan for chan in ctx.guild.channels if chan.id in potential_channels]
-
-        logger.debug(f'list of purge candidate channels: {channels}')
-
-        await ctx.send(f'Returned {len(channels)} channels (of {len(potential_channels)} potential channels)')
-
-        old_30d = (discord.utils.utcnow() + datetime.timedelta(days=-30))
-
-        async def delete_channel(channel, game=None):
-            nonlocal purged_channels
-            logger.warning(f'Deleting channel {chan.name}')
-            if not game:
-                try:
-                    logger.debug('Deleting channel with no associated game')
-                    await chan.delete(reason='Purging game channels with inactive history')
-                    purged_channels += 1
-                except discord.DiscordException as e:
-                    logger.error(f'Could not delete channel: {e}')
-            else:
-                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{channel.name}* deleted during purge of unused or unneeded channels.')
-                await game.delete_game_channels(self.bot.guilds, channel.guild.id, channel_id_to_delete=channel.id)
-                purged_channels += 1
-
-        async with ctx.typing():
-            for chan in channels:
-                logger.debug(f'Evaluating channel {chan.name} {chan.id} for deletion.')
-                try:
-                    game = models.Game.by_channel_id(chan_id=chan.id)
-                except exceptions.MyBaseException:
-                    logger.debug(f'Channel {chan.name} {chan.id} has no associated game. deleting.')
-                    await ctx.send(f'Deleting channel **{chan.name}** - it has no associated game in the database')
-                    await delete_channel(chan)
-                    continue
-
-                if chan.id in common_game_channels and current_number_of_channels > 425:
-                    logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
-                    await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
-                    await delete_channel(chan, game)
-                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message='The central game channel for this game has been purged to free up room on the server')
-                    continue
-                if chan.last_message_id:
-                    try:
-                        # messages = await chan.history(limit=5, oldest_first=False).flatten()
-                        messages = [message async for message in chan.history(limit=5, oldest_first=False)]
-                    except discord.DiscordException as e:
-                        logger.error(f'Could not load channel history: {e}')
-                        continue
-                    # if len(messages) > 3:
-                    #     logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
-                    #     continue
-                    if messages[0].created_at > old_30d:
-                        logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
-                        continue
-                    logger.warning(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
-                    await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
-                    await delete_channel(chan, game)
-                    models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{chan.name}* deleted during purge of unused or unneeded channels.')
-                else:
-                    logger.debug(f'Channel {chan.name} {chan.id} has no last_message_id. deleting.')
-                    await delete_channel(chan, game)
-                    continue
-
-        await ctx.send(f'Channel cleanup complete. {purged_channels} channels purged.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
@@ -1163,6 +1077,69 @@ class administration(commands.Cog):
             f'**{result.new_expiration}**. Previous expiration was '
             f'**{result.old_expiration}**.'
         )
+
+    @operator_channels_group.command(
+        name='purge',
+        description='Privately preview and purge exact game channels.',
+    )
+    @discord.app_commands.choices(mode=[
+        discord.app_commands.Choice(
+            name='Stale tracked channels',
+            value=operator_channel_purge_workers.STALE,
+        ),
+        discord.app_commands.Choice(
+            name='Capacity relief',
+            value=operator_channel_purge_workers.CAPACITY,
+        ),
+        discord.app_commands.Choice(
+            name='Untracked category channels',
+            value=operator_channel_purge_workers.ORPHAN,
+        ),
+        discord.app_commands.Choice(
+            name='Missing tracked references',
+            value=operator_channel_purge_workers.MISSING,
+        ),
+    ])
+    @discord.app_commands.describe(
+        mode='Candidate policy to review; no channel is selected automatically.',
+    )
+    async def operator_channels_purge_slash(
+        self,
+        interaction: discord.Interaction,
+        mode: discord.app_commands.Choice[str],
+    ):
+        """Owner-only exact-selection channel cleanup."""
+
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.', ephemeral=True
+            )
+        if int(interaction.user.id) != int(settings.owner_id):
+            return await interaction.response.send_message(
+                'Only the configured bot owner can purge game channels.',
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preview = await operator_channel_purge_service.load_preview(
+                interaction,
+                str(mode.value),
+            )
+        except operator_channel_purge_workers.ManualChannelPurgeError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Could not load manual channel-purge preview')
+            return await interaction.followup.send(
+                'Could not load the channel-purge preview.', ephemeral=True
+            )
+
+        view = operator_channel_purge_views.ManualChannelPurgeWorkspace(
+            requester_id=int(interaction.user.id),
+            preview=preview,
+            refresher=operator_channel_purge_service.load_preview,
+            confirmer=operator_channel_purge_service.confirm_purge,
+        )
+        await operator_channel_purge_views.publish_private(interaction, view)
 
     @operator_tribe_group.command(
         name='emoji',

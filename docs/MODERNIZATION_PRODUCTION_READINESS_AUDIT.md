@@ -189,8 +189,11 @@ Handle the operator paths as a separate pre-rollout cleanup after R-001:
   `$tribe_emoji` prefix as the accepted Tribe disposition;
 - preserve account migration/deletion capability only as reviewed,
   confirmation-heavy offline/worker operations; and
-- replace or retire `$purge_game_channels`; never publish its current
-  interleaved destructive implementation as a slash command.
+- P9.9 resolves `$purge_game_channels`: the interleaved prefix implementation
+  is retired and replaced by owner-only `/operator channels purge`, with a
+  private bounded preview, exact selection/typed confirmation, worker-owned
+  database access, per-target reauthorization, and explicit post-deletion
+  reconciliation.
 
 These decisions should be evidence-backed but do not require a native command
 for every retained operation.

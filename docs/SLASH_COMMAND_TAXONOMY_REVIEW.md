@@ -1297,7 +1297,7 @@ touched.
 | Current prefix handler(s) | Native home | Disposition / note |
 |---|---|---|
 | `restart`, `restart_force`, `quit` | `/operator bot restart` | Preserve configured-superuser access; explicit force confirmation; retire prefixes with replacement |
-| `purge_game_channels` | `/operator channels purge` | Owner-only preview/confirm/reconciliation workflow; retire prefix with replacement |
+| `purge_game_channels` | `/operator channels purge` | Tier-3 reviewed and development-database validated in P9.9: owner-only four-mode private bounded preview, exact selection and typed confirmation, authoritative per-target recheck, delete-then-conditional reconciliation/protected audit; prefix retired |
 | `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit implemented in P9.3; prefix retired under C-026 |
 | `ptrophies` | none | Retired in P9.8 under D-046: obsolete 2021 repair |
 | `boost_from`, `boost_from_norole` | none | Retired in P9.8 under D-046 |

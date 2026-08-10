@@ -490,17 +490,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.8 approved obsolete operator-command retirement is
-Complete in the accumulation branch at merge checkpoint `cf461c4`
-(implementation/tests `de608c9`, evidence `29709ab`), from exact clean
-accumulation base `3d74ff5`. The hidden hard-coded `$gtest`, obsolete 2021
-`$ptrophies`, and owner-only `$boost_from` / `$boost_from_norole` handlers are
-absent from the prefix registry. Restart aliases and manual owner-only
-`$purge_game_channels` remain explicitly separate. Complete offline discovery
-reaches only the three known missing-`duckdb` environment failures; all 1,536
-available cases pass with 67 skips when those exact cases are excluded. The
-guarded beta is healthy at code-equivalent close-out checkpoint `3a8c73a`; no
-command sync or tester announcement was warranted.**
+Current active unit: **P9.9 owner-only manual channel purge is Tier-3 reviewed,
+database-validated, and ready for accumulation integration on
+`codex/p9-9-manual-channel-purge`, from exact clean
+accumulation base `3ae0b68`. `/operator channels purge mode` provides private,
+bounded, exact-selection previews for stale, capacity, orphan, and missing
+targets; exact `PURGE <count>` confirmation; authoritative Discord and database
+reauthorization; delete-then-conditional-reconcile semantics; and protected
+audit. `$purge_game_channels` is retired. Focused and adjacent validation is
+green at 77 tests. Complete discovery runs 1,560 tests with 68 skips and reaches
+only the three known missing-`duckdb` environment failures. The stopped-writer
+development PostgreSQL gate passed 67 tests with one intentional fixture skip.
+Integration, guild-only command apply, and beta reload remain pending.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13081,6 +13082,64 @@ Remaining H6 work is deliberately separate: decide whether to retire manual
 preview/confirmation/reconciliation worker. The restart aliases likewise
 remain pending an explicit guarded-systemd workflow decision.
 
+### P9.9 — Owner-only manual channel purge
+
+Status: **Tier-3 reviewed and database-validated; ready for integration**
+
+Branch/base: `codex/p9-9-manual-channel-purge`, exact clean accumulation base
+`3ae0b68`. Implementation/tests checkpoint: `843a8cb`; database-gate
+expectation correction: `a07a262`.
+
+This bounded Tier-3 H6 unit replaces the unsafe interleaved prefix handler with
+owner-only `/operator channels purge mode`. Its private Components v2 workspace
+loads at most 500 Discord channels and 100 eligible candidates, pages ten at a
+time, selects none by default, permits at most 25 exact selections, and requires
+typed `PURGE <count>` confirmation. Modes are explicit: tracked channels stale
+for at least 30 days, central-channel capacity relief above 425 guild channels,
+unreferenced channels inside configured game categories, and absent Discord
+channels with retained database references.
+
+The worker returns only frozen primitives and owns every Peewee connection.
+Completed games, season games, recent Nova games, external references,
+ambiguous references, archive-labelled channels, and channels without Manage
+Channels fail closed. Confirmation reloads the complete preview, compares each
+selected eligibility token, then reauthorizes each exact database target and
+refetches its exact Discord channel immediately before deletion. Discord
+deletion or confirmed absence precedes one locked conditional reference clear
+and protected `GameLog` write. A failed audit rolls back the clear; changed
+references are reported for reconciliation; cancellation drains an in-flight
+delete/reconcile pair; later selected targets continue after a contained
+failure; and purges are single-flight per guild. Capacity mode notifies the
+surviving side channels after reconciliation.
+
+The legacy `$purge_game_channels` handler is removed rather than retained in a
+hybrid window. P5.10 incomplete-game cleanup, P5.14 expiration, P9.7g automatic
+completed-channel cleanup, rank/unstart corrections, and automatic candidate
+discovery remain unchanged and out of scope. No schema or dependency change is
+required.
+
+Focused and adjacent validation currently passes **77 tests**. Complete offline
+discovery runs **1,560 tests with 68 intentional skips** and reaches only the
+three documented unsynchronized-environment failures: missing `duckdb` import,
+missing `duckdb` inventory entry, and the resulting reporting-export import
+error. Compilation and `git diff --check` pass. The new real-schema case covers
+all four preview modes plus exact authorization, rollback, protected audit, and
+cleanup. The first stopped-writer run exposed one incorrect test expectation:
+capacity mode intentionally includes eligible recent central channels because
+recent activity is only a stale-mode criterion. After correcting only that
+assertion, the targeted case passed and the full unchanged gate passed **67
+tests: 66 passed and one operator-owned fixture round trip intentionally
+skipped**.
+
+Because P9.9 adds an application command and a destructive reconciliation
+boundary, completion required stopping only the guarded beta and proving no
+development writer before the now-green `development` / `polytopia_dev` /
+`polybot_dev` gate. Remaining deployment work is to plan and apply only the
+configured development guild tree, integrate and push the accumulation branch,
+then restart and verify the guarded beta with startup synchronization disabled. This
+owner-only maintenance workflow does not warrant a tester checklist entry or
+`@testers` announcement unless live validation reveals a tester-facing effect.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14032,7 +14091,55 @@ retirement. Each useful legacy prefix retires with its complete native
 replacement; no prolonged hybrid window is required on the modernization
 branch.
 
+### D-047 — Preserve a manual purge through an exact-selection native workflow
+
+Status: **Accepted; implemented by P9.9**
+
+Retain manual cleanup capability, but do not expose the legacy loop. Use one
+owner-only `/operator channels purge` workflow with a required mode, private
+paginated preview, no default selection, a 25-target bound, and exact typed
+confirmation. Treat stale, capacity, orphan, and missing-reference cleanup as
+distinct policies. Fail closed for completed/season/recent-Nova, external,
+ambiguous, archived, or unmanageable targets. Recheck both Discord and database
+ownership immediately before each irreversible deletion, delete first, and
+conditionally clear the exact reference with protected audit afterward.
+Retire `$purge_game_channels` with this replacement.
+
 ## Progress log
+
+### 2026-08-10 — P9.9 manual channel purge implemented for Tier-3 gate
+
+- Reconciled clean local, tracking, and exact GitHub accumulation checkpoint
+  `3ae0b68`; the guarded beta was healthy at code-equivalent `3a8c73a` with one
+  task-disabled development writer. Created isolated branch/worktree
+  `codex/p9-9-manual-channel-purge` from that exact base and passed the
+  development profile setup gate.
+- Added frozen bounded preview/authorization/reconciliation workers, a
+  model-free Discord service, and a requester-bound Components v2 exact
+  selection/typed-confirmation workspace for stale, capacity, orphan, and
+  missing modes. Retired the legacy prefix handler and registered nested
+  `/operator channels purge mode`.
+- Tier-3 review tightened authoritative channel fetches to fail closed instead
+  of using stale cache after an API failure. Added rollback, protected audit,
+  reauthorization, changed-preview, partial failure, single-flight,
+  cancellation drain, loop responsiveness, model-free publisher, command
+  shape, and prefix-retirement coverage.
+- Focused and adjacent validation passed 77 tests. Complete discovery ran
+  1,560 tests: only the three known missing-`duckdb` environment failures
+  remained, with 68 intentional skips. Compilation and diff checks passed.
+- The guarded beta stopped cleanly and the host-wide audit found no remaining
+  development writer. The first full gate exposed an incorrect expectation
+  that capacity mode would exclude a recent central channel; preserving the
+  accepted/legacy capacity policy required correcting the test, not changing
+  implementation. The targeted rerun passed, then the complete unchanged gate
+  passed 67 tests: 66 passed and one operator fixture case intentionally
+  skipped.
+- Implementation/tests are checkpointed at `843a8cb`; the gate expectation
+  correction is `a07a262`. Complete-diff review is accepted with no remaining
+  blocker. Pending before completion: evidence commit, accumulation
+  integration/push, development-guild-only command plan/apply, and guarded beta
+  reload/health verification. No tester announcement is planned for this
+  owner-only tool.
 
 ### 2026-08-10 — P9.8 obsolete operator-command retirements implemented
 
