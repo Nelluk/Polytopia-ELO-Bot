@@ -6507,6 +6507,61 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
 
+    def test_p97f_champion_plan_and_audit_use_real_schema(self):
+        """Exercise champion discovery and audit on development PostgreSQL."""
+
+        from modules import champion_role_workers
+
+        guild_id = self.settings.server_ids['polychampions']
+        marker = f'P9.7f-{uuid.uuid4().hex[:10]}'
+        request = champion_role_workers.ChampionRoleRequest(
+            guild_ids=(guild_id,),
+            date_cutoff=self.settings.date_cutoff,
+        )
+
+        try:
+            self.models.db.close()
+            plan = asyncio.run(
+                champion_role_workers.run_load_champion_role_plan(request)
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(len(plan.guilds), 1)
+            self.assertEqual(plan.guilds[0].guild_id, guild_id)
+            self.assertTrue(
+                plan.global_champion_discord_id is None
+                or isinstance(plan.global_champion_discord_id, int)
+            )
+            self.assertTrue(
+                plan.guilds[0].local_champion_discord_id is None
+                or isinstance(
+                    plan.guilds[0].local_champion_discord_id,
+                    int,
+                )
+            )
+
+            result = asyncio.run(
+                champion_role_workers.run_record_champion_role_audit(
+                    champion_role_workers.ChampionAuditRequest(
+                        guild_id=guild_id,
+                        messages=(marker,),
+                    )
+                )
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(result.message, marker)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message == marker
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message == marker
+            ).execute()
+
     def test_p97e_auto_confirmation_revalidates_real_schema(self):
         """Exercise discovery and stale revalidation on development DB."""
 
