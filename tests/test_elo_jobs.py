@@ -613,7 +613,12 @@ class EloWorkerTests(unittest.TestCase):
                     self.workers.confirm_game
                 ).parameters
             ),
-            ['game_id', 'guild_id', 'requester_description'],
+            [
+                'game_id',
+                'guild_id',
+                'requester_description',
+                'publication_context',
+            ],
         )
         self.assertEqual(
             list(
@@ -731,7 +736,16 @@ class EloWorkerTests(unittest.TestCase):
         database = FakeWinDatabase(game, logs)
         models = fake_win_models(game, database, logs)
 
-        with mock.patch.object(self.workers, 'models', models):
+        publication = object()
+        with mock.patch.object(
+            self.workers,
+            'models',
+            models,
+        ), mock.patch.object(
+            self.workers.confirmation_publication_workers,
+            'build_confirmation_publication_snapshot',
+            return_value=publication,
+        ):
             result = self.workers.confirm_game(
                 84,
                 100,
@@ -740,6 +754,7 @@ class EloWorkerTests(unittest.TestCase):
 
         self.assertEqual(result.game_id, 84)
         self.assertEqual(result.winner_name, 'Alpha')
+        self.assertIs(result.publication, publication)
         self.assertTrue(game.is_confirmed)
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0]['game_id'], 84)
@@ -1436,8 +1451,8 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'convert',
             new=mock.AsyncMock(return_value=winning_game),
         ), mock.patch.object(
-            self.administration,
-            'post_win_messaging',
+            self.administration.confirmation_publication,
+            'publish_confirmed_game',
             new=mock.AsyncMock(),
         ) as post_effects, mock.patch.object(
             self.administration.logger, 'exception'
@@ -1454,8 +1469,8 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         result = self.administration.elo_workers.ConfirmedWinResult(
             game_id=99,
             winner_name='Alpha',
+            publication=object(),
         )
-        winning_game = SimpleNamespace(id=99)
         requester = SimpleNamespace(
             id=300,
             display_name='Staff Tester',
@@ -1470,12 +1485,8 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'member_string',
             return_value='**Staff Tester** (`300`)',
         ), mock.patch.object(
-            self.administration.models.Game,
-            'load_full_game',
-            return_value=winning_game,
-        ), mock.patch.object(
-            self.administration,
-            'post_win_messaging',
+            self.administration.confirmation_publication,
+            'publish_confirmed_game',
             new=mock.AsyncMock(),
         ) as post_effects:
             returned = await (
@@ -1499,11 +1510,11 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             requester_description='**Staff Tester** (`300`)',
         )
         post_effects.assert_awaited_once_with(
-            guild,
-            '$',
-            channel,
-            winning_game,
-            write_audit=False,
+            guild=guild,
+            prefix='$',
+            current_channel=channel,
+            snapshot=result.publication,
+            bot=self.administration.settings.bot,
         )
 
     async def test_confirm_publication_failure_after_first_effect_is_reconcile(
@@ -1512,22 +1523,19 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         result = self.administration.elo_workers.ConfirmedWinResult(
             game_id=99,
             winner_name='Alpha',
+            publication=object(),
         )
         effects = []
 
         async def partially_publish(*_args, **kwargs):
-            self.assertFalse(kwargs['write_audit'])
+            self.assertIs(kwargs['snapshot'], result.publication)
             effects.append('first Discord effect')
             raise RuntimeError('later Discord effect failed')
 
         cog = object.__new__(self.administration.administration)
         with mock.patch.object(
-            self.administration.models.Game,
-            'load_full_game',
-            return_value=SimpleNamespace(id=99),
-        ), mock.patch.object(
-            self.administration,
-            'post_win_messaging',
+            self.administration.confirmation_publication,
+            'publish_confirmed_game',
             new=partially_publish,
         ), mock.patch.object(
             self.administration.logger,
@@ -1550,6 +1558,32 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(effects, ['first Discord effect'])
         self.assertEqual(raised.exception.result, result)
 
+    async def test_confirm_snapshot_failure_is_reconciliation_without_effects(
+        self,
+    ):
+        result = self.administration.elo_workers.ConfirmedWinResult(99, 'Alpha')
+        cog = object.__new__(self.administration.administration)
+        cog._run_confirm_game_job = mock.AsyncMock(
+            side_effect=self.administration.elo_workers.ConfirmedWinSnapshotError(
+                result
+            )
+        )
+        cog._publish_confirmed_game = mock.AsyncMock()
+
+        with self.assertRaises(
+            self.administration.ConfirmedWinPublicationError
+        ) as raised:
+            await cog._confirm_game_and_post(
+                game_id=99,
+                guild=SimpleNamespace(id=100),
+                prefix='$',
+                channel=SimpleNamespace(),
+                requester=SimpleNamespace(id=300, display_name='Staff'),
+            )
+
+        self.assertIs(raised.exception.result, result)
+        cog._publish_confirmed_game.assert_not_awaited()
+
     async def test_manual_confirm_post_commit_failure_reports_reconciliation(
         self,
     ):
@@ -1563,6 +1597,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         result = self.administration.elo_workers.ConfirmedWinResult(
             game_id=99,
             winner_name='Alpha',
+            publication=object(),
         )
         winning_game = SimpleNamespace(
             id=99,
@@ -1626,8 +1661,12 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
 
         games = FakeQuery([eligible_game(99), eligible_game(100)])
         results = [
-            self.administration.elo_workers.ConfirmedWinResult(99, 'Alpha'),
-            self.administration.elo_workers.ConfirmedWinResult(100, 'Beta'),
+            self.administration.elo_workers.ConfirmedWinResult(
+                99, 'Alpha', object()
+            ),
+            self.administration.elo_workers.ConfirmedWinResult(
+                100, 'Beta', object()
+            ),
         ]
         publication_error = (
             self.administration.ConfirmedWinPublicationError(results[0])

@@ -148,6 +148,35 @@ async def run_nova_graduation(
             participants=snapshots,
         )
     )
+    return await publish_nova_graduation(
+        guild=guild,
+        result=result,
+        output_channel=output_channel,
+        nova_role_name=nova_role_name,
+        grad_role_name=grad_role_name,
+    )
+
+
+async def publish_nova_graduation(
+    *,
+    guild,
+    result: workers.NovaGraduationResult,
+    output_channel=None,
+    nova_role_name: str,
+    grad_role_name: str,
+) -> NovaGraduationOutcome:
+    """Apply one worker-loaded Nova snapshot without database access."""
+
+    nova_role = discord.utils.get(guild.roles, name=nova_role_name)
+    grad_role = discord.utils.get(guild.roles, name=grad_role_name)
+    if nova_role is None or grad_role is None:
+        logger.warning(
+            'Could not load required Nova roles for game %s guild %s',
+            result.game_id,
+            guild.id,
+        )
+        return NovaGraduationOutcome(result.game_id, (), ())
+
     signup_message = await _signup_message(guild, result)
     warnings = []
     graduated = []

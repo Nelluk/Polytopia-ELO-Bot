@@ -495,6 +495,25 @@ def _snapshot_from_game(
     )
 
 
+def snapshot_loaded_game(
+    game,
+    *,
+    request_guild_id: int,
+) -> GameDetailSnapshot:
+    """Freeze an already worker-loaded game without opening another connection."""
+
+    return _snapshot_from_game(
+        game,
+        request=GameDetailRequest(
+            guild_id=int(request_guild_id),
+            channel_id=0,
+            requester_discord_id=1,
+            game_id=int(game.id),
+        ),
+        inferred_from_channel=False,
+    )
+
+
 def _load_game(request: GameDetailRequest):
     inferred_from_channel = request.game_id is None
     if inferred_from_channel:

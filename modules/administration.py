@@ -12,9 +12,11 @@ import asyncio
 import discord
 import re
 import functools
-from modules.games import PolyGame, post_win_messaging
+from modules.games import PolyGame
 import modules.achievements as achievements
+from modules import confirmation_publication, confirmation_publication_workers
 from modules import elo_workers, game_workers
+from modules import nova_graduation_workers
 from modules.elo_jobs import EloJobConflict
 from modules import team_emoji as team_emoji_service
 from modules import team_emoji_workers
@@ -177,6 +179,38 @@ class administration(commands.Cog):
         requester_name: str,
         requester_description: str,
     ):
+        nova_guild_ids = tuple(dict.fromkeys(
+            int(settings.server_ids[key])
+            for key in ('polychampions', 'test')
+            if settings.server_ids.get(key)
+        ))
+        nova_candidates = ()
+        runtime_guild = settings.bot.get_guild(guild_id)
+        if runtime_guild is not None and guild_id in nova_guild_ids:
+            nova_role = discord.utils.get(runtime_guild.roles, name='The Novas')
+            grad_role = discord.utils.get(runtime_guild.roles, name='Nova Grad')
+            if nova_role is not None and grad_role is not None:
+                nova_candidates = tuple(
+                    nova_graduation_workers.NovaParticipantSnapshot(
+                        discord_id=int(member.id),
+                        member_name=str(member.name),
+                        mention=str(member.mention),
+                        has_nova_role=True,
+                        has_grad_role=False,
+                    )
+                    for member in tuple(getattr(nova_role, 'members', ()) or ())
+                    if grad_role not in tuple(getattr(member, 'roles', ()) or ())
+                )
+        publication_context = (
+            confirmation_publication_workers.ConfirmationPublicationContext(
+                bot_guild_ids=tuple(
+                    int(candidate.id)
+                    for candidate in getattr(settings.bot, 'guilds', ())
+                ),
+                nova_guild_ids=nova_guild_ids,
+                nova_candidates=nova_candidates,
+            )
+        )
         utilities.lock_game(game_id)
         try:
             return await settings.elo_job_coordinator.run(
@@ -185,7 +219,12 @@ class administration(commands.Cog):
                 requester_id=requester_id,
                 requester_name=requester_name,
                 worker=elo_workers.confirm_game,
-                worker_args=(game_id, guild_id, requester_description),
+                worker_args=(
+                    game_id,
+                    guild_id,
+                    requester_description,
+                    publication_context,
+                ),
             )
         finally:
             utilities.unlock_game(game_id)
@@ -199,13 +238,16 @@ class administration(commands.Cog):
         channel,
         requester,
     ):
-        result = await self._run_confirm_game_job(
-            game_id=game_id,
-            guild_id=guild.id,
-            requester_id=requester.id,
-            requester_name=requester.display_name,
-            requester_description=models.GameLog.member_string(requester),
-        )
+        try:
+            result = await self._run_confirm_game_job(
+                game_id=game_id,
+                guild_id=guild.id,
+                requester_id=requester.id,
+                requester_name=requester.display_name,
+                requester_description=models.GameLog.member_string(requester),
+            )
+        except elo_workers.ConfirmedWinSnapshotError as exc:
+            raise ConfirmedWinPublicationError(exc.result) from exc
         await self._publish_confirmed_game(
             result=result,
             guild=guild,
@@ -223,13 +265,14 @@ class administration(commands.Cog):
         channel,
     ) -> None:
         try:
-            winning_game = models.Game.load_full_game(result.game_id)
-            await post_win_messaging(
-                guild,
-                prefix,
-                channel,
-                winning_game,
-                write_audit=False,
+            if result.publication is None:
+                raise RuntimeError('Committed confirmation has no publication snapshot.')
+            await confirmation_publication.publish_confirmed_game(
+                guild=guild,
+                prefix=prefix,
+                current_channel=channel,
+                snapshot=result.publication,
+                bot=settings.bot,
             )
         except Exception as exc:
             logger.exception(
@@ -711,6 +754,19 @@ class administration(commands.Cog):
                     requester_name='automatic confirmation task',
                     requester_description='Automatic confirmation task',
                 )
+            except elo_workers.ConfirmedWinSnapshotError as exc:
+                games_confirmed += 1
+                try:
+                    await current_channel.send(
+                        format_confirmed_win_reconciliation(exc.result)
+                    )
+                except Exception:
+                    logger.exception(
+                        'Could not report snapshot reconciliation warning '
+                        'for auto-confirmed game %s',
+                        exc.result.game_id,
+                    )
+                continue
             except exceptions.RecordLocked:
                 logger.info(
                     'Cannot auto-confirm game %s - it is locked', game.id

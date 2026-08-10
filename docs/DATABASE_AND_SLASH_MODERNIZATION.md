@@ -490,14 +490,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7a is Complete in the accumulation branch at merge
-checkpoint `6f83aa2` (code/test `c230b69`, evidence `254372b`), from exact
-adversarial-review base `71568ff`. It corrects finding B3 by committing
-confirmation state, ELO, and actor/system audit together; post-commit Discord
-failures now report reconciliation rather than rollback, and auto-confirm
-contains publication failures and continues. The real-schema regression is
-present behind the unchanged development gate and remains deferred to a
-stopped-writer window.**
+Current active unit: **P9.7b implementation/tests are Complete on isolated
+branch `codex/p9-7b-confirmation-snapshot` at `c6355a3`, from exact clean
+accumulation base `3cfb2de`; roadmap evidence and accumulation integration are
+in progress. Confirmation now returns one bounded worker-loaded immutable
+publication/effect snapshot after its transaction commits. Discord publication
+is model-free, and snapshot/publication failures retain P9.7a's truthful
+reconciliation semantics. The extended real-schema regression remains behind
+the unchanged development gate and is deferred to a stopped-writer window.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12660,6 +12660,64 @@ should replace the confirmation reload/live-model publisher with a worker-read
 immutable effect snapshot; automatic candidate discovery and authoritative
 eligibility revalidation should then follow as a separate recurring-task unit.
 
+### P9.7b — Immutable confirmation publication/effect snapshot
+
+Status: **Implementation/tests complete on the isolated unit branch;
+accumulation integration and stopped-writer real-schema evidence pending**
+
+Branch/base: `codex/p9-7b-confirmation-snapshot`, exact clean accumulation base
+`3cfb2de`. Implementation/tests checkpoint: `c6355a3`.
+
+This bounded H4 correction removes confirmation's synchronous post-commit
+`Game.load_full_game()` call from the Discord event loop and prevents a live
+Peewee graph from crossing publication awaits:
+
+- the existing ELO coordinator still owns one bounded worker and worker-local
+  connection for confirmation serialization;
+- confirmation state, ELO, and actor/system audit commit atomically first,
+  preserving P9.7a rollback semantics before commit;
+- after that commit, the same worker loads one bounded immutable effect/card
+  snapshot containing only frozen DTOs and primitive values for the game,
+  channels, roster, season reminders, role effects, Nova eligibility, and
+  classic-card presentation;
+- cached Nova role membership is captured as frozen primitive input before
+  worker dispatch and intersected with the committed roster, so the worker
+  does not infer Discord role state from database participation;
+- the publisher resolves the immutable card before its first Discord await
+  and performs no ORM read, lazy model traversal, audit write, or other
+  database access;
+- prefix and slash confirmation share the same publisher and retain their
+  existing permissions, messages, channel updates, announcement routing,
+  experience/champion/Nova role effects, ELO serialization, and classic-card
+  output; and
+- failure while loading the post-commit snapshot or during Discord effects is
+  a typed reconciliation outcome carrying the committed result. Automatic
+  confirmation counts that commit, reports reconciliation when possible, and
+  continues to later candidates.
+
+Focused confirmation/ELO validation passed **44 tests**. The affected
+confirmation, ELO, Nova, game-detail, win-service, and slash-taxonomy suites
+passed **94 tests**. Complete Python compilation and `git diff --check` passed.
+
+Complete offline discovery executed **1,468 tests with 62 intentional skips**
+but cannot be recorded green in the existing unsynchronized environment: the
+same missing locked `duckdb` dependency identified by the adversarial review
+caused one dependency-inventory failure and two import errors. With only those
+three exact unavailable-dependency cases excluded, all remaining **1,465 tests
+passed with 62 skips**. Dependencies were not installed or synchronized.
+
+The P9.7a real-schema regression now also asserts the committed publication
+snapshot's game identity, confirmed state, and roster mentions. It remains
+unrun behind the unchanged `POLYBOT_ENV=development` / `polytopia_dev` /
+`polybot_dev` gate because the durable beta writer was active; the beta was not
+stopped, restarted, or otherwise changed.
+
+P9.7b closes only the confirmation slice of H4. Ordinary win/unwin should be
+the next bounded immutable-publisher unit, followed separately by rank/unstart
+corrections. H5 automatic candidate discovery and authoritative eligibility
+revalidation remains a separate recurring-task unit after those publisher
+boundaries.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13612,6 +13670,29 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7b confirmation publication snapshot implemented
+
+- Created isolated branch `codex/p9-7b-confirmation-snapshot` from exact clean
+  accumulation checkpoint `3cfb2de` and recorded implementation/tests at
+  `c6355a3`.
+- Replaced confirmation's event-loop ORM reload and live-model publication
+  graph with one bounded post-commit worker snapshot of frozen primitive DTOs.
+- Kept Discord publication model-free while preserving channel notices,
+  announcements, the classic game card, experience/champion/Nova role effects,
+  prefix/slash permissions, coordinator serialization, and P9.7a reconciliation
+  truthfulness.
+- Corrected the review draft so snapshot loading occurs after the atomic
+  confirmation/ELO/audit commit; snapshot failure therefore cannot falsely
+  claim rollback. Also preserved actual cached Nova role eligibility rather
+  than treating every committed participant as a Nova candidate.
+- Focused validation passed **44 tests** and affected validation passed **94
+  tests**; compilation and diff checks passed. Full discovery executed **1,468
+  tests with 62 skips** and reached only the three pre-existing missing-`duckdb`
+  environment failures; the other **1,465 tests passed with 62 skips**.
+- Extended the gated PostgreSQL regression without stopping the active durable
+  beta. Ordinary win/unwin, rank/unstart, and H5 automatic discovery remain
+  explicitly separate follow-up units.
 
 ### 2026-08-10 — P9.7a confirmation semantics corrected
 
