@@ -4,7 +4,7 @@ Last updated: 2026-08-09
 
 Status: Active
 
-Current branch at last update: `codex/p9-1-upstream-reconciliation`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -11782,7 +11782,8 @@ Do not combine that merge-conflict unit with production DDL or deployment.
 
 ### P9.1 — Reconcile current `master` into the accumulation branch
 
-Status: **Complete locally; integration/push pending**
+Status: **Complete; integrated and pushed through evidence checkpoint
+`057b0a5`**
 
 Risk tier: **Tier 2 merge/conflict reconciliation**. Branch:
 `codex/p9-1-upstream-reconciliation` from exact clean accumulation checkpoint
@@ -11823,9 +11824,11 @@ Validation:
 - no PostgreSQL, production checkout/service/database, Discord, beta,
   dependency installation, schema, fixture, or sudo action occurred.
 
-Next action: integrate and push P9.1. Then resolve the operator carry-forward
-decisions that affect the release candidate before implementing the separate
-production timezone migration.
+Integration result: fast-forwarded the complete unit through evidence
+checkpoint `057b0a5` into `codex/database-slash-modernization` and pushed the
+reconciled history. Next: resolve the operator carry-forward decisions that
+affect the release candidate before implementing the separate production
+timezone migration.
 
 ## Standard work-unit template
 
@@ -12768,9 +12771,10 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Passed **51** focused image/House/deployment tests and complete offline
   discovery at **1,392 passed with 58 intentional database-gated skips**;
   compilation and diff checks also passed.
-- No live or database action occurred. Next: integrate/push this merge
-  checkpoint, then make the separate operator carry-forward decisions before
-  production schema work.
+- Fast-forwarded the validated merge/evidence checkpoints through `057b0a5`
+  into the accumulation branch and pushed the reconciled history. No live or
+  database action occurred. Next: make the separate operator carry-forward
+  decisions before production schema work.
 
 ### 2026-08-09 — P9.0 production-readiness audit completed
 

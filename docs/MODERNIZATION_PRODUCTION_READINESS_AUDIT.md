@@ -66,8 +66,8 @@ are also not a valid rollback for this release.
 
 ### R-001 — Reconcile current `master`
 
-Status: Complete locally in P9.1 merge checkpoint `8ede97b`; integration and
-push pending.
+Status: Complete, integrated, and pushed through P9.1 evidence checkpoint
+`057b0a5` (merge checkpoint `8ede97b`).
 
 Merge `origin/master` into `codex/database-slash-modernization` in an isolated
 unit before any final PR or deployment. Preserve the upstream production
@@ -233,6 +233,6 @@ boundaries.
 
 ## Next action
 
-Integrate and push P9.1. Then make the operator carry-forward decisions that
-affect the release candidate before starting the separate production timezone
-migration. Do not combine operator cleanup with production DDL.
+Make the operator carry-forward decisions that affect the release candidate,
+then start the separate production timezone migration. Do not combine operator
+cleanup with production DDL.
