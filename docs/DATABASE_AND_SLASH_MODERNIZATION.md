@@ -12615,8 +12615,7 @@ development-guild sync is optional and can prove only fail-closed refusal.
 
 ### P9.7a — Confirmation commit/publication truthfulness
 
-Status: **Complete in the accumulation branch; stopped-writer real-schema
-evidence pending**
+Status: **Complete in the accumulation branch; active in the development beta**
 
 Branch/base: `codex/p9-7a-confirmation`, exact base `71568ff` containing the
 unchanged adversarial review.
@@ -12648,9 +12647,9 @@ The bounded correction:
 Focused ELO/win/taxonomy validation passed **113 tests with 61 intentionally
 gated database cases skipped**. Complete offline discovery passed **1,464
 tests with 62 intentional skips**. Compilation and `git diff --check` passed.
-The new real-schema commit/rollback regression remains behind the unchanged
-`POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate and was not
-run while the durable beta writer remained active.
+The real-schema commit/rollback regression subsequently passed behind the
+unchanged `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate in
+the stopped-writer P9.7a-c rollout batch.
 
 This unit deliberately does not close H4 or all of H5. The confirmation
 publisher still reloads a live Peewee graph synchronously and the automatic
@@ -12661,8 +12660,7 @@ eligibility revalidation should then follow as a separate recurring-task unit.
 
 ### P9.7b — Immutable confirmation publication/effect snapshot
 
-Status: **Complete in the accumulation branch; stopped-writer real-schema
-evidence pending**
+Status: **Complete in the accumulation branch; active in the development beta**
 
 Branch/base: `codex/p9-7b-confirmation-snapshot`, exact clean accumulation base
 `3cfb2de`. Implementation/tests checkpoint: `c6355a3`; roadmap evidence:
@@ -12706,11 +12704,11 @@ caused one dependency-inventory failure and two import errors. With only those
 three exact unavailable-dependency cases excluded, all remaining **1,465 tests
 passed with 62 skips**. Dependencies were not installed or synchronized.
 
-The P9.7a real-schema regression now also asserts the committed publication
-snapshot's game identity, confirmed state, and roster mentions. It remains
-unrun behind the unchanged `POLYBOT_ENV=development` / `polytopia_dev` /
-`polybot_dev` gate because the durable beta writer was active; the beta was not
-stopped, restarted, or otherwise changed.
+The P9.7a real-schema regression also asserts the committed publication
+snapshot's game identity, confirmed state, and roster mentions. It
+subsequently passed behind the unchanged `POLYBOT_ENV=development` /
+`polytopia_dev` / `polybot_dev` gate in the stopped-writer P9.7a-c rollout
+batch.
 
 P9.7b closes only the confirmation slice of H4. Ordinary win/unwin should be
 the next bounded immutable-publisher unit, followed separately by rank/unstart
@@ -12720,7 +12718,7 @@ boundaries.
 
 ### P9.7c — Immutable ordinary win/unwin publication snapshots
 
-Status: **Complete in the accumulation branch; wider-beta rollout pending**
+Status: **Complete in the accumulation branch; active in the development beta**
 
 Branch/base: `codex/p9-7c-win-unwin-snapshot`, exact clean accumulation base
 `eb439ec`. Implementation/tests checkpoint: `237227c`.
@@ -12769,6 +12767,13 @@ development writer remained, the unchanged `POLYBOT_ENV=development` /
 intentional owned-fixture preservation skip**. The P9.7a confirmation
 transaction case and P9.7c ordinary win/unwin snapshot round-trip both passed.
 Owned games 149/150/151 remained available for wider-beta acceptance.
+
+The durable development beta restarted cleanly from rollout checkpoint
+`20a6d03` with startup synchronization disabled, one expected writer, and
+authenticated application ID `479029527553638401`. Release
+`2026-08-10-p9-7-result-publication` posted successfully to the fixed public
+development channel as message `1536454896432324701`, with the exact unique
+`@testers` role ping. Wider-beta acceptance remains open.
 
 P9.7c closes ordinary win/unwin only. Rank/unstart correction publishers remain
 the next H4 slice; H5 automatic candidate discovery and authoritative
@@ -13726,6 +13731,32 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7a-c deployed to the durable development beta
+
+- Committed and pushed the stopped-writer evidence plus running tester
+  checklist as rollout checkpoint `20a6d03`.
+- Restarted only `polybot-development-beta@main.service`. Its preflight writer
+  audit was clear; the resulting single writer is PID 3798910 from
+  `/home/nelluk/PolyBot39-dev`, running `bot.py --skip_tasks` with
+  `POLYBOT_ENV=development` and `POLYBOT_BETA_CHECKPOINT=20a6d03`.
+- The service authenticated as PolyELO Bot Beta application
+  `479029527553638401`, connected to Discord, and reported a successful boot.
+  Startup command synchronization remained disabled. Because registrations
+  were unchanged, no development-guild apply or global synchronization ran.
+- Prepared manifest fingerprint
+  `d0971771ba7b9048c5865801ad2387d2e8089c0279be218e86f7818cf4139b3b`
+  against the clean running checkpoint, revalidated the unique development
+  `@testers` role as `480905534019731476`, and sent no direct reporter mention
+  because this roadmap release did not resolve an accepted report.
+- After all downtime and health checks finished, release
+  `2026-08-10-p9-7-result-publication` posted successfully on its first attempt
+  to `todo-and-changelog` as message `1536454896432324701`. The public
+  announcement uses the WHAT TO TEST heading and exact owned games 149/150/151.
+- Wider-beta acceptance is now open. Rank/unstart immutable correction
+  snapshots remain the recommended next H4 unit; H5 automatic confirmation
+  candidate discovery and authoritative eligibility revalidation remains a
+  separate later unit.
 
 ### 2026-08-10 — P9.7a-c stopped-writer gate passed; rollout prepared
 
