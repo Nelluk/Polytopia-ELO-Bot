@@ -492,11 +492,12 @@ check:
 
 Current active unit: **P9.7g completed-game channel purge is Complete in the
 accumulation branch at merge checkpoint `6adb4ae` (implementation/tests
-`247b243`, evidence `cbf75a5`), from exact clean accumulation base `1c2f4ef`.
-The recurring task now discovers bounded immutable channel targets off-loop,
-preserves every deletion protection and eligibility window, and conditionally
-clears exact database references only after Discord confirms deletion. The
-accumulated P9.7d-g stopped-writer suite is green.**
+`247b243`, evidence `cbf75a5`) and close-out checkpoint `364d53a`, from exact
+clean accumulation base `1c2f4ef`. The recurring task now discovers bounded
+immutable channel targets off-loop, preserves every deletion protection and
+eligibility window, and conditionally clears exact database references only
+after Discord confirms deletion. The accumulated P9.7d-g stopped-writer suite
+is green, and the guarded beta is healthy at `364d53a`.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12957,6 +12958,7 @@ validation passed**
 Branch/base: `codex/p9-7g-completed-channel-purge`, exact clean accumulation
 base `1c2f4ef`. Implementation/tests checkpoint: `247b243`.
 Roadmap evidence: `cbf75a5`; accumulation merge: `6adb4ae`.
+Accumulation close-out and beta checkpoint: `364d53a`.
 
 This bounded Tier-3 H5 correction replaces the retained completed-game purge's
 event-loop query and live-model delete/save graph while preserving the strict
@@ -14009,12 +14011,19 @@ branch.
 - Recorded the reviewed implementation and tests at checkpoint `247b243`,
   roadmap evidence at `cbf75a5`, and integrated the unit at accumulation merge
   `6adb4ae`.
-- The beta remains intentionally stopped until the clean close-out checkpoint
-  is pushed, avoiding a redundant intermediate restart. P9.7g changes no
-  application command or capability, so no command plan/apply is required.
-- Next action: push the P9.7g close-out, restart the guarded beta at that exact
-  clean checkpoint, verify identity/health without an announcement, and select
-  the approved obsolete-command retirements as the recommended H6 unit.
+- Pushed clean close-out checkpoint `364d53a`, then started only the guarded
+  beta. Its preflight writer audit was clear; PID 3842317 runs from the primary
+  checkout with `--skip_tasks`, recorded exact checkpoint `364d53a`, and
+  authenticated as application `479029527553638401`. The host-wide audit found
+  exactly that one development writer and the protected control socket
+  responded successfully.
+- P9.7g changes no application command or capability, and background tasks
+  remain disabled. No command plan/apply, checklist edit, tester action, or
+  announcement was warranted; the previously posted P9.7 release remains the
+  latest tester release.
+- Next action: select the approved obsolete-command retirements as the
+  recommended bounded H6 unit. The destructive manual channel-purge
+  replacement decision remains the alternate ready unit.
 
 ### 2026-08-10 — P9.7f champion-role reconciliation reviewed
 
