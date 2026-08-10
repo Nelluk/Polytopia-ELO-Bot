@@ -6096,14 +6096,27 @@ class polygames(commands.Cog):
 
             await asyncio.sleep(60 * 60 * 6)
 
+    async def run_champion_role_cycle(self):
+        """Contain one recurring champion cycle without hiding cancellation."""
+
+        try:
+            return await achievements.set_champion_role()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                'Champion role cycle failed; the next scheduled cycle '
+                'remains available'
+            )
+            return None
+
     async def task_set_champion_role(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
 
             await asyncio.sleep(97)
             logger.debug('Task running: task_set_champion_role')
-            utilities.connect()
-            await achievements.set_champion_role()
+            await self.run_champion_role_cycle()
 
             await asyncio.sleep(60 * 60 * 2)
 
