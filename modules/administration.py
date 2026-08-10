@@ -31,6 +31,9 @@ from modules import team_show_workers
 from modules import incomplete_game_purge
 from modules import operator_tribe as operator_tribe_service
 from modules import operator_tribe_workers
+from modules import operator_player_migration as operator_player_migration_service
+from modules import operator_player_migration_views
+from modules import operator_player_migration_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -104,6 +107,12 @@ class administration(commands.Cog):
     operator_tribe_group = discord.app_commands.Group(
         name='tribe',
         description='Inspect and manage global Tribe metadata.',
+        parent=operator_group,
+        guild_only=True,
+    )
+    operator_player_group = discord.app_commands.Group(
+        name='player',
+        description='Run restricted player identity workflows.',
         parent=operator_group,
         guild_only=True,
     )
@@ -980,6 +989,97 @@ class administration(commands.Cog):
                 'The Tribe emoji operation failed. Please try again.',
                 ephemeral=True,
             )
+
+    @operator_player_group.command(
+        name='migrate',
+        description='Preview and migrate one stored player identity.',
+    )
+    @discord.app_commands.describe(
+        source_id='Old Discord user ID or mention stored by the bot.',
+        destination='Current member whose Discord account will replace it.',
+    )
+    async def operator_player_migrate_slash(
+        self,
+        interaction: discord.Interaction,
+        source_id: str,
+        destination: discord.Member,
+    ):
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.', ephemeral=True
+            )
+        if not settings.is_superuser(interaction.user):
+            return await interaction.response.send_message(
+                'Only a configured bot superuser can migrate players.',
+                ephemeral=True,
+            )
+        parsed_source_id = utilities.string_to_user_id(source_id)
+        if not parsed_source_id:
+            return await interaction.response.send_message(
+                'Enter a valid source Discord user ID or mention.',
+                ephemeral=True,
+            )
+        if int(parsed_source_id) == int(destination.id):
+            return await interaction.response.send_message(
+                'Source and destination must be different Discord accounts.',
+                ephemeral=True,
+            )
+        if destination.bot:
+            return await interaction.response.send_message(
+                'A bot account cannot be the migration destination.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preview = await operator_player_migration_workers.run_preview(
+                operator_player_migration_service.preview_request(
+                    interaction,
+                    source_id=int(parsed_source_id),
+                    destination=destination,
+                )
+            )
+        except operator_player_migration_workers.PlayerMigrationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Could not load player migration preview')
+            return await interaction.followup.send(
+                'Could not load the migration preview.', ephemeral=True
+            )
+
+        async def confirm(component_interaction, accepted_preview):
+            try:
+                result = await operator_player_migration_workers.run_commit(
+                    operator_player_migration_service.commit_request(
+                        component_interaction,
+                        accepted_preview,
+                    )
+                )
+            except operator_player_migration_workers.PlayerMigrationError:
+                raise
+            except peewee.PeeweeException as exc:
+                logger.exception('Player migration rolled back')
+                raise operator_player_migration_workers.PlayerMigrationError(
+                    'Player migration failed and rolled back.'
+                ) from exc
+            try:
+                await operator_player_migration_service.publish_result(
+                    component_interaction,
+                    result,
+                )
+            except operator_player_migration_service.PlayerMigrationPublicationError as exc:
+                await component_interaction.followup.send(str(exc), ephemeral=True)
+
+        view = operator_player_migration_views.PlayerMigrationPreviewView(
+            requester_id=int(interaction.user.id),
+            preview=preview,
+            confirmer=confirm,
+        )
+        await interaction.edit_original_response(content=None, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
 
     @team_group.command(
         name='create',
@@ -2445,79 +2545,6 @@ class administration(commands.Cog):
             format_elo_job_status(settings.elo_job_coordinator.active_job),
             ephemeral=True,
         )
-
-    @commands.command(aliases=['migrate'])
-    @settings.is_superuser_check()
-    async def migrate_player(self, ctx, from_string: str, to_string: str):
-        """*Owner*: Migrate games from player's old account to new account
-        Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
-
-        **Examples**
-        `[p]migrate_player @NellukOld @NellukNew`
-        """
-
-        from_id, to_id = utilities.string_to_user_id(from_string), utilities.string_to_user_id(to_string)
-        if not from_id or not to_id:
-            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} @FromUser @ToUser`')
-
-        try:
-            old_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == from_id).get()
-            old_name = old_discord_member.name
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{from_id}`')
-
-        new_guild_member = discord.utils.get(ctx.guild.members, id=to_id)
-        if not new_guild_member:
-            return await ctx.send(f'Could not find a guild member matching ID {to_id}. The migration must be to an existing member of this server.')
-
-        new_discord_member = models.DiscordMember.get_or_none(discord_id=new_guild_member.id)
-        if new_discord_member:
-            # New player is already registered with the bot
-            if new_discord_member.completed_game_count(only_ranked=False) > 0:
-                return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player with completed games!')
-
-            # but has no completed games - proceeding to migrate
-            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
-
-            with models.db.atomic():
-                for gm in new_discord_member.guildmembers:
-                    old_gm = models.Player.get_or_none(discord_member=old_discord_member, guild_id=gm.guild_id)
-                    if old_gm:
-                        # Both old account and new account are registered in this guild
-                        for l in gm.lineup:
-                            # cycle through new incomplete games and switch to the old player
-                            l.player = old_gm
-                            l.save()
-                    else:
-                        # New account in this guild but old account not
-                        # associate its player in this guild with the old account
-                        gm.discord_member = old_discord_member
-                        gm.save()
-
-                new_discord_member.delete_instance()
-
-                # set old account with new discord ID and refresh name
-                old_discord_member.discord_id = new_guild_member.id
-                old_discord_member.save()
-                old_discord_member.update_name(new_name=new_guild_member.name)
-
-            await ctx.send('Migration complete!')
-
-        else:
-            # New player has no presence in the bot
-            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
-
-            await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
-
-            with models.db.atomic():
-
-                old_discord_member.discord_id = new_guild_member.id
-                old_discord_member.save()
-                old_discord_member.update_name(new_name=new_guild_member.name)
-
-            await ctx.send('Migration complete!')
-
-        models.GameLog.write(game_id=0, guild_id=0, message=f'**{ctx.author.display_name}** migrated old ELO player **{old_name}** `{from_id}` to {models.GameLog.member_string(new_guild_member)}')
 
     @commands.command(aliases=['delplayer'])
     @commands.is_owner()

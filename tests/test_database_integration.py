@@ -6235,6 +6235,262 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_operator_player_migration_commits_dependencies_and_rolls_back(self):
+        """Exercise P9.4's complete graph on real development PostgreSQL."""
+
+        from modules import operator_player_migration_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        marker = f'P9.4-{uuid.uuid4().hex}'
+        numeric = int('8' + uuid.uuid4().hex[:17], 16) % 8_000_000_000_000_000_000
+        base_discord_id = max(numeric, 1_000_000_000_000_000_000)
+        created_game_ids = []
+        created_member_ids = []
+        created_squad_ids = []
+        created_house_ids = []
+        created_auction_ids = []
+
+        def make_graph(offset):
+            source_id = base_discord_id + offset
+            destination_id = base_discord_id + offset + 1
+            source = self.models.DiscordMember.create(
+                discord_id=source_id,
+                name=f'{marker}-source-{offset}',
+                polytopia_name=f'{marker}-canonical',
+            )
+            destination = self.models.DiscordMember.create(
+                discord_id=destination_id,
+                name=f'{marker}-destination-{offset}',
+                timezone_offset_minutes=60,
+            )
+            created_member_ids.extend((source.id, destination.id))
+            source_player = self.models.Player.create(
+                discord_member=source,
+                guild_id=guild_id,
+                name=source.name,
+            )
+            destination_player = self.models.Player.create(
+                discord_member=destination,
+                guild_id=guild_id,
+                name=destination.name,
+                nick='Target Nick',
+            )
+            other_guild_player = self.models.Player.create(
+                discord_member=destination,
+                guild_id=guild_id + 1,
+                name=destination.name,
+            )
+            game = self.models.Game.create(
+                name=f'{marker} game {offset}',
+                guild_id=guild_id,
+                host=destination_player,
+                size=[1, 1],
+                is_completed=False,
+                is_pending=False,
+            )
+            created_game_ids.append(game.id)
+            side = self.models.GameSide.create(
+                game=game,
+                size=1,
+                position=1,
+            )
+            lineup = self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=destination_player,
+            )
+            squad = self.models.Squad.create(
+                guild_id=guild_id,
+                name=f'{marker}-squad-{offset}',
+            )
+            created_squad_ids.append(squad.id)
+            self.models.SquadMember.create(player=source_player, squad=squad)
+            self.models.SquadMember.create(player=destination_player, squad=squad)
+            house = self.models.House.create(name=f'{marker}-house-{offset}')
+            created_house_ids.append(house.id)
+            self.models.PlayerHousePreference.create(player=source_player, house=house)
+            self.models.PlayerHousePreference.create(player=destination_player, house=house)
+            auction = self.models.Auction.create()
+            created_auction_ids.append(auction.id)
+            bid = self.models.Bid.create(
+                auction=auction,
+                amount=1,
+                player=destination_player,
+                bidder=destination_player,
+                house=house,
+            )
+            return SimpleNamespace(
+                source_id=source_id,
+                destination_id=destination_id,
+                source_member_id=source.id,
+                destination_member_id=destination.id,
+                source_player_id=source_player.id,
+                destination_player_id=destination_player.id,
+                other_guild_player_id=other_guild_player.id,
+                game_id=game.id,
+                lineup_id=lineup.id,
+                squad_id=squad.id,
+                house_id=house.id,
+                bid_id=bid.id,
+            )
+
+        def preview_request(graph):
+            return workers.PlayerMigrationPreviewRequest(
+                guild_id=guild_id,
+                requester_id=int(self.settings.owner_id),
+                source_id=graph.source_id,
+                destination_id=graph.destination_id,
+                destination_name=f'{marker}-new-name',
+            )
+
+        def commit_request(graph, preview):
+            return workers.PlayerMigrationCommitRequest(
+                guild_id=guild_id,
+                requester_id=int(self.settings.owner_id),
+                requester_description=marker,
+                source_id=graph.source_id,
+                destination_id=graph.destination_id,
+                destination_name=f'{marker}-new-name',
+                expected_fingerprint=preview.fingerprint,
+            )
+
+        try:
+            committed = make_graph(10)
+            self.models.db.close()
+            committed_preview = asyncio.run(
+                workers.run_preview(preview_request(committed))
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(committed_preview.blockers, ())
+            self.assertIn(
+                'canonical timezone',
+                committed_preview.destination_metadata,
+            )
+            result = asyncio.run(workers.run_commit(
+                commit_request(committed, committed_preview)
+            ))
+            self.assertTrue(self.models.db.is_closed())
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(result.players_merged, 1)
+            self.assertEqual(result.players_reparented, 1)
+            self.assertEqual(result.lineups_reassigned, 1)
+            self.assertEqual(result.hosts_reassigned, 1)
+            self.assertEqual(result.squad_memberships_deduplicated, 1)
+            self.assertEqual(result.house_preferences_deduplicated, 1)
+            self.assertEqual(result.bids_reassigned, 2)
+            self.assertIsNone(self.models.DiscordMember.get_or_none(
+                id=committed.destination_member_id
+            ))
+            surviving = self.models.DiscordMember.get_by_id(
+                committed.source_member_id
+            )
+            self.assertEqual(surviving.discord_id, committed.destination_id)
+            self.assertEqual(surviving.polytopia_name, f'{marker}-canonical')
+            self.assertEqual(
+                self.models.Lineup.get_by_id(committed.lineup_id).player_id,
+                committed.source_player_id,
+            )
+            self.assertEqual(
+                self.models.Game.get_by_id(committed.game_id).host_id,
+                committed.source_player_id,
+            )
+            self.assertEqual(
+                self.models.Player.get_by_id(
+                    committed.other_guild_player_id
+                ).discord_member_id,
+                committed.source_member_id,
+            )
+            self.assertEqual(
+                self.models.SquadMember.select().where(
+                    self.models.SquadMember.squad == committed.squad_id
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.PlayerHousePreference.select().where(
+                    self.models.PlayerHousePreference.house == committed.house_id
+                ).count(),
+                1,
+            )
+            bid = self.models.Bid.get_by_id(committed.bid_id)
+            self.assertEqual(
+                (bid.player_id, bid.bidder_id),
+                (committed.source_player_id, committed.source_player_id),
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            rolled_back = make_graph(20)
+            self.models.db.close()
+            rollback_preview = asyncio.run(
+                workers.run_preview(preview_request(rolled_back))
+            )
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P9.4 forced rollback'),
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'forced rollback',
+                ):
+                    asyncio.run(workers.run_commit(
+                        commit_request(rolled_back, rollback_preview)
+                    ))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.DiscordMember.get_by_id(
+                    rolled_back.source_member_id
+                ).discord_id,
+                rolled_back.source_id,
+            )
+            self.assertIsNotNone(self.models.DiscordMember.get_or_none(
+                id=rolled_back.destination_member_id
+            ))
+            self.assertEqual(
+                self.models.Lineup.get_by_id(rolled_back.lineup_id).player_id,
+                rolled_back.destination_player_id,
+            )
+            self.assertEqual(
+                self.models.Game.get_by_id(rolled_back.game_id).host_id,
+                rolled_back.destination_player_id,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                if created_game_ids:
+                    self.models.Game.delete().where(
+                        self.models.Game.id.in_(created_game_ids)
+                    ).execute()
+                self.models.Bid.delete().where(
+                    self.models.Bid.auction.in_(created_auction_ids or (-1,))
+                ).execute()
+                self.models.SquadMember.delete().where(
+                    self.models.SquadMember.squad.in_(created_squad_ids or (-1,))
+                ).execute()
+                self.models.PlayerHousePreference.delete().where(
+                    self.models.PlayerHousePreference.house.in_(created_house_ids or (-1,))
+                ).execute()
+                self.models.Squad.delete().where(
+                    self.models.Squad.id.in_(created_squad_ids or (-1,))
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(created_member_ids or (-1,))
+                ).execute()
+                self.models.Auction.delete().where(
+                    self.models.Auction.id.in_(created_auction_ids or (-1,))
+                ).execute()
+                self.models.House.delete().where(
+                    self.models.House.id.in_(created_house_ids or (-1,))
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
+
 
 if __name__ == '__main__':
     unittest.main()
