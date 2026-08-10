@@ -260,6 +260,17 @@ def _check_authorized(game, request: StartPreflightRequest | StartRequest) -> No
             'Polytopia account name with '
             f'__`{request.prefix}setname Your Polytopia Name`__ to get started.'
         )
+    guild_player = models.Player.get_or_none(
+        discord_member=registered,
+        guild_id=request.guild_id,
+    )
+    if bool(getattr(registered, 'is_banned', False)) or (
+        guild_player is not None
+        and bool(getattr(guild_player, 'is_banned', False))
+    ):
+        raise GameStartValidationError(
+            'You are ELO Banned and cannot start games.'
+        )
 
     hosted_by_requester, host = game.is_hosted_by(requester.discord_id)
     created_by_requester = game.is_created_by(requester.discord_id)

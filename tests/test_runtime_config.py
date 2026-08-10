@@ -1,6 +1,5 @@
 import asyncio
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
-from dataclasses import FrozenInstanceError
 import importlib
 from io import StringIO
 from pathlib import Path
@@ -12,6 +11,7 @@ import unittest
 from unittest import mock
 import warnings
 
+import runtime_config
 from runtime_config import (
     LEGACY_PRODUCTION_BOT_ID,
     RuntimeConfigurationError,
@@ -136,36 +136,37 @@ class RuntimeProfileTests(unittest.TestCase):
             create_directories=create_directories,
         )
 
-    def test_unset_environment_selects_production_and_preserves_paths(self):
-        self.write_config(
-            'production',
-            discord_key='production-token',
-            expected_bot_id=str(LEGACY_PRODUCTION_BOT_ID),
-            psql_db='polytopia',
-            psql_user='nelluk',
-            psql_password='production-password',
-            psql_host='',
-            psql_port='',
-            background_tasks_enabled='true',
-            api_enabled='true',
-            bullet_enabled='true',
-        )
-        self.write_server_settings('production')
+    def test_unset_blank_and_whitespace_environment_fail_before_effects(self):
+        for environ in (
+            {},
+            {'POLYBOT_ENV': ''},
+            {'POLYBOT_ENV': '   '},
+            {'POLYBOT_ENV': ' development '},
+        ):
+            with self.subTest(environ=environ), mock.patch.object(
+                runtime_config,
+                '_read_config',
+            ) as read_config, mock.patch.object(
+                runtime_config,
+                '_load_server_settings',
+            ) as load_server_settings, mock.patch.object(
+                runtime_config,
+                '_create_development_directories',
+            ) as create_directories:
+                with self.assertRaisesRegex(
+                    RuntimeConfigurationError,
+                    'must be exactly',
+                ):
+                    load_runtime_profile(
+                        project_root=self.root,
+                        environ=environ,
+                        create_directories=True,
+                    )
 
-        profile = load_runtime_profile(
-            project_root=self.root, environ={}, create_directories=True
-        )
-
-        self.assertEqual(profile.environment, 'production')
-        self.assertEqual(profile.image_root, self.root / 'data/images')
-        self.assertEqual(profile.log_root, self.root / 'logs')
-        self.assertTrue(profile.background_tasks_enabled)
-        self.assertTrue(profile.api_enabled)
-        self.assertTrue(profile.bullet_enabled)
-        self.assertFalse(profile.image_root.exists())
-        self.assertFalse(profile.log_root.exists())
-        with self.assertRaises(FrozenInstanceError):
-            profile.environment = 'development'
+                read_config.assert_not_called()
+                load_server_settings.assert_not_called()
+                create_directories.assert_not_called()
+                self.assertEqual(tuple(self.root.iterdir()), ())
 
     def test_development_selection_creates_only_isolated_paths(self):
         self.write_config('development')

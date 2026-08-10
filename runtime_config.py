@@ -482,7 +482,8 @@ def load_runtime_profile(
 
     root = Path(project_root or PROJECT_ROOT).resolve()
     environment_values = os.environ if environ is None else environ
-    environment = environment_values.get('POLYBOT_ENV', 'production').strip()
+    raw_environment = environment_values.get('POLYBOT_ENV')
+    environment = raw_environment if raw_environment is not None else ''
     if environment not in SUPPORTED_ENVIRONMENTS:
         raise RuntimeConfigurationError(
             'POLYBOT_ENV must be exactly "production" or "development"; '
