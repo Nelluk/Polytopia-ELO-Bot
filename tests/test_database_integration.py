@@ -3951,6 +3951,116 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
 
         asyncio.run(load_extensions())
 
+    def test_h8_startup_ban_reconciliation_real_schema(self):
+        """Exercise exact atomic ban replacement on a worker connection."""
+
+        from modules import startup_ban_workers as workers
+
+        suffix = uuid.uuid4().hex[:10]
+        id_base = 9_800_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        original_banned_ids = tuple(
+            row.id
+            for row in self.models.DiscordMember.select(
+                self.models.DiscordMember.id
+            ).where(self.models.DiscordMember.is_banned == True)
+        )
+        created_ids = []
+        try:
+            discord_target = self.models.DiscordMember.create(
+                discord_id=id_base,
+                name=f'H8 Discord {suffix}',
+                polytopia_id=f'H8-discord-{suffix}',
+                is_banned=False,
+            )
+            poly_target = self.models.DiscordMember.create(
+                discord_id=id_base + 1,
+                name=f'H8 Poly {suffix}',
+                polytopia_id=f'H8-poly-{suffix}',
+                is_banned=False,
+            )
+            reset_target = self.models.DiscordMember.create(
+                discord_id=id_base + 2,
+                name=f'H8 Reset {suffix}',
+                polytopia_id=f'H8-reset-{suffix}',
+                is_banned=True,
+            )
+            created_ids.extend((
+                int(discord_target.id),
+                int(poly_target.id),
+                int(reset_target.id),
+            ))
+            request = workers.StartupBanReconciliationRequest(
+                discord_ids=(int(discord_target.discord_id),),
+                polytopia_ids=(str(poly_target.polytopia_id),),
+            )
+
+            original_update = self.models.DiscordMember.update
+            update_calls = 0
+
+            def failing_update(*args, **kwargs):
+                nonlocal update_calls
+                update_calls += 1
+                if update_calls == 3:
+                    raise peewee.OperationalError(
+                        'H8 injected ban reconciliation failure'
+                    )
+                return original_update(*args, **kwargs)
+
+            self.models.db.close()
+            with mock.patch.object(
+                self.models.DiscordMember,
+                'update',
+                side_effect=failing_update,
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected ban reconciliation failure',
+                ):
+                    asyncio.run(
+                        workers.run_startup_ban_reconciliation(request)
+                    )
+            self.assertTrue(self.models.db.is_closed())
+            self.models.db.connect(reuse_if_open=True)
+            self.assertFalse(
+                self.models.DiscordMember.get_by_id(discord_target.id).is_banned
+            )
+            self.assertFalse(
+                self.models.DiscordMember.get_by_id(poly_target.id).is_banned
+            )
+            self.assertTrue(
+                self.models.DiscordMember.get_by_id(reset_target.id).is_banned
+            )
+
+            self.models.db.close()
+            result = asyncio.run(
+                workers.run_startup_ban_reconciliation(request)
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertGreaterEqual(result.reset_rows, 3)
+            self.assertEqual(result.discord_rows, 1)
+            self.assertEqual(result.polytopia_rows, 1)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(
+                self.models.DiscordMember.get_by_id(discord_target.id).is_banned
+            )
+            self.assertTrue(
+                self.models.DiscordMember.get_by_id(poly_target.id).is_banned
+            )
+            self.assertFalse(
+                self.models.DiscordMember.get_by_id(reset_target.id).is_banned
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            self.models.DiscordMember.update(is_banned=False).execute()
+            if original_banned_ids:
+                self.models.DiscordMember.update(is_banned=True).where(
+                    self.models.DiscordMember.id.in_(original_banned_ids)
+                ).execute()
+            if created_ids:
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(tuple(created_ids))
+                ).execute()
+
     def test_api_application_and_database_route_request(self):
         from modules import api
 

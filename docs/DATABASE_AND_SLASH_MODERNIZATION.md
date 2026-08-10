@@ -490,18 +490,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.10/H7 repeated-cancellation hardening for the manual
-backup child is Complete in the accumulation branch at merge checkpoint
-`2d561ae`, from exact clean accumulation base `fc861f1`. A cancellation cleanup
-task now retains coordinator ownership while
-TERM/KILL, child reap, and both bounded output drains complete, even across
-repeated caller cancellation; only then does cancellation propagate. Focused
-and adjacent validation passes 44 tests. Complete discovery runs 1,561 tests
-with 68 skips and reaches only the three known missing-`duckdb` environment
-failures. No production path/artifact was read or executed, and no database or
-command-tree operation is warranted. Clean accumulation close-out `b554adf` is
-pushed, and the guarded beta is healthy at that exact startup checkpoint as PID
-`3855239`.**
+Current active unit: **P9.11/H8 startup identity ordering is Tier-3 reviewed
+and database-validated on isolated branch
+`codex/h8-startup-identity-ordering`, from exact clean accumulation base
+`3405ea3`. Implementation/tests checkpoint `27d4a1c` moves every ordinary
+model/database effect behind authenticated application-ID validation and
+performs the startup ban snapshot once through a bounded, worker-owned atomic
+transaction. Focused validation passes 59 tests. Complete discovery runs 1,569
+tests with 69 skips and reaches only the three known missing-`duckdb`
+environment failures. The unit-specific real-schema verifier passes, followed
+by the complete stopped-writer gate at 68 tests: 67 passed and one
+operator-owned fixture round trip intentionally skipped. Integration and beta
+reload remain.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13181,6 +13181,47 @@ or Discord effect occurred. The development beta need only reload the accepted
 code after integration; no stopped-writer database gate, command plan/apply,
 tester checklist edit, or announcement is warranted.
 
+### P9.11 — H8 authenticated startup identity before database effects
+
+Status: **Tier-3 reviewed and development-database validated; integration
+pending**
+
+Branch/base: `codex/h8-startup-identity-ordering`, exact clean accumulation
+base `3405ea33108f90694f990db5323bd50623d10537`. Implementation/tests
+checkpoint: `27d4a1c`.
+
+The ordinary bot path now imports no ORM model or database utility before
+Discord HTTP authentication. The first action in `setup_hook()` validates the
+authenticated application ID against the selected runtime profile; a mismatch
+aborts before model import, schema initialization, ban reconciliation,
+persistent connection setup, image-directory creation, extension loading,
+background work, or beta release control. `on_ready` retains a defensive
+identity recheck and now also refuses a ready state if reconciliation did not
+finish.
+
+After identity validation, one immutable bounded request deduplicates the two
+configured ban lists. A single-worker startup service imports models inside
+the worker, owns its connection, and atomically resets/reapplies both Discord
+and Polytopia ban snapshots. Failure rolls back the entire replacement;
+cancellation drains the worker before propagation; success is recorded only
+after the worker returns. `--skip_tasks` intentionally does not skip this
+security reconciliation. Standalone default-data, ELO recalculation, and game
+export modes preserve their previous behavior through explicit lazy imports.
+The application-command tree and all tester workflows are unchanged.
+
+Focused startup/runtime/dependency/beta validation passes **59/59**. Complete
+offline discovery runs **1,569 tests**: **1,497 pass**, **69 intentionally
+skip**, and only the three documented unsynchronized-environment cases fail
+because `duckdb` is absent. Compilation and `git diff --check` pass. With only
+the guarded development beta stopped and the host-wide writer audit clear, the
+unit-specific PostgreSQL verifier passes **1/1**, proving rollback, exact
+replacement, connection cleanup, and restoration of the pre-test ban snapshot.
+The complete unchanged gate then runs **68 tests: 67 pass and one
+operator-owned fixture round trip intentionally skips** under the exact
+`development` / `polytopia_dev` / `polybot_dev` gate with background tasks and
+API disabled. No schema, dependency, command-registration, production, or
+global Discord operation is involved.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14147,6 +14188,35 @@ conditionally clear the exact reference with protected audit afterward.
 Retire `$purge_game_channels` with this replacement.
 
 ## Progress log
+
+### 2026-08-10 — P9.11/H8 startup identity ordering reviewed and gated
+
+- Reconciled the clean local, tracking, and exact GitHub accumulation ref at
+  `3405ea3`; no H8 branch/worktree existed. The guarded beta was healthy at
+  startup checkpoint `b554adf` as the sole development writer.
+- Created isolated branch/worktree `codex/h8-startup-identity-ordering` from
+  that exact base and passed the development profile setup gate.
+- Moved ordinary model/database imports and startup ban writes behind the
+  authenticated application-ID check. Added a bounded immutable ban request,
+  one worker-owned connection/transaction, rollback, cancellation drain, and
+  once-only startup completion state while preserving task-disabled security
+  reconciliation and standalone CLI modes.
+- Added direct wrong-ID zero-effect, correct ordering, model-import boundary,
+  exact filter, atomic rollback, connection closure, bounds, loop heartbeat,
+  cancellation, and offline construction coverage. Implementation/tests are
+  checkpointed at `27d4a1c`; Tier-3 complete-diff review found no remaining
+  blocker.
+- Focused validation passed 59 tests. Complete discovery ran 1,569 tests with
+  69 skips and only the three known missing-`duckdb` environment failures.
+  Compilation and diff checks passed; no dependency was installed or synced.
+- Stopped only the verified development beta and proved the host-wide writer
+  audit clear. The targeted real-schema case passed, then the complete
+  unchanged development gate ran 68 tests: 67 passed and one operator-owned
+  fixture round trip intentionally skipped. The H8 case restored the exact
+  pre-test ban snapshot and left its worker connection closed.
+- Next: record this evidence, integrate the reviewed unit, push a clean
+  accumulation close-out, and reload/verify only the guarded development beta.
+  No command plan/apply, tester checklist, or announcement is warranted.
 
 ### 2026-08-10 — P9.10/H7 backup cancellation cleanup reviewed
 

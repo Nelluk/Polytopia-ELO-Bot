@@ -237,15 +237,27 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         for module_name in (
                 'logging_config', 'modules.image_storage',
                 'modules.initialize_data', 'modules.models',
-                'modules.utilities'):
+                'modules.startup_ban_workers', 'modules.utilities'):
             stubs[module_name] = ModuleType(module_name)
         stubs['modules.initialize_data'].initialize_data = lambda: None
         stubs['modules.image_storage'].ensure_image_directories = lambda: None
+        stubs['modules.utilities'].connect = lambda: None
+        stubs['modules.startup_ban_workers'].StartupBanReconciliationRequest = (
+            lambda **kwargs: SimpleNamespace(**kwargs)
+        )
+        stubs['modules.startup_ban_workers'].run_startup_ban_reconciliation = (
+            mock.AsyncMock(return_value=SimpleNamespace(
+                reset_rows=0,
+                discord_rows=0,
+                polytopia_rows=0,
+            ))
+        )
         runtime_profile = SimpleNamespace(
             background_tasks_enabled=False,
             bullet_enabled=False,
             discord_token='offline-test-token',
             environment='development',
+            validate_logged_in_bot=lambda _bot_id: None,
         )
         settings_stub = ModuleType('settings')
         settings_stub.runtime_profile = runtime_profile
@@ -254,6 +266,8 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         settings_stub.config = {}
         settings_stub.server_ids = {'polychampions': 478571892832206869}
         settings_stub.run_tasks = False
+        settings_stub.discord_id_ban_list = []
+        settings_stub.poly_id_ban_list = []
         stubs['settings'] = settings_stub
 
         old_bot_module = sys.modules.pop('bot', None)
@@ -262,6 +276,7 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                 bot_module = importlib.import_module('bot')
                 instance = bot_module.MyBot()
                 try:
+                    instance._connection.user = SimpleNamespace(id=123)
                     self.assertIsInstance(instance, commands.Bot)
                     self.assertTrue(instance.intents.members)
                     self.assertTrue(instance.intents.message_content)
