@@ -12781,11 +12781,12 @@ eligibility revalidation remains separate.
 
 ### P9.7d — Immutable rank/unstart correction publication snapshots
 
-Status: **Implemented and Tier-3 reviewed on the isolated unit branch;
-integration pending**
+Status: **Complete in the accumulation branch; gated real-schema evidence
+deferred to the next stopped-writer batch**
 
 Branch/base: `codex/p9-7d-rank-unstart-snapshot`, exact clean accumulation
 base `8249eac`. Implementation/tests checkpoint: `222cc9b`.
+Roadmap evidence: `8e211e6`; accumulation merge: `8038077`.
 
 This bounded final H4 correction removes the remaining rank/unstart
 post-commit event-loop reloads and live-model publication graph:
@@ -13809,10 +13810,12 @@ branch.
   extension. No database, fixture, Discord command, service, dependency,
   production, or announcement operation occurred.
 - Recorded the reviewed implementation and tests at checkpoint `222cc9b`;
-  roadmap evidence follows separately.
-- Next action: commit roadmap evidence, integrate the reviewed unit into the
-  accumulation branch, push its close-out, and retain the new database case
-  for the next accumulated stopped-writer window.
+  roadmap evidence at `8e211e6`, and integrated the unit at merge checkpoint
+  `8038077`.
+- Next action: commit/push the accumulation close-out and retain the new
+  database case for the next accumulated stopped-writer window. H5 automatic
+  confirmation candidate discovery and authoritative eligibility revalidation
+  is the next bounded implementation unit.
 
 ### 2026-08-10 — P9.7a-c deployed to the durable development beta
 
