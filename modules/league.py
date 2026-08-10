@@ -1427,126 +1427,83 @@ class league(commands.Cog):
         for record in records:
             print(record.name, record.id, record.emoji, record.regular_season_wins, record.regular_season_losses, record.regular_season_incomplete, record.post_season_wins, record.post_season_losses, record.post_season_incomplete)
     
-    @commands.command(aliases=['team_tier'], usage='team_name arguments')
+    @commands.command(name='team_tier', usage='team_name tier')
     @settings.is_mod_check()
-    async def team_edit(self, ctx, *, arg=None):
-        """*Mod*: Edit a team's league tier or archive it
+    async def team_tier(self, ctx, *, arg=None):
+        """*Mod*: Edit a team's league tier.
         **Example:**
-        `/team house team:ronin house:Ninjas` - Put team Ronin into a House
-        `/team house team:ronin clear:true` - Remove team Ronin from its House affiliation
-        `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
         `[p]team_tier ronin gold` - Change league tier of team. Does not impact current or past games from this team.
-        
-        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `/house create`, `/house name`
+
+        See also: `/team tier`, `/team house`, and `/team archive`.
         """
         args = arg.split() if arg else []
         if not args or len(args) != 2:
-            return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
-
-        if ctx.invoked_with == 'team_tier':
-            try:
-                preflight = await team_attributes_service.run_tier_preflight(
-                    member=ctx.author,
-                    guild=ctx.guild,
-                    team_lookup=args[0],
-                    invoked_with=ctx.invoked_with,
-                )
-                request = team_attributes_service.build_mutation_request(
-                    member=ctx.author,
-                    guild_id=ctx.guild.id,
-                    attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
-                    team_lookup=args[0],
-                    tier=args[1],
-                    expected_team_id=preflight.current.team_id,
-                    expected_value=preflight.current.value,
-                    expected_value_present=True,
-                    team_role_id=preflight.team_role_id,
-                    team_role_name=preflight.team_role_name,
-                    team_member_ids=getattr(preflight, 'member_ids', ()),
-                    native=False,
-                    invoked_with=ctx.invoked_with,
-                    prefix=ctx.prefix,
-                )
-                result = await team_attributes_service.run_mutation(request)
-            except team_attributes_workers.TeamAttributeValidationError as ex:
-                return await ctx.send(str(ex))
-            except peewee.PeeweeException:
-                logger.exception(
-                    'Database failure updating team tier for guild %s',
-                    ctx.guild.id,
-                )
-                return await ctx.send('Team tier operation failed and rolled back.')
-            except Exception:
-                logger.exception(
-                    'Unexpected team tier failure for guild %s',
-                    ctx.guild.id,
-                )
-                return await ctx.send('Team tier operation failed and rolled back.')
-
-            try:
-                reconciliation = await team_attributes_service.reconcile_tier_roles(
-                    ctx.guild,
-                    result,
-                )
-            except Exception:
-                logger.exception(
-                    'Committed team tier %s could not reconcile roles',
-                    result.team_id,
-                )
-                reconciliation = team_attributes_service.TierRoleReconciliation(
-                    team_id=result.team_id,
-                    attempted=0,
-                    updated=0,
-                    team_role_missing=True,
-                )
-            await team_attributes_service.publish_mutation_result(
-                result,
-                send=ctx.send,
-                reconciliation=reconciliation,
-            )
-            return result
-
-        if ctx.invoked_with == 'team_edit' and args[1] != 'ARCHIVE':
             return await ctx.send(
-                f'House changes now use `/team house`. Use '
-                f'`/team house team:{args[0]} house:{args[1]}` to assign a '
-                'House or `clear:true` to remove the affiliation.'
+                f'See `{ctx.prefix}help team_tier` for usage examples. Teams '
+                'and tiers must each be identified by a single word.'
             )
 
         try:
-            team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
-        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-            return await ctx.send(e)
+            preflight = await team_attributes_service.run_tier_preflight(
+                member=ctx.author,
+                guild=ctx.guild,
+                team_lookup=args[0],
+                invoked_with='team_tier',
+            )
+            request = team_attributes_service.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+                team_lookup=args[0],
+                tier=args[1],
+                expected_team_id=preflight.current.team_id,
+                expected_value=preflight.current.value,
+                expected_value_present=True,
+                team_role_id=preflight.team_role_id,
+                team_role_name=preflight.team_role_name,
+                team_member_ids=getattr(preflight, 'member_ids', ()),
+                native=False,
+                invoked_with='team_tier',
+                prefix=ctx.prefix,
+            )
+            result = await team_attributes_service.run_mutation(request)
+        except team_attributes_workers.TeamAttributeValidationError as ex:
+            return await ctx.send(str(ex))
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure updating team tier for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team tier operation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected team tier failure for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team tier operation failed and rolled back.')
 
-        logger.debug(f'Loaded team {team.name} for editing')
-        team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-        if not team_role:
-            return await ctx.send(f':warning: No role matching **{team.name}**. It must have a role to edit team properties. ')
-
-        if team.is_archived:
-            logger.warn('Team is_archive is True')
-            return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
-
-        if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
-            logger.debug(f'Attempting to archive team {team.name}')
-            if team.house:
-               logger.warn(f'Cannot archive due to house affiliation')
-               return await ctx.send(
-                   f'Remove the House affiliation of team **{team.name}** '
-                   f'first with `/team house team:{args[0]} clear:true`. '
-                   f'Currently in {team.house.name}.'
-               )
-            incomplete_game_count = models.Game.search(team_filter=[team], status_filter=2).count()
-            if incomplete_game_count > 0:
-                logger.warn(f'Cannot archive due to {incomplete_game_count} incomplete games')
-                return await ctx.send(f'Team **{team.name}** has {incomplete_game_count} incomplete games. Cannot archive unless there are zero incomplete games.')
-            
-            team.is_archived = True
-            team.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} archived Team {team.name} ID {team.id}')
-            return await ctx.send(f':warning: Team **{team.name}** has been successfully **archived**. May it be long remembered, but never again used.')
-        
-        return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
+        try:
+            reconciliation = await team_attributes_service.reconcile_tier_roles(
+                ctx.guild,
+                result,
+            )
+        except Exception:
+            logger.exception(
+                'Committed team tier %s could not reconcile roles',
+                result.team_id,
+            )
+            reconciliation = team_attributes_service.TierRoleReconciliation(
+                team_id=result.team_id,
+                attempted=0,
+                updated=0,
+                team_role_missing=True,
+            )
+        await team_attributes_service.publish_mutation_result(
+            result,
+            send=ctx.send,
+            reconciliation=reconciliation,
+        )
+        return result
     
 
     @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')

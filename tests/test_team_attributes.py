@@ -1611,10 +1611,9 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
         league_commands = {
             command.name: command for command in league.league.__cog_commands__
         }
-        self.assertEqual(
-            league_commands['team_edit'].aliases,
-            ['team_tier'],
-        )
+        self.assertNotIn('team_edit', league_commands)
+        self.assertIn('team_tier', league_commands)
+        self.assertEqual(league_commands['team_tier'].aliases, [])
         self.assertNotIn('team_house', league_commands)
 
     async def test_prefix_tier_preserves_legacy_league_cog_scope(self):
@@ -1631,76 +1630,6 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             invoked_with='team_tier',
         )
         self.assertTrue(await cog.cog_check(in_scope))
-
-    async def test_team_edit_no_longer_accepts_house_changes(self):
-        command = next(
-            command
-            for command in league.league.__cog_commands__
-            if command.name == 'team_edit'
-        )
-        ctx = SimpleNamespace(
-            guild=SimpleNamespace(id=300),
-            author=SimpleNamespace(id=100),
-            prefix='$',
-            invoked_with='team_edit',
-            send=mock.AsyncMock(),
-        )
-        cog = league.league.__new__(league.league)
-        with mock.patch.object(league.models.Team, 'get_or_except') as lookup:
-            await command.callback(cog, ctx, arg='Ronin Ninjas')
-        lookup.assert_not_called()
-        ctx.send.assert_awaited_once_with(
-            'House changes now use `/team house`. Use `/team house '
-            'team:Ronin house:Ninjas` to assign a House or `clear:true` to '
-            'remove the affiliation.'
-        )
-
-    async def test_team_edit_archive_path_remains_registered_and_operational(self):
-        command = next(
-            command
-            for command in league.league.__cog_commands__
-            if command.name == 'team_edit'
-        )
-        ctx = SimpleNamespace(
-            guild=SimpleNamespace(id=300),
-            author=SimpleNamespace(id=100),
-            prefix='$',
-            invoked_with='team_edit',
-            send=mock.AsyncMock(),
-        )
-        team = SimpleNamespace(
-            id=42,
-            name='Ronin',
-            house=None,
-            is_archived=False,
-            save=mock.Mock(),
-        )
-        role = SimpleNamespace(id=700, name='Ronin')
-        cog = league.league.__new__(league.league)
-        with mock.patch.object(
-            league.models.Team,
-            'get_or_except',
-            return_value=team,
-        ), mock.patch.object(
-            league.utilities,
-            'guild_role_by_name',
-            return_value=role,
-        ), mock.patch.object(
-            league.models.Game,
-            'search',
-            return_value=SimpleNamespace(count=lambda: 0),
-        ), mock.patch.object(
-            league.models.GameLog,
-            'member_string',
-            return_value='**Mod**',
-        ), mock.patch.object(
-            league.models.GameLog,
-            'write',
-        ):
-            await command.callback(cog, ctx, arg='Ronin ARCHIVE')
-        self.assertTrue(team.is_archived)
-        team.save.assert_called_once_with()
-        self.assertIn('successfully **archived**', ctx.send.await_args.args[0])
 
     async def test_prefix_name_routes_through_shared_mutation_service(self):
         command = next(
@@ -1814,7 +1743,7 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
         command = next(
             command
             for command in league.league.__cog_commands__
-            if command.name == 'team_edit'
+            if command.name == 'team_tier'
         )
         ctx = SimpleNamespace(
             guild=SimpleNamespace(id=300, roles=[]),

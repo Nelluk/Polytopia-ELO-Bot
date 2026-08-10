@@ -972,6 +972,89 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     & self.models.Team.name.contains(suffix)
                 ).execute()
 
+    def test_team_archive_worker_commits_and_rolls_back_real_graph(self):
+        """Exercise the native Team archive+GameLog graph under the gate."""
+
+        from modules import team_archive_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        actor_id = self.settings.owner_id
+        team_name = f'P826 Archive {suffix}'
+        rollback_name = f'P826 Rollback {suffix}'
+        committed_team = None
+        rollback_team = None
+
+        def make_request(team):
+            return team_archive_workers.TeamArchiveRequest(
+                guild_id=guild_id,
+                requester_id=actor_id,
+                requester_is_mod=True,
+                team_enabled=True,
+                league_scope=True,
+                team_lookup=team.name,
+                expected_team_id=team.id,
+                team_role_id=900000 + team.id,
+                team_role_name=team.name,
+                requester_description=(
+                    f'**P826 Integration Actor** (`{actor_id}`)'
+                ),
+                confirmed=True,
+                invoked_with='integration',
+            )
+
+        try:
+            committed_team = self.models.Team.create(
+                name=team_name,
+                guild_id=guild_id,
+                is_hidden=False,
+                is_archived=False,
+            )
+            result = asyncio.run(
+                team_archive_workers.run_team_archive(
+                    make_request(committed_team),
+                )
+            )
+            self.assertEqual(result.team_id, committed_team.id)
+            committed_team = self.models.Team.get_by_id(committed_team.id)
+            self.assertTrue(committed_team.is_archived)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.guild_id == guild_id,
+                    self.models.GameLog.message.contains(team_name),
+                ).count(),
+                1,
+            )
+
+            rollback_team = self.models.Team.create(
+                name=rollback_name,
+                guild_id=guild_id,
+                is_hidden=False,
+                is_archived=False,
+            )
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P826 audit failure'),
+            ):
+                with self.assertRaises(peewee.OperationalError):
+                    asyncio.run(
+                        team_archive_workers.run_team_archive(
+                            make_request(rollback_team),
+                        )
+                    )
+            rollback_team = self.models.Team.get_by_id(rollback_team.id)
+            self.assertFalse(rollback_team.is_archived)
+        finally:
+            with self.models.db.atomic():
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).execute()
+                self.models.Team.delete().where(
+                    (self.models.Team.guild_id == guild_id)
+                    & self.models.Team.name.contains(suffix)
+                ).execute()
+
     def test_game_search_workspace_reads_real_schema(self):
         from modules import game_search_workers
 

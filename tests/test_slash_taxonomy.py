@@ -123,6 +123,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertEqual(
             {command.name for command in team_group.commands},
             {
+                'archive',
                 'create',
                 'show',
                 'emoji',
@@ -313,6 +314,17 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
+                in team_group.get_command('archive').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, True),
+                ('confirm', discord.AppCommandOptionType.boolean, True),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
                 in team_group.get_command('name').parameters
             ],
             [
@@ -396,7 +408,16 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         }
         self.assertEqual(
             set(autocomplete_callbacks),
-            {'show', 'emoji', 'image', 'name', 'server', 'tier', 'house'},
+            {
+                'archive',
+                'show',
+                'emoji',
+                'image',
+                'name',
+                'server',
+                'tier',
+                'house',
+            },
         )
         self.assertEqual(
             {
@@ -407,6 +428,10 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertIs(
             autocomplete_callbacks['house'],
+            administration.team_attributes_service.autocomplete_house_teams,
+        )
+        self.assertIs(
+            autocomplete_callbacks['archive'],
             administration.team_attributes_service.autocomplete_house_teams,
         )
         self.assertIs(
@@ -451,7 +476,9 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             command.name: command for command in league.league.__cog_commands__
         }
         self.assertNotIn('team_house', league_prefix)
-        self.assertEqual(league_prefix['team_edit'].aliases, ['team_tier'])
+        self.assertNotIn('team_edit', league_prefix)
+        self.assertIn('team_tier', league_prefix)
+        self.assertEqual(league_prefix['team_tier'].aliases, [])
 
 
 class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):

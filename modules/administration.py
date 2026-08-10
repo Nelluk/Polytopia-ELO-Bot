@@ -20,6 +20,8 @@ from modules import team_emoji as team_emoji_service
 from modules import team_emoji_workers
 from modules import team_creation as team_creation_service
 from modules import team_creation_workers
+from modules import team_archive as team_archive_service
+from modules import team_archive_workers
 from modules import team_attributes as team_attributes_service
 from modules import team_attributes_workers
 from modules import team_image as team_image_service
@@ -991,6 +993,106 @@ class administration(commands.Cog):
                 'Team creation failed and rolled back.',
                 ephemeral=True,
             )
+
+    @team_group.command(
+        name='archive',
+        description='Permanently archive an inactive competitive team.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_house_teams,
+    )
+    @discord.app_commands.describe(
+        team='Active team to archive.',
+        confirm='Must be true after checking the team and its open games.',
+    )
+    async def team_archive_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str,
+        confirm: bool,
+    ):
+        """Archive one eligible Team through the bounded atomic worker."""
+
+        guild_id = getattr(getattr(interaction, 'guild', None), 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_archive_service.native_access_error(
+            interaction.user,
+            guild_id,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        if not confirm:
+            return await interaction.response.send_message(
+                'Team archival was not started. Set `confirm` to true only '
+                'after checking the selected Team.',
+                ephemeral=True,
+            )
+
+        actor = team_archive_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preflight = await team_archive_service.run_preflight(
+                member=interaction.user,
+                guild=interaction.guild,
+                team_lookup=team,
+            )
+            result = await team_archive_service.run_archive(
+                team_archive_service.build_request(
+                    member=interaction.user,
+                    guild_id=guild_id,
+                    preflight=preflight,
+                    confirmed=confirm,
+                )
+            )
+        except (
+            team_archive_workers.TeamArchiveError,
+            team_attributes_workers.TeamAttributeValidationError,
+        ) as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure archiving team in guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team archival failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected team archival failure in guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team archival failed and rolled back.',
+                ephemeral=True,
+            )
+
+        try:
+            await team_emoji_service.public_interaction_sender(interaction)(
+                team_archive_service.success_message(result, actor=actor)
+            )
+        except Exception:
+            logger.exception(
+                'Committed team archival %s could not publish in guild %s',
+                result.team_id,
+                guild_id,
+            )
+            await interaction.followup.send(
+                f':warning: Team **{team_archive_service.display_team_name(result.team_name)}** '
+                'was archived, but the '
+                'public confirmation could not be sent. Do not retry the '
+                'archive; an operator should reconcile the announcement.',
+                ephemeral=True,
+            )
+        return result
 
     @team_group.command(
         name='show',
