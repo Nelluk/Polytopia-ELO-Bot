@@ -29,6 +29,8 @@ from modules import team_image_workers
 from modules import team_show as team_show_service
 from modules import team_show_workers
 from modules import incomplete_game_purge
+from modules import operator_tribe as operator_tribe_service
+from modules import operator_tribe_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -91,6 +93,18 @@ class administration(commands.Cog):
     team_group = discord.app_commands.Group(
         name='team',
         description='View and manage competitive team attributes.',
+        guild_only=True,
+    )
+    operator_group = discord.app_commands.Group(
+        name='operator',
+        description='Run restricted bot-wide operator workflows.',
+        guild_only=True,
+        default_permissions=discord.Permissions(administrator=True),
+    )
+    operator_tribe_group = discord.app_commands.Group(
+        name='tribe',
+        description='Inspect and manage global Tribe metadata.',
+        parent=operator_group,
         guild_only=True,
     )
 
@@ -904,27 +918,68 @@ class administration(commands.Cog):
             f'**{result.old_expiration}**.'
         )
 
-    @commands.command(usage='tribe_name new_emoji')
-    @commands.is_owner()
-    async def tribe_emoji(self, ctx, tribe_name: str, emoji):
-        """*Mod*: Assign an emoji to a tribe
-        The emoji chosen will be used on *all* servers that this bot is on.
-        It can only be triggered by an admin on a server that contributes to the Global ELO leaderboard.
-        **Example:**
-        `[p]tribe_emoji Bardur :new_bardur_emoji:`
-        """
-        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb') and ctx.author.id != settings.owner_id:
-            return await ctx.send('This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
+    @operator_tribe_group.command(
+        name='emoji',
+        description='View or update one global Tribe emoji.',
+    )
+    @discord.app_commands.autocomplete(
+        tribe=operator_tribe_service.autocomplete_tribes,
+    )
+    @discord.app_commands.describe(
+        tribe='Tribe name.',
+        emoji='Unicode or custom emoji to set; omit this to view it.',
+    )
+    async def operator_tribe_emoji_slash(
+        self,
+        interaction: discord.Interaction,
+        tribe: str,
+        emoji: str | None = None,
+    ):
+        """Owner-only atomic global Tribe emoji read/edit."""
 
-        if len(emoji) != 1 and ('<:' not in emoji):
-            return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        if int(interaction.user.id) != int(settings.owner_id):
+            return await interaction.response.send_message(
+                'Only the configured bot owner can manage Tribe emojis.',
+                ephemeral=True,
+            )
 
+        await interaction.response.defer(ephemeral=True)
         try:
-            tribe = models.Tribe.update_emoji(name=tribe_name, emoji=emoji)
-        except exceptions.CheckFailedError as e:
-            return await ctx.send(e)
-
-        await ctx.send(f'Tribe {tribe.name} updated with new emoji: {tribe.emoji}')
+            if emoji is None:
+                result = await operator_tribe_workers.run_read(
+                    operator_tribe_service.read_request(interaction, tribe)
+                )
+            else:
+                result = await operator_tribe_workers.run_mutation(
+                    operator_tribe_service.mutation_request(
+                        interaction,
+                        tribe,
+                        emoji,
+                    )
+                )
+            await operator_tribe_service.publish_result(interaction, result)
+            return result
+        except operator_tribe_workers.OperatorTribeError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except operator_tribe_service.OperatorTribePublicationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Operator Tribe emoji database operation failed')
+            return await interaction.followup.send(
+                'The Tribe emoji operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected operator Tribe emoji failure')
+            return await interaction.followup.send(
+                'The Tribe emoji operation failed. Please try again.',
+                ephemeral=True,
+            )
 
     @team_group.command(
         name='create',

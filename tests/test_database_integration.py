@@ -6140,6 +6140,101 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 )
             ).execute()
 
+    def test_operator_tribe_emoji_commits_and_rolls_back_real_schema(self):
+        """Exercise P9.3's owner-only worker against real development rows."""
+
+        from modules import operator_tribe_workers
+
+        tribe = (
+            self.models.Tribe.select()
+            .order_by(self.models.Tribe.id)
+            .first()
+        )
+        self.assertIsNotNone(tribe)
+        tribe_id = int(tribe.id)
+        original_emoji = str(tribe.emoji or '')
+        first_emoji = '🧪' if original_emoji != '🧪' else '⚔️'
+        second_emoji = '🛰️' if first_emoji != '🛰️' else '🧭'
+        marker = f'P9.3-{uuid.uuid4().hex}'
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        request = operator_tribe_workers.OperatorTribeMutationRequest(
+            guild_id=guild_id,
+            requester_id=int(self.settings.owner_id),
+            requester_description=marker,
+            tribe_lookup=str(tribe.name),
+            emoji=first_emoji,
+        )
+
+        try:
+            self.models.db.close()
+            result = asyncio.run(operator_tribe_workers.run_mutation(request))
+            self.assertTrue(self.models.db.is_closed())
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(result.changed)
+            self.assertEqual(
+                self.models.Tribe.get_by_id(tribe_id).emoji,
+                first_emoji,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            failed_request = (
+                operator_tribe_workers.OperatorTribeMutationRequest(
+                    guild_id=guild_id,
+                    requester_id=int(self.settings.owner_id),
+                    requester_description=marker,
+                    tribe_lookup=str(tribe.name),
+                    emoji=second_emoji,
+                )
+            )
+            with mock.patch.object(
+                operator_tribe_workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P9.3 forced rollback'),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'forced rollback',
+                ):
+                    asyncio.run(
+                        operator_tribe_workers.run_mutation(failed_request)
+                    )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.Tribe.get_by_id(tribe_id).emoji,
+                first_emoji,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                self.models.Tribe.update(emoji=original_emoji).where(
+                    self.models.Tribe.id == tribe_id
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
+            self.assertEqual(
+                self.models.Tribe.get_by_id(tribe_id).emoji,
+                original_emoji,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

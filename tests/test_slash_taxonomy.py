@@ -61,6 +61,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         squad_group = app_group(games.polygames, 'squad')
         elo_group = app_group(administration.administration, 'elo')
         team_group = app_group(administration.administration, 'team')
+        operator_group = app_group(administration.administration, 'operator')
         league_group = app_group(league.league, 'league')
 
         self.assertEqual(
@@ -73,7 +74,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 for command
                 in administration.administration.__cog_app_commands__
             ],
-            ['elo', 'team'],
+            ['elo', 'team', 'operator'],
         )
         self.assertEqual(
             {command.name for command in game_group.commands},
@@ -133,6 +134,21 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'tier',
                 'house',
             },
+        )
+        self.assertEqual(
+            {command.name for command in operator_group.commands},
+            {'tribe'},
+        )
+        self.assertEqual(
+            {
+                command.name
+                for command in operator_group.get_command('tribe').commands
+            },
+            {'emoji'},
+        )
+        self.assertEqual(
+            operator_group.default_permissions,
+            discord.Permissions(administrator=True),
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
