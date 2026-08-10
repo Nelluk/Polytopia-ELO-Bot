@@ -486,11 +486,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.27 is Complete, integrated,
-pushed, and loaded by the guarded development beta through `463f6b6`; its
-production-only task remains disabled in development as designed. The next
-bounded action is the final P8 residual direct-database audit and explicit P9
-disposition table.** P8.26 is
+Current active unit: **The final P8 residual direct-database audit is complete
+locally on `codex/p8-final-residual-audit` from exact clean accumulation
+checkpoint `3113e81`. It found no remaining active P8 user/staff database
+boundary after P8.26/P8.27, marks P8 technically Complete, and carries the
+remaining operator commands and dead helpers explicitly into P9. Documentation
+integration/push remains; no runtime deployment is required.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -907,7 +908,7 @@ this decision does not authorize production deployment or synchronization.
 | P5 | Complete | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Complete | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | Complete | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
-| P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
+| P8 | Complete | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | P8.28 final residual audit; all active P8 user/staff paths bounded, operator debt carried explicitly into P9 |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
 | P9 | Planned | Production rollout and remaining per-unit prefix lifecycle decisions, with the approved WB1.1 staffhelp retirement retained | Approved production-safe intake/retention decision, deployment, monitoring, and separate lifecycle plan |
 
@@ -8431,7 +8432,7 @@ session.
 
 ## P8 — League and remaining administration workflows
 
-Status: **In progress**
+Status: **Complete — P8.1–P8.27 integrated; P8.28 residual audit complete**
 
 Candidate domains:
 
@@ -11046,9 +11047,83 @@ Integration/deployment evidence:
   the test pool to exercise it would imply enabling a deliberately disabled
   background service.
 
-After P8.26 and P8.27, rerun this phase's residual direct-database search. If
-only the explicitly deferred operator-only paths and dead helpers remain, mark
-P8 technically Complete and carry their exact disposition table into P9.
+P8.28 performs the required residual search after P8.26/P8.27 and carries its
+explicit operator/dead-code disposition table into P9.
+
+### P8.28 — Final residual direct-database audit
+
+Status: **Complete locally; documentation integration/push pending**
+
+Risk tier: **Tier 1 read-only repository audit**. No command, database,
+Discord, beta, fixture, dependency, or production state changes.
+
+Branch/base: `codex/p8-final-residual-audit` from exact clean accumulation
+checkpoint `3113e81`.
+
+Audit findings:
+
+- Rechecked current registrations and call sites in `modules/league.py` and
+  the P8 portions of `modules/administration.py`, then traced their shared
+  services and workers. P8.26 removed the last direct Team archival command
+  path and P8.27 removed the recurring invitation task's event-loop eligibility
+  scan and sent-date write.
+- Every active P8.1–P8.27 user/staff team, House, league, free-agent, roster,
+  maintenance, and listener path now delegates database work to an explicitly
+  bounded executor with worker-local connection ownership. Writes retain
+  synchronous transaction boundaries, cancellation draining where submitted
+  work cannot be cancelled, and post-commit Discord/filesystem reconciliation.
+- No default/unbounded executor, `asyncio.to_thread`, or Discord `await` inside
+  an in-scope worker transaction was found. P8.26/P8.27 changed only their
+  bounded worker graphs after the P8.25 baseline audit.
+- `get_team_roles`, `get_house_roles`, the auction helper set, and the old
+  `HouseSelectMenu`/`ClearPreferencesButton` preference components have no
+  active registration, listener, task, or other caller. Their direct model
+  references are dead code and do not form a runtime database boundary.
+- Hidden `$gtest` is still technically registered and directly loads one
+  hard-coded game before invoking the Nova compatibility adapter. It is not a
+  product workflow; it joins the explicit P9 retirement list rather than being
+  presented as modernized.
+- The remaining registered direct database/filesystem administration commands
+  are the operator/service-repair paths already excluded from the public slash
+  tree. Their exact P9 carry-forward is below. P8 completion does **not** claim
+  that these commands, earlier-phase compatibility adapters, or the entire
+  repository have completed modernization.
+
+#### Explicit P9 operator/dead-code carry-forward
+
+| Current path | Current status | P9 disposition to decide |
+|---|---|---|
+| `$restart`, `$restart_force`, `$quit` | Owner service lifecycle; directly closes the process connection before shutdown | Keep operator-only only if its service lifecycle remains necessary; otherwise retire in favor of guarded systemd operations. Never make it a public slash command. |
+| `$purge_game_channels` | Owner-only destructive Discord/database maintenance with interleaved effects | Retire or replace with a separately confirmed, previewed offline/worker operation before production acceptance. Do not expose the current implementation natively. |
+| `$tribe_emoji` | Owner-only global Tribe metadata write | Decide between a small atomic operator worker/CLI and retirement. No native conversion is implied. |
+| `$ptrophies` | Hidden Mod repair for the 2021 Polympics field | Recommended retirement as obsolete historical maintenance. |
+| `$boost_from`, `$boost_from_norole` | Owner multi-guild role grant plus account write | Decide whether current operations still use it; if retained, separate Discord role effects from an atomic worker write. |
+| `$migrate_player`, `$migrate` | Superuser cross-account migration with multi-record writes | Preserve only through a separately reviewed offline/worker migration design with preview, atomicity, and audit; otherwise retire. |
+| `$delete_player`, `$delplayer` | Owner destructive zero-game account deletion | Prefer a confirmed offline/operator worker or retire; do not convert the current direct delete to slash. |
+| `$backup_db`, `$dbb` | Owner command synchronously launches a host backup script | Remove from Discord in favor of the established operational backup mechanism unless P9 proves a continuing need. |
+| `$gtest` | Hidden Mod hard-coded test command | Retire before production rollout; it is not a supported compatibility path. |
+| Uncalled team/House/auction/preference helpers | Dead, unregistered code | Remove as ordinary cleanup when convenient; no runtime migration is required. |
+
+Validation/evidence:
+
+- current registration/call-site inventory, direct model-call inventory, and
+  P8.25-to-current diff review completed;
+- all P8 executors inspected by static search are explicitly bounded; no
+  in-scope `run_in_executor(None)` or `asyncio.to_thread` call remains;
+- application-command management/policy, beta-operations, taxonomy, archive,
+  and invitation focus: **82 passed**;
+- complete offline discovery: **1,392 passed with 58 intentional database-
+  gated skips**;
+- `git diff --check`: passed before this documentation update; and
+- no PostgreSQL suite was needed because this audit changes no runtime code and
+  P8.26/P8.27 already passed the stopped-writer full gate. The guarded beta was
+  not inspected, stopped, restarted, synchronized, or announced.
+
+Conclusion: **P8 is technically Complete.** The next decision-heavy boundary
+is P9 production readiness: resolve the operator table, production-safe
+feedback intake, canary capability configuration, rollback/monitoring plan,
+and explicit integration/deployment approvals. A read-only P9.0 readiness
+audit can assemble those decisions without touching production.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -12547,6 +12622,25 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8 final residual audit completed
+
+- Reconciled the P8.25 baseline with the integrated P8.26 archive worker and
+  P8.27 invitation-task boundary at exact accumulation checkpoint `3113e81`.
+- Confirmed no active P8 user/staff command, listener, or task retains direct
+  event-loop database work. All active P8 domain executors are bounded and
+  worker-local; no default executor, `asyncio.to_thread`, or Discord await in
+  an in-scope transaction was found.
+- Classified the remaining direct administration paths as explicit P9
+  operator/service-repair decisions and added the previously omitted hidden
+  hard-coded `$gtest` retirement item. Confirmed the old team/House/auction/
+  preference helpers have no active callers and are dead cleanup only.
+- Passed **82** focused policy/archive/invitation tests and complete offline
+  discovery at **1,392 passed with 58 intentional skips**. No database, beta,
+  Discord, fixture, dependency, production, or sudo action was needed.
+- Marked P8 Complete. Next: integrate this documentation checkpoint, then
+  begin a read-only P9.0 production-readiness audit before making any
+  production, master-integration, or operator-command decision.
 
 ### 2026-08-09 — P8.27 integrated and guarded beta restored
 
