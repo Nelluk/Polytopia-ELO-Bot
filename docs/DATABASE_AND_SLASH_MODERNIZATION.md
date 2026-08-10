@@ -4,7 +4,7 @@ Last updated: 2026-08-09
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p9-0-readiness-audit`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -11052,7 +11052,7 @@ explicit operator/dead-code disposition table into P9.
 
 ### P8.28 — Final residual direct-database audit
 
-Status: **Complete locally; documentation integration/push pending**
+Status: **Complete; integrated and pushed as `3947298`**
 
 Risk tier: **Tier 1 read-only repository audit**. No command, database,
 Discord, beta, fixture, dependency, or production state changes.
@@ -11654,7 +11654,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **Planned**
+Status: **In progress; P9.0 readiness audit complete; rollout blocked on
+upstream reconciliation, production schema preparation, and release runbook**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11663,14 +11664,16 @@ Required gates:
 
 - all intended commits integrated and reviewed;
 - offline and gated development-database suites green;
-- beta command synchronization and smoke matrix green;
+- release-candidate beta command synchronization and bounded smoke matrix
+  green;
 - production configuration and command-sync target verified;
 - rollback point identified;
 - monitoring and log checks defined;
 - explicit approval for production deployment/restart/sync.
-- a separate approved decision for a production-safe authoritative feedback,
-  privacy, and security intake/retention path (or another production relay
-  design); the WB1.1 development JSONL store is not that path.
+- either keep `tools_support` unassigned and document the currently deployed
+  human support route, or separately approve a production-safe authoritative
+  feedback/privacy/security intake and retention path; the WB1.1 development
+  JSONL store is not that path.
 
 Before deployment, reverify the P8.0 policy/tool and test the single-process
 guild capability canary described in D-031. The initial production observation
@@ -11695,6 +11698,86 @@ After a stable observation period, separately decide whether to:
 - keep prefix commands indefinitely;
 - mark selected prefix commands deprecated;
 - remove only aliases with usage evidence and a communication plan.
+
+### P9.0 — Production-readiness audit
+
+Status: **Complete locally; documentation integration/push pending**
+
+Risk tier: **Tier 1 read-only repository and runbook audit**. Exact base:
+`3947298` on `codex/database-slash-modernization`. Branch:
+`codex/p9-0-readiness-audit`.
+
+The complete audit and readiness matrix are maintained in
+`docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md`.
+
+Principal findings:
+
+- the accumulation branch is seven upstream commits behind current
+  `origin/master`. A read-only merge preview identified textual conflicts in
+  `modules/image_storage.py` and `tests/test_image_storage.py`; the upstream
+  image diagnostics must be ported into the modernization branch's staged,
+  immutable-byte, atomic publication pipeline;
+- the branches have no `pyproject.toml` or `uv.lock` divergence. The completed
+  Python 3.12/PostgreSQL upgrade is the common dependency baseline, while its
+  historical cutover/retired Python 3.9 rollback is not a modernization
+  rollback plan;
+- exactly two new model columns require production DDL:
+  `DiscordMember.timezone_offset_minutes` and
+  `DiscordMember.timezone_offset_cleared`. The checked-in P6.2 tool correctly
+  refuses production, so a separately reviewed, additive, production-only
+  migration and verification path is a hard pre-deployment gate;
+- the command source currently loads ten roots. The recommended initial
+  PolyChampions-only canary assigns `core_user`, `team`, `league`, `house`,
+  and `squad`, while excluding `elo_maintenance`, development-only
+  `beta_testing`, and development-only feedback capability `tools_support`;
+- omitting `tools_support` lets the rest of the canary proceed without
+  pretending the development JSONL `/staffhelp` store is production-ready.
+  Production retains its current human support route until that separate
+  design is approved;
+- identity backfill is not required for the additive canary. Existing Steam,
+  legacy-code, and whole-hour timezone fields remain intact; aggregate-only
+  production inventory is required before any later backfill or retirement;
+- WB1's broad running checklist should become a bounded release-candidate
+  smoke matrix rather than an all-or-nothing signoff on every interactive
+  path;
+- assigned public roots still contain some runtime-protected staff
+  subcommands because Discord cannot permission individual subcommands.
+  Ordinary users may see and be privately denied those entries; hiding them
+  later requires a separate admin-root taxonomy decision, not a P9 permission
+  workaround; and
+- the P8 operator table is a separate pre-rollout cleanup/decision unit. It
+  does not imply native operator commands and must not be folded into schema
+  or upstream conflict resolution.
+
+Required preparation sequence:
+
+1. P9.1 merges current `origin/master` into the accumulation branch and
+   resolves/validates the known image-storage conflicts.
+2. Decide and implement any operator retirements that must be present in the
+   final release checkpoint.
+3. Add the fail-closed production timezone migration and read-only verify
+   mode.
+4. Write a modernization-specific production cutover, rollback, capability,
+   backup, monitoring, and announcement runbook.
+5. Freeze and validate one release candidate through complete offline tests,
+   the stopped-writer development PostgreSQL gate, and a bounded beta matrix.
+6. Only after separate integration and production approvals, deploy one
+   production process, observe retained prefixes, and explicitly apply the
+   PolyChampions guild command canary with no global synchronization.
+
+Audit evidence:
+
+- focused command policy/management, runtime, deployment, dependency,
+  migration-safety, beta-operations, and readiness suite: **114 passed**;
+- complete offline discovery: **1,392 passed with 58 intentional database-
+  gated skips**;
+- read-only merge-tree, dependency, schema, and model-free command-source
+  inspections completed;
+- no PostgreSQL, production checkout/service/database, Discord, beta,
+  fixture, dependency, schema, or sudo operation occurred.
+
+Next action: implement P9.1 upstream reconciliation from the clean audit base.
+Do not combine that merge-conflict unit with production DDL or deployment.
 
 ## Standard work-unit template
 
@@ -12622,6 +12705,32 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P9.0 production-readiness audit completed
+
+- Audited the clean accumulation checkpoint `3947298` against current
+  `origin/master`, production/dependency history, the explicit command
+  deployment policy, the P6.2 schema transition, WB1/privacy boundaries, and
+  the P8 operator carry-forward without touching a live system.
+- Found seven upstream commits requiring reconciliation and previewed exact
+  textual conflicts in the modernized image-storage implementation/tests.
+  Confirmed the branches share the same locked dependencies.
+- Proved the production schema delta is exactly two additive canonical-
+  timezone columns and recorded that the development-only P6.2 migration
+  cannot and must not be reused against production.
+- Selected a proposed first PolyChampions canary of `core_user`, `team`,
+  `league`, `house`, and `squad`. Excluding `tools_support`,
+  `elo_maintenance`, and `beta_testing` keeps the production-safe feedback
+  decision and owner maintenance outside the first user canary.
+- Defined five bounded pre-rollout units and an independent code/schema/
+  command-tree rollback sequence in
+  `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md`.
+- Focused readiness validation passed **114 tests** and complete offline
+  discovery passed **1,392 tests with 58 intentional database-gated skips**.
+  No PostgreSQL, production, Discord, beta, schema, dependency, fixture, or
+  sudo operation occurred.
+- Next: integrate this audit record, then implement P9.1 upstream
+  reconciliation without combining it with production DDL or deployment.
 
 ### 2026-08-09 — P8 final residual audit completed
 
