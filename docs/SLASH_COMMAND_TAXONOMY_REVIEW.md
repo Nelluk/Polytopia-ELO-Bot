@@ -1302,7 +1302,7 @@ touched.
 | `ptrophies` | none | Approved retirement: obsolete 2021 repair |
 | `boost_from`, `boost_from_norole` | none | Approved retirement |
 | `migrate_player`, `migrate` | `/operator player migrate` | Complete in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; integrated and development-guild deployed at `6e0d36a` |
-| `delete_player`, `delplayer` | `/operator player delete` | Implemented in P9.5 at `6ea6a55`: raw target ID, exact owner-only access, private account-wide orphan graph, fail-closed Lineup/host/bid/API blockers, exact typed confirmation, atomic explicit deletion/audit, and prefix retirement under C-028; stopped-beta real-schema/deployment gates pending |
+| `delete_player`, `delplayer` | `/operator player delete` | Implemented in P9.5 at `6ea6a55`: raw target ID, exact owner-only access, private account-wide orphan graph, fail-closed Lineup/host/bid/API blockers, exact typed confirmation, atomic explicit deletion/audit, and prefix retirement under C-028; stopped-beta real-schema validation passed and integration/deployment remain pending |
 | `backup_db`, `dbb` | `/operator database backup` | Owner-only bounded, environment-aware host operation; retire prefixes with replacement |
 | `gtest` | none | Approved retirement: hidden hard-coded diagnostic |
 
