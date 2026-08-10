@@ -6818,7 +6818,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(
                 {row.channel_id for row in capacity.candidates},
-                {id_base},
+                {id_base, id_base + 30},
             )
             self.assertEqual(
                 {row.channel_id for row in missing_preview.candidates},
