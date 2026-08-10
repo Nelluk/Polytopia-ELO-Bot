@@ -491,15 +491,16 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.10/H7 repeated-cancellation hardening for the manual
-backup child is Tier-3 reviewed and ready for accumulation integration on
-`codex/h7-backup-repeated-cancellation`, from exact clean accumulation base
-`fc861f1`. A cancellation cleanup task now retains coordinator ownership while
+backup child is Complete in the accumulation branch at merge checkpoint
+`2d561ae`, from exact clean accumulation base `fc861f1`. A cancellation cleanup
+task now retains coordinator ownership while
 TERM/KILL, child reap, and both bounded output drains complete, even across
 repeated caller cancellation; only then does cancellation propagate. Focused
 and adjacent validation passes 44 tests. Complete discovery runs 1,561 tests
 with 68 skips and reaches only the three known missing-`duckdb` environment
 failures. No production path/artifact was read or executed, and no database or
-command-tree operation is warranted.**
+command-tree operation is warranted. Accumulation close-out/push and guarded
+beta reload remain pending.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13143,10 +13144,11 @@ owner-only maintenance workflow does not warrant a tester checklist entry or
 
 ### P9.10 — H7 repeated-cancellation-safe manual backup cleanup
 
-Status: **Tier-3 reviewed; ready for accumulation integration**
+Status: **Complete in the accumulation branch**
 
 Branch/base: `codex/h7-backup-repeated-cancellation`, exact clean accumulation
 base `fc861f1`. Implementation/tests checkpoint: `fd3ff8d`.
+Roadmap/pre-production evidence: `8858426`; accumulation merge: `2d561ae`.
 
 This bounded Tier-3 correction closes pre-production finding H7 without
 changing the accepted P9.6 product or production boundary. The owner-only
@@ -14166,8 +14168,12 @@ Retire `$purge_game_channels` with this replacement.
 - Implementation/tests checkpoint: `fd3ff8d`. Tier-3 complete-diff review
   found no further blocker. No production, backup, database, command sync,
   dependency, schema, Discord, or beta lifecycle action occurred.
-- Next: integrate and push this bounded correction, reload only the guarded
-  development beta, then select H8 startup identity ordering as recommended.
+- Integrated the reviewed unit into accumulation at merge checkpoint
+  `2d561ae`. No database gate or command plan/apply is warranted because H7
+  changes neither database behavior nor the registered command tree.
+- Next: record and push the clean accumulation close-out, reload only the
+  guarded development beta, then select H8 startup identity ordering as
+  recommended.
 
 ### 2026-08-10 — P9.9 manual channel purge implemented for Tier-3 gate
 
