@@ -4110,6 +4110,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 invoked_with='/game start',
             )
             fake_game = SimpleNamespace(
+                guild_id=478571892832206869,
                 is_hosted_by=lambda _discord_id: (True, None),
                 is_created_by=lambda _discord_id: True,
                 creating_player=lambda: None,
