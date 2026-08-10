@@ -485,9 +485,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.25 is Complete at its
-documentation checkpoint on `codex/p8-25-closeout-audit` from exact clean
-accumulation checkpoint `e72c4c9`. The audit keeps P8 In progress and selects
+Current active unit: **No code unit is active. P8.25 is Complete, integrated,
+and pushed at audit checkpoint `8614f1d` from exact clean accumulation
+checkpoint `e72c4c9`. The audit keeps P8 In progress and selects
 P8.26, a bounded native/shared-worker team-archive unit, as the next code
 unit. P8.27 should then move the production-only PolyChampions invitation task
 off the event loop before P8 closes.** P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -10770,6 +10770,10 @@ dependency, or production surface.
 Branch/base: `codex/p8-25-closeout-audit` from exact clean accumulation
 checkpoint `e72c4c9`.
 
+Audit/integration checkpoint: `8614f1d`; fast-forwarded and pushed to
+`origin/codex/database-slash-modernization` without a beta restart because the
+unit changes documentation only.
+
 Audit contract:
 
 - reconcile every P8.1–P8.24 unit and its compatibility decision against the
@@ -12439,6 +12443,10 @@ read-side Player upsert/event-loop work, and retires both hidden prefix names.
 - Performed no database, Discord, beta, capability, fixture, dependency,
   production, or sudo operation. Next: implement P8.26; then P8.27 and one
   final residual search can close P8 technically.
+- Committed the audit as `8614f1d`, fast-forwarded the clean accumulation
+  branch, and pushed it to the approved GitHub origin. The durable beta was
+  left running at its existing code checkpoint because this audit changes no
+  runtime file or command schema.
 
 ### 2026-08-09 — P7.15 integrated, deployed, and P7 closed
 
