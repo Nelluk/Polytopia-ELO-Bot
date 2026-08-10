@@ -486,15 +486,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.26 team archive worker and native action is
-Implemented and validated on `codex/p8-26-team-archive` from exact clean
-accumulation checkpoint `6c86708`; integration and guild-only beta deployment
-remain pending. It adds confirmed Mod-only `/team archive`, retires the
-virtually unused `$team_edit` registration without an adapter, and preserves
-`$team_tier` as a dedicated worker-backed prefix command.** P8.25 is Complete,
-integrated, and pushed at audit checkpoint `8614f1d`. P8.27 should then move
-the production-only PolyChampions invitation task off the event loop before
-P8 closes. P7.15 is Complete, integrated, pushed, and running on the guarded
+Current active unit: **No code unit is active. P8.26 is Complete, integrated,
+pushed, guild-applied, and loaded by the guarded development beta at
+`41da49e`. It adds confirmed Mod-only `/team archive`, retires the virtually
+unused `$team_edit` registration without an adapter, and preserves
+`$team_tier` as a dedicated worker-backed prefix command. P8.27, moving the
+production-only PolyChampions invitation task off the event loop, is the next
+bounded unit before P8 closes.** P8.25 is Complete, integrated, and pushed at
+audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
 development beta through `a247641`; P7 is technically Complete. P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
@@ -10869,7 +10868,8 @@ Validation/evidence:
 
 ### P8.26 — Team archive worker and native action
 
-Status: **Implemented and validated; integration/deployment pending**
+Status: **Complete; integrated, pushed, guild-applied, and loaded by the
+guarded beta**
 
 Branch/base: `codex/p8-26-team-archive` from exact clean accumulation
 checkpoint `6c86708`.
@@ -10935,10 +10935,31 @@ Implementation/evidence:
   proved archive/audit commit and audit-failure rollback, then removed only its
   uniquely named temporary rows.
 
+Deployment evidence:
+
+- fast-forwarded `5848c88` and evidence checkpoint `41da49e` into
+  `codex/database-slash-modernization` and pushed that branch to the approved
+  GitHub origin;
+- the offline command plan remained guild-only. The explicit development apply
+  targeted only guild `478571892832206869`, updated only the existing `team`
+  root, created/removed no roots, and retained the explicit no-global-sync
+  acknowledgement; immediate remote inspection then reported every root
+  unchanged with zero remaining updates;
+- restarted only `polybot-development-beta@main.service` from clean checkpoint
+  `41da49e`; its prestart writer audit was clear, PID `3294919` authenticated as
+  **PolyELO Bot Beta** application `479029527553638401`, and the release-control
+  status operation completed successfully; and
+- announcement disposition: no announcement. This is a rare destructive Mod-
+  only operation with no disposable archive target, so broad tester prompting
+  would be unsafe and low value. Registration, worker, rollback, and command-
+  policy acceptance are owned by the automated/offline and gated checks; any
+  future live archive should be a deliberate staff operation on an actually
+  defunct development Team.
+
 Limitations: archival has no native or prefix undo; it deliberately does not
 rename/delete Discord roles or channels. The exact role is a precondition, not
-an archival side effect. The native command has not yet been applied to the
-development guild or run by the guarded beta.
+an archival side effect. It was not destructively smoke-tested against a
+retained development Team.
 
 ### P8.27 — PolyChampions invitation task database boundary
 
@@ -12454,6 +12475,25 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.26 integrated and deployed without unsafe archive smoke
+
+- Fast-forwarded and pushed P8.26 through evidence checkpoint `41da49e` on the
+  accumulation branch after the full offline and stopped-writer PostgreSQL
+  gates passed.
+- Applied only the development guild command tree with explicit guild and no-
+  global-sync confirmations. Discord reported only the existing `team` root as
+  updated; immediate remote inspection converged to zero differences.
+- Restarted only the guarded development beta at clean checkpoint `41da49e`.
+  Its writer audit was clear, PID `3294919` authenticated as beta application
+  `479029527553638401`, and release-control status was healthy.
+- Chose no announcement and no destructive live smoke because `/team archive`
+  is rare, Mod-only, irreversible through the bot, and there is no designated
+  disposable Team. This avoids soliciting unsafe tester mutation merely to
+  exercise a command already covered through rollback-isolated PostgreSQL.
+- P8.26 is Complete. P8 remains In progress; next is P8.27's production-only
+  PolyChampions invitation-task database boundary, followed by the final P8
+  residual audit.
 
 ### 2026-08-09 — P8.26 native team archive implemented and validated
 
