@@ -490,9 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.11/H8 startup identity ordering is Tier-3 reviewed
-and database-validated on isolated branch
-`codex/h8-startup-identity-ordering`, from exact clean accumulation base
+Current active unit: **P9.11/H8 startup identity ordering is Complete in the
+accumulation branch at merge checkpoint `00e23c9`, from exact clean base
 `3405ea3`. Implementation/tests checkpoint `27d4a1c` moves every ordinary
 model/database effect behind authenticated application-ID validation and
 performs the startup ban snapshot once through a bounded, worker-owned atomic
@@ -500,8 +499,9 @@ transaction. Focused validation passes 59 tests. Complete discovery runs 1,569
 tests with 69 skips and reaches only the three known missing-`duckdb`
 environment failures. The unit-specific real-schema verifier passes, followed
 by the complete stopped-writer gate at 68 tests: 67 passed and one
-operator-owned fixture round trip intentionally skipped. Integration and beta
-reload remain.**
+operator-owned fixture round trip intentionally skipped. The offline desired
+development-guild plan remains the same eleven roots; no apply is warranted.
+Clean accumulation push and guarded-beta reload remain.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13183,12 +13183,12 @@ tester checklist edit, or announcement is warranted.
 
 ### P9.11 — H8 authenticated startup identity before database effects
 
-Status: **Tier-3 reviewed and development-database validated; integration
-pending**
+Status: **Complete in the accumulation branch; guarded-beta reload pending**
 
 Branch/base: `codex/h8-startup-identity-ordering`, exact clean accumulation
 base `3405ea33108f90694f990db5323bd50623d10537`. Implementation/tests
 checkpoint: `27d4a1c`.
+Roadmap/pre-production evidence: `4736129`; accumulation merge: `00e23c9`.
 
 The ordinary bot path now imports no ORM model or database utility before
 Discord HTTP authentication. The first action in `setup_hook()` validates the
@@ -14214,9 +14214,12 @@ Retire `$purge_game_channels` with this replacement.
   unchanged development gate ran 68 tests: 67 passed and one operator-owned
   fixture round trip intentionally skipped. The H8 case restored the exact
   pre-test ban snapshot and left its worker connection closed.
-- Next: record this evidence, integrate the reviewed unit, push a clean
-  accumulation close-out, and reload/verify only the guarded development beta.
-  No command plan/apply, tester checklist, or announcement is warranted.
+- Integrated the reviewed branch into accumulation at merge checkpoint
+  `00e23c9`. The offline desired development-guild command plan still contains
+  exactly the established eleven roots. H8 changes no registered shape, so no
+  remote inspect/apply is warranted.
+- Next: push a clean accumulation close-out and reload/verify only the guarded
+  development beta. No tester checklist or announcement is warranted.
 
 ### 2026-08-10 — P9.10/H7 backup cancellation cleanup reviewed
 
