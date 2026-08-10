@@ -32,6 +32,7 @@ from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
 from modules import game_result_publication
+from modules import interaction_bans
 from modules import game_unwin
 from modules import game_win
 from modules import game_map
@@ -2173,6 +2174,13 @@ class polygames(commands.Cog):
     ) -> bool:
         """Delegate a card start to the established start worker/presenter."""
 
+        ban_denial = interaction_bans.elo_ban_denial(
+            interaction.user,
+            configured_discord_ids=settings.discord_id_ban_list,
+        )
+        if ban_denial is not None:
+            await interaction.followup.send(ban_denial, ephemeral=True)
+            return False
         if not await self._native_pending_game_channel_allowed(interaction):
             return False
         matchmaking_cog = self.bot.get_cog('matchmaking')
@@ -3279,6 +3287,15 @@ class polygames(commands.Cog):
         """Start through the same bounded transition used by the prefix."""
 
         await interaction.response.defer()
+        ban_denial = interaction_bans.elo_ban_denial(
+            interaction.user,
+            configured_discord_ids=settings.discord_id_ban_list,
+        )
+        if ban_denial is not None:
+            return await interaction.followup.send(
+                ban_denial,
+                ephemeral=True,
+            )
         prefix = settings.guild_setting(
             interaction.guild.id,
             'command_prefix',

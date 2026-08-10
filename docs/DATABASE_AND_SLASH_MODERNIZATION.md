@@ -490,21 +490,20 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.11/H8 startup identity ordering is Complete in the
-accumulation branch at merge checkpoint `00e23c9`, from exact clean base
-`3405ea3`. Implementation/tests checkpoint `27d4a1c` moves every ordinary
-model/database effect behind authenticated application-ID validation and
-performs the startup ban snapshot once through a bounded, worker-owned atomic
-transaction. Focused validation passes 59 tests. Complete discovery runs 1,569
-tests with 69 skips and reaches only the three known missing-`duckdb`
-environment failures. The unit-specific real-schema verifier passes, followed
-by the complete stopped-writer gate at 68 tests: 67 passed and one
-operator-owned fixture round trip intentionally skipped. The offline desired
-development-guild plan remains the same eleven roots; no apply is warranted.
-Clean close-out `e660ce8` is pushed and loaded by the healthy guarded beta as
-PID `3859047` at that exact startup checkpoint. The expected application is
-ready, exactly one development writer exists, and the startup log proves the
-identity-gated snapshot completed. No tester announcement was warranted.**
+Current active unit: **P9.12/H1-H2 explicit runtime selection and native start
+ban parity is Tier-3 reviewed and database-validated on isolated branch
+`codex/h1-h2-runtime-ban-safety`, from exact clean accumulation base
+`6812899`. Implementation/tests checkpoint `5038282` makes runtime selection
+fail before effects unless `POLYBOT_ENV` is exactly `production` or
+`development`, adds model-free configured-ID/role denials to `/game start` and
+the pending-card Start action, and revalidates persisted account/guild-player
+bans in both worker phases. Gate-fixture correction `7660b3e` is green.
+Focused validation passes 81 tests and the affected matrix passes 193.
+Complete discovery runs 1,575 tests with 70 skips and reaches only the three
+known missing-`duckdb` environment failures. The corrected H2 real-schema
+verifier passes, followed by the complete stopped-writer gate at 69 tests: 68
+passed and one operator-owned fixture round trip intentionally skipped.
+Integration and beta reload remain.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13225,6 +13224,47 @@ operator-owned fixture round trip intentionally skips** under the exact
 API disabled. No schema, dependency, command-registration, production, or
 global Discord operation is involved.
 
+### P9.12 — H1-H2 explicit runtime selection and native start ban parity
+
+Status: **Tier-3 reviewed and development-database validated; integration
+pending**
+
+Branch/base: `codex/h1-h2-runtime-ban-safety`, exact clean accumulation base
+`6812899331113e6a0cf2146619954b622c320a54`. Implementation/tests checkpoint:
+`5038282`; real-schema fixture correction: `7660b3e`.
+
+Runtime profile selection now requires the raw `POLYBOT_ENV` value to be
+exactly `production` or `development`. Missing, blank, whitespace-only, padded,
+and unknown values fail before any profile file read, server-settings import,
+directory creation, database import/connection, or application effect. The
+tracked production and development service units already provide exact values;
+there is no compatibility fallback for ad hoc invocations.
+
+The two native pending-game start entry points now share one model-free Discord
+fact check. Configured Discord IDs and the exact `ELO Banned` role receive the
+same private denial as retained prefix commands before channel policy, start
+workers, public publication, or card mutation. The worker independently loads
+the requester's current `DiscordMember` and guild `Player` and rejects either
+persisted ban in both read-only preflight and the authoritative transaction
+revalidation. A ban applied after preflight therefore prevents commit. Host,
+creator, staff, and moderator authority does not override a ban. Prefix syntax,
+permissions, messages for existing validation cases, transaction boundaries,
+and command registration are otherwise unchanged.
+
+Focused runtime/start/card validation passes **81/81**; the broader affected
+startup/deployment/open/join/start matrix passes **193/193**. Complete offline
+discovery runs **1,575 tests**: **1,502 pass**, **70 intentionally skip**, and
+only the three documented missing-`duckdb` environment cases fail. Compilation
+and `git diff --check` pass. The first H2 PostgreSQL attempt found only that its
+fake game omitted the required guild fact; no product code changed, cleanup
+completed, and correction `7660b3e` added that fixture field. The corrected
+targeted verifier passes **1/1**, proving real account and guild-player denials
+on a worker-owned connection with exact cleanup. The complete unchanged gate
+then runs **69 tests: 68 pass and one operator-owned fixture round trip
+intentionally skips** under the exact development identity with the beta
+writer stopped. No schema, dependency, command-tree, production, or global
+Discord operation is involved.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14191,6 +14231,38 @@ conditionally clear the exact reference with protected audit afterward.
 Retire `$purge_game_channels` with this replacement.
 
 ## Progress log
+
+### 2026-08-10 — P9.12/H1-H2 runtime and native-start ban safety gated
+
+- Reconciled the clean local, tracking, and exact GitHub accumulation ref at
+  `6812899`; no combined H1/H2 branch or worktree existed. The sole guarded
+  development beta was healthy at running code checkpoint `e660ce8`.
+- Created isolated branch/worktree `codex/h1-h2-runtime-ban-safety` from that
+  exact base and passed the development-only profile gate.
+- Removed implicit production selection: missing, blank, padded, whitespace,
+  and unknown `POLYBOT_ENV` values now fail before configuration/filesystem
+  effects. Added a model-free configured-ID/role denial shared by `/game start`
+  and pending-card Start, plus current persisted account/player ban checks in
+  both worker phases without staff override.
+- Added zero-effect runtime ordering, slash/component denial, model-free
+  adapter, no-publication/no-card-refresh, host/staff denial, preflight-to-
+  transaction stale-ban, prefix-parity, and real-schema cleanup coverage.
+  Implementation/tests are checkpointed at `5038282`; Tier-3 complete-diff
+  review found no product blocker.
+- Focused validation passed 81 tests and the affected matrix passed 193.
+  Complete discovery ran 1,575 tests with 70 skips and only the three known
+  missing-`duckdb` environment failures. Compilation and diff checks passed;
+  no dependency was installed or synchronized.
+- Stopped only the verified development beta and proved the host-wide writer
+  audit clear. The first targeted H2 gate found that the test's fake game
+  omitted its guild fact; cleanup completed and correction `7660b3e` changed
+  only that fixture. The targeted rerun passed, then the complete unchanged
+  development gate ran 69 tests: 68 passed and one operator-owned fixture
+  round trip intentionally skipped.
+- Next: record this evidence, integrate the reviewed unit, run the unchanged
+  offline command plan, push a clean accumulation close-out, and reload/verify
+  only the guarded beta. No remote command apply is expected because the tree
+  is unchanged.
 
 ### 2026-08-10 — P9.11/H8 startup identity ordering reviewed and gated
 

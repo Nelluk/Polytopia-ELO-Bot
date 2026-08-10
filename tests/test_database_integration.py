@@ -4061,6 +4061,98 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.DiscordMember.id.in_(tuple(created_ids))
                 ).execute()
 
+    def test_h2_start_authorization_rejects_persisted_bans(self):
+        """Exercise account and guild-player bans on the start worker."""
+
+        from modules import game_start_workers as workers
+
+        suffix = uuid.uuid4().hex[:10]
+        discord_id = 9_810_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        member = None
+        player = None
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=f'H2 Start {suffix}',
+                polytopia_id=f'H2-start-{suffix}',
+                is_banned=True,
+            )
+            player = self.models.Player.create(
+                discord_member=member,
+                guild_id=478571892832206869,
+                name=f'H2 Start {suffix}',
+                is_banned=False,
+            )
+            requester = workers.StartMemberSnapshot(
+                guild_id=478571892832206869,
+                discord_id=discord_id,
+                discord_name=f'H2 Start {suffix}',
+                discord_nick=None,
+                display_name=f'H2 Start {suffix}',
+                role_ids=(),
+                role_names=(),
+                level=5,
+                is_mod=True,
+                is_staff=True,
+                description=f'H2 Start {suffix} ({discord_id})',
+                side_position=0,
+                lineup_id=None,
+                player_id=int(player.id),
+                player_name=f'H2 Start {suffix}',
+            )
+            request = workers.StartPreflightRequest(
+                game_id=9_810_000_000,
+                guild_id=478571892832206869,
+                name='Fields of Fire',
+                prefix='$',
+                requester=requester,
+                require_teams=False,
+                invoked_with='/game start',
+            )
+            fake_game = SimpleNamespace(
+                guild_id=478571892832206869,
+                is_hosted_by=lambda _discord_id: (True, None),
+                is_created_by=lambda _discord_id: True,
+                creating_player=lambda: None,
+            )
+
+            self.models.db.close()
+            with mock.patch.object(
+                workers,
+                '_load_game',
+                return_value=fake_game,
+            ), self.assertRaisesRegex(
+                workers.GameStartValidationError,
+                'ELO Banned',
+            ):
+                asyncio.run(workers.run_start_preflight(request))
+            self.assertTrue(self.models.db.is_closed())
+
+            self.models.db.connect(reuse_if_open=True)
+            self.models.DiscordMember.update(is_banned=False).where(
+                self.models.DiscordMember.id == member.id
+            ).execute()
+            self.models.Player.update(is_banned=True).where(
+                self.models.Player.id == player.id
+            ).execute()
+            self.models.db.close()
+            with mock.patch.object(
+                workers,
+                '_load_game',
+                return_value=fake_game,
+            ), self.assertRaisesRegex(
+                workers.GameStartValidationError,
+                'ELO Banned',
+            ):
+                asyncio.run(workers.run_start_preflight(request))
+            self.assertTrue(self.models.db.is_closed())
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if player is not None:
+                self.models.Player.delete_by_id(player.id)
+            if member is not None:
+                self.models.DiscordMember.delete_by_id(member.id)
+
     def test_api_application_and_database_route_request(self):
         from modules import api
 

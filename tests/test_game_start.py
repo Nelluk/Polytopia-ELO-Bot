@@ -70,6 +70,8 @@ class StartHarness:
         self.logs = []
         self.squads = []
         self.registered = {100, 200}
+        self.account_banned = set()
+        self.player_banned = set()
         self.team_one = SimpleNamespace(
             id=501, name="The Ronin", is_hidden=False, emoji=":ronin:"
         )
@@ -111,8 +113,26 @@ class StartHarness:
             @staticmethod
             def get_or_none(**kwargs):
                 if kwargs["discord_id"] in harness.registered:
-                    return SimpleNamespace(discord_id=kwargs["discord_id"])
+                    return SimpleNamespace(
+                        discord_id=kwargs["discord_id"],
+                        is_banned=kwargs["discord_id"] in harness.account_banned,
+                    )
                 return None
+
+        class PlayerModel:
+            @staticmethod
+            def get_or_none(**kwargs):
+                discord_id = int(kwargs['discord_member'].discord_id)
+                if kwargs['guild_id'] != harness.guild_id:
+                    return None
+                if discord_id == 100:
+                    player = harness.host_player
+                elif discord_id == 200:
+                    player = harness.target_player
+                else:
+                    return None
+                player.is_banned = discord_id in harness.player_banned
+                return player
 
         class GameLogModel:
             @staticmethod
@@ -136,6 +156,7 @@ class StartHarness:
 
         self.game_model = GameModel
         self.discord_member_model = DiscordMemberModel
+        self.player_model = PlayerModel
         self.game_log_model = GameLogModel
         self.squad_model = SquadModel
 
@@ -323,6 +344,9 @@ class StartHarness:
             workers.models, "DiscordMember", self.discord_member_model
         ))
         stack.enter_context(mock.patch.object(
+            workers.models, "Player", self.player_model
+        ))
+        stack.enter_context(mock.patch.object(
             workers.models, "GameLog", self.game_log_model
         ))
         stack.enter_context(mock.patch.object(
@@ -482,6 +506,55 @@ class StartWorkerTests(unittest.TestCase):
                 harness.preflight_request(requester=non_host)
             )
 
+    def test_account_and_guild_player_bans_deny_hosts_and_staff(self):
+        for source in ('account', 'player'):
+            with self.subTest(source=source):
+                harness = StartHarness()
+                if source == 'account':
+                    harness.account_banned.add(100)
+                else:
+                    harness.player_banned.add(100)
+                with harness.patch(), self.assertRaisesRegex(
+                    workers.GameStartValidationError,
+                    'ELO Banned',
+                ):
+                    workers.preflight_start_game(harness.preflight_request())
+                self.assertTrue(harness.game.is_pending)
+                self.assertEqual(harness.database.commits, 0)
+
+                staff = harness.requester(staff=True, discord_id=100)
+                with harness.patch(), self.assertRaisesRegex(
+                    workers.GameStartValidationError,
+                    'ELO Banned',
+                ):
+                    workers.preflight_start_game(
+                        harness.preflight_request(requester=staff)
+                    )
+
+    def test_ban_applied_after_preflight_is_revalidated_before_mutation(self):
+        for source in ('account', 'player'):
+            with self.subTest(source=source):
+                harness = StartHarness()
+                with harness.patch():
+                    preflight = workers.preflight_start_game(
+                        harness.preflight_request()
+                    )
+                    target = (
+                        harness.account_banned
+                        if source == 'account'
+                        else harness.player_banned
+                    )
+                    target.add(100)
+                    with self.assertRaisesRegex(
+                        workers.GameStartValidationError,
+                        'ELO Banned',
+                    ):
+                        workers.start_game(harness.start_request(preflight))
+
+                self.assertTrue(harness.game.is_pending)
+                self.assertIsNone(harness.game.name)
+                self.assertEqual(harness.database.commits, 0)
+
     def test_high_level_invalid_name_returns_warning_low_level_is_rejected(self):
         for level, expected_exception in ((3, True), (5, False)):
             harness = StartHarness()
@@ -574,6 +647,100 @@ class StartExecutorTests(unittest.IsolatedAsyncioTestCase):
 
 
 class StartAdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_start_denies_configured_id_and_banned_role(self):
+        command = next(
+            command
+            for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        ).get_command('start')
+        banned_role = SimpleNamespace(id=501, name='ELO Banned')
+        for source in ('configured', 'role'):
+            with self.subTest(source=source):
+                member = SimpleNamespace(
+                    id=100,
+                    roles=(banned_role,) if source == 'role' else (),
+                )
+                interaction = SimpleNamespace(
+                    guild=SimpleNamespace(id=300),
+                    user=member,
+                    channel_id=900,
+                    response=SimpleNamespace(defer=mock.AsyncMock()),
+                    followup=SimpleNamespace(send=mock.AsyncMock()),
+                )
+                handler = SimpleNamespace(execute_start=mock.AsyncMock())
+                cog = games.polygames.__new__(games.polygames)
+                cog.bot = SimpleNamespace(get_cog=lambda _name: handler)
+                cog._native_pending_game_channel_allowed = mock.AsyncMock(
+                    return_value=True
+                )
+                with mock.patch.object(
+                    games.settings,
+                    'discord_id_ban_list',
+                    [100] if source == 'configured' else [],
+                ), mock.patch.object(
+                    games.game_start,
+                    'publish_start_result',
+                    new=mock.AsyncMock(),
+                ) as publish:
+                    await command.callback(
+                        cog,
+                        interaction,
+                        322,
+                        'Fields of Fire',
+                    )
+
+                interaction.response.defer.assert_awaited_once_with()
+                interaction.followup.send.assert_awaited_once_with(
+                    games.interaction_bans.ELO_BAN_DENIAL_MESSAGE,
+                    ephemeral=True,
+                )
+                cog._native_pending_game_channel_allowed.assert_not_awaited()
+                handler.execute_start.assert_not_awaited()
+                publish.assert_not_awaited()
+
+    async def test_pending_card_start_denies_before_service_and_publication(self):
+        banned_role = SimpleNamespace(id=501, name='ELO Banned')
+        for source in ('configured', 'role'):
+            with self.subTest(source=source):
+                interaction = SimpleNamespace(
+                    user=SimpleNamespace(
+                        id=100,
+                        roles=(banned_role,) if source == 'role' else (),
+                    ),
+                    followup=SimpleNamespace(send=mock.AsyncMock()),
+                )
+                handler = SimpleNamespace(execute_start=mock.AsyncMock())
+                cog = games.polygames.__new__(games.polygames)
+                cog.bot = SimpleNamespace(get_cog=lambda _name: handler)
+                cog._native_pending_game_channel_allowed = mock.AsyncMock(
+                    return_value=True
+                )
+                with mock.patch.object(
+                    games.settings,
+                    'discord_id_ban_list',
+                    [100] if source == 'configured' else [],
+                ), mock.patch.object(
+                    games.game_start,
+                    'publish_start_result',
+                    new=mock.AsyncMock(),
+                ) as publish:
+                    result = await cog._pending_card_start(
+                        interaction,
+                        guild=SimpleNamespace(id=300),
+                        game_id=322,
+                        prefix='$',
+                        name='Fields of Fire',
+                    )
+
+                self.assertFalse(result)
+                interaction.followup.send.assert_awaited_once_with(
+                    games.interaction_bans.ELO_BAN_DENIAL_MESSAGE,
+                    ephemeral=True,
+                )
+                cog._native_pending_game_channel_allowed.assert_not_awaited()
+                handler.execute_start.assert_not_awaited()
+                publish.assert_not_awaited()
+
     async def test_native_start_defers_and_publishes_public_success(self):
         interaction = SimpleNamespace(
             guild=SimpleNamespace(id=300),

@@ -687,6 +687,22 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         await modal.on_submit(start_submission)
         self.assertEqual(events[-1], 'start-service')
 
+    async def test_denied_start_does_not_refresh_or_mutate_card(self):
+        async def deny_start(_interaction, _name):
+            return False
+
+        view = make_view(card_snapshot(full=True), on_start=deny_start)
+        message = FakeMessage()
+        view.message = message
+        click = interaction(message=message)
+        await view.start_button.callback(click)
+        modal = click.response.modal
+        modal.game_name._value = 'Exact Polytopia Name'
+        submission = interaction(message=message)
+        await modal.on_submit(submission)
+
+        self.assertEqual(message.edits, [])
+
     async def test_stale_state_rejects_without_mutation(self):
         events = []
         view = make_view(
