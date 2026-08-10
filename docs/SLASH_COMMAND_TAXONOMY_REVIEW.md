@@ -1298,7 +1298,7 @@ touched.
 |---|---|---|
 | `restart`, `restart_force`, `quit` | `/operator bot restart` | Preserve configured-superuser access; explicit force confirmation; retire prefixes with replacement |
 | `purge_game_channels` | `/operator channels purge` | Owner-only preview/confirm/reconciliation workflow; retire prefix with replacement |
-| `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit; first planned native operator command |
+| `tribe_emoji` | `/operator tribe emoji` | Owner-only focused read/edit implemented in P9.3; prefix retired under C-026 |
 | `ptrophies` | none | Approved retirement: obsolete 2021 repair |
 | `boost_from`, `boost_from_norole` | none | Approved retirement |
 | `migrate_player`, `migrate` | `/operator player migrate` | Preserve configured-superuser access; typed preview and atomic audit; retire prefixes with replacement |

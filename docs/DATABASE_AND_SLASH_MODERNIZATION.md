@@ -377,6 +377,7 @@ would become unavailable if a prefix is retired.
 | C-023 `/league maintenance kick-inactive` / `$kick_inactive` | Native Mod-only removal privately evaluates every member carrying Inactive, displays an eligible/protected reason for each, refreshes the complete candidate set, requires exact typed `KICK <count>`, and removes at most 25 members per run. Current Team roles and a small starter set are eligible; unknown, managed, staff, leadership, bot, and owner roles/accounts fail closed. | Legacy recommendation: **retire** — explicitly approved. The immediate prefix batch had no preview, used a stale hard-coded Team-role list, aborted on individual failures, and mixed Discord awaits with event-loop database work. Native preserves the effective 7/30/60 thresholds while accurately describing “tracked games,” blocks pending/incomplete league games, treats DM failure as nonfatal, continues kick failures, and records audits only after Discord effects. | Restore no immediate prefix adapter. If thresholds or role policy change, revise the centralized worker, all-reasons preview, refreshed execution, and tests together. Never add scheduled removal without a separate policy and operations review. | P8.19 implemented, real-schema validated, integrated, and development-guild deployed through `958ae90`; bounded Mod acceptance pending |
 | C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; integrated, pushed, and loaded by the guarded beta through `e78601b` |
 | C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
+| C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; offline review green; stopped-beta real-schema validation and development capability deployment pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -486,12 +487,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **The final P8 residual direct-database audit is complete
-locally on `codex/p8-final-residual-audit` from exact clean accumulation
-checkpoint `3113e81`. It found no remaining active P8 user/staff database
-boundary after P8.26/P8.27, marks P8 technically Complete, and carries the
-remaining operator commands and dead helpers explicitly into P9. Documentation
-integration/push remains; no runtime deployment is required.** P8.26 is
+Current active unit: **P9.3 implements the first real `/operator` workflow on
+`codex/p9-3-operator-tribe-emoji` from exact clean accumulation checkpoint
+`0ceedfa`. Implementation/tests checkpoint `c428350` adds owner-only focused
+Tribe emoji read/edit, atomically audited worker mutation, robust emoji
+validation, Administrator-default root visibility, and approved immediate
+retirement of `$tribe_emoji`. Focused and complete offline validation are
+green. The remaining authorized gate is stopped-beta real-schema validation,
+then accumulation integration, development-only operator-capability apply,
+and guarded beta restart.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -11095,7 +11099,7 @@ Audit findings:
 |---|---|---|
 | `$restart`, `$restart_force`, `$quit` | Owner service lifecycle; directly closes the process connection before shutdown | Keep operator-only only if its service lifecycle remains necessary; otherwise retire in favor of guarded systemd operations. Never make it a public slash command. |
 | `$purge_game_channels` | Owner-only destructive Discord/database maintenance with interleaved effects | Retire or replace with a separately confirmed, previewed offline/worker operation before production acceptance. Do not expose the current implementation natively. |
-| `$tribe_emoji` | Owner-only global Tribe metadata write | Decide between a small atomic operator worker/CLI and retirement. No native conversion is implied. |
+| `$tribe_emoji` | Owner-only global Tribe metadata write | Resolved by P9.3: native `/operator tribe emoji` provides atomic focused read/edit and the prefix is retired under C-026. |
 | `$ptrophies` | Hidden Mod repair for the 2021 Polympics field | Recommended retirement as obsolete historical maintenance. |
 | `$boost_from`, `$boost_from_norole` | Owner multi-guild role grant plus account write | Decide whether current operations still use it; if retained, separate Discord role effects from an atomic worker write. |
 | `$migrate_player`, `$migrate` | Superuser cross-account migration with multi-record writes | Preserve only through a separately reviewed offline/worker migration design with preview, atomicity, and audit; otherwise retire. |
@@ -11654,8 +11658,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.2 complete; next is the first native operator
-workflow**
+Status: **In progress; P9.0–P9.2 complete; P9.3 implemented and awaiting its
+authorized stopped-beta validation/integration/deployment gate**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11893,9 +11897,63 @@ checkpoint `087fabe` into `codex/database-slash-modernization`. No command root
 was loaded or assigned, so integration required no beta restart, Discord
 synchronization, database gate, or tester announcement.
 
-Next action after completion: implement the owner-only Tribe emoji read/edit
-command as the first real `/operator` subcommand, then explicitly assign and
-apply the operator capability to the development guild for beta acceptance.
+P9.3 subsequently implements the owner-only Tribe emoji read/edit command as
+the first real `/operator` subcommand. Its capability assignment and
+development-guild apply remain part of P9.3's separate deployment gate.
+
+### P9.3 — Owner-only global Tribe emoji operator workflow
+
+Status: **Implemented; stopped-beta validation and development deployment
+pending**
+
+Risk tier: **Tier 2 atomic metadata mutation and application-command
+registration**. Branch: `codex/p9-3-operator-tribe-emoji` from exact clean
+accumulation checkpoint `0ceedfa`.
+
+Delivered contract:
+
+- `/operator tribe emoji tribe:<required> emoji:<optional>` reads the current
+  value when `emoji` is omitted and updates it when supplied;
+- the top-level guild-scoped `/operator` root is Administrator-visible by
+  Discord default, while the handler and worker both revalidate the exact
+  configured owner ID authoritatively;
+- frozen primitive requests cross a dedicated one-thread executor boundary;
+  each worker owns its Peewee connection, and mutation plus actor-attributed
+  `GameLog` audit share one synchronous `db.atomic()` boundary;
+- Unicode sequences, static custom emoji, and animated custom emoji reuse the
+  existing strict team-emoji validator rather than the legacy one-character
+  heuristic;
+- successful reads and committed edits publish publicly with requester
+  attribution only after the private defer is cleared; permission, lookup,
+  validation, and database failures remain private, while post-commit
+  publication failure is reported as reconciliation rather than rollback;
+- deterministic lookup prefers an exact case-insensitive Tribe name and
+  permits only an unambiguous prefix fallback; owner-only autocomplete is
+  bounded at 25 choices; and
+- `$tribe_emoji` is retired without an adapter under C-026, as explicitly
+  approved. No clear operation is added because omission already means read.
+
+Implementation and validation evidence:
+
+- code/tests checkpoint: `c428350`;
+- focused operator/taxonomy tests: **21 passed**;
+- broader operator, taxonomy, command-policy/management, and team-emoji
+  suites: **61 passed**;
+- complete offline discovery: **1,413 passed with 59 intentional
+  development-database-gated skips**;
+- `compileall` and `git diff --check`: passed;
+- one gated real-schema test covers commit, audit, injected rollback, exact
+  development identity, and complete restoration, but has not yet run because
+  the guarded beta writer remains active; and
+- no PostgreSQL, Discord, beta lifecycle, production, dependency, fixture,
+  schema, sudo, push, or merge action occurred during implementation.
+
+Next action: use the already approved stopped-beta gate to run the unchanged
+development PostgreSQL suite, integrate the unit, assign the `operator`
+capability in development settings, apply only the guild-scoped development
+command tree, restart the guarded beta, verify the root remotely, and push the
+accumulation checkpoint. No tester announcement is required for this
+owner-only workflow.
 
 ## Standard work-unit template
 
@@ -12849,6 +12907,22 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-09 — P9.3 first native operator workflow implemented
+
+- Added owner-only `/operator tribe emoji` as a focused global Tribe metadata
+  read/edit and retired `$tribe_emoji` without an adapter as approved.
+- Registered the real Administrator-default `/operator` root while retaining
+  authoritative exact-owner checks in both the interaction adapter and worker.
+- Kept Tribe mutation and actor-attributed audit in one worker-local
+  synchronous transaction and reused strict Unicode/static/animated emoji
+  validation.
+- Passed 21 focused tests, 61 broader affected tests, and complete offline
+  discovery at 1,413 passes with 59 intentional database-gated skips.
+- Recorded implementation checkpoint `c428350`. The guarded beta remained
+  active, so the real-schema gate, accumulation integration, development
+  capability assignment/apply, restart, remote verification, and push remain
+  the next authorized sequence.
 
 ### 2026-08-09 — P9.2 operator authorization infrastructure implemented
 
