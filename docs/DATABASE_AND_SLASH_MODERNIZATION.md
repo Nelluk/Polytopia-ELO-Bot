@@ -4,7 +4,7 @@ Last updated: 2026-08-09
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p9-1-upstream-reconciliation`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -11654,8 +11654,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0 readiness audit complete; rollout blocked on
-upstream reconciliation, production schema preparation, and release runbook**
+Status: **In progress; P9.0 audit and P9.1 upstream reconciliation complete;
+rollout blocked on production schema preparation and release runbook**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -11779,6 +11779,53 @@ Audit evidence:
 
 Next action: implement P9.1 upstream reconciliation from the clean audit base.
 Do not combine that merge-conflict unit with production DDL or deployment.
+
+### P9.1 — Reconcile current `master` into the accumulation branch
+
+Status: **Complete locally; integration/push pending**
+
+Risk tier: **Tier 2 merge/conflict reconciliation**. Branch:
+`codex/p9-1-upstream-reconciliation` from exact clean accumulation checkpoint
+`45b5f4d`. Upstream target: `origin/master` at `33db386`. Merge checkpoint:
+`8ede97b`.
+
+Delivered reconciliation:
+
+- merged all seven upstream dependency/PostgreSQL cleanup commits into the
+  modernization lineage. `origin/master` is now an ancestor of the unit
+  branch;
+- `README.md`, the canonical production systemd/dependency assets, and
+  post-upgrade documentation reconciled automatically. Because several
+  upstream files were already present identically in the accumulation branch,
+  the resulting delta from `45b5f4d` is limited to `README.md`, new
+  `docs/DATABASE_SETUP.md`, `modules/image_storage.py`, and
+  `tests/test_image_storage.py`;
+- resolved the sole textual conflict in `modules/image_storage.py`. The result
+  retains the modernization byte-normalization, staged pre-commit image,
+  immutable bytes, size bounds, atomic publication, digest, quarantine, and
+  reconciliation behavior while adding upstream destination-aware validation,
+  format/dimension/size, download, rejection, and successful-storage logging;
+- retained the upstream error that reports the exact dimensions, pixel count,
+  and configured limit. The automatically merged regression proves that
+  output; and
+- removed one trailing blank line from the new upstream database setup guide
+  so the combined branch passes `git diff --check`.
+
+Validation:
+
+- focused image-storage, team-image, House-attribute, and production-
+  deployment assets: **51 passed**;
+- complete offline discovery: **1,392 passed with 58 intentional database-
+  gated skips**;
+- Python compilation and `git diff --check`: passed;
+- merge ancestry check: `origin/master` is an ancestor and the branch has no
+  commits missing from current `origin/master`; and
+- no PostgreSQL, production checkout/service/database, Discord, beta,
+  dependency installation, schema, fixture, or sudo action occurred.
+
+Next action: integrate and push P9.1. Then resolve the operator carry-forward
+decisions that affect the release candidate before implementing the separate
+production timezone migration.
 
 ## Standard work-unit template
 
@@ -12706,6 +12753,24 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P9.1 current-master reconciliation validated
+
+- Merged `origin/master` at `33db386` into isolated P9.1 branch
+  `codex/p9-1-upstream-reconciliation` from exact accumulation checkpoint
+  `45b5f4d`.
+- Resolved the sole conflict by porting upstream image diagnostics and clearer
+  dimension errors into the modern staged/atomic image pipeline without
+  restoring direct publication inside the normalization step.
+- Confirmed `origin/master` is now an ancestor. The effective reconciliation
+  delta is four files because the canonical service and most upgrade cleanup
+  documentation were already identical in both histories.
+- Passed **51** focused image/House/deployment tests and complete offline
+  discovery at **1,392 passed with 58 intentional database-gated skips**;
+  compilation and diff checks also passed.
+- No live or database action occurred. Next: integrate/push this merge
+  checkpoint, then make the separate operator carry-forward decisions before
+  production schema work.
 
 ### 2026-08-09 — P9.0 production-readiness audit completed
 

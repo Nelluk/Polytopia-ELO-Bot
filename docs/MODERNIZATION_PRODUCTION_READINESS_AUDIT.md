@@ -66,6 +66,9 @@ are also not a valid rollback for this release.
 
 ### R-001 — Reconcile current `master`
 
+Status: Complete locally in P9.1 merge checkpoint `8ede97b`; integration and
+push pending.
+
 Merge `origin/master` into `codex/database-slash-modernization` in an isolated
 unit before any final PR or deployment. Preserve the upstream production
 service/database documentation. Resolve image-storage conflicts by retaining
@@ -230,7 +233,6 @@ boundaries.
 
 ## Next action
 
-Implement R-001 as P9.1: merge current `origin/master` into the accumulation
-branch, port the image-validation logging into the modernized image-storage
-pipeline, and validate the reconciled branch. Do not begin production schema
-or operational work in that unit.
+Integrate and push P9.1. Then make the operator carry-forward decisions that
+affect the release candidate before starting the separate production timezone
+migration. Do not combine operator cleanup with production DDL.
