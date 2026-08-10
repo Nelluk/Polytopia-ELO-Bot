@@ -12720,7 +12720,7 @@ boundaries.
 
 ### P9.7c — Immutable ordinary win/unwin publication snapshots
 
-Status: **Complete in the accumulation branch; development-beta gate pending**
+Status: **Complete in the accumulation branch; wider-beta rollout pending**
 
 Branch/base: `codex/p9-7c-win-unwin-snapshot`, exact clean accumulation base
 `eb439ec`. Implementation/tests checkpoint: `237227c`.
@@ -12761,14 +12761,14 @@ failures: missing `duckdb` import, missing `duckdb` dependency-inventory entry,
 and the resulting reporting-export import error. The other **1,416 tests
 passed**. Dependencies were not installed or synchronized.
 
-The development-gated real-schema suite now includes an owned ordinary
-win/unwin snapshot round-trip and also removes a stale undefined assertion
-from the adjacent P9.7a cleanup. The new case and the accumulated P9.7a/P9.7b
-cases remain unrun behind the unchanged `POLYBOT_ENV=development` /
-`polytopia_dev` / `polybot_dev` gate because the healthy durable beta writer
-remains active at checkpoint `a13d440`. This schema-free unit extends the
-validated ELO worker/coordinator pattern, so the documented cadence defers the
-suite to the next stopped-writer batch.
+The development-gated real-schema suite includes an owned ordinary win/unwin
+snapshot round-trip and also removes a stale undefined assertion from the
+adjacent P9.7a cleanup. After cleanly stopping the guarded beta and proving no
+development writer remained, the unchanged `POLYBOT_ENV=development` /
+`polytopia_dev` / `polybot_dev` gate passed **61 runnable tests with one
+intentional owned-fixture preservation skip**. The P9.7a confirmation
+transaction case and P9.7c ordinary win/unwin snapshot round-trip both passed.
+Owned games 149/150/151 remained available for wider-beta acceptance.
 
 P9.7c closes ordinary win/unwin only. Rank/unstart correction publishers remain
 the next H4 slice; H5 automatic candidate discovery and authoritative
@@ -13726,6 +13726,27 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7a-c stopped-writer gate passed; rollout prepared
+
+- Confirmed the accumulation branch and exact GitHub ref at close-out
+  checkpoint `d21f44b`, then removed the clean integrated P9.7c worktree.
+- Cleanly stopped only `polybot-development-beta@main.service`; the host-wide
+  writer audit found no remaining `bot.py --skip_tasks` process.
+- The unchanged strict development database suite ran **62 tests: 61 passed
+  and one intentional owned-fixture preservation case skipped** against
+  `polytopia_dev` as `polybot_dev`, with background tasks and API disabled.
+  The accumulated P9.7 confirmation and ordinary win/unwin cases passed.
+- Owned fixtures remain ready for testing: game 149 ready, 150 unconfirmed,
+  and 151 confirmed. No fixture seed or cleanup was needed.
+- The offline desired command-tree plan still contains the same eleven guild
+  roots. P9.7a-c changes no registration, so no development-guild apply or
+  global synchronization is warranted.
+- Updated the running WHAT TO TEST checklist for ordinary win, confirmation,
+  undo, retained-prefix parity, committed reconciliation warnings, and exact
+  owned fixtures. Next action is commit/push this clean rollout checkpoint,
+  restart the guarded beta with startup sync disabled, verify identity/health,
+  and deliver the reviewed development-only announcement last.
 
 ### 2026-08-10 — P9.7c ordinary result snapshots implemented and reviewed
 

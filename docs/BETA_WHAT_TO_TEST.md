@@ -10,7 +10,22 @@ This is the running wider-beta checklist—not just the newest release. Please u
   draft interaction—and the join reaction should still be added.
 - Interactive open-game card: join, leave, refresh, start, and delete controls
 - Interactive game card actions appropriate to the game state
-- `/game win`, `/game result confirm`, `/game result undo`, and staff corrections
+- `/game win`: use owned ready game 149 for an ordinary claim, then confirm it
+  through the opponent flow. Check the pending/confirmed wording, game card,
+  channel notices, announcements, and any ELO/Nova/experience/champion effects;
+  a publication warning after a committed result must say not to retry.
+- `/game result confirm`: use owned unconfirmed game 150 as staff and verify the
+  same committed result/card/effects appear without duplicated audit or role
+  work. Compare retained `$confirm` behavior where applicable.
+- `/game result undo`: use owned completed game 151, verify its result and ELO
+  reset once, and check the public reset notice plus experience/champion role
+  reconciliation. Compare retained `$unwin`; an after-commit warning must not
+  invite a duplicate undo.
+- Compare `/game win` with retained `$win` for the same permission, pending vs.
+  confirmed result, channel-routing, card, announcement, and role behavior.
+- Staff corrections other than result confirm/undo remain on the general
+  checklist; rank and unstart publication snapshots are not part of this
+  release.
 - `/game map`, `/game name`, `/game notes`, `/game side`, `/game ranked`, and bulk `/game tribe`
 - `/game manage kick`, `/game manage extend`, `/game manage unstart`, and `/game manage delete`
 - The former beta-only direct paths `/game unwin`, `/game confirm`,
