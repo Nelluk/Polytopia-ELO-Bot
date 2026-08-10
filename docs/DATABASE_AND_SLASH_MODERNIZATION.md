@@ -493,9 +493,10 @@ Current active unit: **P9.5's read-only player-deletion audit is complete on
 `9a96abc`. It found that `$delete_player` is an orphan-identity cleanup, not a
 general game-history or privacy-erasure command: it blocks any Lineup but has
 no preview/audit, silently cascades several relationships, can null hosts, and
-can fail on bids or API ownership. Six recommended implementation decisions
-are recorded below for acceptance before source changes. No command, database,
-Discord tree, beta process, or production state changed.** P9.4 is Complete,
+can fail on bids or API ownership. Nelluk accepted all six implementation
+decisions on 2026-08-10; the next checkpoint is the bounded Tier-3 source
+implementation. No command, database, Discord tree, beta process, or
+production state changed during the audit.** P9.4 is Complete,
 integrated, and deployed from checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
@@ -11668,8 +11669,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.4 complete; P9.5 player-deletion audit complete
-with implementation decisions pending acceptance**
+Status: **In progress; P9.0–P9.4 complete; P9.5 player-deletion contract
+accepted for implementation**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12196,7 +12197,7 @@ blocked only on acceptance or revision of its six decisions.
 
 ### P9.5 — Owner-only orphan player deletion
 
-Status: **Audit complete; implementation decisions pending acceptance**
+Status: **Contract accepted; implementation pending**
 
 Risk tier: **Tier 3 destructive account-wide identity deletion**. Audit
 branch: `codex/p9-5-player-deletion-audit` from exact clean accumulation
@@ -12336,8 +12337,8 @@ No other checked-in Peewee model outside this graph has a foreign key to
 
 This audit changed documentation only. It did not inspect or mutate
 PostgreSQL, fixtures, Discord, application-command state, the guarded beta,
-production, dependencies, or services. No implementation branch should begin
-until P9.5-A through P9.5-F are accepted or revised. The recommended design is
+production, dependencies, or services. Nelluk accepted P9.5-A through P9.5-F
+without revision on 2026-08-10. The implementation may therefore proceed as
 one bounded Tier-3 unit because preview, fingerprint, typed confirmation,
 locked deletion, exact counts, and audit must share one graph definition.
 
@@ -13293,6 +13294,16 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.5 deletion contract accepted
+
+- Accepted P9.5-A through P9.5-F without revision.
+- Authorized the bounded owner-only native preview, exact typed confirmation,
+  fail-closed dependency policy, explicit locked transaction/audit graph,
+  prefix retirement, stopped-beta real-schema gate, and guild-only beta
+  deployment sequence.
+- Kept complete privacy erasure, historical-game deletion, bid reassignment,
+  and API-application reassignment outside this command.
 
 ### 2026-08-10 — P9.5 orphan player-deletion graph audited
 
