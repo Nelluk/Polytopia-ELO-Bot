@@ -6491,6 +6491,246 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
 
+    def test_operator_player_deletion_commits_blocks_and_rolls_back(self):
+        """Exercise P9.5's complete orphan graph on development PostgreSQL."""
+
+        from modules import operator_player_deletion_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        marker = f'P9.5-{uuid.uuid4().hex}'
+        numeric = int('7' + uuid.uuid4().hex[:17], 16) % 8_000_000_000_000_000_000
+        base_discord_id = max(numeric, 1_000_000_000_000_000_000)
+        created_member_ids = []
+        created_squad_ids = []
+        created_house_ids = []
+        created_game_ids = []
+        created_auction_ids = []
+        created_application_ids = []
+
+        def make_graph(offset, *, blocked=False):
+            member = self.models.DiscordMember.create(
+                discord_id=base_discord_id + offset,
+                name=f'{marker}-member-{offset}',
+                polytopia_name=f'{marker}-canonical',
+                elo_moonrise=1111,
+            )
+            created_member_ids.append(member.id)
+            first = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+                nick='Orphan Nick',
+                elo_moonrise=1050,
+            )
+            second = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id + 1,
+                name=member.name,
+            )
+            squad = self.models.Squad.create(
+                guild_id=guild_id,
+                name=f'{marker}-squad-{offset}',
+            )
+            created_squad_ids.append(squad.id)
+            squad_member = self.models.SquadMember.create(
+                player=first,
+                squad=squad,
+            )
+            house = self.models.House.create(
+                name=f'{marker}-house-{offset}',
+            )
+            created_house_ids.append(house.id)
+            preference = self.models.PlayerHousePreference.create(
+                player=second,
+                house=house,
+            )
+            result = SimpleNamespace(
+                discord_id=member.discord_id,
+                member_id=member.id,
+                player_ids=(first.id, second.id),
+                squad_member_id=squad_member.id,
+                preference_id=preference.id,
+            )
+            if blocked:
+                game = self.models.Game.create(
+                    name=f'{marker} blocked game {offset}',
+                    guild_id=guild_id,
+                    host=first,
+                    size=[1, 1],
+                    is_completed=False,
+                    is_pending=False,
+                )
+                created_game_ids.append(game.id)
+                side = self.models.GameSide.create(
+                    game=game,
+                    size=1,
+                    position=1,
+                )
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=side,
+                    player=first,
+                )
+                auction = self.models.Auction.create()
+                created_auction_ids.append(auction.id)
+                self.models.Bid.create(
+                    auction=auction,
+                    amount=1,
+                    player=first,
+                    bidder=first,
+                    house=house,
+                )
+                application = self.models.ApiApplication.create(
+                    owner=member,
+                    name=f'P95-{offset}',
+                )
+                created_application_ids.append(application.id)
+            return result
+
+        def preview_request(graph):
+            return workers.PlayerDeletionPreviewRequest(
+                guild_id=guild_id,
+                requester_id=int(self.settings.owner_id),
+                target_id=graph.discord_id,
+            )
+
+        def commit_request(graph, graph_preview):
+            return workers.PlayerDeletionCommitRequest(
+                guild_id=guild_id,
+                requester_id=int(self.settings.owner_id),
+                requester_description=marker,
+                target_id=graph.discord_id,
+                expected_fingerprint=graph_preview.fingerprint,
+                confirmation_text=f'DELETE {graph.discord_id}',
+            )
+
+        try:
+            committed = make_graph(10)
+            self.models.db.close()
+            committed_preview = asyncio.run(
+                workers.run_preview(preview_request(committed))
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(committed_preview.blockers, ())
+            self.assertEqual(committed_preview.player_count, 2)
+            self.assertEqual(committed_preview.squad_membership_count, 1)
+            self.assertEqual(committed_preview.house_preference_count, 1)
+            self.assertTrue(committed_preview.warnings)
+            result = asyncio.run(workers.run_commit(
+                commit_request(committed, committed_preview)
+            ))
+            self.assertTrue(self.models.db.is_closed())
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(result.players_deleted, 2)
+            self.assertIsNone(self.models.DiscordMember.get_or_none(
+                id=committed.member_id
+            ))
+            self.assertFalse(self.models.Player.select().where(
+                self.models.Player.id.in_(committed.player_ids)
+            ).exists())
+            self.assertIsNone(self.models.SquadMember.get_or_none(
+                id=committed.squad_member_id
+            ))
+            self.assertIsNone(self.models.PlayerHousePreference.get_or_none(
+                id=committed.preference_id
+            ))
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            blocked = make_graph(20, blocked=True)
+            self.models.db.close()
+            blocked_preview = asyncio.run(
+                workers.run_preview(preview_request(blocked))
+            )
+            blocker_text = ' '.join(blocked_preview.blockers)
+            self.assertIn('Lineup', blocker_text)
+            self.assertIn('hosted game', blocker_text)
+            self.assertIn('bid row', blocker_text)
+            self.assertIn('API application', blocker_text)
+            with self.assertRaises(workers.PlayerDeletionValidationError):
+                asyncio.run(workers.run_commit(
+                    commit_request(blocked, blocked_preview)
+                ))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNotNone(self.models.DiscordMember.get_or_none(
+                id=blocked.member_id
+            ))
+
+            rolled_back = make_graph(30)
+            self.models.db.close()
+            rollback_preview = asyncio.run(
+                workers.run_preview(preview_request(rolled_back))
+            )
+            with mock.patch.object(
+                workers.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P9.5 forced rollback'),
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'forced rollback',
+                ):
+                    asyncio.run(workers.run_commit(
+                        commit_request(rolled_back, rollback_preview)
+                    ))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNotNone(self.models.DiscordMember.get_or_none(
+                id=rolled_back.member_id
+            ))
+            self.assertEqual(
+                self.models.Player.select().where(
+                    self.models.Player.id.in_(rolled_back.player_ids)
+                ).count(),
+                2,
+            )
+            self.assertIsNotNone(self.models.SquadMember.get_or_none(
+                id=rolled_back.squad_member_id
+            ))
+            self.assertIsNotNone(
+                self.models.PlayerHousePreference.get_or_none(
+                    id=rolled_back.preference_id
+                )
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                if created_application_ids:
+                    self.models.ApiApplication.delete().where(
+                        self.models.ApiApplication.id.in_(created_application_ids)
+                    ).execute()
+                if created_game_ids:
+                    self.models.Game.delete().where(
+                        self.models.Game.id.in_(created_game_ids)
+                    ).execute()
+                self.models.Bid.delete().where(
+                    self.models.Bid.auction.in_(created_auction_ids or (-1,))
+                ).execute()
+                self.models.SquadMember.delete().where(
+                    self.models.SquadMember.squad.in_(created_squad_ids or (-1,))
+                ).execute()
+                self.models.PlayerHousePreference.delete().where(
+                    self.models.PlayerHousePreference.house.in_(created_house_ids or (-1,))
+                ).execute()
+                self.models.Squad.delete().where(
+                    self.models.Squad.id.in_(created_squad_ids or (-1,))
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(created_member_ids or (-1,))
+                ).execute()
+                self.models.Auction.delete().where(
+                    self.models.Auction.id.in_(created_auction_ids or (-1,))
+                ).execute()
+                self.models.House.delete().where(
+                    self.models.House.id.in_(created_house_ids or (-1,))
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
+
 
 if __name__ == '__main__':
     unittest.main()

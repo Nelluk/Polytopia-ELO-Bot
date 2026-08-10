@@ -34,6 +34,9 @@ from modules import operator_tribe_workers
 from modules import operator_player_migration as operator_player_migration_service
 from modules import operator_player_migration_views
 from modules import operator_player_migration_workers
+from modules import operator_player_deletion as operator_player_deletion_service
+from modules import operator_player_deletion_views
+from modules import operator_player_deletion_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1071,6 +1074,103 @@ class administration(commands.Cog):
                 await component_interaction.followup.send(str(exc), ephemeral=True)
 
         view = operator_player_migration_views.PlayerMigrationPreviewView(
+            requester_id=int(interaction.user.id),
+            preview=preview,
+            confirmer=confirm,
+        )
+        await interaction.edit_original_response(content=None, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
+
+    @operator_player_group.command(
+        name='delete',
+        description='Preview and delete one orphan stored player identity.',
+    )
+    @discord.app_commands.describe(
+        player_id='Stored Discord user ID or mention to delete.',
+    )
+    async def operator_player_delete_slash(
+        self,
+        interaction: discord.Interaction,
+        player_id: str,
+    ):
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.', ephemeral=True
+            )
+        if int(interaction.user.id) != int(settings.owner_id):
+            return await interaction.response.send_message(
+                'Only the configured bot owner can delete stored player '
+                'identities.',
+                ephemeral=True,
+            )
+        parsed_player_id = utilities.string_to_user_id(player_id)
+        if not parsed_player_id:
+            return await interaction.response.send_message(
+                'Enter a valid stored Discord user ID or mention.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preview = await operator_player_deletion_workers.run_preview(
+                operator_player_deletion_service.preview_request(
+                    interaction,
+                    target_id=int(parsed_player_id),
+                )
+            )
+        except operator_player_deletion_workers.PlayerDeletionError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Could not load player deletion preview')
+            return await interaction.followup.send(
+                'Could not load the player deletion preview.', ephemeral=True
+            )
+        except Exception:
+            logger.exception('Unexpected player deletion preview failure')
+            return await interaction.followup.send(
+                'Could not load the player deletion preview.', ephemeral=True
+            )
+
+        async def confirm(
+            component_interaction,
+            accepted_preview,
+            confirmation_text,
+        ):
+            try:
+                result = await operator_player_deletion_workers.run_commit(
+                    operator_player_deletion_service.commit_request(
+                        component_interaction,
+                        accepted_preview,
+                        confirmation_text=confirmation_text,
+                    )
+                )
+            except operator_player_deletion_workers.PlayerDeletionError:
+                raise
+            except peewee.PeeweeException as exc:
+                logger.exception('Player deletion rolled back')
+                raise operator_player_deletion_workers.PlayerDeletionError(
+                    'Player deletion failed and rolled back.'
+                ) from exc
+            try:
+                await operator_player_deletion_service.publish_result(
+                    component_interaction,
+                    result,
+                )
+            except operator_player_deletion_service.PlayerDeletionPublicationError as exc:
+                try:
+                    await component_interaction.followup.send(
+                        str(exc), ephemeral=True
+                    )
+                except Exception:
+                    logger.exception(
+                        'Could not report committed player deletion '
+                        'publication failure'
+                    )
+
+        view = operator_player_deletion_views.PlayerDeletionPreviewView(
             requester_id=int(interaction.user.id),
             preview=preview,
             confirmer=confirm,
@@ -2545,34 +2645,6 @@ class administration(commands.Cog):
             format_elo_job_status(settings.elo_job_coordinator.active_job),
             ephemeral=True,
         )
-
-    @commands.command(aliases=['delplayer'])
-    @commands.is_owner()
-    async def delete_player(self, ctx, *, args=None):
-        """*Owner*: Delete a player entry from the bot's database
-        Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
-
-        **Examples**
-        [p]delete_player @Nelluk
-        [p]delete_player 272510639124250625
-        """
-
-        player_id = utilities.string_to_user_id(args)
-        if not player_id:
-            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} [<@Mention> / <Raw ID>]`')
-
-        discord_member = models.DiscordMember.get_or_none(discord_id=player_id)
-        if not discord_member:
-            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{player_id}`')
-
-        player_games = discord_member.games_played(in_days=None).count()
-
-        if player_games > 0:
-            return await ctx.send(f'DiscordMember {discord_member.name} was found but has {player_games} associated ELO games. Can only delete players with zero games.')
-
-        name = discord_member.name
-        discord_member.delete_instance()
-        await ctx.send(f'Deleting DiscordMember {name} with discord ID `{player_id}` from ELO database. They have zero games associated with their profile.')
 
     @commands.command(aliases=['dbb'])
     @commands.is_owner()

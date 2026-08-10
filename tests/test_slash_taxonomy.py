@@ -151,7 +151,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 command.name
                 for command in operator_group.get_command('player').commands
             },
-            {'migrate'},
+            {'migrate', 'delete'},
         )
         self.assertEqual(
             operator_group.default_permissions,
