@@ -12832,6 +12832,62 @@ P9.7d closes the remaining rank/unstart slice of H4. H5 automatic confirmation
 candidate discovery and authoritative eligibility revalidation is the next
 bounded ELO recurring-task unit.
 
+### P9.7e — Automatic confirmation discovery and revalidation
+
+Status: **Reviewed on the isolated unit branch; accumulation integration
+pending**
+
+Branch/base: `codex/p9-7e-auto-confirmation`, exact clean accumulation base
+`d17dd6c`. Implementation/tests checkpoint: `1457962`.
+
+This bounded Tier-3 H5 correction removes automatic confirmation's database
+selection and eligibility graph from the Discord event loop:
+
+- each guild now loads at most 100 eligible records per cycle on a dedicated
+  worker-owned connection, after applying the retained ranked 24-hour,
+  unranked 6-hour, and partial-confirmation rules in the database query;
+- only immutable candidate IDs, policy timestamps, counts, and reason strings
+  cross back to Discord code; P9.7b's confirmation snapshot and model-free
+  publisher remain unchanged;
+- the existing serialized confirmation worker reloads the candidate and
+  recomputes the complete policy inside its ELO/audit transaction before any
+  mutation, so a stale win, timing change, confirmation change, guild change,
+  or already-confirmed record is skipped without an ELO or audit write;
+- completion messages use the authoritative transactional counts/reason while
+  retaining the existing channel, summary, prefix, and manual prefix/slash
+  confirmation behavior;
+- discovery cancellation drains the synchronous worker before returning and
+  therefore does not strand a connection; and
+- a failed candidate, guild, or recurring cycle is contained so later
+  candidates, guilds, and scheduled cycles remain available.
+
+Focused automatic-confirmation, ELO, immutable confirmation-publication, and
+gated-suite discovery validation passed **126 tests with 64 intentional
+database-gated skips**. The broader affected command/taxonomy/result set passed
+**155 tests with 64 intentional skips**. Compilation and `git diff --check`
+passed.
+
+Complete offline discovery executed **1,508 tests with 65 intentional skips**
+and reached only the three documented unsynchronized-environment failures:
+the missing `duckdb` import, missing `duckdb` dependency inventory entry, and
+the resulting reporting-export import error. With only those exact cases
+excluded, all **1,505 remaining tests passed with 65 skips**; equivalently,
+**1,440 tests passed** in the complete discovery. Dependencies were not
+installed or synchronized.
+
+The strict development-database suite now includes an owned, self-cleaning
+real-schema discovery/stale-revalidation/partial-confirmation round trip. The
+healthy durable beta remains active at announced checkpoint `20a6d03` with
+background tasks disabled, so P9.7d and P9.7e database cases remain deferred
+to the next accumulated stopped-writer window. P9.7e changes no application
+command registration and does not warrant interrupting current beta testing.
+
+P9.7e closes only H5's automatic-confirmation slice. Recommended next is the
+separate H5 champion-role reconciliation because it fixes the remaining
+non-destructive recurring role workflow before channel deletion work. Also
+ready is H5's completed-game channel purge worker/reconciliation slice, which
+requires stricter destructive-effect review and beta cadence.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13784,6 +13840,35 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7e automatic confirmation workers reviewed
+
+- Reconciled the clean local and GitHub accumulation ref at `d17dd6c`; the
+  durable development beta remained healthy at announced rollout checkpoint
+  `20a6d03` with background tasks disabled.
+- Created isolated branch/worktree `codex/p9-7e-auto-confirmation` from that
+  exact base and verified the development-only profile, database identity,
+  disabled background tasks, and disabled API.
+- Replaced event-loop ORM candidate discovery with a bounded, immutable,
+  worker-owned batch and added complete policy filtering before the bound.
+  Added authoritative eligibility revalidation inside the serialized
+  confirmation transaction and preserved the prior P9.7b publisher.
+- Added stale-candidate rollback, authoritative evidence, post-commit snapshot
+  and publication failure continuation, slow-query heartbeat, cancellation
+  drain, connection ownership, bounded/model-free candidates, prefix/slash
+  confirmation parity, guild failure containment, and later-cycle survival
+  coverage.
+- Focused validation passed 126 tests with 64 gated skips; the affected matrix
+  passed 155 with 64 gated skips. Complete discovery ran 1,508 tests: 1,440
+  passed, 65 skipped, and only the three known missing-`duckdb` environment
+  failures remained. Excluding those exact cases passed all 1,505 remaining
+  tests with 65 skips. Compilation and diff checks passed.
+- Added a strict-gate real-schema discovery and revalidation round trip but did
+  not stop the healthy, recently announced beta for a disabled-background-task
+  change. No database, fixture, Discord command, service, dependency,
+  production, or announcement operation occurred.
+- Recorded the reviewed implementation and tests at checkpoint `1457962`.
+  Roadmap evidence and accumulation integration remain the next actions.
 
 ### 2026-08-10 — P9.7d rank/unstart snapshots implemented and reviewed
 
