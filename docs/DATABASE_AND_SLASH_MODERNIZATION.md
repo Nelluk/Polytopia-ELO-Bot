@@ -489,7 +489,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.5 is Complete, integrated, and development-guild
+Current active unit: **P9.6's read-only `$backup_db` / `$dbb` audit is
+complete and its six-part implementation contract is pending acceptance or
+revision. The scheduled host backup is healthy, but implementation is blocked
+on first reconciling the production-only reporting-export changes into
+reviewed repository source. P9.5 is Complete, integrated, and development-guild
 deployed from code checkpoint `a13d440`. Owner-only
 `/operator player delete` now provides the
 private account-wide orphan inventory, protected-identity and dependency
@@ -502,8 +506,7 @@ one operator-owned fixture round-trip intentionally skipped; the P9.5 case
 proved commit, all blocker classes, audit rollback, and cleanup. The next gate
 updated only `/operator`, post-inspection converged across all eleven roots,
 and the guarded beta authenticated as the expected application with exactly
-one development writer. The next bounded unit is a read-only P9.6 audit of
-owner-only `$backup_db` / `$dbb`.** P9.4 is Complete,
+one development writer.** P9.4 is Complete,
 integrated, and deployed from checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
@@ -11676,7 +11679,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.5 complete**
+Status: **In progress; P9.0–P9.5 complete; P9.6 audit complete and decisions
+pending**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12403,6 +12407,147 @@ Deployment evidence:
 Next action: P9.6 should audit `$backup_db` / `$dbb` as an owner-only host
 operation before deciding whether Discord-triggered backup remains useful or
 should defer entirely to the established operational backup mechanism.
+
+### P9.6 — Owner-only production backup operation
+
+Status: **Audit complete; implementation decisions pending**
+
+Risk tier: **Tier 3 production host process and disaster-recovery artifacts**.
+Audit branch: `codex/p9-6-backup-audit` from exact clean accumulation
+checkpoint `cc93a00`.
+
+#### Legacy behavior and concrete findings
+
+The retained `$backup_db` / `$dbb` command is restricted to the configured bot
+owner through `commands.is_owner()`, but it synchronously calls
+`subprocess.run(['/home/nelluk/backup_db.sh'])` from the Discord event-loop
+thread. It has no confirmation, timeout, cancellation drain, job state, or
+environment boundary and publishes raw `bytes` stdout/stderr to the channel.
+Because the script path is hard-coded, invoking the legacy command from the
+development beta would execute the production backup operation against
+`polytopia2` and `/home/nelluk/PolyBot39/data/images`. The command is therefore
+not a safe compatibility path even though its owner check is correct.
+
+The underlying host operation is substantially stronger than the Discord
+adapter. The installed user crontab runs `/home/nelluk/backup_db.sh` at 01:00,
+09:00, and 17:00 daily, followed five minutes later by the existing private
+backup upload. The script uses mode-0600 temporary artifacts, one nonblocking
+host lock, custom-format PostgreSQL dumps, filtered/compressed public GameLog
+export, local-image archive validation, and atomic replacement. Read-only
+inspection on 2026-08-10 found all seven weekday database/image rotations,
+the full dump, GameLog export, and reporting snapshot present; the current
+Monday database dumps, GameLog gzip, and image archive passed their native
+read-only validators. No backup was executed for this audit.
+
+One source-of-truth gate must be resolved before any native trigger is built.
+The deployed script does not byte-match this accumulation branch. Its only
+functional difference is a post-core-backup DuckDB reporting export, but the
+exporter, its documentation/tests, dependency changes, and matching tracked
+script changes currently exist only as uncommitted work in the production
+checkout. The 01:00 reporting artifact is fresh and the live operation is not
+shown to be broken; nevertheless, `origin/master` and the accumulation branch
+do not currently reproduce the installed operation. The production checkout
+must remain untouched by P9.6, and those changes require their own review,
+commit, and branch reconciliation first.
+
+#### Recommended implementation decisions
+
+**P9.6-A — Scheduled backup remains authoritative**
+
+- Keep the three-times-daily host schedule as the primary backup mechanism.
+  The Discord command is only an owner convenience for an exceptional manual
+  recovery point; it must not become a scheduler or replace cron.
+- Reconcile and review the reporting-export source before implementing the
+  trigger. After reconciliation, require the deployed
+  `/home/nelluk/backup_db.sh` to byte-match the reviewed tracked script before
+  every manual execution. Drift fails closed.
+- Do not modify the schedule, upload job, retention paths, or production
+  checkout as part of the Discord adapter unit.
+
+**P9.6-B — Exact native scope and authorization**
+
+- Add no-argument `/operator database backup` under the existing guild-scoped
+  operator root. It opens a private requester-bound confirmation workspace;
+  one explicit **Run backup** control starts the operation.
+- Preserve exact owner-only authorization at the adapter and execution
+  boundary. Configured non-owner superusers and Discord administrators may not
+  run it.
+- Retire `$backup_db` and `$dbb` with the complete replacement. A hybrid
+  transition would preserve the unsafe cross-environment/event-loop path and
+  provides no day-to-day compatibility benefit.
+
+**P9.6-C — Production-only fail-closed boundary**
+
+- Permit execution only from an explicit production runtime whose configured
+  database is exactly `polytopia2`, under the expected Unix account, with the
+  reviewed and deployed scripts matching. Recheck all conditions immediately
+  before spawning the child process.
+- Development and every other profile must refuse privately before reading or
+  executing production backup artifacts. Beta testing may prove registration,
+  owner denial, and the production-only refusal, but can never run a real or
+  development-database backup.
+- Keep absolute reviewed paths. Do not expose a slash path/command argument or
+  a configurable arbitrary executable.
+
+**P9.6-D — Bounded host-operation lifecycle**
+
+- Replace blocking `subprocess.run` with one dedicated single-flight
+  host-operation coordinator and asynchronous subprocess lifecycle. Concurrent
+  manual requests reject promptly; the script's existing `flock` remains the
+  cross-process authority for cron/manual overlap.
+- Use a reviewed maximum duration, a separate process group, bounded output,
+  and TERM/KILL/drain cleanup. Discord cancellation must not report the
+  coordinator idle while the child still runs.
+- Give the reporting-export partial-success case a stable machine-readable
+  outcome or distinct documented exit status. The adapter must distinguish
+  “core disaster-recovery artifacts succeeded, reporting export failed” from
+  a core backup failure rather than parsing arbitrary human output.
+
+**P9.6-E — Private result and operational audit**
+
+- Keep confirmation, progress, paths, errors, and final result private. This
+  is host maintenance, not a competitive database mutation requiring public
+  transparency.
+- Return a concise result category, duration, and validated artifact
+  timestamps/sizes; never echo raw stdout/stderr or attach backup data in
+  Discord.
+- Emit structured application-log entries containing actor, guild/channel,
+  start/end, result category, duration, and bounded diagnostic context. Do not
+  write a `GameLog` row merely to record a database backup: that post-backup
+  database mutation would not be part of the just-created recovery point and
+  is the wrong audit domain.
+
+**P9.6-F — Validation and production gate**
+
+- Require focused offline tests with an injected fake subprocess for exact
+  owner access, configured-non-owner denial, development refusal, source drift,
+  confirmation, concurrent cron/manual lock result, timeout/cancellation,
+  bounded redaction, core success, reporting-only failure, core failure, and
+  prefix retirement. Tests must never invoke the real script.
+- Validate the reconciled tracked backup/export scripts independently,
+  including syntax, atomic publication, export allowlist, and the distinct
+  result contract. No PostgreSQL test is required for the Discord adapter
+  because it must not connect to the ORM.
+- Development deployment may synchronize the nested command only to prove its
+  fail-closed refusal. The first real execution is a separately approved
+  production operation: verify cron is not running, execute once through the
+  native command, validate every artifact and upload behavior, and confirm the
+  scheduled job remains unchanged. No wider-tester announcement is useful.
+
+#### Audit boundaries and next action
+
+This audit read the committed development source, the installed backup script,
+backup-related user-crontab entries, file metadata, native archive validators,
+and only the status/relevant uncommitted reporting files in the production
+checkout. It did not run a backup, connect to PostgreSQL, extract an archive or
+inspect database row data, mutate either checkout, inspect or change
+Discord/application commands, touch the guarded beta, alter cron/services,
+install dependencies, or use sudo.
+
+Next action: accept or revise P9.6-A through P9.6-F. Implementation must then
+wait until the separate reporting-export work is reviewed and reconciled into
+the accumulation branch; it should not copy uncommitted production files into
+this audit branch.
 
 ## Standard work-unit template
 
@@ -13356,6 +13501,27 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.6 production backup operation audited
+
+- Confirmed that `$backup_db` / `$dbb` blocks the event loop, has no
+  environment boundary or confirmation, and would allow the development beta
+  to invoke the hard-coded production script despite correct owner access.
+- Read-only verified the established 01:00/09:00/17:00 cron schedule, fresh
+  seven-day rotations, full dump, GameLog export, images, reporting snapshot,
+  host lock/atomic publication, and current artifact validators without
+  executing a backup.
+- Found a source-of-truth sequencing blocker: the live script additionally
+  runs a DuckDB reporting export whose reviewed source/dependency/docs/tests
+  currently exist only as uncommitted production-checkout work, so the live
+  script cannot match either tracked branch yet.
+- Proposed P9.6-A through P9.6-F: cron remains authoritative, owner-only
+  private native confirmation, strict production/source-match gate, bounded
+  asynchronous single-flight subprocess, structured private results/logging,
+  prefix retirement, and fake-runner plus separately approved production
+  validation.
+- Changed documentation only; no production mutation, backup, PostgreSQL,
+  Discord, beta, service, cron, dependency, or sudo action occurred.
 
 ### 2026-08-10 — P9.5 integrated and deployed guild-only
 
