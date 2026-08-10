@@ -24,6 +24,9 @@ server_shortcut_ids = {
 # ``beta_testing`` exposes temporary wider-beta utilities such as
 # /whattotest and should never be assigned in production settings.
 application_command_capabilities = {}
+# Optional capability names applied to every allowed guild in this runtime
+# profile. Keep empty until a real cross-guild command root is ready to deploy.
+application_command_all_guild_capabilities = ()
 
 server_list = {
     'default': {

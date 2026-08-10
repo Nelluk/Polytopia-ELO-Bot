@@ -19,6 +19,7 @@ psql_password = runtime_profile.database_password
 psql_host = runtime_profile.database_host
 psql_port = runtime_profile.database_port
 owner_id = runtime_profile.owner_id
+superuser_ids = runtime_profile.superuser_ids
 pastebin_key = runtime_profile.pastebin_key
 # github test change
 server_ids = server_settings.server_shortcut_ids
@@ -271,8 +272,7 @@ def is_mod(member):
 
 
 def is_superuser(member):
-    return member.id in [owner_id, 429740472416731147, 608290258978865174]
-    # owner, Legorooj, e_spark
+    return int(member.id) in superuser_ids
 
 
 def is_superuser_check():

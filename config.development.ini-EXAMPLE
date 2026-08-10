@@ -3,6 +3,9 @@
 discord_key = YOUR_DEVELOPMENT_BOT_TOKEN
 expected_bot_id = 123456789012345678
 owner_id = 272510639124250625
+superuser_ids =
+# optional comma-separated Discord user IDs with cross-guild superuser access.
+# The owner_id is always included automatically and need not be repeated.
 
 psql_db = polytopia_dev
 psql_user = polybot_dev

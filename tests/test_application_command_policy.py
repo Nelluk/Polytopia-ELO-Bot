@@ -1,6 +1,7 @@
 """Offline tests for P8.0 capability policy and guild planning."""
 
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
 import unittest
 
 from modules.application_command_policy import (
@@ -10,6 +11,7 @@ from modules.application_command_policy import (
     build_capability_policy,
     describe_command,
     plan_application_commands,
+    policy_from_server_settings,
 )
 
 
@@ -84,11 +86,64 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'unknown'):
             build_capability_policy({10: ('not_a_capability',)}, [10])
 
-    def test_duplicate_and_operator_only_assignments_are_rejected(self):
+    def test_duplicate_assignments_are_rejected(self):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'duplicate'):
             build_capability_policy({10: ('core_user', 'core_user')}, [10])
-        with self.assertRaisesRegex(ApplicationCommandPolicyError, 'operator'):
-            build_capability_policy({10: ('operator_only',)}, [10])
+
+    def test_operator_capability_can_apply_to_every_allowed_guild(self):
+        policy = build_capability_policy(
+            {10: ('core_user',)},
+            [10, 20],
+            all_guild_capabilities=('operator',),
+        )
+
+        self.assertEqual(
+            policy.capabilities_for_guild(10),
+            ('core_user', 'operator'),
+        )
+        self.assertEqual(policy.capabilities_for_guild(20), ('operator',))
+        self.assertIn('operator', policy.roots_for_guild(10))
+        self.assertEqual(policy.roots_for_guild(20), ('operator',))
+        self.assertEqual(policy.assigned_guild_ids(), (10, 20))
+
+    def test_all_guild_capabilities_are_explicit_and_fail_closed(self):
+        self.assertEqual(
+            build_capability_policy({}, [10, 20]).assigned_guild_ids(),
+            (),
+        )
+        with self.assertRaisesRegex(ApplicationCommandPolicyError, 'unknown'):
+            build_capability_policy(
+                {},
+                [10],
+                all_guild_capabilities=('unknown',),
+            )
+        with self.assertRaisesRegex(ApplicationCommandPolicyError, 'duplicate'):
+            build_capability_policy(
+                {},
+                [10],
+                all_guild_capabilities=('operator', 'operator'),
+            )
+        with self.assertRaisesRegex(ApplicationCommandPolicyError, 'redundantly'):
+            build_capability_policy(
+                {10: ('operator',)},
+                [10],
+                all_guild_capabilities=('operator',),
+            )
+
+    def test_server_settings_all_guild_capabilities_are_expanded(self):
+        policy = policy_from_server_settings(
+            SimpleNamespace(
+                application_command_capabilities={10: ('core_user',)},
+                application_command_all_guild_capabilities=('operator',),
+            ),
+            (10, 20),
+        )
+
+        self.assertEqual(
+            policy.capabilities_for_guild(10),
+            ('core_user', 'operator'),
+        )
+        self.assertEqual(policy.capabilities_for_guild(20), ('operator',))
 
     def test_unknown_and_conflicting_roots_are_rejected(self):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'unknown root'):

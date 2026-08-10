@@ -190,6 +190,40 @@ class RuntimeProfileTests(unittest.TestCase):
             stat.S_IMODE(profile.log_root.stat().st_mode), 0o750
         )
         self.assertFalse((self.root / 'data/images').exists())
+        self.assertEqual(
+            profile.superuser_ids,
+            (profile.owner_id,),
+        )
+
+    def test_superusers_are_configured_sorted_and_include_owner(self):
+        self.write_config(
+            'development',
+            superuser_ids=(
+                '900000000000000013, 900000000000000012'
+            ),
+        )
+        self.write_server_settings('development')
+
+        profile = self.load_development()
+
+        self.assertEqual(profile.superuser_ids, (
+            900000000000000011,
+            900000000000000012,
+            900000000000000013,
+        ))
+
+    def test_invalid_superuser_configuration_fails_closed(self):
+        self.write_server_settings('development')
+        for value, pattern in (
+                ('not-an-id', 'integer'),
+                ('1,,2', 'comma-separated'),
+                ('1,1', 'duplicate'),
+                ('0', 'positive')):
+            with self.subTest(value=value):
+                self.write_config('development', superuser_ids=value)
+                with self.assertRaisesRegex(
+                        RuntimeConfigurationError, pattern):
+                    self.load_development()
 
     def test_unknown_environment_is_rejected(self):
         with self.assertRaisesRegex(
@@ -230,6 +264,7 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertEqual(summary.strip(), format_runtime_profile(profile))
         self.assertIn('polytopia_dev', summary)
         self.assertIn(str(DEVELOPMENT_GUILD_ID), summary)
+        self.assertIn('authorized superuser identities: 1', summary)
         self.assertNotIn('development-secret-token', summary)
         self.assertNotIn('development-secret-password', summary)
         self.assertNotIn('database user', summary.lower())

@@ -40,6 +40,7 @@ class RuntimeProfile:
     discord_token: str = field(repr=False)
     expected_bot_id: int
     owner_id: int
+    superuser_ids: Tuple[int, ...]
     database_name: str
     database_user: str
     database_password: str = field(repr=False)
@@ -115,6 +116,31 @@ def _positive_int(value: str, key: str, config_path: Path) -> int:
             f'Setting {key!r} in {config_path} must be positive.'
         )
     return parsed
+
+
+def _positive_id_list(
+        value: str,
+        key: str,
+        config_path: Path) -> Tuple[int, ...]:
+    """Parse one optional comma-separated set of positive Discord IDs."""
+
+    if not value.strip():
+        return ()
+    raw_values = tuple(part.strip() for part in value.split(','))
+    if any(not part for part in raw_values):
+        raise RuntimeConfigurationError(
+            f'Setting {key!r} in {config_path} must be a comma-separated '
+            'list of positive integer Discord IDs.'
+        )
+    parsed = tuple(
+        _positive_int(part, key, config_path)
+        for part in raw_values
+    )
+    if len(parsed) != len(set(parsed)):
+        raise RuntimeConfigurationError(
+            f'Setting {key!r} in {config_path} contains duplicate Discord IDs.'
+        )
+    return tuple(sorted(parsed))
 
 
 def _optional_port(
@@ -516,6 +542,17 @@ def load_runtime_profile(
             'guild IDs.'
         )
 
+    owner_id = _positive_int(
+        _required_value(parser, 'owner_id', config_path),
+        'owner_id',
+        config_path,
+    )
+    configured_superuser_ids = _positive_id_list(
+        defaults.get('superuser_ids', ''),
+        'superuser_ids',
+        config_path,
+    )
+
     profile = RuntimeProfile(
         environment=environment,
         project_root=root,
@@ -524,11 +561,8 @@ def load_runtime_profile(
         expected_bot_id=_positive_int(
             expected_bot_id_value, 'expected_bot_id', config_path
         ),
-        owner_id=_positive_int(
-            _required_value(parser, 'owner_id', config_path),
-            'owner_id',
-            config_path,
-        ),
+        owner_id=owner_id,
+        superuser_ids=tuple(sorted({owner_id, *configured_superuser_ids})),
         database_name=_required_value(parser, 'psql_db', config_path),
         database_user=_required_value(parser, 'psql_user', config_path),
         database_password=database_password,
@@ -591,6 +625,7 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
     return '\n'.join((
         f'environment: {profile.environment}',
         f'expected bot ID: {profile.expected_bot_id}',
+        f'authorized superuser identities: {len(profile.superuser_ids)}',
         f'database: {profile.database_name}',
         f'database host: {host}',
         f'database port: {port}',

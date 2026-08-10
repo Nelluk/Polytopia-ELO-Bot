@@ -27,8 +27,8 @@ _ROOT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 # Adding a future root requires a taxonomy/policy change first.
 KNOWN_TOP_LEVEL_ROOTS = frozenset({
     'about', 'elo', 'game', 'guide', 'help', 'house', 'leaderboard',
-    'league', 'player', 'squad', 'staffhelp', 'support', 'team', 'tools',
-    'whattotest',
+    'league', 'operator', 'player', 'squad', 'staffhelp', 'support', 'team',
+    'tools', 'whattotest',
 })
 
 # ``tools_support`` is deliberately explicit about the source roots it can
@@ -105,10 +105,13 @@ DEFAULT_CAPABILITY_FAMILIES = (
         description="Temporary wider-beta testing guidance.",
     ),
     CapabilityFamily(
-        name="operator_only",
-        roots=(),
-        visibility="operator",
-        description="Operator-only work is never registered as an app command.",
+        name="operator",
+        roots=("operator",),
+        visibility="administrator-default",
+        description=(
+            "Cross-guild operator commands with authoritative configured-ID "
+            "checks."
+        ),
     ),
 )
 
@@ -225,6 +228,7 @@ def build_capability_policy(
         assignments: Mapping[int, Sequence[str]] | None,
         allowed_guild_ids: Iterable[int],
         *,
+        all_guild_capabilities: Sequence[str] = (),
         families: Iterable[CapabilityFamily] = DEFAULT_CAPABILITY_FAMILIES,
         available_roots: Iterable[str] | None = None) -> CapabilityPolicy:
     """Validate repository assignments against one runtime guild allowlist.
@@ -247,7 +251,39 @@ def build_capability_policy(
             "to capability names."
         )
 
-    validated: list[GuildCapabilityAssignment] = []
+    def validate_capabilities(
+            raw_capabilities: Sequence[str], context: str) -> tuple[str, ...]:
+        if isinstance(raw_capabilities, (str, bytes)) or not isinstance(
+                raw_capabilities, Sequence):
+            raise ApplicationCommandPolicyError(
+                f'{context} must be a sequence of capability names.'
+            )
+        capabilities = tuple(raw_capabilities)
+        if any(not isinstance(capability, str) for capability in capabilities):
+            raise ApplicationCommandPolicyError(
+                f'{context} contains a non-string capability name.'
+            )
+        if len(capabilities) != len(set(capabilities)):
+            raise ApplicationCommandPolicyError(
+                f'{context} contains duplicate capability assignments.'
+            )
+        for capability in capabilities:
+            if capability not in family_map:
+                raise ApplicationCommandPolicyError(
+                    f'{context} references unknown capability {capability!r}.'
+                )
+            if not family_map[capability].roots:
+                raise ApplicationCommandPolicyError(
+                    f'Capability {capability!r} has no application-command '
+                    'roots and cannot be registered.'
+                )
+        return tuple(sorted(capabilities))
+
+    universal = validate_capabilities(
+        all_guild_capabilities,
+        'All-guild application-command capabilities',
+    )
+    by_guild: dict[int, tuple[str, ...]] = {}
     for raw_guild_id, raw_capabilities in assignments.items():
         guild_id = _validate_guild_id(
             raw_guild_id, "application-command assignment guild ID"
@@ -257,49 +293,32 @@ def build_capability_policy(
                 f"Guild {guild_id} is not in the runtime profile's allowed "
                 "guild IDs."
             )
-        if isinstance(raw_capabilities, (str, bytes)) or not isinstance(
-                raw_capabilities, Sequence):
-            raise ApplicationCommandPolicyError(
-                f"Assignments for guild {guild_id} must be a sequence of "
-                "capability names."
-            )
-        capabilities = tuple(raw_capabilities)
-        if any(not isinstance(capability, str) for capability in capabilities):
-            raise ApplicationCommandPolicyError(
-                f"Guild {guild_id} contains a non-string capability name."
-            )
-        if len(capabilities) != len(set(capabilities)):
-            raise ApplicationCommandPolicyError(
-                f"Guild {guild_id} contains duplicate capability assignments."
-            )
-        for capability in capabilities:
-            if not isinstance(capability, str) or capability not in family_map:
-                raise ApplicationCommandPolicyError(
-                    f"Guild {guild_id} references unknown capability "
-                    f"{capability!r}."
-                )
-            family = family_map[capability]
-            if family.visibility == "operator" or not family.roots:
-                raise ApplicationCommandPolicyError(
-                    f"Capability {capability!r} is operator-only and cannot "
-                    "be registered as an application command."
-                )
-        validated.append(GuildCapabilityAssignment(
-            guild_id=guild_id,
-            capabilities=tuple(sorted(capabilities)),
-        ))
-
-    # A mapping cannot contain duplicate guild keys, but validate the
-    # normalized result in case a custom Mapping implementation does not.
-    guild_ids = [assignment.guild_id for assignment in validated]
-    if len(guild_ids) != len(set(guild_ids)):
-        raise ApplicationCommandPolicyError(
-            "Application-command policy contains duplicate guild assignments."
+        capabilities = validate_capabilities(
+            raw_capabilities,
+            f'Assignments for guild {guild_id}',
         )
+        overlap = set(capabilities) & set(universal)
+        if overlap:
+            raise ApplicationCommandPolicyError(
+                f'Guild {guild_id} redundantly assigns all-guild capability '
+                + ', '.join(sorted(overlap))
+                + '.'
+            )
+        by_guild[guild_id] = tuple(sorted((*capabilities, *universal)))
+
+    if universal:
+        for guild_id in allowed:
+            by_guild.setdefault(guild_id, universal)
+
+    validated = tuple(
+        GuildCapabilityAssignment(guild_id=guild_id, capabilities=capabilities)
+        for guild_id, capabilities in sorted(by_guild.items())
+        if capabilities
+    )
     return CapabilityPolicy(
         allowed_guild_ids=allowed,
         families=family_map,
-        assignments=tuple(sorted(validated, key=lambda item: item.guild_id)),
+        assignments=validated,
     )
 
 
@@ -624,8 +643,14 @@ def policy_from_server_settings(
     """Build a policy from a settings module without importing runtime settings."""
 
     assignments = getattr(server_settings, "application_command_capabilities", {})
+    all_guild_capabilities = getattr(
+        server_settings,
+        'application_command_all_guild_capabilities',
+        (),
+    )
     return build_capability_policy(
         assignments,
         allowed_guild_ids,
+        all_guild_capabilities=all_guild_capabilities,
         families=families,
     )
