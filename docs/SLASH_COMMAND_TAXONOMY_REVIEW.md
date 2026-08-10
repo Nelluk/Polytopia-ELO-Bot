@@ -489,7 +489,7 @@ operator repair commands stay out of the public tree.
 | `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
-| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` remains implemented with the effective legacy mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch; `$team_edit ... ARCHIVE` remains retained. |
+| `team_edit` aliases | `/team house`, `/team tier`, `/team archive` | `/team tier` remains implemented with the effective legacy Mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch. P8.26 adds confirmed Mod-only `/team archive`, retires the virtually unused `$team_edit ... ARCHIVE` grammar and `$team_edit` registration without an adapter, and preserves `$team_tier` as a dedicated prefix command. |
 | `squad`, `squads` | `/squad show` | P7.11 Tier-2 reviewed, integrated, and deployed: the only invocation is optional integer `squad_id`; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable snapshot results, and dense card; both prefix registrations retire under C-012. The corrected no-match path is beta-accepted; exact card/member-search acceptance awaits an owned squad fixture |
 | `squadname` | `/squad name` | P7.12 integrated as `0b8541f` from implementation `f04d017`: required squad ID; omission reads, optional name edits, explicit clear removes; authorized `/squad show` cards gain a shared-service Edit Name modal; the hidden prefix command is retired without an adapter under C-013. Development deployment is complete; wider identity-edit acceptance awaits an owned squad fixture |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
@@ -658,8 +658,9 @@ clear/reconciliation contract.
 through the shared worker/service. `$team_tier` remains behind the original
 League cog scope, then enters the bounded preflight before any legacy direct
 Peewee path. At the later P8.4 checkpoint, `$team_house` was intentionally
-retired and `$team_edit` no longer routes house changes; `$team_edit ...
-ARCHIVE` remains retained. No
+retired and `$team_edit` no longer routes house changes. P8.26 subsequently
+accepts retirement of `$team_edit ... ARCHIVE` and the `$team_edit`
+registration while preserving `$team_tier` as a dedicated prefix command. No
 native-interface compatibility compromise was identified for P8.2, so no new
 ledger row is required. The combined P8.1/P8.2 beta gate,
 development-guild capability assignment, command synchronization, and beta
@@ -724,11 +725,11 @@ reports bounded public warnings when managed House roles are absent or a
 member edit fails.
 
 The legacy `$team_house` alias and its `team_edit` branch are intentionally
-retired by explicit approval. `$team_tier` and `$team_edit ... ARCHIVE` remain
-registered and materially unchanged, with archive guidance updated to use
-`/team house ... clear:true`. This is recorded as compatibility ledger C-008;
-the old message-only House mutation path is no longer available, while the
-ordinary House workflow is covered natively.
+retired by explicit approval. P8.26/C-025 later retires the virtually unused
+`$team_edit ... ARCHIVE` workflow and the `$team_edit` registration without an
+adapter, adds confirmed Mod-only `/team archive`, and preserves `$team_tier`
+as its own prefix command. The ordinary House and archive workflows are
+covered natively without retaining the overloaded legacy handler.
 
 Implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
 on `codex/p8-4-team-house`, based on exact clean base
