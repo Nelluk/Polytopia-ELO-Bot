@@ -63,6 +63,32 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('/usr/bin/gzip -t', source)
         self.assertIn('/usr/bin/tar -tzf', source)
         self.assertIn('/usr/bin/mv -f --', source)
+        self.assertIn(
+            '/home/nelluk/PolyBot39/scripts/export_reporting_duckdb.py',
+            source,
+        )
+        self.assertIn(
+            '--output "$REPORTTARGET"',
+            source,
+        )
+        self.assertIn(
+            'REPORTLOCK=/home/nelluk/.polybot-reporting.lock',
+            source,
+        )
+        self.assertIn(
+            '--lock-file "$REPORTLOCK"',
+            source,
+        )
+        self.assertIn(
+            'Core backup successful, but reporting export failed.',
+            source,
+        )
+        self.assertGreater(
+            source.index('"$REPORTPYTHON" "$REPORTEXPORTER"'),
+            source.index(
+                '/usr/bin/mv -f -- "$IMAGETARGET_TMP" "$IMAGETARGET"'
+            ),
+        )
         self.assertNotIn('> "$TARGET"', source)
 
 

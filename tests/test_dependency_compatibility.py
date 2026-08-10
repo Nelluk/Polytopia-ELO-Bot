@@ -39,6 +39,7 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
     def test_expected_runtime_dependencies_import(self):
         module_names = (
             'discord',
+            'duckdb',
             'fastapi',
             'google.auth',
             'google.oauth2.service_account',
@@ -66,7 +67,7 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         self.assertEqual(details['python'], sys.version.split()[0])
         self.assertEqual(details['executable'], sys.executable)
         package_names = {name.casefold() for name in details['packages']}
-        for package in ('discord.py', 'fastapi', 'Pillow', 'peewee'):
+        for package in ('discord.py', 'duckdb', 'fastapi', 'Pillow', 'peewee'):
             with self.subTest(package=package):
                 self.assertIn(package.casefold(), package_names)
 
