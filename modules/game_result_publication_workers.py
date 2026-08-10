@@ -49,7 +49,9 @@ def _validate_snapshot(
         )
 
 
-def _freeze_loaded_game(full_game, guild_id: int) -> GameResultPublicationSnapshot:
+def freeze_loaded_game(full_game, guild_id: int) -> GameResultPublicationSnapshot:
+    """Freeze one already-loaded game for model-free Discord publication."""
+
     if int(full_game.guild_id) != int(guild_id):
         raise GameResultPublicationSnapshotError(
             f'Game {full_game.id} is associated with a different Discord server.'
@@ -103,7 +105,7 @@ def build_win_publication_snapshot(
         )
 
     full_game = models.Game.load_full_game(game_id)
-    snapshot = _freeze_loaded_game(full_game, guild_id)
+    snapshot = freeze_loaded_game(full_game, guild_id)
     if (
         not snapshot.game.is_completed
         or snapshot.game.is_confirmed
@@ -125,7 +127,7 @@ def build_unwin_publication_snapshot(
     """Freeze one committed reset while its coordinator claim is held."""
 
     full_game = models.Game.load_full_game(game_id)
-    snapshot = _freeze_loaded_game(full_game, guild_id)
+    snapshot = freeze_loaded_game(full_game, guild_id)
     if (
         snapshot.game.is_completed
         or snapshot.game.is_confirmed

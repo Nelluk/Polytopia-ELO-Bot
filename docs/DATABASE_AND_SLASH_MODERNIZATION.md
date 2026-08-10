@@ -12779,6 +12779,58 @@ P9.7c closes ordinary win/unwin only. Rank/unstart correction publishers remain
 the next H4 slice; H5 automatic candidate discovery and authoritative
 eligibility revalidation remains separate.
 
+### P9.7d — Immutable rank/unstart correction publication snapshots
+
+Status: **Implemented and Tier-3 reviewed on the isolated unit branch;
+integration pending**
+
+Branch/base: `codex/p9-7d-rank-unstart-snapshot`, exact clean accumulation
+base `8249eac`. Implementation/tests checkpoint: `222cc9b`.
+
+This bounded final H4 correction removes the remaining rank/unstart
+post-commit event-loop reloads and live-model publication graph:
+
+- ranked-state and unstart mutation/audit transactions still commit first,
+  then load one bounded immutable snapshot on the same worker-owned connection
+  while the keyed game claim remains held;
+- the ranked-state publisher uses only frozen channel targets and roster
+  mentions while preserving the staff message, side/central game-channel
+  routing, prefix/slash permissions, and public success response;
+- unstart freezes its committed pending-game card, announcement IDs, roster,
+  and channel-deletion targets; its model-free publisher derives the same
+  display-only struck-through `GAME CANCELLED` card without changing the
+  stored game name;
+- side/central Discord channel deletion and the separate worker-local deleted-
+  reference reconciliation remain after commit and under the existing keyed
+  claim;
+- synchronous worker cancellation now drains through the repository's proven
+  direct-polling pattern before the caller can release its claim; and
+- snapshot or Discord publication failure reports that the correction
+  committed, tells staff not to repeat it, and identifies the remaining
+  reconciliation work instead of claiming rollback.
+
+Focused rank/unstart/publication validation passed **32 tests**. The affected
+correction, ordinary-result, game-detail, command-policy, slash-taxonomy, and
+gated-suite discovery set passed **188 tests with 63 intentional database
+skips**. Complete compilation and `git diff --check` passed.
+
+Complete offline discovery executed **1,495 tests with 64 intentional skips**
+and reached only the three documented unsynchronized-environment failures:
+the missing `duckdb` import, missing `duckdb` dependency inventory entry, and
+the resulting reporting-export import error. The other **1,428 tests passed**;
+dependencies were not installed or synchronized.
+
+The strict development-database suite now includes an owned, self-cleaning
+real-schema ranked-state to unstart snapshot round trip. The healthy durable
+beta remains active at checkpoint `20a6d03` immediately after the meaningful
+P9.7a-c tester announcement, so the documented cadence defers this new case to
+the next stopped-writer batch rather than interrupting active testing for one
+schema-free extension. P9.7d changes no application-command registration.
+
+P9.7d closes the remaining rank/unstart slice of H4. H5 automatic confirmation
+candidate discovery and authoritative eligibility revalidation is the next
+bounded ELO recurring-task unit.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -13731,6 +13783,36 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.7d rank/unstart snapshots implemented and reviewed
+
+- Reconciled the clean local and GitHub accumulation ref at `8249eac`; the
+  durable development beta remained healthy at rollout checkpoint `20a6d03`.
+- Created isolated branch/worktree `codex/p9-7d-rank-unstart-snapshot` from
+  that exact base and verified the development-only profile with background
+  tasks and API disabled.
+- Replaced rank's synchronous post-commit full-game reload and unstart's live-
+  model cancelled-announcement repaint with worker-frozen immutable snapshots
+  and model-free Discord publishers. Transaction, permissions, messages,
+  channel deletion/reconciliation, command interfaces, and stored game name
+  remain unchanged.
+- Added typed committed-state reconciliation for snapshot/publication failure,
+  direct-poll cancellation draining, frozen/model-free publisher coverage,
+  connection/commit ordering, rollback, responsiveness, and prefix/slash
+  parity. An initial callback-based cancellation wait could strand the test;
+  review replaced it with the repository's established polling implementation.
+- Focused validation passed 32 tests; the affected matrix passed 188 with 63
+  gated skips. Complete discovery ran 1,495 tests: 1,428 passed, 64 skipped,
+  and only the three known missing-`duckdb` environment failures remained.
+- Added a strict-gate real-schema rank-to-unstart snapshot round trip but did
+  not stop the newly announced healthy beta for one schema-free worker-pattern
+  extension. No database, fixture, Discord command, service, dependency,
+  production, or announcement operation occurred.
+- Recorded the reviewed implementation and tests at checkpoint `222cc9b`;
+  roadmap evidence follows separately.
+- Next action: commit roadmap evidence, integrate the reviewed unit into the
+  accumulation branch, push its close-out, and retain the new database case
+  for the next accumulated stopped-writer window.
 
 ### 2026-08-10 — P9.7a-c deployed to the durable development beta
 

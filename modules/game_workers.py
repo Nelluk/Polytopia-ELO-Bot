@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import discord
 import peewee
 
-from modules import exceptions, models, utilities
+from modules import exceptions, game_result_publication_workers, models, utilities
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,20 @@ class RankedStateValidationError(RuntimeError):
 class RankedStateResult:
     game_id: int
     is_ranked: bool
+    publication: (
+        game_result_publication_workers.GameResultPublicationSnapshot | None
+    ) = None
+
+
+class RankedStateSnapshotError(RuntimeError):
+    """A ranked-state change committed but its publication snapshot failed."""
+
+    def __init__(self, result: RankedStateResult):
+        self.result = result
+        super().__init__(
+            f'Committed ranked-state correction for game {result.game_id} '
+            'requires Discord reconciliation.'
+        )
 
 
 class GameExtensionValidationError(RuntimeError):
@@ -2405,6 +2419,20 @@ class GameUnstartResult:
     mentions: tuple[str, ...]
     channel_targets: tuple[GameChannelTarget, ...]
     new_expiration: datetime.datetime
+    publication: (
+        game_result_publication_workers.GameResultPublicationSnapshot | None
+    ) = None
+
+
+class GameUnstartSnapshotError(RuntimeError):
+    """An unstart committed but its announcement snapshot failed."""
+
+    def __init__(self, result: GameUnstartResult):
+        self.result = result
+        super().__init__(
+            f'Committed unstart for game {result.game_id} requires Discord '
+            'reconciliation.'
+        )
 
 
 @dataclass(frozen=True)
@@ -2427,6 +2455,33 @@ _game_write_executor = ThreadPoolExecutor(
     max_workers=1,
     thread_name_prefix='polybot-game-write',
 )
+
+
+async def _run_game_write_safely(call):
+    """Drain non-cancellable synchronous game work before releasing claims."""
+
+    concurrent_future = _game_write_executor.submit(call)
+    try:
+        # Direct polling avoids relying on a wrap_future callback that can
+        # remain pending on supported event-loop combinations after the
+        # synchronous worker has already completed.
+        while not concurrent_future.done():
+            await asyncio.sleep(0.001)
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        while not concurrent_future.done():
+            if task is not None:
+                task.uncancel()
+            try:
+                await asyncio.sleep(0.001)
+            except asyncio.CancelledError:
+                continue
+        try:
+            concurrent_future.result()
+        except BaseException as exc:
+            raise asyncio.CancelledError from exc
+        raise asyncio.CancelledError
+    return concurrent_future.result()
 
 
 async def run_game_notes_mutation(
@@ -2996,7 +3051,7 @@ def set_game_ranked_state(
     is_ranked: bool,
     requester_description: str,
 ) -> RankedStateResult:
-    """Set an incomplete game's ranked state in one local transaction."""
+    """Commit ranked state, then freeze its publication on one connection."""
 
     with models.db.connection_context():
         with models.db.atomic():
@@ -3031,7 +3086,33 @@ def set_game_ranked_state(
                     f'{requester_description} set game to be {state}.'
                 ),
             )
-            return RankedStateResult(game_id=game.id, is_ranked=is_ranked)
+            committed_result = RankedStateResult(
+                game_id=game.id,
+                is_ranked=is_ranked,
+            )
+
+        try:
+            full_game = models.Game.load_full_game(committed_result.game_id)
+            publication = game_result_publication_workers.freeze_loaded_game(
+                full_game,
+                guild_id,
+            )
+            if (
+                publication.game.is_completed
+                or publication.game.is_confirmed
+                or publication.game.is_ranked != is_ranked
+            ):
+                raise RuntimeError(
+                    f'Game {committed_result.game_id} has unexpected committed '
+                    'ranked state.'
+                )
+        except Exception as exc:
+            raise RankedStateSnapshotError(committed_result) from exc
+        return RankedStateResult(
+            game_id=committed_result.game_id,
+            is_ranked=committed_result.is_ranked,
+            publication=publication,
+        )
 
 
 async def run_ranked_state_correction(
@@ -3042,7 +3123,6 @@ async def run_ranked_state_correction(
 ) -> RankedStateResult:
     """Submit a ranked-state correction to the bounded game executor."""
 
-    loop = asyncio.get_running_loop()
     call = functools.partial(
         set_game_ranked_state,
         game_id,
@@ -3050,7 +3130,7 @@ async def run_ranked_state_correction(
         is_ranked,
         requester_description,
     )
-    return await loop.run_in_executor(_game_write_executor, call)
+    return await _run_game_write_safely(call)
 
 
 def extend_pending_game(
@@ -3128,7 +3208,7 @@ def unstart_game(
     invocation_channel_id: int | None = None,
     now: datetime.datetime | None = None,
 ) -> GameUnstartResult:
-    """Return one started game to pending state in a local transaction."""
+    """Commit one unstart, then freeze its publication on one connection."""
 
     now = now or datetime.datetime.now()
     with models.db.connection_context():
@@ -3196,7 +3276,7 @@ def unstart_game(
                     f'an open game. (`{invoked_with}`)'
                 ),
             )
-            return GameUnstartResult(
+            committed_result = GameUnstartResult(
                 game_id=game.id,
                 game_name=game.name,
                 announcement_channel_id=game.announcement_channel,
@@ -3205,6 +3285,34 @@ def unstart_game(
                 channel_targets=tuple(channel_targets),
                 new_expiration=game.expiration,
             )
+
+        try:
+            full_game = models.Game.load_full_game(committed_result.game_id)
+            publication = game_result_publication_workers.freeze_loaded_game(
+                full_game,
+                guild_id,
+            )
+            if (
+                not publication.game.is_pending
+                or publication.game.is_completed
+                or publication.game.is_confirmed
+            ):
+                raise RuntimeError(
+                    f'Game {committed_result.game_id} has unexpected committed '
+                    'unstart state.'
+                )
+        except Exception as exc:
+            raise GameUnstartSnapshotError(committed_result) from exc
+        return GameUnstartResult(
+            game_id=committed_result.game_id,
+            game_name=committed_result.game_name,
+            announcement_channel_id=committed_result.announcement_channel_id,
+            announcement_message_id=committed_result.announcement_message_id,
+            mentions=committed_result.mentions,
+            channel_targets=committed_result.channel_targets,
+            new_expiration=committed_result.new_expiration,
+            publication=publication,
+        )
 
 
 async def run_game_unstart(
@@ -3216,7 +3324,6 @@ async def run_game_unstart(
 ) -> GameUnstartResult:
     """Submit one unstart transition to the bounded game-write executor."""
 
-    loop = asyncio.get_running_loop()
     call = functools.partial(
         unstart_game,
         game_id,
@@ -3225,7 +3332,7 @@ async def run_game_unstart(
         invoked_with,
         invocation_channel_id,
     )
-    return await loop.run_in_executor(_game_write_executor, call)
+    return await _run_game_write_safely(call)
 
 
 def clear_deleted_game_channels(
