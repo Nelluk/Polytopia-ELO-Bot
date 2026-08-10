@@ -6306,6 +6306,13 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 result.winner_name,
                 self.models.Player.get_by_id(player_ids[0]).name,
             )
+            self.assertIsNotNone(result.publication)
+            self.assertEqual(result.publication.game.game_id, game_id)
+            self.assertTrue(result.publication.game.is_confirmed)
+            self.assertEqual(
+                result.publication.roster_mentions,
+                tuple(f'<@{id_base + index}>' for index in range(2)),
+            )
             self.assertTrue(committed.is_confirmed)
             self.assertEqual(
                 self.models.GameLog.select().where(

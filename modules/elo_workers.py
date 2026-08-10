@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import peewee
 
-from modules import game_deletion_workers, models
+from modules import confirmation_publication_workers, game_deletion_workers, models
 
 
 class UnwinValidationError(RuntimeError):
@@ -20,6 +20,16 @@ class RecalculationValidationError(RuntimeError):
 
 class WinValidationError(RuntimeError):
     """The game changed or is not eligible for the requested win."""
+
+
+class ConfirmedWinSnapshotError(RuntimeError):
+    """Confirmation committed, but its publication snapshot did not load."""
+
+    def __init__(self, result: ConfirmedWinResult):
+        self.result = result
+        super().__init__(
+            f'Committed game {result.game_id} confirmation snapshot failed.'
+        )
 
 
 class DeleteValidationError(game_deletion_workers.GameDeletionValidationError):
@@ -53,6 +63,9 @@ class WinResult:
 class ConfirmedWinResult:
     game_id: int
     winner_name: str
+    publication: (
+        confirmation_publication_workers.ConfirmationPublicationSnapshot | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -334,6 +347,9 @@ def confirm_game(
     game_id: int,
     guild_id: int,
     requester_description: str,
+    publication_context: (
+        confirmation_publication_workers.ConfirmationPublicationContext
+    ) = confirmation_publication_workers.ConfirmationPublicationContext(),
 ) -> ConfirmedWinResult:
     """Finalize a previously claimed winner in one worker transaction."""
 
@@ -361,10 +377,26 @@ def confirm_game(
                     f'**{winner_name}** and processed ELO changes.'
                 ),
             )
-            return ConfirmedWinResult(
+            committed_result = ConfirmedWinResult(
                 game_id=game.id,
                 winner_name=winner_name,
             )
+        try:
+            publication = (
+                confirmation_publication_workers
+                .build_confirmation_publication_snapshot(
+                    committed_result.game_id,
+                    guild_id,
+                    publication_context,
+                )
+            )
+        except Exception as exc:
+            raise ConfirmedWinSnapshotError(committed_result) from exc
+        return ConfirmedWinResult(
+            game_id=committed_result.game_id,
+            winner_name=committed_result.winner_name,
+            publication=publication,
+        )
 
 
 def delete_game(
