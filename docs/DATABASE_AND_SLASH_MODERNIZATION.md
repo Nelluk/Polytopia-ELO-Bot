@@ -486,12 +486,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P8.25 is Complete, integrated,
-and pushed at audit checkpoint `8614f1d` from exact clean accumulation
-checkpoint `e72c4c9`. The audit keeps P8 In progress and selects
-P8.26, a bounded native/shared-worker team-archive unit, as the next code
-unit. P8.27 should then move the production-only PolyChampions invitation task
-off the event loop before P8 closes.** P7.15 is Complete, integrated, pushed, and running on the guarded
+Current active unit: **P8.26 team archive worker and native action is
+Implemented and validated on `codex/p8-26-team-archive` from exact clean
+accumulation checkpoint `6c86708`; integration and guild-only beta deployment
+remain pending. It adds confirmed Mod-only `/team archive`, retires the
+virtually unused `$team_edit` registration without an adapter, and preserves
+`$team_tier` as a dedicated worker-backed prefix command.** P8.25 is Complete,
+integrated, and pushed at audit checkpoint `8614f1d`. P8.27 should then move
+the production-only PolyChampions invitation task off the event loop before
+P8 closes. P7.15 is Complete, integrated, pushed, and running on the guarded
 development beta through `a247641`; P7 is technically Complete. P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
@@ -10866,7 +10869,10 @@ Validation/evidence:
 
 ### P8.26 — Team archive worker and native action
 
-Status: **Planned; next code unit**
+Status: **Implemented and validated; integration/deployment pending**
+
+Branch/base: `codex/p8-26-team-archive` from exact clean accumulation
+checkpoint `6c86708`.
 
 Recommended bounded contract:
 
@@ -10899,6 +10905,40 @@ retirement recorded as C-025. Integration can occur after offline and real-
 schema review, but development-guild command apply/sync and beta restart remain
 a separate deployment gate. No interface decision remains: implement only the
 confirmed native action, retain `$team_tier`, and remove `$team_edit` entirely.
+
+Implementation/evidence:
+
+- implementation and focused tests: `5848c88` on
+  `codex/p8-26-team-archive`, based on exact accumulation checkpoint
+  `6c86708`;
+- added `modules/team_archive.py` and `modules/team_archive_workers.py`, with
+  frozen primitive request/result objects, the existing bounded one-thread
+  Team executor, a worker-local Peewee connection, one synchronous Team-plus-
+  audit transaction, cancellation draining, and no Discord object or await in
+  the worker;
+- `/team archive team confirm` rechecks team-enabled/league/Mod scope, exact
+  Team identity and role, House absence, and zero incomplete games; validation,
+  permission, conflict, and database failures stay private, while committed
+  actor-attributed success is public and publication failure is terminal
+  reconciliation with explicit no-retry guidance;
+- removed `$team_edit` completely and retained `$team_tier` as its own Mod-
+  checked League command through the existing attribute worker and post-commit
+  role reconciliation;
+- focused archive/attribute/taxonomy coverage: **52 passed**; affected Team
+  surface: **119 passed**; complete offline discovery: **1,379 passed with 57
+  intentional database-gated skips**; compilation and `git diff --check`
+  passed; and
+- with only the guarded development beta stopped and the host writer audit
+  clear, the unchanged gated suite confirmed `development`, `polytopia_dev`,
+  `polybot_dev`, disabled background tasks/API, and passed **56 tests with one
+  intentional operator-fixture preservation skip**. Its new real-schema case
+  proved archive/audit commit and audit-failure rollback, then removed only its
+  uniquely named temporary rows.
+
+Limitations: archival has no native or prefix undo; it deliberately does not
+rename/delete Discord roles or channels. The exact role is a precondition, not
+an archival side effect. The native command has not yet been applied to the
+development guild or run by the guarded beta.
 
 ### P8.27 — PolyChampions invitation task database boundary
 
@@ -12414,6 +12454,30 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.26 native team archive implemented and validated
+
+- Added confirmed Mod-only `/team archive` with immutable Discord-side
+  preflight, bounded worker-local database execution, one synchronous Team and
+  actor-audit transaction, cancellation draining, and post-commit-only public
+  output.
+- Preserved House-free, zero-incomplete-game, active-Team, and exact-role
+  eligibility while adding stale-ID/role conflict checks and explicit no-retry
+  reconciliation after a committed publication failure.
+- Removed `$team_edit` and its archive grammar without an adapter; retained
+  `$team_tier` as a dedicated worker-backed prefix command.
+- Implementation/tests commit `5848c88`; focused archive/attribute/taxonomy
+  tests passed **52**, the affected Team surface passed **119**, and complete
+  offline discovery passed **1,379 with 57 intentional gated skips**.
+- Stopped only the guarded development beta, confirmed a clear host-wide
+  development-writer audit, and passed the unchanged PostgreSQL gate: **56
+  tests with one intentional operator-fixture preservation skip** against
+  `polytopia_dev` as `polybot_dev`. The P8.26 real-schema case proved both
+  commit and rollback and cleaned its uniquely named temporary rows.
+- Status is Implemented and validated, not Complete, until the branch is
+  integrated, pushed, applied guild-only, and loaded by the guarded beta.
+  Next: checkpoint this evidence, integrate P8.26, apply only the development
+  guild command delta, restart, verify, and then begin P8.27.
 
 ### 2026-08-09 — P8.26 archive prefix retirement accepted
 
