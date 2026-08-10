@@ -12834,11 +12834,12 @@ bounded ELO recurring-task unit.
 
 ### P9.7e — Automatic confirmation discovery and revalidation
 
-Status: **Reviewed on the isolated unit branch; accumulation integration
-pending**
+Status: **Complete in the accumulation branch; gated real-schema evidence
+deferred to the next stopped-writer batch**
 
 Branch/base: `codex/p9-7e-auto-confirmation`, exact clean accumulation base
 `d17dd6c`. Implementation/tests checkpoint: `1457962`.
+Roadmap evidence: `2b709cf`; accumulation merge: `a910c82`.
 
 This bounded Tier-3 H5 correction removes automatic confirmation's database
 selection and eligibility graph from the Discord event loop:
@@ -13867,8 +13868,18 @@ branch.
   not stop the healthy, recently announced beta for a disabled-background-task
   change. No database, fixture, Discord command, service, dependency,
   production, or announcement operation occurred.
-- Recorded the reviewed implementation and tests at checkpoint `1457962`.
-  Roadmap evidence and accumulation integration remain the next actions.
+- Recorded the reviewed implementation and tests at checkpoint `1457962`,
+  roadmap evidence at `2b709cf`, and integrated the unit at accumulation merge
+  `a910c82`.
+- The development beta remains healthy at `20a6d03`; because it runs with
+  background tasks disabled and P9.7e changes no command registration, no
+  restart, guild synchronization, checklist edit, or tester announcement is
+  warranted. The P9.7d/P9.7e real-schema cases remain queued for the next
+  accumulated stopped-writer window.
+- Next action: implement H5 champion-role reconciliation as the recommended
+  bounded non-destructive recurring-task unit. H5 completed-game channel purge
+  discovery/reconciliation is also ready under its stricter destructive-effect
+  review.
 
 ### 2026-08-10 — P9.7d rank/unstart snapshots implemented and reviewed
 
