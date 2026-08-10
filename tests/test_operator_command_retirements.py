@@ -10,7 +10,13 @@ league = import_offline_runtime('modules.league')
 
 
 RETIRED_PREFIX_NAMES = frozenset(
-    {'gtest', 'ptrophies', 'boost_from', 'boost_from_norole'}
+    {
+        'gtest',
+        'ptrophies',
+        'boost_from',
+        'boost_from_norole',
+        'purge_game_channels',
+    }
 )
 
 # These H6 commands remain intentionally executable until their separately
@@ -19,7 +25,6 @@ RETAINED_H6_OPERATOR_DISPOSITIONS = {
     'restart': 'retain until guarded systemd replacement is approved',
     'restart_force': 'retain restart force alias until replacement',
     'quit': 'retain restart alias until replacement',
-    'purge_game_channels': 'retain owner-only pending preview-worker decision',
 }
 
 
@@ -41,7 +46,7 @@ class ApprovedOperatorRetirementTests(unittest.TestCase):
     def test_retained_h6_operator_commands_have_explicit_dispositions(self):
         self.assertEqual(
             set(RETAINED_H6_OPERATOR_DISPOSITIONS),
-            {'restart', 'restart_force', 'quit', 'purge_game_channels'},
+            {'restart', 'restart_force', 'quit'},
         )
         registered = prefix_names(administration.administration)
 

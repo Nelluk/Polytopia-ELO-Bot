@@ -6706,6 +6706,217 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.Game.id.in_(tuple(game_ids))
                 ).execute()
 
+    def test_p99_manual_channel_preview_and_reconciliation_real_schema(self):
+        """Exercise exact owner preview, protection, audit, and rollback."""
+
+        from modules import operator_channel_purge_workers as workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P9.9-{suffix}'
+        id_base = 9_900_000_000_000_000 + (
+            uuid.uuid4().int % 1_000_000
+        )
+        now = datetime.datetime.now(datetime.UTC)
+        old = now - datetime.timedelta(days=31)
+        game_ids = []
+
+        def make_game(label, *, channel_id, completed=False, season=None):
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                name=f'{marker}-{label}',
+                notes=marker,
+                is_pending=False,
+                is_completed=completed,
+                is_confirmed=completed,
+                is_ranked=False,
+                is_mobile=True,
+                completed_ts=(
+                    now.replace(tzinfo=None) - datetime.timedelta(days=2)
+                    if completed else None
+                ),
+                league_season=season,
+                league_tier=1 if season else None,
+                size=[2],
+                game_chan=channel_id,
+            )
+            game_ids.append(int(game.id))
+            return game
+
+        def channel(channel_id, *, recent=False):
+            return workers.ChannelSnapshot(
+                channel_id=channel_id,
+                name=f'p99-{channel_id}',
+                category_id=50,
+                category_name='Games',
+                last_message_id=channel_id,
+                last_activity_at=(now if recent else old),
+                manageable=True,
+                archive_protected=False,
+            )
+
+        try:
+            eligible = make_game('eligible', channel_id=id_base)
+            side = self.models.GameSide.create(
+                game=eligible,
+                position=1,
+                sidename='Alpha',
+                size=2,
+                team_chan=id_base + 1,
+            )
+            completed = make_game(
+                'completed', channel_id=id_base + 10, completed=True,
+            )
+            season = make_game(
+                'season', channel_id=id_base + 20, season=99,
+            )
+            recent = make_game('recent', channel_id=id_base + 30)
+            missing = make_game('missing', channel_id=id_base + 40)
+            channels = (
+                channel(id_base),
+                channel(id_base + 1),
+                channel(id_base + 2),
+                channel(id_base + 10),
+                channel(id_base + 20),
+                channel(id_base + 30, recent=True),
+            )
+
+            def preview_request(mode):
+                return workers.ManualPurgePreviewRequest(
+                    guild_id=guild_id,
+                    requester_id=int(self.settings.owner_id),
+                    mode=mode,
+                    as_of=now,
+                    guild_channel_count=430,
+                    configured_category_ids=(50,),
+                    channels=channels,
+                )
+
+            self.models.db.close()
+            stale = asyncio.run(workers.run_load_manual_purge_preview(
+                preview_request(workers.STALE)
+            ))
+            orphan = asyncio.run(workers.run_load_manual_purge_preview(
+                preview_request(workers.ORPHAN)
+            ))
+            capacity = asyncio.run(workers.run_load_manual_purge_preview(
+                preview_request(workers.CAPACITY)
+            ))
+            missing_preview = asyncio.run(
+                workers.run_load_manual_purge_preview(
+                    preview_request(workers.MISSING)
+                )
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(
+                {row.channel_id for row in stale.candidates},
+                {id_base, id_base + 1},
+            )
+            self.assertEqual(
+                {row.channel_id for row in orphan.candidates},
+                {id_base + 2},
+            )
+            self.assertEqual(
+                {row.channel_id for row in capacity.candidates},
+                {id_base},
+            )
+            self.assertEqual(
+                {row.channel_id for row in missing_preview.candidates},
+                {id_base + 40},
+            )
+            self.assertNotIn(
+                int(completed.game_chan),
+                {row.channel_id for row in stale.candidates},
+            )
+            self.assertNotIn(
+                int(season.game_chan),
+                {row.channel_id for row in stale.candidates},
+            )
+            self.assertNotIn(
+                int(recent.game_chan),
+                {row.channel_id for row in stale.candidates},
+            )
+
+            target = next(
+                row for row in stale.candidates if row.channel_id == id_base
+            )
+            authorized = asyncio.run(
+                workers.run_authorize_manual_purge_candidate(
+                    workers.ManualPurgeAuthorizationRequest(
+                        guild_id,
+                        int(self.settings.owner_id),
+                        target,
+                        now,
+                    )
+                )
+            )
+            self.assertTrue(authorized)
+
+            request = workers.ManualPurgeReconcileRequest(
+                guild_id,
+                int(self.settings.owner_id),
+                f'P9.9 gate (`{self.settings.owner_id}`)',
+                target,
+            )
+            with mock.patch.object(
+                workers.models.Game,
+                'save',
+                side_effect=peewee.OperationalError(
+                    'P9.9 injected reconcile failure'
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected reconcile failure',
+                ):
+                    asyncio.run(workers.run_reconcile_manual_purge(request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                int(self.models.Game.get_by_id(eligible.id).game_chan),
+                id_base,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.startswith(
+                        f'__{eligible.id}__'
+                    )
+                ).count(),
+                0,
+            )
+
+            self.models.db.close()
+            result = asyncio.run(
+                workers.run_reconcile_manual_purge(request)
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(result.status, workers.RECONCILED)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertIsNone(
+                self.models.Game.get_by_id(eligible.id).game_chan
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.startswith(
+                        f'__{eligible.id}__'
+                    )
+                    & (self.models.GameLog.is_protected == True)
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in game_ids:
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.startswith(f'__{game_id}__')
+                ).execute()
+            if game_ids:
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game.in_(tuple(game_ids))
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id.in_(tuple(game_ids))
+                ).execute()
+
     def test_p97e_auto_confirmation_revalidates_real_schema(self):
         """Exercise discovery and stale revalidation on development DB."""
 
