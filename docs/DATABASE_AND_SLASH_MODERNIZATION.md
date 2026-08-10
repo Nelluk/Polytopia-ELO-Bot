@@ -490,9 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.9 owner-only manual channel purge is Tier-3 reviewed,
-database-validated, and ready for accumulation integration on
-`codex/p9-9-manual-channel-purge`, from exact clean
+Current active unit: **P9.9 owner-only manual channel purge is Complete in the
+accumulation branch at merge checkpoint `cc4d4a3`, from exact clean
 accumulation base `3ae0b68`. `/operator channels purge mode` provides private,
 bounded, exact-selection previews for stale, capacity, orphan, and missing
 targets; exact `PURGE <count>` confirmation; authoritative Discord and database
@@ -501,7 +500,9 @@ audit. `$purge_game_channels` is retired. Focused and adjacent validation is
 green at 77 tests. Complete discovery runs 1,560 tests with 68 skips and reaches
 only the three known missing-`duckdb` environment failures. The stopped-writer
 development PostgreSQL gate passed 67 tests with one intentional fixture skip.
-Integration, guild-only command apply, and beta reload remain pending.**
+The single development guild applied exactly the changed `operator` root and a
+repeat inspection is unchanged. Accumulation close-out/push and beta reload
+remain pending.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13084,11 +13085,13 @@ remain pending an explicit guarded-systemd workflow decision.
 
 ### P9.9 — Owner-only manual channel purge
 
-Status: **Tier-3 reviewed and database-validated; ready for integration**
+Status: **Complete in the accumulation branch; development-guild command tree
+applied**
 
 Branch/base: `codex/p9-9-manual-channel-purge`, exact clean accumulation base
 `3ae0b68`. Implementation/tests checkpoint: `843a8cb`; database-gate
-expectation correction: `a07a262`.
+expectation correction: `a07a262`; roadmap evidence: `7108f5d`; accumulation
+merge: `cc4d4a3`.
 
 This bounded Tier-3 H6 unit replaces the unsafe interleaved prefix handler with
 owner-only `/operator channels purge mode`. Its private Components v2 workspace
@@ -13134,9 +13137,10 @@ skipped**.
 Because P9.9 adds an application command and a destructive reconciliation
 boundary, completion required stopping only the guarded beta and proving no
 development writer before the now-green `development` / `polytopia_dev` /
-`polybot_dev` gate. Remaining deployment work is to plan and apply only the
-configured development guild tree, integrate and push the accumulation branch,
-then restart and verify the guarded beta with startup synchronization disabled. This
+`polybot_dev` gate. The configured development-guild tree is applied and the
+unit is integrated. Remaining deployment work is to close out and push the
+accumulation branch, then restart and verify the guarded beta with startup
+synchronization disabled. This
 owner-only maintenance workflow does not warrant a tester checklist entry or
 `@testers` announcement unless live validation reveals a tester-facing effect.
 
@@ -14136,10 +14140,17 @@ Retire `$purge_game_channels` with this replacement.
   skipped.
 - Implementation/tests are checkpointed at `843a8cb`; the gate expectation
   correction is `a07a262`. Complete-diff review is accepted with no remaining
-  blocker. Pending before completion: evidence commit, accumulation
-  integration/push, development-guild-only command plan/apply, and guarded beta
-  reload/health verification. No tester announcement is planned for this
-  owner-only tool.
+  blocker. Roadmap evidence is `7108f5d`; the unit merged to accumulation as
+  `cc4d4a3`.
+- The stopped-beta offline plan targeted only guild `478571892832206869`.
+  Remote inspection found only `operator` changed, with no creates/removals and
+  ten other roots unchanged. The exact guild-only apply succeeded with the
+  environment/guild/scope/no-global-sync confirmations; repeat inspection
+  reported all eleven roots unchanged.
+- Pending: accumulation close-out/push and guarded beta reload/health
+  verification. No checklist edit, tester ping, reporter notification, or
+  announcement is planned because this is an owner-only maintenance tool;
+  owner acceptance remains the later live-interaction route.
 
 ### 2026-08-10 — P9.8 obsolete operator-command retirements implemented
 
