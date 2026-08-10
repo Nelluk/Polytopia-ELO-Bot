@@ -15,7 +15,14 @@ import logging
 import peewee
 
 import settings
-from modules import elo_workers, exceptions, game_win_workers, models, utilities
+from modules import (
+    elo_workers,
+    exceptions,
+    game_result_publication,
+    game_win_workers,
+    models,
+    utilities,
+)
 from modules.elo_jobs import EloJobConflict
 
 
@@ -119,6 +126,7 @@ async def _run_worker(
     request: WinRequest,
     *,
     selection: game_win_workers.WinSideSelection,
+    publication_context,
 ):
     coordinator = settings.elo_job_coordinator
     lock_acquired = False
@@ -145,6 +153,7 @@ async def _run_worker(
             request.requester_id,
             request.requester_description,
             request.requester_is_staff,
+            publication_context,
         ),
         before_submit=lock_game,
         after_complete=unlock_game,
@@ -201,7 +210,15 @@ async def run_win(
         selection = await game_win_workers.run_prepare_win(
             _preflight_request(request),
         )
-        return await _run_worker(request, selection=selection)
+        publication_context = game_result_publication.capture_publication_context(
+            request.guild_id,
+            bot=settings.bot,
+        )
+        return await _run_worker(
+            request,
+            selection=selection,
+            publication_context=publication_context,
+        )
 
     try:
         if typing_context is None:
@@ -226,6 +243,27 @@ async def run_win(
         # Preserve the established prefix side-parser messages. Native
         # callers provide an ephemeral send_error callback.
         return await _send_error(send_error, str(exc))
+    except elo_workers.WinSnapshotError as exc:
+        result = exc.result
+        logger.exception(
+            'Committed win %s could not load its publication snapshot',
+            request.game_id,
+        )
+        try:
+            await _send_error(
+                send_error,
+                f'Game {request.game_id} was updated, but its public result '
+                'snapshot could not be loaded. An operator must reconcile it.',
+            )
+        except Exception:
+            logger.exception(
+                'Could not send committed win %s reconciliation warning',
+                request.game_id,
+            )
+        return WinApplicationOutcome(
+            result=result,
+            public_effects_published=False,
+        )
     except peewee.PeeweeException:
         logger.exception(
             'Database failure while processing win %s',
@@ -247,86 +285,19 @@ async def run_win(
             'updates were made.',
         )
 
-    # This is the established post-commit model/presentation seam.  It is
-    # intentionally after the worker/coordinator cleanup and before the card
-    # adapter performs its own fresh immutable refresh.
     try:
-        winning_game = models.Game.load_full_game(game_id=result.game_id)
-        if result.previous_winner_name is not None:
-            await send_public(
-                f':warning: Unconfirmed game with ID {request.game_id} had '
-                'previously been marked with winner '
-                f'**{result.previous_winner_name}**.\n'
-                f'{result.previous_confirmed_count} of '
-                f'{result.previous_side_count} sides had confirmed.'
-            )
-
-        await winning_game.update_squad_channels(
-            guild_list=settings.bot.guilds,
-            guild_id=request.guild_id,
-            message=(
-                'A win claim has been placed by '
-                f'**{request.requester_name}** for winner '
-                f'**{result.winner_name}**'
-            ),
+        if result.publication is None:
+            raise RuntimeError('Committed win has no publication snapshot.')
+        await game_result_publication.publish_win_result(
+            request=request,
+            result=result,
+            snapshot=result.publication,
+            guild=guild,
+            current_channel=current_channel,
+            send_public=send_public,
+            confirmed_publisher=post_win_publisher,
+            bot=settings.bot,
         )
-
-        if result.confirmed:
-            if result.all_sides_confirmed:
-                await send_public(
-                    'All sides have confirmed this victory. Good game!'
-                )
-            await post_win_publisher(
-                guild,
-                request.prefix,
-                current_channel,
-                winning_game,
-            )
-            return WinApplicationOutcome(
-                result=result,
-                public_effects_published=True,
-            )
-
-        printed_side_name = (
-            result.winner_name
-            if request.winning_side_id is not None or '@' in request.winner_text
-            else request.winner_text
-        )
-        if result.first_claim:
-            await send_public(
-                f'**Game {request.game_id}** *{winning_game.name}* concluded '
-                f'pending confirmation of winner **{result.winner_name}**\n'
-                'To confirm, have opponents use the command '
-                f'__`{request.prefix}win {request.game_id} '
-                f'{printed_side_name}`__\n'
-                'If opponents do not dispute the win then the game will be '
-                'confirmed automatically after a period of time.\n'
-                f'If this win was claimed falsely please use the '
-                '`/staffhelp` to contest, or you can '
-                'cancel your claim with the command '
-                f'`{request.prefix}unwin {request.game_id}`.\n'
-                f'*Game lineup*: {" ".join(winning_game.mentions())}'
-            )
-        else:
-            conf_str = (
-                'Your confirmation has been logged. '
-                if result.new_confirmation
-                else ''
-            )
-            await send_public(
-                f'{conf_str}**Game {request.game_id}** *{winning_game.name}* '
-                'is pending confirmation: '
-                f'{result.confirmed_count} of {result.side_count} sides have '
-                'confirmed.\n'
-                'Participants in the game should use the command '
-                f'__`{request.prefix}win {request.game_id} '
-                f'{printed_side_name}`__ to confirm the victory.\n'
-                'Please post a screenshot of your victory in case there is '
-                'a dispute. If this win was claimed in error please use the '
-                '`/staffhelp`, or you can cancel your '
-                'claim with the command '
-                f'`{request.prefix}unwin {request.game_id}`'
-            )
         return WinApplicationOutcome(
             result=result,
             public_effects_published=True,

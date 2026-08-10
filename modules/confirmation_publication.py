@@ -24,7 +24,7 @@ def _role(guild, name: str):
     return discord.utils.get(guild.roles, name=name)
 
 
-async def _publish_experience_role(effect: ExperienceRoleEffect, bot) -> None:
+async def publish_experience_role(effect: ExperienceRoleEffect, bot) -> None:
     for guild_id in effect.guild_ids:
         guild = bot.get_guild(guild_id)
         member = guild.get_member(effect.discord_id) if guild else None
@@ -70,7 +70,7 @@ def _member_log_string(member) -> str:
     return f'**{name or "Unknown member"}** (`{member.id}`)'
 
 
-async def _publish_champion_roles(effect: ChampionRoleEffect, bot) -> None:
+async def publish_champion_roles(effect: ChampionRoleEffect, bot) -> None:
     for guild_effect in effect.guilds:
         guild = bot.get_guild(guild_effect.guild_id)
         if guild is None:
@@ -132,7 +132,7 @@ async def _publish_champion_roles(effect: ChampionRoleEffect, bot) -> None:
             await utilities.send_to_log_channel(guild, '\n'.join(messages))
 
 
-async def _publish_game_channels(snapshot, *, bot, message: str) -> None:
+async def publish_game_channels(snapshot, *, bot, message: str) -> None:
     for target in snapshot.side_channel_targets:
         guild = bot.get_guild(target.guild_id)
         if guild is None:
@@ -213,7 +213,7 @@ async def publish_confirmed_game(
                 'and include the season tag at the beginning.'
             )
 
-    await _publish_game_channels(
+    await publish_game_channels(
         snapshot,
         bot=bot,
         message=(
@@ -222,9 +222,9 @@ async def publish_confirmed_game(
         ),
     )
     for effect in snapshot.experience_roles:
-        await _publish_experience_role(effect, bot)
+        await publish_experience_role(effect, bot)
     if snapshot.champion_roles is not None:
-        await _publish_champion_roles(snapshot.champion_roles, bot)
+        await publish_champion_roles(snapshot.champion_roles, bot)
     if snapshot.nova is not None:
         outcome = await nova_graduation.publish_nova_graduation(
             guild=guild,
@@ -260,3 +260,9 @@ async def publish_confirmed_game(
         f'Roster: {roster}{reminder_message}'
     )
     await _send_rendered(current_channel, rendered)
+
+
+# Retain private aliases for the focused P9.7b tests and any local callers.
+_publish_experience_role = publish_experience_role
+_publish_champion_roles = publish_champion_roles
+_publish_game_channels = publish_game_channels

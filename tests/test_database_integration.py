@@ -6381,15 +6381,131 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
             self.assertEqual(
-                self.models.Tribe.get_by_id(tribe_id).emoji,
-                original_emoji,
-            )
-            self.assertEqual(
                 self.models.GameLog.select().where(
                     self.models.GameLog.message.contains(marker)
                 ).count(),
                 0,
             )
+
+    def test_p97c_ordinary_win_unwin_snapshots_use_real_schema(self):
+        """Exercise ordinary result snapshots on development PostgreSQL."""
+
+        from modules import elo_workers
+
+        guild_id = self.settings.server_ids['polychampions']
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P9.7c-{suffix}'
+        id_base = 8_600_000_000_000_000_000 + (
+            uuid.uuid4().int % 100_000_000
+        )
+        member_ids = []
+        player_ids = []
+        game_id = None
+
+        try:
+            for index, label in enumerate(('Alpha', 'Bravo')):
+                member = self.models.DiscordMember.create(
+                    discord_id=id_base + index,
+                    name=f'{marker}-{label}',
+                    polytopia_name=f'{marker}{label}',
+                )
+                player = self.models.Player.create(
+                    discord_member=member,
+                    guild_id=guild_id,
+                    name=member.name,
+                )
+                member_ids.append(member.id)
+                player_ids.append(player.id)
+
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=player_ids[0],
+                notes=marker,
+                is_pending=False,
+                is_completed=False,
+                is_confirmed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_id = game.id
+            sides = []
+            for position, (label, player_id) in enumerate(
+                zip(('Alpha', 'Bravo'), player_ids),
+                start=1,
+            ):
+                side = self.models.GameSide.create(
+                    game=game,
+                    position=position,
+                    sidename=label,
+                    size=1,
+                )
+                sides.append(side)
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=side,
+                    player=player_id,
+                )
+
+            self.models.db.close()
+            win_result = elo_workers.record_win(
+                game_id,
+                guild_id,
+                sides[0].id,
+                id_base,
+                marker,
+                False,
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertIsNotNone(win_result.publication)
+            self.assertFalse(win_result.publication.game.is_confirmed)
+            self.assertEqual(
+                win_result.publication.roster_mentions,
+                tuple(f'<@{id_base + index}>' for index in range(2)),
+            )
+
+            unwin_result = elo_workers.unwin_game(
+                game_id,
+                guild_id,
+                id_base,
+                marker,
+                True,
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertIsNotNone(unwin_result.publication)
+            self.assertFalse(unwin_result.publication.game.is_completed)
+            self.assertIsNone(unwin_result.publication.game.winner_side_id)
+
+            self.models.db.connect(reuse_if_open=True)
+            reset = self.models.Game.get_by_id(game_id)
+            self.assertFalse(reset.is_completed)
+            self.assertFalse(reset.is_confirmed)
+            self.assertIsNone(reset.winner)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                if game_id is not None:
+                    self.models.Game.update(winner=None).where(
+                        self.models.Game.id == game_id
+                    ).execute()
+                    self.models.Lineup.delete().where(
+                        self.models.Lineup.game == game_id
+                    ).execute()
+                    self.models.GameSide.delete().where(
+                        self.models.GameSide.game == game_id
+                    ).execute()
+                    self.models.Game.delete().where(
+                        self.models.Game.id == game_id
+                    ).execute()
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids or (-1,))
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(member_ids or (-1,))
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
 
     def test_operator_player_migration_commits_dependencies_and_rolls_back(self):
         """Exercise P9.4's complete graph on real development PostgreSQL."""

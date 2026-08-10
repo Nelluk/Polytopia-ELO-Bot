@@ -5,6 +5,7 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
+from modules import confirmation_publication
 from modules import image_storage
 from modules import leaderboard_views
 from modules import leaderboard_workers
@@ -29,6 +30,8 @@ from modules import member_identity_workers
 from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
+from modules import game_result_publication
+from modules import game_unwin
 from modules import game_win
 from modules import game_map
 from modules import game_side
@@ -4479,80 +4482,20 @@ class polygames(commands.Cog):
         if ctx.interaction is not None:
             await ctx.defer()
 
-        coordinator = settings.elo_job_coordinator
-        active_job = coordinator.active_job
-        if active_job is not None:
-            logger.info('Skipping unwin due to active ELO job: %s', active_job)
-            return await ctx.send(
-                f':warning: {ctx.author.mention} - ELO operation '
-                f'`{active_job.operation}` for game '
-                f'`{active_job.game_id or "all"}` is already running. '
-                'Please try again in a few minutes.'
-            )
-
-        requester_description = models.GameLog.member_string(ctx.author)
-        lock_acquired = False
-
-        def lock_game():
-            nonlocal lock_acquired
-            utilities.lock_game(game_id)
-            lock_acquired = True
-
-        def unlock_game():
-            if lock_acquired:
-                utilities.unlock_game(game_id)
-
-        try:
-            async with ctx.typing():
-                result = await coordinator.run(
-                    operation='unwin',
-                    game_id=game_id,
-                    requester_id=ctx.author.id,
-                    requester_name=ctx.author.display_name,
-                    worker=elo_workers.unwin_game,
-                    worker_args=(
-                        game_id,
-                        ctx.guild.id,
-                        ctx.author.id,
-                        requester_description,
-                        settings.is_staff(ctx.author),
-                    ),
-                    before_submit=lock_game,
-                    after_complete=unlock_game,
-                )
-        except EloJobConflict as exc:
-            active_job = exc.active_job
-            return await ctx.send(
-                f':warning: {ctx.author.mention} - ELO operation '
-                f'`{active_job.operation}` for game '
-                f'`{active_job.game_id or "all"}` is already running. '
-                'Please try again in a few minutes.'
-            )
-        except elo_workers.UnwinValidationError as exc:
-            return await ctx.send(str(exc))
-        except peewee.PeeweeException:
-            logger.exception('Database failure while processing unwin %s', game_id)
-            return await ctx.send(
-                f'Game {game_id} could not be reset because the database '
-                'operation failed. No Discord channel updates were made.'
-            )
-        except Exception:
-            logger.exception('Unexpected failure while processing unwin %s', game_id)
-            return await ctx.send(
-                f'Game {game_id} could not be reset. No Discord channel '
-                'updates were made.'
-            )
-
-        if result.post_unwin_messaging:
-            game = Game.load_full_game(game_id=result.game_id)
-            await post_unwin_messaging(
-                ctx.guild,
-                ctx.prefix,
-                ctx.channel,
-                game,
-                previously_confirmed=result.previously_confirmed,
-            )
-        await ctx.send(result.message)
+        request = game_unwin.build_request(
+            game_id=game_id,
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            prefix=ctx.prefix,
+        )
+        return await game_unwin.run_unwin(
+            request,
+            guild=ctx.guild,
+            current_channel=ctx.channel,
+            send=ctx.send,
+            post_unwin_publisher=post_unwin_messaging,
+            typing_context=ctx.typing,
+        )
 
     @game_result_group.command(
         name='undo',
@@ -6169,52 +6112,31 @@ async def post_win_messaging(
     guild,
     prefix,
     current_chan,
-    winning_game,
-    *,
-    write_audit: bool = True,
+    snapshot,
 ):
-
-    purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category has "archive" in the name, or has "Manage Channel" denied to me.'
-    reminder_message = ''
-    if winning_game.is_season_game():
-        reminder_message = f'\n:bulb: Please use `{prefix}setmap` to log the map and `{prefix}settribes` to log the tribes that were selected.'
-        purge_message = f'This channel will not be purged as it is a Season game.\n{reminder_message}'
-    elif winning_game.is_uncaught_season_game():
-        reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
-
-    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
-    if write_audit:
-        models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message='Win is confirmed and ELO changes processed.')
-    embed, content = winning_game.embed(guild=guild, prefix=prefix)
-
-    for l in winning_game.lineup:
-        await achievements.set_experience_role(l.player.discord_member)
-
-    logger.debug(f'calling auto_grad_novas from post_win_messaging for game {winning_game.id}')
-    await auto_grad_novas(guild, winning_game, current_chan)
-    
-    if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
-        channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
-        if channel is not None:
-            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}')
-            await image_storage.send_game_embed(channel, winning_game, embed=embed)
-            return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
-
-    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
-    await image_storage.send_game_embed(
-        current_chan, winning_game, embed=embed, content=content
+    await confirmation_publication.publish_confirmed_game(
+        guild=guild,
+        prefix=prefix,
+        current_channel=current_chan,
+        snapshot=snapshot,
+        bot=settings.bot,
     )
 
 
-async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
-
-    await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message='The game has reset to *Incomplete* status.')
-
-    if previously_confirmed:
-        for l in game.lineup:
-            await achievements.set_experience_role(l.player.discord_member)
-
-    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(game.mentions())}')
+async def post_unwin_messaging(
+    guild,
+    prefix,
+    current_chan,
+    snapshot,
+    previously_confirmed: bool = False,
+):
+    del guild, prefix
+    await game_result_publication.publish_unwin_result(
+        snapshot=snapshot,
+        current_channel=current_chan,
+        previously_confirmed=previously_confirmed,
+        bot=settings.bot,
+    )
 
 
 async def post_newgame_messaging(
