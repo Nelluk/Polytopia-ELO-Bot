@@ -379,7 +379,7 @@ would become unavailable if a prefix is retired.
 | C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
-| C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integration and guild-only deployment pending |
+| C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `a13d440`; owner acceptance/first real use optional |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -489,9 +489,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.5 is Implemented on
-`codex/p9-5-player-deletion` at checkpoint `6ea6a55`, based on accepted
-checkpoint `9f961c7`. Owner-only `/operator player delete` now provides the
+Current active unit: **P9.5 is Complete, integrated, and development-guild
+deployed from code checkpoint `a13d440`. Owner-only
+`/operator player delete` now provides the
 private account-wide orphan inventory, protected-identity and dependency
 checks, stale fingerprint, exact typed confirmation, explicit locked
 transaction/audit graph, cancellation drain, and post-commit public result;
@@ -500,7 +500,10 @@ passed 47 tests and complete offline discovery passed 1,439 with 61 intentional
 database-gated skips. The stopped-beta suite then ran 60 tests: 59 passed and
 one operator-owned fixture round-trip intentionally skipped; the P9.5 case
 proved commit, all blocker classes, audit rollback, and cleanup. The next gate
-is integration and explicit development-guild `/operator` update.** P9.4 is Complete,
+updated only `/operator`, post-inspection converged across all eleven roots,
+and the guarded beta authenticated as the expected application with exactly
+one development writer. The next bounded unit is a read-only P9.6 audit of
+owner-only `$backup_db` / `$dbb`.** P9.4 is Complete,
 integrated, and deployed from checkpoint `6e0d36a`.
 `/operator player migrate` now provides the configured-superuser private graph
 preview, stale fingerprint, complete worker-local atomic dependency merge and
@@ -11673,8 +11676,7 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.4 complete; P9.5 implemented and real-schema
-validated pending integration and deployment**
+Status: **In progress; P9.0–P9.5 complete**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -12201,7 +12203,7 @@ blocked only on acceptance or revision of its six decisions.
 
 ### P9.5 — Owner-only orphan player deletion
 
-Status: **Implemented and real-schema validated; integration pending**
+Status: **Complete; integrated and development-guild deployed**
 
 Risk tier: **Tier 3 destructive account-wide identity deletion**. Audit
 branch: `codex/p9-5-player-deletion-audit` from exact clean accumulation
@@ -12376,11 +12378,31 @@ Validation at the implementation checkpoint:
   proved Lineup/host/bid/API blockers, injected audit rollback, and explicitly
   cleaned every temporary row.
 
-No production, dependency, or Discord operation occurred. The guarded beta was
-stopped cleanly for the database gate and the host-wide development-writer
-audit was clear. Next: integrate the two P9.5 checkpoints, inspect and apply
-only the changed development-guild `/operator` root, verify convergence, and
-restart the guarded beta from the clean integrated checkpoint.
+During source implementation, no production, dependency, or Discord operation
+occurred. The guarded beta was then stopped cleanly for the database gate and
+the host-wide development-writer audit was clear before the reviewed
+integration/deployment sequence below.
+
+Deployment evidence:
+
+- fast-forwarded the complete P9.5 branch through `a13d440` into
+  `codex/database-slash-modernization`;
+- remote inspection found exactly one update—the existing `/operator` root—
+  with the other ten development-guild roots unchanged and no create/remove;
+- explicit guild-only apply used all no-global-sync acknowledgements, and
+  immediate post-inspection reported all eleven roots unchanged against
+  policy;
+- started only `polybot-development-beta@main.service` from exact clean code
+  checkpoint `a13d440a971366fac268a427b9684c0564f7da02`; it authenticated as
+  **PolyELO Bot Beta** application `479029527553638401`, and the host-wide
+  process audit found exactly one development writer, PID `3594820`; and
+- no wider-tester announcement was sent because this is a rare destructive
+  owner-only command. Owner acceptance or its first carefully reviewed real
+  use is sufficient.
+
+Next action: P9.6 should audit `$backup_db` / `$dbb` as an owner-only host
+operation before deciding whether Discord-triggered backup remains useful or
+should defer entirely to the established operational backup mechanism.
 
 ## Standard work-unit template
 
@@ -13334,6 +13356,22 @@ replacement; no prolonged hybrid window is required on the modernization
 branch.
 
 ## Progress log
+
+### 2026-08-10 — P9.5 integrated and deployed guild-only
+
+- Fast-forwarded the reviewed implementation and real-schema evidence into
+  the accumulation branch through code/evidence checkpoint `a13d440`.
+- Remote inspection found only the existing `operator` root changed; explicit
+  development-guild apply and immediate re-inspection converged with all
+  eleven roots unchanged and no global operation.
+- Started only the guarded beta from exact clean checkpoint
+  `a13d440a971366fac268a427b9684c0564f7da02`; it authenticated as application
+  `479029527553638401` and the host-wide audit found one development writer,
+  PID `3594820`.
+- Chose no announcement because the new workflow is owner-only and
+  destructive; owner acceptance/first real use remains optional.
+- Selected a read-only P9.6 `$backup_db` / `$dbb` audit as the next bounded
+  unit.
 
 ### 2026-08-10 — P9.5 stopped-beta real-schema gate passed
 
