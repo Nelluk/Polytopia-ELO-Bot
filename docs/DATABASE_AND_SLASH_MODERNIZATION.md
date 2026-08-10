@@ -490,14 +490,14 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.7b implementation/tests are Complete on isolated
-branch `codex/p9-7b-confirmation-snapshot` at `c6355a3`, from exact clean
-accumulation base `3cfb2de`; roadmap evidence and accumulation integration are
-in progress. Confirmation now returns one bounded worker-loaded immutable
-publication/effect snapshot after its transaction commits. Discord publication
-is model-free, and snapshot/publication failures retain P9.7a's truthful
-reconciliation semantics. The extended real-schema regression remains behind
-the unchanged development gate and is deferred to a stopped-writer window.**
+Current active unit: **P9.7b is Complete in the accumulation branch at merge
+checkpoint `3444d5d` (code/test `c6355a3`, evidence `16c52c1`), from exact
+clean accumulation base `3cfb2de`. Confirmation now returns one bounded
+worker-loaded immutable publication/effect snapshot after its transaction
+commits. Discord publication is model-free, and snapshot/publication failures
+retain P9.7a's truthful reconciliation semantics. The extended real-schema
+regression remains behind the unchanged development gate and is deferred to a
+stopped-writer window.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12662,11 +12662,12 @@ eligibility revalidation should then follow as a separate recurring-task unit.
 
 ### P9.7b — Immutable confirmation publication/effect snapshot
 
-Status: **Implementation/tests complete on the isolated unit branch;
-accumulation integration and stopped-writer real-schema evidence pending**
+Status: **Complete in the accumulation branch; stopped-writer real-schema
+evidence pending**
 
 Branch/base: `codex/p9-7b-confirmation-snapshot`, exact clean accumulation base
-`3cfb2de`. Implementation/tests checkpoint: `c6355a3`.
+`3cfb2de`. Implementation/tests checkpoint: `c6355a3`; roadmap evidence:
+`16c52c1`; accumulation merge: `3444d5d`.
 
 This bounded H4 correction removes confirmation's synchronous post-commit
 `Game.load_full_game()` call from the Discord event loop and prevents a live
@@ -13693,6 +13694,8 @@ branch.
 - Extended the gated PostgreSQL regression without stopping the active durable
   beta. Ordinary win/unwin, rank/unstart, and H5 automatic discovery remain
   explicitly separate follow-up units.
+- Recorded roadmap evidence at `16c52c1` and integrated the reviewed unit into
+  the accumulation branch at merge checkpoint `3444d5d`.
 
 ### 2026-08-10 — P9.7a confirmation semantics corrected
 
