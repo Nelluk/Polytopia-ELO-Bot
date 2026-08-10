@@ -501,7 +501,10 @@ environment failures. The unit-specific real-schema verifier passes, followed
 by the complete stopped-writer gate at 68 tests: 67 passed and one
 operator-owned fixture round trip intentionally skipped. The offline desired
 development-guild plan remains the same eleven roots; no apply is warranted.
-Clean accumulation push and guarded-beta reload remain.**
+Clean close-out `e660ce8` is pushed and loaded by the healthy guarded beta as
+PID `3859047` at that exact startup checkpoint. The expected application is
+ready, exactly one development writer exists, and the startup log proves the
+identity-gated snapshot completed. No tester announcement was warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13183,7 +13186,7 @@ tester checklist edit, or announcement is warranted.
 
 ### P9.11 — H8 authenticated startup identity before database effects
 
-Status: **Complete in the accumulation branch; guarded-beta reload pending**
+Status: **Complete in the accumulation branch and loaded by the guarded beta**
 
 Branch/base: `codex/h8-startup-identity-ordering`, exact clean accumulation
 base `3405ea33108f90694f990db5323bd50623d10537`. Implementation/tests
@@ -14218,8 +14221,22 @@ Retire `$purge_game_channels` with this replacement.
   `00e23c9`. The offline desired development-guild command plan still contains
   exactly the established eleven roots. H8 changes no registered shape, so no
   remote inspect/apply is warranted.
-- Next: push a clean accumulation close-out and reload/verify only the guarded
-  development beta. No tester checklist or announcement is warranted.
+- Clean accumulation close-out `e660ce8` was pushed and the exact GitHub ref
+  verified. The guarded beta prestart writer audit was clear; PID `3859047`
+  runs only the primary checkout with `--skip_tasks`, records exact startup
+  checkpoint `e660ce87a7c6f555becbceba95a00d8f1deb1982`, authenticates as beta
+  application `479029527553638401`, and returns a ready protected inventory.
+  The H8 startup log records one completed snapshot (`44` reset rows, `1`
+  Discord-ID match, `0` Polytopia-ID matches), and the host-wide audit finds
+  exactly that one development writer.
+- Selected no-announcement acceptance because H8 changes only an internal
+  startup safety boundary. No tester checklist edit, command apply, tester or
+  reporter ping, or release message was warranted.
+- Next recommended: close H1 by requiring explicit `POLYBOT_ENV` instead of
+  silently selecting production when unset. Also ready: H2 native/component
+  ban parity. The restart/force/quit owner-lifecycle disposition remains a
+  lower-priority decision-ready cleanup; the current evidence favors retiring
+  all three aliases in favor of guarded host service operations.
 
 ### 2026-08-10 — P9.10/H7 backup cancellation cleanup reviewed
 
