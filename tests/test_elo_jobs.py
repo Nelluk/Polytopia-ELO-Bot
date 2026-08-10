@@ -649,6 +649,7 @@ class EloWorkerTests(unittest.TestCase):
                 'guild_id',
                 'requester_description',
                 'publication_context',
+                'auto_policy',
             ],
         )
         self.assertEqual(
@@ -927,6 +928,78 @@ class EloWorkerTests(unittest.TestCase):
         self.assertEqual(database.commits, 0)
         self.assertEqual(database.rollbacks, 1)
         self.assertEqual(database.connection_closed, 1)
+
+    def test_auto_confirm_revalidates_stale_candidate_before_mutation(self):
+        game = FakeWinGame()
+        game.is_completed = True
+        game.is_ranked = True
+        game.win_claimed_ts = datetime.datetime(2026, 8, 10, 11, 0)
+        game.winner = game.first_side
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+        policy = self.workers.auto_confirmation_workers.AutoConfirmationPolicy(
+            as_of=datetime.datetime(2026, 8, 10, 12, 0),
+        )
+
+        with mock.patch.object(self.workers, 'models', models):
+            with self.assertRaises(
+                self.workers.AutoConfirmationIneligible
+            ):
+                self.workers.confirm_game(
+                    84,
+                    100,
+                    'Automatic confirmation task',
+                    auto_policy=policy,
+                )
+
+        self.assertFalse(game.is_confirmed)
+        self.assertEqual(logs, [])
+        self.assertEqual(database.commits, 0)
+        self.assertEqual(database.rollbacks, 1)
+        self.assertEqual(database.connection_closed, 1)
+
+    def test_auto_confirm_returns_authoritative_confirmation_evidence(self):
+        game = FakeWinGame()
+        game.is_completed = True
+        game.is_ranked = False
+        game.win_claimed_ts = datetime.datetime(2026, 8, 10, 11, 30)
+        game.winner = game.first_side
+        game.first_side.win_confirmed = True
+        game.second_side.win_confirmed = True
+        logs = []
+        database = FakeWinDatabase(game, logs)
+        models = fake_win_models(game, database, logs)
+        policy = self.workers.auto_confirmation_workers.AutoConfirmationPolicy(
+            as_of=datetime.datetime(2026, 8, 10, 12, 0),
+        )
+
+        with mock.patch.object(
+            self.workers,
+            'models',
+            models,
+        ), mock.patch.object(
+            self.workers.confirmation_publication_workers,
+            'build_confirmation_publication_snapshot',
+            return_value=object(),
+        ):
+            result = self.workers.confirm_game(
+                84,
+                100,
+                'Automatic confirmation task',
+                auto_policy=policy,
+            )
+
+        self.assertTrue(game.is_confirmed)
+        self.assertEqual(
+            result.auto_confirmation,
+            self.workers.auto_confirmation_workers.AutoConfirmationEvidence(
+                reason='Due to partial confirmations.',
+                confirmed_count=2,
+                side_count=2,
+            ),
+        )
+        self.assertEqual(database.commits, 1)
 
     def test_delete_game_commits_in_worker_connection(self):
         game = FakeDeleteGame()
@@ -1883,26 +1956,29 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_auto_confirm_continues_after_publication_failure(self):
         now = datetime.datetime.now()
-
-        def eligible_game(game_id):
-            return SimpleNamespace(
-                id=game_id,
-                is_ranked=True,
-                win_claimed_ts=now - datetime.timedelta(hours=25),
-                confirmations_count=lambda: (1, 2, False),
-            )
-
-        class FakeQuery(list):
-            def order_by(self, *_args):
-                return self
-
-        games = FakeQuery([eligible_game(99), eligible_game(100)])
+        auto_workers = self.administration.auto_confirmation_workers
+        policy = auto_workers.AutoConfirmationPolicy(as_of=now)
+        evidence = auto_workers.AutoConfirmationEvidence(
+            reason='Ranked win claimed more than 24 hours ago.',
+            confirmed_count=1,
+            side_count=2,
+        )
+        batch = auto_workers.AutoConfirmationBatch(
+            guild_id=100,
+            policy=policy,
+            unconfirmed_count=2,
+            candidates=(
+                auto_workers.AutoConfirmationCandidate(99, evidence),
+                auto_workers.AutoConfirmationCandidate(100, evidence),
+            ),
+            truncated=False,
+        )
         results = [
             self.administration.elo_workers.ConfirmedWinResult(
-                99, 'Alpha', object()
+                99, 'Alpha', object(), evidence
             ),
             self.administration.elo_workers.ConfirmedWinResult(
-                100, 'Beta', object()
+                100, 'Beta', object(), evidence
             ),
         ]
         publication_error = (
@@ -1921,9 +1997,9 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'elo_job_coordinator',
             SimpleNamespace(is_active=False),
         ), mock.patch.object(
-            self.administration.models.Game,
-            'search',
-            return_value=games,
+            auto_workers,
+            'run_discover_auto_confirmations',
+            new=mock.AsyncMock(return_value=batch),
         ):
             counts = await self.administration.administration.confirm_auto(
                 cog,
@@ -1934,6 +2010,12 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(counts, (2, 2))
         self.assertEqual(cog._run_confirm_game_job.await_count, 2)
+        self.assertEqual(
+            cog._run_confirm_game_job.await_args_list[0].kwargs[
+                'auto_policy'
+            ],
+            policy,
+        )
         self.assertEqual(cog._publish_confirmed_game.await_count, 2)
         sent_messages = [call.args[0] for call in channel.send.await_args_list]
         self.assertTrue(
@@ -1941,6 +2023,249 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(
             any('Game 100 auto-confirmed' in m for m in sent_messages)
+        )
+
+    async def test_auto_confirm_skips_stale_candidate_and_continues(self):
+        auto_workers = self.administration.auto_confirmation_workers
+        policy = auto_workers.AutoConfirmationPolicy(
+            as_of=datetime.datetime.now()
+        )
+        evidence = auto_workers.AutoConfirmationEvidence(
+            reason='Due to partial confirmations.',
+            confirmed_count=2,
+            side_count=2,
+        )
+        batch = auto_workers.AutoConfirmationBatch(
+            guild_id=100,
+            policy=policy,
+            unconfirmed_count=2,
+            candidates=(
+                auto_workers.AutoConfirmationCandidate(99, evidence),
+                auto_workers.AutoConfirmationCandidate(100, evidence),
+            ),
+            truncated=False,
+        )
+        result = self.administration.elo_workers.ConfirmedWinResult(
+            100,
+            'Beta',
+            object(),
+            evidence,
+        )
+        channel = SimpleNamespace(send=mock.AsyncMock())
+        cog = SimpleNamespace(
+            _run_confirm_game_job=mock.AsyncMock(side_effect=[
+                self.administration.elo_workers.AutoConfirmationIneligible(),
+                result,
+            ]),
+            _publish_confirmed_game=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ), mock.patch.object(
+            auto_workers,
+            'run_discover_auto_confirmations',
+            new=mock.AsyncMock(return_value=batch),
+        ):
+            counts = await self.administration.administration.confirm_auto(
+                cog,
+                SimpleNamespace(id=100),
+                '$',
+                channel,
+            )
+
+        self.assertEqual(counts, (2, 1))
+        self.assertEqual(cog._run_confirm_game_job.await_count, 2)
+        cog._publish_confirmed_game.assert_awaited_once_with(
+            result=result,
+            guild=mock.ANY,
+            prefix='$',
+            channel=channel,
+        )
+        self.assertTrue(any(
+            'Game 100 auto-confirmed' in call.args[0]
+            for call in channel.send.await_args_list
+        ))
+
+    async def test_auto_confirm_continues_after_committed_snapshot_failure(self):
+        auto_workers = self.administration.auto_confirmation_workers
+        policy = auto_workers.AutoConfirmationPolicy(
+            as_of=datetime.datetime.now()
+        )
+        evidence = auto_workers.AutoConfirmationEvidence(
+            reason='Due to partial confirmations.',
+            confirmed_count=2,
+            side_count=2,
+        )
+        batch = auto_workers.AutoConfirmationBatch(
+            guild_id=100,
+            policy=policy,
+            unconfirmed_count=2,
+            candidates=(
+                auto_workers.AutoConfirmationCandidate(99, evidence),
+                auto_workers.AutoConfirmationCandidate(100, evidence),
+            ),
+            truncated=False,
+        )
+        committed = self.administration.elo_workers.ConfirmedWinResult(
+            99,
+            'Alpha',
+            auto_confirmation=evidence,
+        )
+        second = self.administration.elo_workers.ConfirmedWinResult(
+            100,
+            'Beta',
+            object(),
+            evidence,
+        )
+        channel = SimpleNamespace(send=mock.AsyncMock())
+        cog = SimpleNamespace(
+            _run_confirm_game_job=mock.AsyncMock(side_effect=[
+                self.administration.elo_workers.ConfirmedWinSnapshotError(
+                    committed
+                ),
+                second,
+            ]),
+            _publish_confirmed_game=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ), mock.patch.object(
+            auto_workers,
+            'run_discover_auto_confirmations',
+            new=mock.AsyncMock(return_value=batch),
+        ):
+            counts = await self.administration.administration.confirm_auto(
+                cog,
+                SimpleNamespace(id=100),
+                '$',
+                channel,
+            )
+
+        self.assertEqual(counts, (2, 2))
+        cog._publish_confirmed_game.assert_awaited_once()
+        self.assertTrue(any(
+            'Do not confirm it again' in call.args[0]
+            for call in channel.send.await_args_list
+        ))
+
+    async def test_auto_confirm_cycle_contains_one_guild_failure(self):
+        first_channel = SimpleNamespace(send=mock.AsyncMock())
+        second_channel = SimpleNamespace(send=mock.AsyncMock())
+        first_guild = SimpleNamespace(
+            id=100,
+            get_channel=lambda _channel_id: first_channel,
+        )
+        second_guild = SimpleNamespace(
+            id=200,
+            get_channel=lambda _channel_id: second_channel,
+        )
+        cog = SimpleNamespace(
+            bot=SimpleNamespace(guilds=(first_guild, second_guild)),
+            confirm_auto=mock.AsyncMock(side_effect=[
+                peewee.OperationalError('first guild failed'),
+                (3, 1),
+            ]),
+        )
+
+        def guild_setting(_guild_id, setting):
+            return 999 if setting == 'log_channel' else '$'
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ), mock.patch.object(
+            self.administration.settings,
+            'guild_setting',
+            side_effect=guild_setting,
+        ), mock.patch.object(self.administration.logger, 'exception'):
+            await (
+                self.administration.administration.run_confirm_auto_cycle(cog)
+            )
+
+        self.assertEqual(cog.confirm_auto.await_count, 2)
+        second_channel.send.assert_awaited_once_with(
+            'Autoconfirm process complete. 1 games auto-confirmed. '
+            '2 games left unconfirmed.'
+        )
+
+    async def test_auto_confirm_later_cycle_runs_after_prior_failure(self):
+        channel = SimpleNamespace(send=mock.AsyncMock())
+        guild = SimpleNamespace(
+            id=100,
+            get_channel=lambda _channel_id: channel,
+        )
+        cog = SimpleNamespace(
+            bot=SimpleNamespace(guilds=(guild,)),
+            confirm_auto=mock.AsyncMock(side_effect=[
+                peewee.OperationalError('first cycle failed'),
+                (1, 0),
+            ]),
+        )
+
+        def guild_setting(_guild_id, setting):
+            return 999 if setting == 'log_channel' else '$'
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ), mock.patch.object(
+            self.administration.settings,
+            'guild_setting',
+            side_effect=guild_setting,
+        ), mock.patch.object(self.administration.logger, 'exception'):
+            await (
+                self.administration.administration.run_confirm_auto_cycle(cog)
+            )
+            await (
+                self.administration.administration.run_confirm_auto_cycle(cog)
+            )
+
+        self.assertEqual(cog.confirm_auto.await_count, 2)
+
+    async def test_prefix_auto_confirm_retains_public_summary(self):
+        command = next(
+            command
+            for command in self.administration.administration.__cog_commands__
+            if command.name == 'confirm'
+        )
+        messages = []
+        context = SimpleNamespace(
+            guild=SimpleNamespace(id=100),
+            prefix='$',
+            channel=SimpleNamespace(),
+            author=SimpleNamespace(mention='<@300>'),
+            send=mock.AsyncMock(
+                side_effect=lambda message: messages.append(message)
+            ),
+        )
+        cog = SimpleNamespace(
+            confirm_auto=mock.AsyncMock(return_value=(5, 2))
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(is_active=False),
+        ):
+            await command.callback(cog, context, arg='auto')
+
+        cog.confirm_auto.assert_awaited_once_with(
+            context.guild,
+            '$',
+            context.channel,
+        )
+        self.assertEqual(
+            messages,
+            ['Autoconfirm process complete. 2 games auto-confirmed. '
+             '3 games left unconfirmed.'],
         )
 
     async def test_confirm_slash_defers_before_shared_confirmation(self):

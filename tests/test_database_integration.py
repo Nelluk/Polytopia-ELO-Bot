@@ -6507,6 +6507,155 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
 
+    def test_p97e_auto_confirmation_revalidates_real_schema(self):
+        """Exercise discovery and stale revalidation on development DB."""
+
+        from modules import auto_confirmation_workers, elo_workers
+
+        guild_id = self.settings.server_ids['polychampions']
+        suffix = uuid.uuid4().hex[:10]
+        marker = f'P9.7e-{suffix}'
+        id_base = 8_500_000_000_000_000_000 + (
+            uuid.uuid4().int % 100_000_000
+        )
+        member_ids = []
+        player_ids = []
+        game_id = None
+
+        try:
+            for index, label in enumerate(('Alpha', 'Bravo')):
+                member = self.models.DiscordMember.create(
+                    discord_id=id_base + index,
+                    name=f'{marker}-{label}',
+                    polytopia_name=f'{marker}{label}',
+                )
+                player = self.models.Player.create(
+                    discord_member=member,
+                    guild_id=guild_id,
+                    name=member.name,
+                )
+                member_ids.append(member.id)
+                player_ids.append(player.id)
+
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=player_ids[0],
+                notes=marker,
+                is_pending=False,
+                is_completed=True,
+                is_confirmed=False,
+                is_ranked=False,
+                is_mobile=True,
+                size=[1, 1],
+                win_claimed_ts=datetime.datetime(2000, 1, 1),
+            )
+            game_id = game.id
+            sides = []
+            for position, player_id in enumerate(player_ids, start=1):
+                side = self.models.GameSide.create(
+                    game=game,
+                    position=position,
+                    sidename=f'Side {position}',
+                    size=1,
+                )
+                sides.append(side)
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=side,
+                    player=player_id,
+                )
+            game.winner = sides[0]
+            game.save()
+
+            policy = auto_confirmation_workers.AutoConfirmationPolicy(
+                as_of=datetime.datetime.now()
+            )
+            self.models.db.close()
+            batch = asyncio.run(
+                auto_confirmation_workers.run_discover_auto_confirmations(
+                    auto_confirmation_workers
+                    .AutoConfirmationDiscoveryRequest(
+                        guild_id=guild_id,
+                        policy=policy,
+                    )
+                )
+            )
+            self.assertTrue(self.models.db.is_closed())
+            self.assertIn(
+                game_id,
+                tuple(candidate.game_id for candidate in batch.candidates),
+            )
+
+            self.models.db.connect(reuse_if_open=True)
+            self.models.Game.update(
+                win_claimed_ts=policy.as_of,
+            ).where(self.models.Game.id == game_id).execute()
+            log_count = self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(marker)
+            ).count()
+            self.models.db.close()
+            with self.assertRaises(elo_workers.AutoConfirmationIneligible):
+                elo_workers.confirm_game(
+                    game_id,
+                    guild_id,
+                    marker,
+                    auto_policy=policy,
+                )
+
+            self.models.db.connect(reuse_if_open=True)
+            stale = self.models.Game.get_by_id(game_id)
+            self.assertFalse(stale.is_confirmed)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                log_count,
+            )
+            self.models.GameSide.update(win_confirmed=True).where(
+                self.models.GameSide.game == game_id
+            ).execute()
+            self.models.db.close()
+            result = elo_workers.confirm_game(
+                game_id,
+                guild_id,
+                marker,
+                auto_policy=policy,
+            )
+
+            self.assertTrue(self.models.db.is_closed())
+            self.assertEqual(
+                result.auto_confirmation.reason,
+                'Due to partial confirmations.',
+            )
+            self.assertEqual(result.auto_confirmation.confirmed_count, 2)
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(self.models.Game.get_by_id(game_id).is_confirmed)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                if game_id is not None:
+                    self.models.Game.update(winner=None).where(
+                        self.models.Game.id == game_id
+                    ).execute()
+                    self.models.Lineup.delete().where(
+                        self.models.Lineup.game == game_id
+                    ).execute()
+                    self.models.GameSide.delete().where(
+                        self.models.GameSide.game == game_id
+                    ).execute()
+                    self.models.Game.delete().where(
+                        self.models.Game.id == game_id
+                    ).execute()
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids or (-1,))
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.id.in_(member_ids or (-1,))
+                ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(marker)
+                ).execute()
+
     def test_p97d_rank_unstart_snapshots_use_real_schema(self):
         """Exercise correction snapshots on development PostgreSQL."""
 
