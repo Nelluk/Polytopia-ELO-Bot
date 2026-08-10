@@ -485,12 +485,13 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **No code unit is active. P7.15 is Complete, integrated,
-pushed, and running on the guarded development beta through `a247641`; P7 is
-technically Complete. The next recommended unit is a read-only P8.25
-league/administration close-out audit to reconcile the long P8 sequence and
-identify any remaining event-loop database, transaction/effect, or command-
-conversion seam before either closing P8 or selecting one final cleanup.** P6.3 asynchronous prefix
+Current active unit: **No code unit is active. P8.25 is Complete at its
+documentation checkpoint on `codex/p8-25-closeout-audit` from exact clean
+accumulation checkpoint `e72c4c9`. The audit keeps P8 In progress and selects
+P8.26, a bounded native/shared-worker team-archive unit, as the next code
+unit. P8.27 should then move the production-only PolyChampions invitation task
+off the event loop before P8 closes.** P7.15 is Complete, integrated, pushed, and running on the guarded
+development beta through `a247641`; P7 is technically Complete. P6.3 asynchronous prefix
 registration checks is complete, integrated, pushed, and loaded by the
 guarded beta through `ea23fc7`. It replaces the one remaining shared event-loop
 `DiscordMember` query used by 18 prefix handlers with a bounded, worker-local
@@ -899,10 +900,10 @@ this decision does not authorize production deployment or synchronization.
 | P2 | Complete | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | Complete | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
-| P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
+| P4 | Complete | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Complete | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
-| P6 | In progress | Registration and player preferences | Worker-safe profile writes and slash UX |
-| P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
+| P6 | Complete | Registration and player preferences | Worker-safe profile writes and slash UX |
+| P7 | Complete | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
 | P9 | Planned | Production rollout and remaining per-unit prefix lifecycle decisions, with the approved WB1.1 staffhelp retirement retained | Approved production-safe intake/retention decision, deployment, monitoring, and separate lifecycle plan |
@@ -10758,6 +10759,159 @@ join/leave workers. Preserve reaction behavior and messages. The later expired-
 game purge writer remains a separate unit because its database/Discord effect
 and retry policy requires explicit design.
 
+### P8.25 — League and administration phase close-out audit
+
+Status: **Complete; P8 remains In progress with two bounded seams selected**
+
+Risk tier: **Tier 1 read-only repository audit**. The audit itself changes no
+command, listener, database, Discord state, capability, fixture, runtime,
+dependency, or production surface.
+
+Branch/base: `codex/p8-25-closeout-audit` from exact clean accumulation
+checkpoint `e72c4c9`.
+
+Audit contract:
+
+- reconcile every P8.1–P8.24 unit and its compatibility decision against the
+  current command/listener registrations rather than stale intermediate
+  status labels;
+- inventory the native team, house, league, roster/free-agent, moderation,
+  and administrative surfaces plus the retained prefix adapters and retired
+  aliases approved by the compatibility ledger;
+- trace database reads/writes, transactions, worker-local connection
+  ownership, cancellation, Discord post-commit effects, listener ordering,
+  filesystem/image work, and loaded-state Components behavior through the
+  actual adapters/services/workers;
+- search in-scope event/listener and command code for direct Peewee work on
+  the event loop, live model/lazy-query boundaries, Discord awaits inside
+  transactions, default/unbounded executors, blocking render/filesystem work,
+  partial mutation graphs, and retryable presentation after commit;
+- separate genuine P8 debt from completed P4/P5/P6/P7 work, WB1 wider-beta
+  acceptance, P9 production/prefix lifecycle, and intentionally legacy
+  Bullet/anti-scam/API surfaces; and
+- either mark P8 technically Complete or define the smallest ordered cleanup
+  unit(s) with exact risks, tests, and gates.
+
+Audit findings:
+
+- P8.1–P8.24 are present in the current tree with the recorded command and
+  compatibility shape. Native team/House/league/free-agent/roster/maintenance
+  commands route database work through bounded executors and worker-local
+  connections. Retained prefix adapters for those implemented products share
+  the same services, except for the archive branch described below.
+- The P8 worker graph uses primitive/frozen request and result boundaries,
+  bounded executors, synchronous transactions, cancellation draining where a
+  submitted write cannot be cancelled, and post-commit Discord/filesystem
+  reconciliation. No Discord `await` was found inside an in-scope worker
+  transaction. Team/House image staging and Matplotlib rendering use their
+  dedicated bounded filesystem/render paths rather than the event loop or a
+  shared output filename.
+- The member join, deleted-channel, member identity/moderation, league channel
+  cache, and team-role listeners now freeze Discord state before worker
+  submission and perform Discord reconciliation after database completion.
+  The free-agent reaction path likewise uses the P8.13b worker boundary.
+- `get_team_roles`, `get_house_roles`, the old House-preference component
+  classes, and the auction helpers in `modules/league.py` have no active
+  command/listener/task callers. They are legacy dead code, not an executing
+  database boundary; removal can be handled as ordinary later cleanup.
+- One retained command is still an active P8 database violation:
+  `$team_edit TEAM ARCHIVE` resolves the Team, counts incomplete games, writes
+  `Team.is_archived`, and writes `GameLog` directly on the Discord event loop,
+  with no atomic rollback boundary between the Team and audit. This is P8.26.
+- One enabled-production background path remains in P8 scope:
+  `task_send_polychamps_invite` performs a potentially large DiscordMember and
+  game-history eligibility scan on the event loop every two hours, interleaves
+  DMs, and saves invitation timestamps directly. Development has
+  `run_tasks=False`, so this path is not exercised by the durable beta. This is
+  P8.27 and requires a production-parity policy test rather than enabling
+  background tasks on beta.
+- Rare prefix/operator repair commands (`purge_game_channels`,
+  `tribe_emoji`, `ptrophies`, `boost_from`, `migrate_player`,
+  `delete_player`, and `backup_db`) remain outside the native command tree and
+  retain legacy synchronous internals. They do not block P8's user/staff
+  league surface, but P9 must explicitly choose retire, CLI/offline replacement,
+  or worker hardening for each before production cutover; none may silently be
+  presented as modernized.
+- The phase summary had stale P4/P6/P7 `In progress` cells despite their
+  recorded technical close-outs. P8.25 corrects those cells without changing
+  any phase scope or code.
+
+P8 is therefore not technically Complete. The audit selects P8.26 first
+because it is the smallest active retained command violation, followed by
+P8.27 because it is an automatically recurring production event-loop read and
+write path. Operator-only disposition remains a separately reviewed P9 gate.
+
+Validation/evidence:
+
+- inspected every P8 command/listener registration and corresponding service,
+  worker, compatibility decision, and focused test module in the current
+  repository tree;
+- searched the in-scope adapters/workers for direct Peewee calls, executor
+  creation, connection/transaction ownership, cancellation handling,
+  blocking filesystem/render work, and Discord awaits across transactions;
+- confirmed all current P8 executor definitions are explicitly bounded and
+  all active worker database entry points use worker-local connection scopes;
+- application-command management/policy, beta-operations, and slash-taxonomy
+  focus: **58 passed**;
+- complete offline discovery: **1,368 passed with 56 intentional
+  database-gated skips**;
+- `git diff --check`: passed;
+- no PostgreSQL gate, command apply/sync, beta lifecycle, tester announcement,
+  fixture, dependency, production, or sudo action was required or performed.
+
+### P8.26 — Team archive worker and native action
+
+Status: **Planned; next code unit**
+
+Recommended bounded contract:
+
+- add Mod-only `/team archive team confirm` within the existing team-enabled
+  development capability and PolyChampions/test scope; require explicit true
+  confirmation and do not add an unarchive operation;
+- preserve `$team_edit TEAM ARCHIVE` and `$team_tier`, but route the archive
+  branch through the same shared service/worker;
+- freeze guild, actor, exact-role, and requested-team primitives before worker
+  submission; revalidate Mod authority and supported-guild scope in the shared
+  path rather than relying only on decorators;
+- reload the Team inside a worker-local connection and one synchronous
+  transaction; reject already archived teams, House-affiliated teams, and
+  teams with incomplete games; commit `Team.is_archived` and the actor-
+  attributed `GameLog` together;
+- preserve the existing exact Discord team-role preflight and do not rename,
+  delete, or edit Discord roles/channels as part of archival;
+- defer slash immediately, keep validation/permission/database failures
+  private, and publish the existing strong archival warning publicly only
+  after commit; and
+- add focused permission, confirmation, prefix-parity, rollback, connection,
+  cancellation/responsiveness, registration, and post-commit publication
+  coverage plus the unchanged complete offline and gated development-database
+  suites.
+
+This is a slash-schema addition. Integration can occur after offline and
+real-schema review, but development-guild command apply/sync and beta restart
+remain a separate deployment gate. The user-facing decision still available
+before implementation is whether to omit the native action and modernize only
+the retained prefix path; the recommended default is to add the confirmed
+native action because archival is a coherent Mod workflow and the `/team`
+root has capacity.
+
+### P8.27 — PolyChampions invitation task database boundary
+
+Status: **Planned after P8.26**
+
+Move the two-hour invitation eligibility scan and committed invitation-
+timestamp write to bounded worker-local operations. Capture immutable eligible
+member DTOs, perform DMs only after the read finishes, and persist each
+successful delivery idempotently without holding a transaction across Discord
+awaits. Preserve the existing qualification thresholds and production-only
+task policy. Do not enable background tasks on the beta merely to test this
+unit; use offline fault injection, the gated development schema, and an
+explicit production-parity review before P9.
+
+After P8.26 and P8.27, rerun this phase's residual direct-database search. If
+only the explicitly deferred operator-only paths and dead helpers remain, mark
+P8 technically Complete and carry their exact disposition table into P9.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
@@ -12255,6 +12409,36 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.25 league/administration close-out audit completed
+
+- Reconciled P8.1–P8.24 against the current team, House, league, free-agent,
+  roster, maintenance, and listener registrations rather than relying on
+  intermediate roadmap status prose.
+- Confirmed that the implemented native commands and retained adapters use
+  bounded worker-local database paths, synchronous transactions, immutable
+  boundaries, and post-commit Discord/filesystem effects. Confirmed the P8.20–
+  P8.24 listener chain and P8.13b reaction chain retain those boundaries.
+- Found one active retained command violation: `$team_edit TEAM ARCHIVE` still
+  performs its Team lookup, incomplete-game count, Team write, and audit on the
+  event loop without one atomic rollback boundary. Selected P8.26 to add a
+  confirmed Mod-only `/team archive` and route both interfaces through one
+  bounded worker.
+- Found one recurring production-only boundary: the two-hour PolyChampions
+  invitation task scans game history and saves invitation timestamps on the
+  event loop around Discord DMs. Selected P8.27 to separate its bounded read,
+  Discord effects, and idempotent writes without enabling beta background
+  tasks.
+- Classified the remaining destructive/repair prefix commands as explicit P9
+  disposition items and unused league helpers as dead code, rather than
+  inaccurately claiming either group was modernized. Corrected stale phase-
+  summary cells for already closed P4, P6, and P7.
+- Passed **58** application-command management/policy, beta-operations, and
+  slash-taxonomy tests; complete offline discovery passed **1,368 tests with
+  56 intentional database-gated skips**; `git diff --check` passed.
+- Performed no database, Discord, beta, capability, fixture, dependency,
+  production, or sudo operation. Next: implement P8.26; then P8.27 and one
+  final residual search can close P8 technically.
 
 ### 2026-08-09 — P7.15 integrated, deployed, and P7 closed
 
