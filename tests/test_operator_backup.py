@@ -54,6 +54,7 @@ class FakeProcess:
         self.pid = 12345
         self.returncode = None if blocked else returncode
         self.release = asyncio.Event()
+        self.wait_completed = asyncio.Event()
         if not blocked:
             self.release.set()
         self.stdout = asyncio.StreamReader()
@@ -64,6 +65,7 @@ class FakeProcess:
 
     async def wait(self):
         await self.release.wait()
+        self.wait_completed.set()
         return self.returncode
 
 
@@ -219,6 +221,79 @@ class BackupExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await task
         self.assertIsNone(coordinator.active)
         self.assertTrue(process.release.is_set())
+
+    async def test_repeated_cancellation_keeps_claim_through_reap_and_drain(self):
+        process = FakeProcess(blocked=True)
+        coordinator = backup.BackupCoordinator()
+        termination_started = asyncio.Event()
+        release_termination = asyncio.Event()
+        release_streams = asyncio.Event()
+        process_spawned = asyncio.Event()
+        stream_drains = 0
+
+        async def spawn(_script):
+            process_spawned.set()
+            return process
+
+        async def blocked_termination(_process, wait_task):
+            termination_started.set()
+            await release_termination.wait()
+            process.returncode = -15
+            process.release.set()
+            await asyncio.shield(wait_task)
+
+        async def blocked_stream_drain(_stream):
+            nonlocal stream_drains
+            await release_streams.wait()
+            stream_drains += 1
+            return b'', False
+
+        with mock.patch.object(backup, 'validate_runtime', new=mock.AsyncMock()), \
+                mock.patch.object(
+                    backup,
+                    '_spawn_process',
+                    new=mock.AsyncMock(side_effect=spawn),
+                ), mock.patch.object(
+                    backup,
+                    '_terminate_process',
+                    new=mock.AsyncMock(side_effect=blocked_termination),
+                ) as terminate, mock.patch.object(
+                    backup,
+                    '_read_bounded',
+                    side_effect=blocked_stream_drain,
+                ):
+            task = asyncio.create_task(
+                coordinator.run(request(), runtime=runtime())
+            )
+            await asyncio.wait_for(process_spawned.wait(), 0.2)
+            self.assertIsNotNone(coordinator.active)
+
+            task.cancel()
+            await asyncio.wait_for(termination_started.wait(), 0.2)
+            task.cancel()
+            await asyncio.sleep(0.01)
+            self.assertFalse(task.done())
+            self.assertIsNotNone(coordinator.active)
+            with self.assertRaises(backup.BackupConflictError):
+                await coordinator.run(
+                    request(requester_id=11), runtime=runtime()
+                )
+
+            release_termination.set()
+            await asyncio.wait_for(process.release.wait(), 0.2)
+            await asyncio.sleep(0.01)
+            self.assertFalse(task.done())
+            self.assertIsNotNone(coordinator.active)
+            self.assertEqual(stream_drains, 0)
+
+            release_streams.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        terminate.assert_awaited_once()
+        self.assertTrue(process.wait_completed.is_set())
+        self.assertEqual(stream_drains, 2)
+        self.assertIsNone(coordinator.active)
 
 
 class BackupAdapterTests(unittest.IsolatedAsyncioTestCase):
