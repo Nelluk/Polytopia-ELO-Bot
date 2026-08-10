@@ -490,20 +490,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.9 owner-only manual channel purge is Complete in the
-accumulation branch at merge checkpoint `cc4d4a3`, from exact clean
-accumulation base `3ae0b68`. `/operator channels purge mode` provides private,
-bounded, exact-selection previews for stale, capacity, orphan, and missing
-targets; exact `PURGE <count>` confirmation; authoritative Discord and database
-reauthorization; delete-then-conditional-reconcile semantics; and protected
-audit. `$purge_game_channels` is retired. Focused and adjacent validation is
-green at 77 tests. Complete discovery runs 1,560 tests with 68 skips and reaches
-only the three known missing-`duckdb` environment failures. The stopped-writer
-development PostgreSQL gate passed 67 tests with one intentional fixture skip.
-The single development guild applied exactly the changed `operator` root and a
-repeat inspection is unchanged. Clean accumulation close-out `90d3d94` is
-pushed, and the guarded beta is healthy at that exact startup checkpoint as
-PID `3853290`.**
+Current active unit: **P9.10/H7 repeated-cancellation hardening for the manual
+backup child is Tier-3 reviewed and ready for accumulation integration on
+`codex/h7-backup-repeated-cancellation`, from exact clean accumulation base
+`fc861f1`. A cancellation cleanup task now retains coordinator ownership while
+TERM/KILL, child reap, and both bounded output drains complete, even across
+repeated caller cancellation; only then does cancellation propagate. Focused
+and adjacent validation passes 44 tests. Complete discovery runs 1,561 tests
+with 68 skips and reaches only the three known missing-`duckdb` environment
+failures. No production path/artifact was read or executed, and no database or
+command-tree operation is warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13145,6 +13141,44 @@ synchronization disabled. This
 owner-only maintenance workflow does not warrant a tester checklist entry or
 `@testers` announcement unless live validation reveals a tester-facing effect.
 
+### P9.10 — H7 repeated-cancellation-safe manual backup cleanup
+
+Status: **Tier-3 reviewed; ready for accumulation integration**
+
+Branch/base: `codex/h7-backup-repeated-cancellation`, exact clean accumulation
+base `fc861f1`. Implementation/tests checkpoint: `fd3ff8d`.
+
+This bounded Tier-3 correction closes pre-production finding H7 without
+changing the accepted P9.6 product or production boundary. The owner-only
+command, production-only identity/source checks, fixed script, 30-minute
+timeout, TERM/KILL policy, 16-KiB bounded capture, result categories, private
+presentation, structured logs, host lock, and separately approved first real
+production execution remain unchanged.
+
+The subprocess now owns one output-drain task covering both pipes. If the
+caller is cancelled at any point after spawn but before output drain completes,
+the adapter creates a dedicated terminate/reap/drain cleanup task and shields
+it through every later cancellation request. `BackupCoordinator.active`
+therefore remains populated until the process group has terminated, the child
+wait has completed, and both pipes have drained. Cleanup-task failures still
+surface; the code does not claim a successful drain merely because cancellation
+was requested.
+
+The focused regression blocks termination, cancels the outer operation twice,
+asserts another backup remains rejected, releases and proves the child reaped,
+then holds both stream readers and proves ownership remains active until both
+drain. Cancellation propagates and the claim clears only afterward. Focused
+backup tests pass **15/15**; the adjacent backup/deployment/retirement/command
+matrix passes **44/44**. Complete offline discovery runs **1,561 tests with 68
+intentional skips** and reaches only the three documented missing-`duckdb`
+environment failures. Python compilation and `git diff --check` pass.
+
+No real backup, production artifact read, production checkout access, database
+connection, command registration change, dependency operation, schema change,
+or Discord effect occurred. The development beta need only reload the accepted
+code after integration; no stopped-writer database gate, command plan/apply,
+tester checklist edit, or announcement is warranted.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14111,6 +14145,29 @@ conditionally clear the exact reference with protected audit afterward.
 Retire `$purge_game_channels` with this replacement.
 
 ## Progress log
+
+### 2026-08-10 — P9.10/H7 backup cancellation cleanup reviewed
+
+- Reconciled the clean local, tracking, and exact GitHub accumulation ref at
+  `fc861f1`; no H7 branch/worktree existed. The guarded beta was healthy at
+  code checkpoint `90d3d94` as the sole development writer.
+- Created isolated branch/worktree `codex/h7-backup-repeated-cancellation`
+  from that exact base and passed the development-only profile gate.
+- Preserved the complete P9.6 contract while moving termination, child wait,
+  and both pipe drains under one cleanup task that ignores repeated caller
+  cancellation until cleanup actually finishes. Coordinator ownership now
+  spans that entire lifecycle.
+- Added a deterministic regression that blocks termination and stream drain
+  separately, cancels twice, proves conflicts remain rejected at both stages,
+  and verifies reap/drain before cancellation propagation and claim release.
+- Focused backup coverage passed 15 tests; the affected matrix passed 44.
+  Complete discovery ran 1,561 tests with 68 skips and only the three known
+  missing-`duckdb` environment failures. Compilation and diff checks passed.
+- Implementation/tests checkpoint: `fd3ff8d`. Tier-3 complete-diff review
+  found no further blocker. No production, backup, database, command sync,
+  dependency, schema, Discord, or beta lifecycle action occurred.
+- Next: integrate and push this bounded correction, reload only the guarded
+  development beta, then select H8 startup identity ordering as recommended.
 
 ### 2026-08-10 — P9.9 manual channel purge implemented for Tier-3 gate
 
