@@ -17,4 +17,3 @@ class OperatorAccessTests(unittest.TestCase):
     def test_superuser_check_normalizes_discord_ids_to_integers(self):
         with mock.patch.object(settings, 'superuser_ids', (10,)):
             self.assertTrue(settings.is_superuser(SimpleNamespace(id='10')))
-
