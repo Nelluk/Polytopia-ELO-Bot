@@ -486,11 +486,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.27 PolyChampions invitation task database separation
-is Implemented and validated on `codex/p8-27-polychamps-invitations` from exact
-clean accumulation checkpoint `104dd75`; integration, push, and guarded beta
-restart remain. Development background tasks remain disabled, so this unit has
-no beta task execution or slash-tree apply.** P8.26 is
+Current active unit: **No code unit is active. P8.27 is Complete, integrated,
+pushed, and loaded by the guarded development beta through `463f6b6`; its
+production-only task remains disabled in development as designed. The next
+bounded action is the final P8 residual direct-database audit and explicit P9
+disposition table.** P8.26 is
 Complete, integrated, pushed, guild-applied, and loaded by the guarded
 development beta at `41da49e`. P8.25 is Complete, integrated, and pushed at
 audit checkpoint `8614f1d`. P7.15 is Complete, integrated, pushed, and running on the guarded
@@ -10963,7 +10963,8 @@ retained development Team.
 
 ### P8.27 — PolyChampions invitation task database boundary
 
-Status: **Implemented and validated; integration/push/restart pending**
+Status: **Complete; integrated, pushed, and loaded by the guarded beta with
+background tasks disabled**
 
 Branch/base: `codex/p8-27-polychamps-invitations` from exact clean
 accumulation checkpoint `104dd75`.
@@ -11027,6 +11028,23 @@ Limitations:
 - No beta live smoke is meaningful: development background tasks remain
   intentionally disabled. Production enablement requires P9 production-
   parity review rather than temporarily enabling the task in development.
+
+Integration/deployment evidence:
+
+- fast-forwarded `78a3aa3`, `98754a2`, and evidence checkpoint `463f6b6` into
+  `codex/database-slash-modernization`, then pushed the approved accumulation
+  branch to GitHub;
+- performed no application-command plan/apply/sync because P8.27 changes no
+  slash registration;
+- after the stopped-writer database gate, the host-wide writer audit found no
+  development writer and only `polybot-development-beta@main.service` was
+  started. Its `ExecStartPre` audit was clear, PID `3305480` authenticated as
+  **PolyELO Bot Beta** application `479029527553638401`, and the release status
+  command completed successfully; and
+- announcement disposition: none. The development profile cannot execute this
+  production-only task, there is no changed tester-facing command, and asking
+  the test pool to exercise it would imply enabling a deliberately disabled
+  background service.
 
 After P8.26 and P8.27, rerun this phase's residual direct-database search. If
 only the explicitly deferred operator-only paths and dead helpers remain, mark
@@ -12529,6 +12547,22 @@ incomplete-game season fallback, adds a transparent breakdown, removes the
 read-side Player upsert/event-loop work, and retires both hidden prefix names.
 
 ## Progress log
+
+### 2026-08-09 — P8.27 integrated and guarded beta restored
+
+- Fast-forwarded and pushed the three validated P8.27 checkpoints through
+  `463f6b6` on `codex/database-slash-modernization`.
+- Correctly skipped command-tree apply/sync because this unit has no
+  application-command change.
+- Started only the guarded development beta after the PostgreSQL gate. Its
+  prestart writer audit was clear, PID `3305480` authenticated as the expected
+  beta application, and background tasks remain disabled.
+- Posted no tester announcement because no beta-visible behavior changed and
+  the production invitation task cannot be exercised under the development
+  runtime policy.
+- P8.27 is Complete. P8 remains In progress until one final residual direct-
+  database audit confirms that only explicitly deferred P9 operator commands
+  and dead helpers remain.
 
 ### 2026-08-09 — P8.27 invitation task worker validated
 
