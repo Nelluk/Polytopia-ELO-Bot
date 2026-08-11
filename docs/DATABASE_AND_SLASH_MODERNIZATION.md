@@ -357,7 +357,7 @@ would become unavailable if a prefix is retired.
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
-| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
+| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens one requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. Development writes the durable JSONL record first and then best-effort mirrors it to the fixed beta staff channel. Production writes no JSONL record: it makes one direct relay to the invoking guild's configured `staff_help_channel` and allows a ping only for the first configured `helper_roles` role. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. P9.20 resolves the production boundary without creating a second command or a Nelluk-owned production inbox. Production success is claimed only after Discord accepts the direct relay; incomplete guild routing fails closed. No native attachment gap exists because discord.py 2.7.1 Components v2 provides the multi-file upload. | Add development-store retention/redaction operations or a later staff workflow only with a separate privacy and operational review. Production relay retention is governed by the destination Discord channel; do not silently add a second archive. | Prefix retirement and environment-explicit delivery implemented through P9.20 |
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. At P8.4, `$team_tier` and `$team_edit ... ARCHIVE` remained retained; the later P8.26/C-025 decision separately retires the archive workflow and `$team_edit` registration while preserving `$team_tier`. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; archive disposition superseded by accepted P8.26/C-025 decision |
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
@@ -490,21 +490,20 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.19/L1 repository consistency is Complete in
-accumulation at merge checkpoint
-`a344ab44587a42e4c9801fdcb03398c788f38273`, from
-exact clean accumulation checkpoint
-`3560a2f7919150c474ecdeba5bc432894acd57b7`. This Tier-1 repository-only unit
-reconciles current roadmap, compatibility, taxonomy, readiness-audit, and
-adversarial-review authority while preserving explicitly labelled historical
-evidence. Implementation/tests checkpoint `cea5085` adds a model-free source-
-root/document consistency regression; evidence checkpoint `c987b8d` and review
-correction `3d10b05` record final validation. Focused affected coverage passes 19/19;
-complete offline discovery runs 1,641 tests: 1,567 pass, 71 intentionally skip,
-and only the same three missing-`duckdb` environment cases fail. The unit
-changes no runtime, schema, database graph, command shape, or Discord behavior.
-M6 remains the only product/operations decision before M7/R-002 freezes an
-exact release candidate.**
+Current active unit: **P9.20/M6 environment-explicit staff-help delivery is
+Complete on its unit branch and pending accumulation integration. It was built
+on `codex/p9-20-m6-production-staffhelp`, from exact clean accumulation
+checkpoint `2d5639d117e4e711df5290deed080a82e9aee278`. This Tier-3 unit keeps one
+public `/staffhelp` form while selecting exactly one backend from the explicit
+runtime profile. Development retains its durable JSONL record-first and fixed-
+channel mirror behavior. Production performs one direct per-guild Discord
+relay, permits only the first configured helper role mention, writes no JSONL
+record, and fails closed when routing is incomplete. The legacy prefix remains
+retired. Implementation/tests checkpoint `54aae6d` passes 65 focused tests;
+complete offline discovery runs 1,651 tests with 1,577 passes, 71 intentional
+skips, and only the same three missing-`duckdb` environment failures. No
+database or schema path is introduced. M7/R-002 remains the next release-
+candidate gate after this unit.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -11713,7 +11712,7 @@ release candidate.
 ## P9 — Production rollout and prefix lifecycle
 
 Status: **In progress; source safety and production-preparation units through
-P9.18 are implemented; remaining adversarial corrections, release-candidate
+P9.20 are implemented or under final validation; M7 release-candidate
 validation, activation, and rollout remain separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
@@ -11729,10 +11728,9 @@ Required gates:
 - rollback point identified;
 - monitoring and log checks defined;
 - explicit approval for production deployment/restart/sync.
-- either keep `tools_support` unassigned and document the currently deployed
-  human support route, or separately approve a production-safe authoritative
-  feedback/privacy/security intake and retention path; the WB1.1 development
-  JSONL store is not that path.
+- assign `tools_support` to every reviewed production guild only after proving
+  its configured staff-help channel and first helper role. P9.20's production
+  backend makes one direct relay and writes no development JSONL record.
 
 Before deployment, reverify the P8.0 policy/tool and test the single-process
 guild capability canary described in D-031. The initial production observation
@@ -11741,7 +11739,8 @@ stage should:
 - keep legacy prefix commands enabled where the per-unit compatibility decision
   is `retain`; the explicitly approved WB1.1 staffhelp retirement remains in
   force;
-- expose new native/component commands only in the explicitly approved
+- expose `/staffhelp` in every reviewed production guild and expose the other
+  new native/component commands only in the explicitly approved
   PolyChampions canary guild;
 - use the same production bot process and in-process services for both
   interfaces;
@@ -13719,9 +13718,64 @@ correction `3d10b05`, and accumulation merge
 `a344ab44587a42e4c9801fdcb03398c788f38273` complete the unit; the accumulation
 close-out was committed and pushed through `7196a7b`.
 
-Next action: finish L1 validation and integration. Then resolve M6 by recording
-the exact production support/privacy route, owner, monitoring cadence, and
-verification evidence; M7/R-002 remains the final exact-candidate freeze.
+Next action at this historical checkpoint: resolve M6, then perform M7/R-002.
+
+### P9.20 — M6 environment-explicit staff-help delivery
+
+Status: **Complete on unit branch; accumulation integration pending**
+
+Branch/base: `codex/p9-20-m6-production-staffhelp`, exact clean accumulation
+base `2d5639d117e4e711df5290deed080a82e9aee278`.
+
+This Tier-3 publication and privacy-boundary unit resolves M6 without turning
+ordinary production guild support into a centralized case-management system.
+It preserves one public, no-option `/staffhelp` command and the approved
+retirement of `$staffhelp` / `$helpstaff`.
+
+The accepted environment contract is:
+
+- development captures and validates the same bounded form and attachments,
+  appends the authoritative JSONL record first, and then best-effort mirrors to
+  the fixed beta admin channel exactly as before;
+- production captures the same form, re-resolves the invoking guild's
+  `staff_help_channel` and first `helper_roles` entry at submission, and makes
+  exactly one Discord send with only that exact role mentionable;
+- production writes no JSONL, database, or other local archive, and Discord
+  delivery to the configured channel is terminal—there is no Nelluk-owned
+  production inbox, case owner, or polling cadence;
+- incomplete guild/channel/role configuration, the default `@everyone` role,
+  or a Discord send failure fails privately without claiming delivery or
+  storage; and
+- cancellation drains the already-started send before releasing the command,
+  preventing a second attempt from being inferred or launched.
+
+The production command policy marks `tools_support` as public and assigns it
+to all reviewed production guilds through
+`application_command_all_guild_capabilities = ('tools_support',)` during a
+later separately approved guild-only apply. The cutover release record must
+prove every allowlisted guild's channel and first helper role before that
+assignment. PolyChampions' other initial canary capabilities remain unchanged;
+`operator`, `elo_maintenance`, and `beta_testing` remain omitted. Normal bot
+startup still does not synchronize commands, and this unit authorizes no
+production configuration or Discord operation.
+
+Focused coverage owns environment selection, route/configuration failure,
+controlled mentions, attachment relay, production no-store behavior, safe
+delivery failure, cancellation, modal acknowledgement truthfulness,
+application-policy visibility, and slash adapter preflight. There is no ORM,
+transaction, schema, or database connection in this unit, so a development
+PostgreSQL gate is not warranted.
+
+Implementation/tests checkpoint: `54aae6d`. Focused staff-help, beta-feedback,
+taxonomy, application-policy/management, deployment-asset, and documentation-
+consistency coverage passes **65/65**. Complete offline discovery runs **1,651
+tests: 1,577 passed, 71 intentionally skipped, and only the three documented
+missing-`duckdb` environment cases failed**: runtime import, dependency
+inventory, and reporting-export import. Compilation and `git diff --check`
+pass. Tier-3 complete-diff review rejected the default `@everyone` helper role,
+wrapped configuration lookup failures into the safe fail-closed category, and
+preserved the development beta's existing validation wording. No remaining
+blocker was found.
 
 ## Standard work-unit template
 
@@ -14732,6 +14786,30 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-11 — P9.20/M6 environment-explicit staff help reviewed
+
+- Reconciled exact clean local, tracking, and GitHub accumulation checkpoint
+  `2d5639d117e4e711df5290deed080a82e9aee278`, then created isolated branch and
+  worktree `codex/p9-20-m6-production-staffhelp` from that exact base and passed
+  the unchanged development-profile setup gate.
+- Kept one public `/staffhelp` modal. Production now performs one direct relay
+  to the invoking guild's configured staff-help channel with only its first
+  configured helper role mentionable and no JSONL write; development retains
+  the existing durable JSONL record-first and fixed beta mirror behavior.
+- Added production route preflight plus submit-time revalidation, attachment
+  relay, safe failure/cancellation behavior, truthful environment-specific
+  acknowledgements, and all-reviewed-guild `tools_support` cutover policy.
+  `$staffhelp` / `$helpstaff` remain retired.
+- Implementation/tests checkpoint `54aae6d`; focused affected coverage passes
+  **65/65**. Complete offline discovery runs **1,651 tests: 1,577 pass, 71
+  intentional skips, and only the same three missing-`duckdb` environment
+  failures**. Compilation and `git diff --check` pass.
+- Tier-3 complete-diff review rejected `@everyone` as a helper target, made
+  configuration lookup failures fail closed without leaking detail, preserved
+  existing development validation wording, and found no remaining blocker.
+  No database gate was warranted. Accumulation integration, beta disposition,
+  and close-out remain pending.
 
 ### 2026-08-11 — P9.19/L1 repository consistency reviewed
 
