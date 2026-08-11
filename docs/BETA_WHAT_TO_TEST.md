@@ -5,7 +5,15 @@ This is the full running wider-beta checklist—not just the newest release.
 dashboard instead of posting the whole file into a channel. Use the native
 slash commands and interactive controls below on desktop or mobile. Report
 confusing behavior, missing information, permission problems, stale cards,
-and unexpected private/public responses with `/staffhelp`.
+and unexpected private/public responses with the dashboard's **Report
+problem** button or `/staffhelp`.
+
+For a low-friction pass, run `/whattotest` and choose **Give me a 5-minute
+test**. Click it again for another short assignment. Testers can choose
+**Create my game lane** for fresh Ready, Unconfirmed, and Completed games;
+the private panel supplies names, IDs, commands, and cleanup. Choose
+**Finished** or **Release lane** when done. The full sections below are a
+reference, not a request to test everything in one sitting.
 
 ## Games
 
@@ -15,15 +23,17 @@ and unexpected private/public responses with `/staffhelp`.
   draft interaction—and the join reaction should still be added.
 - Interactive open-game card: join, leave, refresh, start, and delete controls
 - Interactive game card actions appropriate to the game state
-- `/game win`: use the owned **Ready** game listed by `/whattotest` for an ordinary claim, then confirm it
+- `/game win`: create your own lane and use its **Ready** game for an ordinary
+  claim, then confirm it
   through the opponent flow. Check the pending/confirmed wording, game card,
   channel notices, announcements, and any ELO/Nova/experience/champion effects;
   a publication warning after a committed result must say not to retry.
-- `/game result confirm`: use the owned **Unconfirmed** game listed by
-  `/whattotest` as staff and verify the
+- `/game result confirm`: use your lane's **Unconfirmed** game as staff and
+  verify the
   same committed result/card/effects appear without duplicated audit or role
   work. Compare retained `$confirm` behavior where applicable.
-- `/game result undo`: use the owned **Completed** game listed by `/whattotest`, verify its result and ELO
+- `/game result undo`: use your lane's **Completed** game, verify its result
+  and ELO
   reset once, and check the public reset notice plus experience/champion role
   reconciliation. Compare retained `$unwin`; an after-commit warning must not
   invite a duplicate undo.

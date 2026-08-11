@@ -57,6 +57,7 @@ class BetaLabWorkerTests(unittest.TestCase):
         with mock.patch.object(lab, '_validate', return_value=300), \
                 mock.patch.object(lab, '_structure_status', return_value=pack(lab.STRUCTURE)), \
                 mock.patch.object(lab, '_leaderboard_status', return_value=pack(lab.LEADERBOARD)), \
+                mock.patch.object(lab, '_session_status', return_value=pack(lab.SESSION_LANES)), \
                 mock.patch.object(
                     lab,
                     '_result_status',
@@ -263,14 +264,26 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             result_snapshot=None,
         )
 
+    def view(self, **overrides):
+        values = {
+            'bot': object(),
+            'requester_id': 10,
+            'requester_name': 'Nelluk',
+            'guild_id': 300,
+            'channel_id': 400,
+            'role_ids': (500,),
+            'lane_authorized': True,
+            'session': None,
+            'status': self.status,
+            'guide': self.guide,
+        }
+        values.update(overrides)
+        return dashboard.BetaTestingDashboard(**values)
+
     def test_overview_is_compact_and_sectioned(self):
-        view = dashboard.BetaTestingDashboard(
-            requester_id=10,
-            status=self.status,
-            guide=self.guide,
-        )
+        view = self.view()
         text = dashboard.overview_markdown(self.status)
-        self.assertIn('Quick release pass', text)
+        self.assertIn('Give me a 5-minute test', text)
         self.assertLess(len(text), 1900)
         selects = [
             item for item in view.walk_children()
@@ -286,11 +299,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             '- ' + ('B' * 1700) + '\n'
             '- Third item.\n'
         )
-        view = dashboard.BetaTestingDashboard(
-            requester_id=10,
-            status=self.status,
-            guide=guide,
-        )
+        view = self.view(guide=guide)
         view.section_key = 'games'
         view.page = 1
         body = view._body()
@@ -299,11 +308,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_tracked_sections_fit_components_text_display(self):
         guide = guide_module.load_guide()
-        view = dashboard.BetaTestingDashboard(
-            requester_id=10,
-            status=self.status,
-            guide=guide,
-        )
+        view = self.view(guide=guide)
         for section in guide.sections:
             view.section_key = section.key
             for page_number in range(len(guide_module.item_pages(section))):
@@ -337,11 +342,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Participants: Nelluk (`10`)', text)
 
     async def test_dashboard_is_requester_bound_and_expiry_disables_controls(self):
-        view = dashboard.BetaTestingDashboard(
-            requester_id=10,
-            status=self.status,
-            guide=self.guide,
-        )
+        view = self.view()
         intruder = SimpleNamespace(
             user=SimpleNamespace(id=11),
             response=SimpleNamespace(send_message=mock.AsyncMock()),
@@ -356,6 +357,81 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         await view.on_timeout()
         self.assertTrue(view.expired)
         self.assertTrue(all(item.disabled for item in view.walk_children() if hasattr(item, 'disabled')))
+
+    async def test_quick_test_cycles_without_database_work(self):
+        view = self.view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        original = view.quick_index
+        await view._quick(interaction)
+        self.assertEqual(view.mode, 'quick')
+        self.assertIn('About', view._body())
+        await view._quick(interaction)
+        self.assertEqual(
+            view.quick_index,
+            (original + 1) % len(dashboard.beta_lab_catalog.QUICK_TESTS),
+        )
+
+    async def test_lane_claim_and_release_publish_only_frozen_snapshots(self):
+        scenario = dashboard.beta_lab_sessions.BetaLabSessionScenario(
+            'ready', 41, 'ready'
+        )
+        session = dashboard.beta_lab_sessions.BetaLabSessionSnapshot(
+            session_id='abcdef123456',
+            guild_id=300,
+            requester_id=10,
+            requester_name='Nelluk',
+            opponent_id=20,
+            opponent_name='Fixture Friend',
+            expires_epoch=1_786_445_600,
+            state='ready',
+            scenarios=(scenario,),
+            fingerprint='fingerprint',
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(
+                roles=(SimpleNamespace(id=500),),
+            ),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        view = self.view()
+        with mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_claim_session',
+            new=mock.AsyncMock(return_value=session),
+        ):
+            await view._lane(interaction)
+        self.assertIs(view.session, session)
+        self.assertIn('Fixture Friend', view._body())
+        self.assertIn('game `41`', view._body())
+
+        result = dashboard.beta_lab_sessions.BetaLabSessionReleaseResult(
+            session_id=session.session_id,
+            released=True,
+            removed_game_ids=(41,),
+            outcome='finished',
+        )
+        with mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_release_session',
+            new=mock.AsyncMock(return_value=result),
+        ):
+            await view._finished(interaction)
+        self.assertIsNone(view.session)
+        self.assertIn('cleaned up', view.notice)
+
+    async def test_report_button_prefills_lane_context(self):
+        session = SimpleNamespace(session_id='abcdef123456', game_ids=(41, 42, 43))
+        view = self.view(session=session)
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(send_modal=mock.AsyncMock()),
+        )
+        await view._report(interaction)
+        modal = interaction.response.send_modal.await_args.args[0]
+        self.assertIn('abcdef123456', modal.context.component.default)
+        self.assertIn('41, 42, 43', modal.context.component.default)
 
 
 if __name__ == '__main__':

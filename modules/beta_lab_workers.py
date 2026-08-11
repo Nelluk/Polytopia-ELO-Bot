@@ -10,6 +10,8 @@ from pathlib import Path
 
 import settings
 from modules import (
+    beta_lab_manifest,
+    beta_lab_sessions,
     beta_readiness,
     beta_wider_setup,
     dev_fixtures,
@@ -21,7 +23,8 @@ from modules import (
 STRUCTURE = 'server-structure'
 LEADERBOARD = 'leaderboard-showcase'
 RESULTS = 'game-results'
-PACKS = (STRUCTURE, LEADERBOARD, RESULTS)
+SESSION_LANES = 'self-service-game-lanes'
+PACKS = (STRUCTURE, LEADERBOARD, RESULTS, SESSION_LANES)
 REFRESH_CONFIRMATION = 'REFRESH-game-results'
 
 
@@ -59,6 +62,7 @@ class BetaLabStatus:
             for pack in self.packs
         ]
         value['live_apply_supported'] = [RESULTS]
+        value['tester_apply_supported'] = [SESSION_LANES]
         value['discord_resource_mutation_supported'] = False
         return value
 
@@ -196,6 +200,45 @@ def _structure_status(guild_id: int) -> BetaLabPackStatus:
     )
 
 
+def _session_status(guild_id: int) -> BetaLabPackStatus:
+    try:
+        summary = beta_lab_sessions.load_summary(guild_id)
+    except (
+        beta_lab_sessions.BetaLabSessionError,
+        beta_lab_manifest.BetaLabManifestError,
+    ) as exc:
+        return BetaLabPackStatus(
+            key=SESSION_LANES,
+            title='Self-service game lanes',
+            state='blocked',
+            detail=str(exc),
+            action='An operator must reconcile the tracked lane manifest.',
+        )
+    if summary.ambiguous_game_ids:
+        return BetaLabPackStatus(
+            key=SESSION_LANES,
+            title='Self-service game lanes',
+            state='blocked',
+            detail=(
+                'Damaged ownership markers require review on games '
+                + ', '.join(str(value) for value in summary.ambiguous_game_ids)
+                + '.'
+            ),
+            action='Do not create or release lanes until the rows are reviewed.',
+        )
+    available = summary.capacity - summary.active
+    return BetaLabPackStatus(
+        key=SESSION_LANES,
+        title='Self-service game lanes',
+        state='ready',
+        detail=(
+            f'{available} of {summary.capacity} mutable lanes are available; '
+            f'{summary.expired} expired lane(s) will be reclaimed on claim.'
+        ),
+        action='Testers may claim one private 30-minute result-workflow lane.',
+    )
+
+
 def load_status(guild_id: int) -> BetaLabStatus:
     guild_id = _validate(guild_id)
     structure = _structure_status(guild_id)
@@ -211,7 +254,8 @@ def load_status(guild_id: int) -> BetaLabStatus:
             action='Inspect the exact result-scenario ownership state.',
         )
         snapshot = None
-    packs = (structure, leaderboard, results)
+    sessions = _session_status(guild_id)
+    packs = (structure, leaderboard, results, sessions)
     states = {pack.state for pack in packs}
     if states == {'ready'}:
         overall = 'ready'

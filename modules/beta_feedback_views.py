@@ -91,7 +91,8 @@ class StaffHelpModal(discord.ui.Modal):
             requester_id: int,
             guild_id: int,
             channel_id: int,
-            profile: Any | None = None):
+            profile: Any | None = None,
+            context_default: str | None = None):
         self.profile = profile or get_runtime_profile()
         title = (
             'Staff help / beta feedback'
@@ -104,6 +105,10 @@ class StaffHelpModal(discord.ui.Modal):
         self.guild_id = int(guild_id)
         self.channel_id = int(channel_id)
         self._submitted = False
+        if context_default:
+            self.context.component.default = str(context_default)[
+                :beta_feedback.MAX_CONTEXT_LENGTH
+            ]
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Keep a modal submission bound to its opener and original channel."""

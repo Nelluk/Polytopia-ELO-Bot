@@ -387,6 +387,7 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
         message = SimpleNamespace(edit=mock.AsyncMock())
         return SimpleNamespace(
             guild_id=300,
+            channel_id=400,
             user=SimpleNamespace(id=user_id, display_name='Owner'),
             response=SimpleNamespace(
                 send_message=mock.AsyncMock(),
@@ -438,8 +439,12 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
             misc.beta_lab_workers,
             'run_status',
             new=mock.AsyncMock(return_value=status),
+        ), mock.patch.object(
+            misc.beta_lab_sessions,
+            'run_requester_session',
+            new=mock.AsyncMock(return_value=None),
         ):
-            await command.callback(SimpleNamespace(), interaction)
+            await command.callback(SimpleNamespace(bot=object()), interaction)
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         interaction.edit_original_response.assert_awaited_once()
         self.assertIn(

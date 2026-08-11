@@ -14,7 +14,9 @@ from modules import game_ping_workers
 from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
+from modules import beta_lab_sessions
 from modules import beta_lab_workers
+from modules import beta_readiness
 from modules import beta_testing_guide
 from modules import beta_testing_dashboard
 from modules import staff_help
@@ -348,11 +350,48 @@ class misc(commands.Cog):
                 'state was changed.',
                 ephemeral=True,
             )
+        role_ids = tuple(
+            int(role.id) for role in getattr(interaction.user, 'roles', ())
+        )
+        has_lane_role = (
+            int(interaction.user.id) == int(settings.owner_id)
+            or beta_readiness.BETA_PINNED_TESTER_ROLE_ID in role_ids
+        )
+        session = None
+        lane_notice = None
+        try:
+            session = await beta_lab_sessions.run_requester_session(
+                beta_lab_sessions.BetaLabSessionRequest(
+                    guild_id=int(interaction.guild_id),
+                    requester_id=int(interaction.user.id),
+                    requester_name=str(interaction.user.display_name),
+                    role_ids=role_ids,
+                )
+            )
+        except beta_lab_sessions.BetaLabSessionError as exc:
+            lane_notice = str(exc)
+        except Exception:
+            logger.exception('Could not load the requester Beta Lab lane.')
+            lane_notice = (
+                'Your game-lane state is temporarily unavailable; the '
+                'read-only tests are still safe to use.'
+            )
+        lane_authorized = has_lane_role or session is not None
         view = beta_testing_dashboard.BetaTestingDashboard(
+            bot=self.bot,
             requester_id=int(interaction.user.id),
+            requester_name=str(interaction.user.display_name),
+            guild_id=int(interaction.guild_id),
+            channel_id=int(interaction.channel_id),
+            role_ids=role_ids,
+            lane_authorized=lane_authorized,
+            session=session,
             status=status,
             guide=guide,
         )
+        if lane_notice:
+            view.notice = lane_notice
+            view.rebuild()
         await interaction.edit_original_response(content=None, view=view)
         try:
             view.message = await interaction.original_response()

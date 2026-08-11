@@ -32,6 +32,15 @@ confirmation. That path calls the same preview, ELO coordinator, transaction,
 and ownership implementation; it is not a second fixture writer. See
 `docs/DEVELOPMENT_BETA_LAB.md`.
 
+P9.23b adds a separate in-process tester lane path through `/whattotest`.
+It does not reuse or delete the operator result bundle. Each authorized tester
+gets three fresh games with dual name/notes ownership markers, a 30-minute
+lease, and one fixed registered fixture opponent. Claim and release serialize
+through the running bot's ELO coordinator; creation or cleanup, ELO effects,
+and protected audit commit atomically. At most three lanes may be active.
+Expired lanes are reclaimed on the next claim. Do not use the out-of-process
+fixture CLI to manage these lanes.
+
 The selected user IDs must already have `DiscordMember` and `Player` records
 in the development guild. The harness does not create or modify users.
 
@@ -93,6 +102,21 @@ the same transaction. Cancellation is drained until the worker transaction
 has a known result. If Discord cannot publish the terminal panel, use
 `/whattotest` to reconcile live state before retrying. Neither command writes
 the ignored CLI manifest; database ownership markers remain authoritative.
+
+### In-process human-tester workflow
+
+Run `/whattotest`, then choose **Create my game lane**. This requires the
+pinned development `testers` role and an existing Player registration. The
+private panel lists names as well as diagnostic IDs and gives one command for
+each fresh scenario. Rerun `/whattotest` to recover an active lane after the
+panel expires.
+
+Choose **Finished** or **Release lane** to remove the exact owned games and
+reverse their ELO. A tester who loses the role may still release a lane they
+already own. Do not change the lane games' names or notes; if either ownership
+marker or the exact three-game graph is damaged, mutation fails closed for an
+operator to inspect. Ordinary games and the operator-owned result bundle are
+outside lane cleanup authority.
 
 ## Created scenarios
 

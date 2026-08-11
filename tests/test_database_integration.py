@@ -349,6 +349,148 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(before, after)
 
+    def test_beta_lab_self_service_lane_round_trip_is_exact_and_rollback_safe(self):
+        """Exercise a tester lane without retaining any development rows."""
+
+        from modules import beta_lab_manifest, beta_lab_sessions, beta_readiness
+
+        guild_id = beta_readiness.BETA_GUILD_ID
+        manifest = beta_lab_manifest.load(Path(__file__).resolve().parents[1])
+        opponent_id = manifest.opponent_user_ids[0]
+        opponent = (
+            self.models.Player
+            .select(self.models.Player, self.models.DiscordMember)
+            .join(self.models.DiscordMember)
+            .where(
+                (self.models.Player.guild_id == guild_id)
+                & (self.models.DiscordMember.discord_id == opponent_id)
+            )
+            .get()
+        )
+        original_opponent_elo = (
+            int(opponent.elo),
+            int(opponent.elo_alltime),
+            int(opponent.discord_member.elo),
+            int(opponent.discord_member.elo_alltime),
+        )
+        suffix = uuid.uuid4().hex[:10]
+        requester_id = 8_850_000_000_000_000 + (uuid.uuid4().int % 1_000_000)
+        request = beta_lab_sessions.BetaLabSessionRequest(
+            guild_id=guild_id,
+            requester_id=requester_id,
+            requester_name=f'Lane Tester {suffix}',
+            role_ids=(manifest.tester_role_id,),
+        )
+
+        claimed = None
+        try:
+            member = self.models.DiscordMember.create(
+                discord_id=requester_id,
+                name=f'Lane Tester {suffix}',
+            )
+            self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=f'Lane Tester {suffix}',
+            )
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('injected lane audit failure'),
+            ), self.assertRaisesRegex(
+                peewee.OperationalError,
+                'injected lane audit failure',
+            ):
+                beta_lab_sessions.claim_session(
+                    request,
+                    now_epoch=1_900_000_000,
+                    session_id_factory=lambda _size: '111111111111',
+                )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertFalse(self.models.Game.select().where(
+                self.models.Game.notes.startswith(beta_lab_sessions.NOTES_PREFIX)
+                & self.models.Game.notes.contains('lease=111111111111')
+            ).exists())
+
+            claimed = beta_lab_sessions.claim_session(
+                request,
+                now_epoch=1_900_000_000,
+                session_id_factory=lambda _size: '222222222222',
+            )
+            self.assertEqual(claimed.requester_name, f'Lane Tester {suffix}')
+            self.assertEqual(claimed.opponent_id, opponent_id)
+            self.assertEqual(
+                tuple(item.scenario for item in claimed.scenarios),
+                beta_lab_sessions.SCENARIOS,
+            )
+            self.assertEqual(len(claimed.game_ids), 3)
+            self.assertIsInstance(claimed.fingerprint, str)
+
+            loaded = beta_lab_sessions.load_requester_session(
+                request,
+                now_epoch=1_900_000_000,
+            )
+            self.assertEqual(loaded, claimed)
+            released = beta_lab_sessions.release_session(
+                beta_lab_sessions.BetaLabSessionReleaseRequest(
+                    guild_id=guild_id,
+                    requester_id=requester_id,
+                    requester_name=f'Lane Tester {suffix}',
+                    role_ids=(manifest.tester_role_id,),
+                    session_id=claimed.session_id,
+                    outcome='finished',
+                ),
+                now_epoch=1_900_000_001,
+            )
+            self.assertTrue(released.released)
+            self.assertEqual(released.removed_game_ids, claimed.game_ids)
+            self.assertIsNone(beta_lab_sessions.load_requester_session(
+                request,
+                now_epoch=1_900_000_001,
+            ))
+            self.models.db.connect(reuse_if_open=True)
+            reloaded_opponent = self.models.Player.get_by_id(opponent.id)
+            self.assertEqual(
+                (
+                    int(reloaded_opponent.elo),
+                    int(reloaded_opponent.elo_alltime),
+                    int(reloaded_opponent.discord_member.elo),
+                    int(reloaded_opponent.discord_member.elo_alltime),
+                ),
+                original_opponent_elo,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            owned_games = tuple(self.models.Game.select().where(
+                (self.models.Game.guild_id == guild_id)
+                & self.models.Game.notes.startswith(
+                    beta_lab_sessions.NOTES_PREFIX
+                )
+                & self.models.Game.notes.contains(f'owner={requester_id};')
+            ))
+            for game in sorted(
+                owned_games,
+                key=lambda item: (
+                    item.completed_ts.timestamp()
+                    if item.completed_ts is not None
+                    else float('-inf')
+                ),
+                reverse=True,
+            ):
+                game.delete_game()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(str(requester_id))
+            ).execute()
+            cleanup_member = self.models.DiscordMember.get_or_none(
+                self.models.DiscordMember.discord_id == requester_id
+            )
+            if cleanup_member is not None:
+                self.models.Player.delete().where(
+                    (self.models.Player.guild_id == guild_id)
+                    & (self.models.Player.discord_member == cleanup_member.id)
+                ).execute()
+                cleanup_member.delete_instance()
+
     def test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures(self):
         """Exercise the real schema through the existing strict gate only."""
 

@@ -490,22 +490,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23a Beta Lab foundation is complete, integrated,
-pushed, development-guild applied, and deployed from exact clean accumulation
-base `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`. It consolidates the already
-owned WB1.3b server structure, leaderboard showcase, and game-result scenarios
-behind one status/plan surface; replaces `/whattotest` public followup spam with
-one private requester-bound categorized dashboard; shows participant names
-before diagnostic IDs; and exposes only the existing exact game-result reset
-through the running beta's protected socket. It does not yet create Discord
-roles/channels or broaden fixture ownership. P9.23b will add manifest-owned
-production-shaped scenario packs after the foundation's collision and repair
-boundaries are validated. Implementation checkpoint `51370f0`; accumulation
-integration fast-forward completed at `658bc8e8761caa6c6b5557211b1b2b496b05caca`;
-the guarded beta runs accumulation checkpoint
-`b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389`, and the reviewed tester release
-posted as message `1536747111016566855`. P9.23b expanded manifest-owned scenario
-packs are the recommended next bounded unit.**
+Current active unit: **P9.23b human self-service Beta Lab lanes is in progress
+on `codex/p9-23b-self-service-lanes`, from exact clean accumulation base
+`728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`. Read-only guild inventory found
+that the existing beta server already has the reviewed PolyChamps-shaped
+House/Team resources and that all human testers hold the pinned `testers` role,
+which is also a configured Helper role. The revised unit therefore does not
+automatically create or reshuffle Discord roles/channels. It adds compact
+five-minute assignments plus at most three ELO-coordinated, requester-owned,
+30-minute game lanes through `/whattotest`, with exact dual ownership markers,
+fresh Ready/Unconfirmed/Completed games, names before IDs, direct feedback,
+and atomic release/reversal. Focused implementation validation is green;
+complete offline, stopped-writer PostgreSQL, final Tier-3 review, integration,
+push, and beta acceptance remain. The guarded beta still runs accumulation
+checkpoint `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389`; final accumulation HEAD
+`728a83e` differs only by P9.23a close-out documentation.**
 
 P9.22 pre-M7 beta testability/readiness is complete in accumulation and
 deployed to the development beta; wider human acceptance is pending. It was built on
@@ -14110,6 +14109,79 @@ reload, returns truthful committed IDs or an explicit no-retry reconciliation
 warning, and has repeated cancellation coverage. Review also tightened the
 exact beta-only profile/guild gate, mention escaping, character-limited page
 numbering, and tracked Components-v2 body bounds. No blocking finding remains.
+
+### P9.23b — Human self-service Beta Lab lanes
+
+Status: **In progress; implementation and focused offline validation complete,
+full validation and integration pending.**
+
+Branch/base: `codex/p9-23b-self-service-lanes`, exact clean accumulation base
+`728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`.
+
+This Tier-3 unit implements the revised human-testing design approved after
+P9.23a. Read-only Discord inventory found 57 members, 57 roles, and 39 channels;
+the exact `testers` role has 29 members and is already a configured Helper
+role, the Mod role has four members, and the three reviewed Team roles already
+exist. Automatically assigning permission personas or rebuilding the server
+would therefore risk broad staff access and role-hierarchy conflicts without
+materially reducing current friction. This unit changes no Discord resources.
+
+`/whattotest` remains a development-only no-option root and one private,
+requester-bound Components-v2 panel. Its primary path is now one button for a
+short rotating assignment across player, leaderboard, Team/House, game-search,
+and league reads. The full tracked checklist remains available only as
+navigable reference pages. A direct report button opens the established
+development `/staffhelp` modal with active lane/game context prefilled.
+
+Members with the exact pinned tester role may claim one game lane. The tracked
+manifest pins only the development guild, tester role, two existing registered
+fallback opponents, capacity three, and a 30-minute lease. A lane creates
+exactly three ranked, started 1v1s—Ready, Unconfirmed, and Completed—with the
+requester's and opponent's names and exact IDs rendered in the panel. Finished
+and early-release actions both reverse any ELO and delete only the requester's
+three owned games. Panel expiry does not orphan the lease; rerunning the root
+reloads it. Role removal blocks new claims but preserves exact-owner cleanup.
+
+Ownership requires matching versioned markers in both `Game.name` and
+`Game.notes`, the exact guild, one consistent owner/opponent/expiry tuple,
+exactly the three reviewed scenarios, and the exact participant graph. Queries
+are bounded to 37 rows (12 tracked sessions plus one overflow). Partial,
+duplicated, oversized, divergent, or one-marker state fails closed; clearing
+both markers can leak an ordinary-looking row but can never authorize its
+deletion. Claims, expired cleanup, completed-game ELO work, protected GameLog
+audit, and terminal immutable snapshot run in one transaction through the
+existing ELO coordinator. The event loop sees only frozen primitive requests
+and results; reads use a dedicated worker-owned connection, and cancellation
+drains already-started work to a truthful result.
+
+Focused validation currently passes **88 tests**, covering exact manifest and
+profile/guild/tester gates, bot exclusion, stale-role claim revalidation,
+owner cleanup after role removal, exact dual markers and participant graph,
+capacity, pre-commit audit rollback, terminal-snapshot rollback, cross-owner
+release refusal, atomic cleanup result, immutable/model-free publication,
+connection-thread ownership, event-loop responsiveness, read and mutation
+cancellation, requester-only/expired controls, quick-test rotation, names
+before IDs, report context, command shape, and application-command policy.
+Compilation and `git diff --check` pass. The real PostgreSQL round trip is
+implemented behind the unchanged development integration gate and uses an
+outer rollback scope so it retains no lane, player, audit, or ELO change.
+Complete offline discovery runs **1,717 tests: 1,639 pass, 75 are intentionally
+gated/skipped, and only the three documented missing-DuckDB environment cases
+fail** (runtime import, dependency inventory, and reporting-export import).
+No dependency was installed or synchronized.
+
+Out of scope: Discord role/channel creation or reassignment, paired-human
+queues, temporary permission personas, automatic registration, arbitrary
+fixture adoption, operator-result replacement, production configuration/data,
+and global command synchronization. Future scenario expansion should be based
+on observed tester friction rather than attempting a static full-production
+clone.
+
+Remaining before acceptance: complete offline discovery; stopped-writer exact
+development PostgreSQL gate including the new mutation round trip; final
+complete-diff review; implementation/evidence commits; accumulation merge and
+push; beta restart and authenticated health/invocation checks; and one reviewed
+`WHAT TO TEST` announcement only after all planned downtime is complete.
 
 ## Standard work-unit template
 
