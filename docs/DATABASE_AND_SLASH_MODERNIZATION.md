@@ -575,8 +575,14 @@ gate passes 78 tests with one intentional retained-fixture skip. No schema,
 configuration authority, command, Discord, dependency, or production change
 occurred. Tier-3 complete-diff review found no remaining actionable issue and
 accepted the three-commit unit by exact fast-forward at
-`5e14109df10293db7ad6f12b861354018e0b53a8`. Beta restart/health
-verification and the final accumulation close-out push remain.**
+`5e14109df10293db7ad6f12b861354018e0b53a8`. The durable beta now runs clean
+deployment checkpoint `9c169c0b6f403a2021a4f595b2f3562159fb608c`
+as PID `144958`, authenticated as the exact development application, with one
+host-wide writer and zero restart churn. Its first-ready log reports
+`matched promotion_ready=true` for guild `478571892832206869`; protected Beta
+Lab status remains fully ready. No command apply, tester-checklist change, or
+announcement is warranted because P10.4 changes no command or tester-facing
+workflow. The final accumulation close-out push follows this evidence.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14685,8 +14691,8 @@ shadow comparison while static remains authoritative.
 
 ### P10.4 — Development startup shadow comparison
 
-Status: **Integrated after implementation and development-database
-validation; beta startup evidence pending.**
+Status: **Complete, integrated, and development-beta validated; static
+settings remain authoritative.**
 
 Branch/base: `codex/p10-4-guild-config-shadow`, exact clean pushed
 accumulation checkpoint `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
@@ -14696,6 +14702,8 @@ Isolated-worktree gate correction:
 `bee0a26666fe705b59d2e9e0b72b1d27fdc6a7f5`.
 Evidence and exact fast-forward integration checkpoint:
 `5e14109df10293db7ad6f12b861354018e0b53a8`.
+Clean beta deployment checkpoint:
+`9c169c0b6f403a2021a4f595b2f3562159fb608c`.
 
 Risk tier: **Tier 3 runtime/database-read and future authority-promotion
 boundary**. It writes no schema or data, but its health result is designed to
@@ -14744,7 +14752,15 @@ The unit creates no revision, draft, audit, schema, Discord object, command,
 or production effect. It does not change authority or implement reload,
 activation, editing, onboarding, delegation, or static rollback selection.
 Those belong to separately reviewed stages. The operations and status contract
-are in `docs/DEVELOPMENT_GUILD_CONFIGURATION_SHADOW.md`.
+are in `docs/DEVELOPMENT_GUILD_CONFIGURATION_SHADOW.md`. The durable beta runs
+that exact clean code as PID `144958`, authenticated as application
+`479029527553638401`, with zero restart churn and one host-wide development
+writer. Its startup health is `matched promotion_ready=true`, and all five
+protected Beta Lab packs plus all three lanes remain ready. Command shape and
+tester-visible behavior are unchanged, so no command registration,
+`BETA_WHAT_TO_TEST.md` change, or announcement occurred. P10.4 supersedes the
+older frozen release candidate for runtime evidence; a future production-ready
+claim must refresh the exact candidate/gates rather than inheriting them.
 
 ## Standard work-unit template
 
@@ -16010,8 +16026,20 @@ deferred into this post-modernization backlog.
   dependency, production, or announcement operation occurred. Complete-diff
   Tier-3 review found no remaining actionable issue and accepted the full unit
   by exact fast-forward at
-  `5e14109df10293db7ad6f12b861354018e0b53a8`. Beta startup/health evidence
-  and the final clean accumulation push remain before close-out.
+  `5e14109df10293db7ad6f12b861354018e0b53a8`.
+- Restarted exactly one durable beta from clean accumulation deployment
+  checkpoint `9c169c0b6f403a2021a4f595b2f3562159fb608c` as PID `144958`.
+  It authenticated as development application `479029527553638401`, retained
+  zero restart churn and one host-wide development writer, and logged exact
+  `matched promotion_ready=true` shadow health for guild
+  `478571892832206869`. Protected status reports all five packs ready and all
+  three lanes free.
+- Command shape and tester-visible behavior did not change. No application-
+  command plan/apply, `BETA_WHAT_TO_TEST.md` edit, or Discord announcement was
+  warranted. The prior frozen release-candidate evidence no longer covers
+  this later runtime checkpoint and must be refreshed before any production-
+  ready claim. This final documentation-only close-out is the next
+  accumulation checkpoint; the running beta does not need another restart.
 
 ### 2026-08-11 — P10.3 additive development storage/import database-gated
 
