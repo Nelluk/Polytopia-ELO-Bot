@@ -115,19 +115,12 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             discord_snapshot = json.loads(
                 snapshot_path.read_text(encoding='utf-8')
             )
-            bundle = shadow.expected_bundle_from_snapshot(
-                profile=cls.profile,
-                discord_snapshot=discord_snapshot,
-            )
-            comparison = asyncio.run(shadow.run_shadow_comparison(
-                shadow.request_from_profile(
-                    profile=cls.profile,
-                    expected_bundle=bundle,
-                )
+            stored = asyncio.run(shadow.run_active_configuration(
+                shadow.active_request_from_profile(cls.profile)
             ))
             settings.activate_database_guild_configuration(
-                runtime.build_runtime_snapshot(
-                    result=comparison,
+                runtime.build_runtime_snapshot_from_stored(
+                    stored_configurations=stored,
                     discord_snapshot=discord_snapshot,
                     allowed_guild_ids=cls.profile.allowed_guild_ids,
                 )
