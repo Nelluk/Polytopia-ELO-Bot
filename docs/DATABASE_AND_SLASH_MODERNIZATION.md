@@ -490,8 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23b human self-service Beta Lab lanes is in progress
-on `codex/p9-23b-self-service-lanes`, from exact clean accumulation base
+Current active unit: **P9.23b human self-service Beta Lab lanes is accepted in
+accumulation at `a210d0c0ad4806a875c00e2c2456cfbb757f0b4a`, from exact clean base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`. Read-only guild inventory found
 that the existing beta server already has the reviewed PolyChamps-shaped
 House/Team resources and that all human testers hold the pinned `testers` role,
@@ -502,8 +502,12 @@ five-minute assignments plus at most three ELO-coordinated, requester-owned,
 fresh Ready/Unconfirmed/Completed games, names before IDs, direct feedback,
 and atomic release/reversal. Tier-3 implementation review, focused/complete
 offline validation, and the stopped-writer PostgreSQL gate are green at
-implementation checkpoint `b7a4adf`; evidence commit, integration, push, and
-beta acceptance remain. The guarded beta was stopped cleanly after verifying
+implementation checkpoint `b7a4adf`; evidence is recorded at `a210d0c` and the
+accepted branch was integrated by fast-forward. The integrated 101-test
+regression set passes. Offline planning and read-only remote inspection prove
+the same eleven development-guild roots are unchanged, with an empty global
+tree, so no command apply is warranted. Push and beta acceptance remain. The
+guarded beta was stopped cleanly after verifying
 its prior checkpoint `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389` and remains
 intentionally down only for this deployment window.**
 
@@ -14113,8 +14117,8 @@ numbering, and tracked Components-v2 body bounds. No blocking finding remains.
 
 ### P9.23b — Human self-service Beta Lab lanes
 
-Status: **Tier-3 reviewed and database-gated; integration and beta acceptance
-pending.**
+Status: **Tier-3 reviewed, database-gated, and accepted in accumulation; push
+and beta acceptance pending.**
 
 Branch/base: `codex/p9-23b-self-service-lanes`, exact clean accumulation base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`.
@@ -14204,12 +14208,15 @@ and global command synchronization. Future scenario expansion should be based
 on observed tester friction rather than attempting a static full-production
 clone.
 
-Implementation checkpoint: `b7a4adf`. Remaining before acceptance: evidence
-commit; accumulation merge and push; beta restart and authenticated
-health/invocation checks; and one reviewed `WHAT TO TEST` announcement only
-after all planned downtime is complete. No command shape changed, so the
-offline command plan must be reviewed but no development-guild apply is
-expected.
+Implementation checkpoint: `b7a4adf`; evidence/integration checkpoint:
+`a210d0c`. The accepted branch fast-forwarded cleanly onto accumulation and the
+expanded integrated regression set passes 101 tests. The offline desired plan
+contains the same eleven approved development-guild roots; read-only remote
+inspection reports all eleven unchanged, no creates/updates/removals, and an
+empty global tree. No development-guild command apply is warranted. Remaining
+before acceptance: accumulation close-out commit and push, beta restart and
+authenticated health/invocation checks, and one reviewed `WHAT TO TEST`
+announcement only after all planned downtime is complete.
 
 ## Standard work-unit template
 
@@ -15382,9 +15389,15 @@ deferred into this post-modernization backlog.
 - Tier-3 review corrected displaced status code/import, exact-three-scenario
   refusal, timezone-safe cleanup ordering, stale-role claim revalidation, and
   the production-shaped integration-test connection lifecycle. No blocking
-  finding remains. Next: commit evidence, merge/push accumulation, review the
-  unchanged command plan, start and verify the exact clean checkpoint, and
-  post the reviewed tester announcement last.
+  finding remains.
+- Recorded evidence at `a210d0c`, fast-forwarded the two accepted commits onto
+  clean accumulation, and passed an expanded 101-test integrated regression
+  set. The offline desired command tree still contains exactly the same eleven
+  development-guild roots. Read-only Discord inspection reports those eleven
+  roots unchanged, no creates/updates/removals, and an empty global tree, so no
+  apply is warranted. Next: commit/push this accumulation close-out, start and
+  verify the exact clean checkpoint, and post the reviewed tester announcement
+  last.
 
 ### 2026-08-11 — P9.23a Beta Lab foundation reviewed and database-gated
 
