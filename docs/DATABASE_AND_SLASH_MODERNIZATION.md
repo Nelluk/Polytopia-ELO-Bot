@@ -556,6 +556,26 @@ P10.4 development shadow reads/comparison. Evidence and exact integration
 checkpoint `b92fe13372eb81720737908c1ed827971c320c75` is running on the healthy
 development beta; the accumulation close-out follows that checkpoint.**
 
+P10.4 development guild configuration shadow reads are implemented and
+database-gated on `codex/p10-4-guild-config-shadow` from exact clean pushed
+accumulation base `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
+Implementation checkpoint `99cc9e564cba2acc9710a44bc0d50f1657222c86`
+adds one first-ready development-only comparison: a bounded member-free
+Discord cache snapshot materializes effective static settings, and a dedicated
+read-only worker-owned PostgreSQL connection loads and validates the exact
+stored active graph before returning immutable matched/mismatch/malformed/
+unavailable health. Static remains authoritative and only `matched` is
+promotion-ready. Review correction
+`bee0a26666fe705b59d2e9e0b72b1d27fdc6a7f5` makes both P10.3/P10.4 live
+verifiers accept one explicit reviewed primary snapshot path from isolated
+unit worktrees. Focused validation passes 57 tests; complete offline discovery
+passes all 1,802 tests with 78 intentional skips. The new live read-only
+comparison reports an exact match, and the complete stopped-writer PostgreSQL
+gate passes 78 tests with one intentional retained-fixture skip. No schema,
+configuration authority, command, Discord, dependency, or production change
+occurred. Tier-3 complete-diff review, roadmap evidence, accumulation
+integration, beta restart/health verification, and exact push remain.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14655,11 +14675,72 @@ metadata handling while continuing to verify exact nullability/defaults, and
 caught the stale development Helper role before any database connection. No
 remaining actionable finding is known.
 
-P10.3 does not import the storage module from bot startup, add runtime models,
-read database configuration during ordinary commands, change static authority,
-enroll a guild, add drafts, activate revisions, synchronize commands, or touch
-production. P10.4 owns worker-loaded shadow comparison while static remains
-authoritative.
+P10.3 alone did not import the storage module from bot startup, add runtime
+models, read database configuration during ordinary commands, change static
+authority, enroll a guild, add drafts, activate revisions, synchronize
+commands, or touch production. P10.4 now owns the separate worker-loaded
+shadow comparison while static remains authoritative.
+
+### P10.4 — Development startup shadow comparison
+
+Status: **Implementation and development-database validation complete;
+integration and beta startup evidence pending.**
+
+Branch/base: `codex/p10-4-guild-config-shadow`, exact clean pushed
+accumulation checkpoint `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
+
+Implementation checkpoint: `99cc9e564cba2acc9710a44bc0d50f1657222c86`.
+Isolated-worktree gate correction:
+`bee0a26666fe705b59d2e9e0b72b1d27fdc6a7f5`.
+
+Risk tier: **Tier 3 runtime/database-read and future authority-promotion
+boundary**. It writes no schema or data, but its health result is designed to
+become a prerequisite for a separately approved source switch.
+
+On the first ready cycle after authenticated application identity and the
+ordinary startup schema preflight, the development bot now:
+
+- captures only the configured guild's bounded role/channel identity from the
+  ready Discord cache, with no members, messages, permissions, token, fetch,
+  or mutation;
+- materializes the complete effective static document, including exact role
+  IDs, command capabilities, inherited overrides, and the fixed development
+  staff-help mirror;
+- submits one immutable request to a dedicated executor whose PostgreSQL
+  connection is read-only/autocommit, live-identity checked, schema-inventory
+  checked, bounded by connect/statement/lock timeouts, closed in the worker,
+  and drained before cancellation propagates;
+- validates registry state, active revision identity, generation, strict JSON
+  shape, schema version, guild binding, document digest, and source-digest
+  shape before comparing semantic document paths; and
+- publishes one immutable `matched`, `mismatch`, `malformed`, or `unavailable`
+  result on the bot plus a bounded redacted log record. Reconnects reuse it;
+  there is no poll, command, per-setting query, or automatic retry.
+
+Only an exact active semantic match sets `promotion_ready=true`. A changed
+P10.3 source-provenance digest alone does not manufacture a runtime mismatch
+when the complete effective documents are equal; the stored document and its
+own digest are still revalidated. Every other outcome visibly blocks P10.5
+while current `settings.config` and `guild_setting()` behavior continues.
+Production never enters this P10.4 service.
+
+Focused P10/startup/document-consistency validation passes 57 tests. Complete
+offline discovery passes all 1,802 tests with 78 intentional database gates.
+The first combined live run found that P10.3's older test assumed its private
+snapshot had been copied into every unit worktree, contrary to the setup
+contract. The correction now requires an explicit absolute reviewed snapshot
+path when using shared primary operational evidence. Both P10.3 and P10.4
+read-only verifiers then pass, and the complete stopped-writer PostgreSQL suite
+runs 78 tests: 77 pass and the operator-managed fixture round trip is
+intentionally skipped. P10.4 reports guild `478571892832206869` exactly
+matched. `py_compile`, `git diff --check`, and the no-write/static-authority
+source audit pass.
+
+The unit creates no revision, draft, audit, schema, Discord object, command,
+or production effect. It does not change authority or implement reload,
+activation, editing, onboarding, delegation, or static rollback selection.
+Those belong to separately reviewed stages. The operations and status contract
+are in `docs/DEVELOPMENT_GUILD_CONFIGURATION_SHADOW.md`.
 
 ## Standard work-unit template
 
@@ -15720,6 +15801,27 @@ digest. The additive schema has no supported destructive rollback; until an
 authority switch is separately approved, recovery is simply to keep static
 authority selected, preserve evidence, and fix forward.
 
+### D-053 — Compare effective semantics once before any authority switch
+
+Status: **Accepted; implemented by P10.4**
+
+Development performs one shadow comparison on the first ready cycle, after
+authenticated identity and startup schema preflight have succeeded and the
+Discord guild cache can supply exact role/channel identity. It does not poll,
+query per command, or add a Discord reload/status command. A bounded
+worker-owned read-only connection loads and strictly validates stored active
+documents, and the event loop receives only immutable health data.
+
+Static configuration remains the sole authority. Only exact equality between
+the complete normalized effective static and active stored documents is
+promotion-ready. Missing/extra guilds, non-active state, document drift,
+malformed storage/runtime inputs, and unavailable reads are visible promotion
+blocks but do not break current static command service during this shadow
+stage. Source provenance is retained as import evidence but is not a second
+semantic configuration field: equal complete documents remain an exact match.
+P10.5 must consume a successful current-process result and prove its own
+explicit source/rollback behavior; P10.4 grants no authority switch.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15727,19 +15829,19 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.3 complete.** The inventory, architecture,
-offline typed contract, and additive development import are recorded in
+Design status: **P10.1 through P10.4 complete after integration.** The
+inventory, architecture, offline typed contract, additive development import,
+and first-ready shadow comparison are recorded in
 `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` and decisions D-050 through
-D-052. The design
+D-053. The design
 selects a PostgreSQL revision service, immutable runtime snapshots, owner-only
 initial enrollment, Discord-first control plane, opt-in local delegation, and
 separate explicit command synchronization. It excludes secrets, process
 identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration. The
-next selectable unit is development shadow reads/comparison, with static
-settings still authoritative. Later units own an explicit authority switch,
-owner editing,
+next selectable unit is P10.5's explicit development per-profile authority
+switch with a static pre-start rollback choice. Later units own owner editing,
 quarantined onboarding, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
@@ -15874,6 +15976,36 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.4 development shadow read database-gated
+
+- Created `codex/p10-4-guild-config-shadow` from exact clean pushed
+  accumulation checkpoint `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
+  Implementation checkpoint is
+  `99cc9e564cba2acc9710a44bc0d50f1657222c86`; focused database-harness
+  correction is `bee0a26666fe705b59d2e9e0b72b1d27fdc6a7f5`.
+- Added one development-only first-ready shadow comparison with bounded
+  member-free live role/channel capture, exact effective-static
+  materialization, strict stored graph validation, a time-bounded read-only
+  worker connection, immutable health, cancellation draining, and visible
+  promotion disposition. Static settings remain authoritative.
+- Focused P10/startup/docs validation passes 57 tests. Complete offline
+  discovery passes all 1,802 tests with 78 intentional skips; compilation,
+  diff, and no-write/static-authority source checks pass.
+- Stopped only durable beta PID `139596` at exact code checkpoint
+  `b92fe13372eb81720737908c1ed827971c320c75` and required a clear host-wide
+  writer audit. The new gated read-only shadow test reports an exact match for
+  guild `478571892832206869`.
+- The first combined gate exposed only an isolated-worktree test-path defect:
+  P10.3 looked for the private Discord snapshot beneath the unit worktree even
+  though setup shares only the two ignored configuration files. Both verifiers
+  now consume one explicitly named absolute reviewed snapshot. The rerun of
+  the complete development PostgreSQL suite passes 78 tests with 77 passes
+  and one intentional operator-fixture skip.
+- No schema/data migration, authority switch, Discord mutation, command sync,
+  dependency, production, or announcement operation occurred. Complete-diff
+  Tier-3 review, integration, clean accumulation push, and beta startup/health
+  evidence remain before close-out.
 
 ### 2026-08-11 — P10.3 additive development storage/import database-gated
 
