@@ -491,7 +491,7 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.6b3 monotonic rollback-to-revision is Tier-3
-reviewed and accepted for integration on
+reviewed and integrated from
 `codex/p10-6b3-guild-config-rollback`, based on
 exact clean pushed accumulation checkpoint
 `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`. The new private owner-only
@@ -510,10 +510,11 @@ binding, cancellation-after-commit truth, and committed panel-failure
 fallback. The stopped-writer PostgreSQL gate runs 83 tests: 82 pass and only
 the established operator-managed fixture round trip skips; the rollback graph
 is fully outer-transaction rolled back. Implementation/evidence checkpoint is
-`f506883`. Integration/push, guild-only command registration, and beta
-verification remain before close-out; the beta is intentionally stopped after
-the database gate. No schema, enrollment, delegation, global sync, production
-authority, or production operation is in scope.**
+`f506883`; evidence checkpoint is `5fc3ac7`, which is also the exact
+fast-forward integration checkpoint. Accumulation close-out/push, guild-only
+command registration, and beta verification remain; the beta is intentionally
+stopped after the database gate. No schema, enrollment, delegation, global
+sync, production authority, or production operation is in scope.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15134,7 +15135,7 @@ activation remains a useful alternative.
 
 ### P10.6b3 — Monotonic rollback-to-revision
 
-Status: **Tier-3 reviewed and accepted for integration.**
+Status: **Tier-3 reviewed and integrated; deployment pending.**
 
 Branch/base: `codex/p10-6b3-guild-config-rollback`, exact clean pushed
 accumulation checkpoint `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`.
@@ -15193,6 +15194,8 @@ longer discard the authoritative committed result; and a failed terminal panel
 edit cannot suppress the committed-state fallback. No remaining actionable
 offline or real-schema finding is known. Implementation and evidence
 checkpoint: `f506883`.
+
+Exact fast-forward integration checkpoint: `5fc3ac7`.
 
 This unit adds no schema, enrollment, delegation, draft consumption, global
 command synchronization, production authority, or production operation. The
@@ -16581,6 +16584,10 @@ deferred into this post-modernization backlog.
   plan/apply only the development-guild `operator` root update, and start and
   verify the durable beta. No tester checklist or announcement is warranted for
   this owner-only control-plane addition.
+- Exact fast-forward integration advanced clean accumulation from `174bbb7`
+  through implementation `f506883` and evidence `5fc3ac7`; the accumulation
+  head is now `5fc3ac7`. Next: commit and push the close-out, then perform the
+  reviewed development-guild-only command plan/apply and guarded beta start.
 
 ### 2026-08-11 — P10.6b2 activation implemented and offline reviewed
 
