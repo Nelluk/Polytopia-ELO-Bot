@@ -11709,8 +11709,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; P9.0–P9.6 source units complete; production activation
-and rollout remain separately gated**
+Status: **In progress; source units through P9.13 are complete; H3 global-tree
+safety, production activation, and rollout remain separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -13271,12 +13271,13 @@ Discord operation is involved.
 
 ### P9.13 — Supervised native bot restart
 
-Status: **Complete in the accumulation branch; development-guild deployment
-pending**
+Status: **Complete in the accumulation branch; development-guild deployed and
+loaded by the guarded beta**
 
 Branch/base: `codex/p9-13-operator-bot-restart`, exact clean accumulation base
 `85496c8dd27b4ac973d590b1b318ab388586ff6e`. Implementation/tests checkpoint:
-`579ff94`; roadmap evidence: `280f1b4`; accumulation merge: `6720e25`.
+`579ff94`; roadmap evidence: `280f1b4`; accumulation merge: `6720e25`;
+accumulation close-out/running checkpoint: `dc8608b`.
 
 The approved lifecycle contract is one native `/operator bot restart` command
 with optional `force`. A normal restart preserves configured-superuser access,
@@ -13317,12 +13318,23 @@ Validation/evidence:
 
 This unit changes no schema, database query/mutation, fixture, or background
 task. The immediately preceding P9.12 stopped-writer full development gate is
-current, so another PostgreSQL window is not warranted. Deployment still
-requires stopping only the durable beta, running the offline desired-tree plan,
-inspecting/applying only the configured development guild because `/operator`
-changed, and restarting once at the clean integrated checkpoint. This
-operator-only workflow does not warrant a tester checklist entry or wider-beta
-announcement.
+current, so another PostgreSQL window was not warranted. Deployment stopped
+only the durable beta and proved the host-wide writer audit clear. The offline
+plan retained the established eleven roots; remote inspect found only
+`operator` changed. Apply targeted only guild `478571892832206869` with the
+exact no-global-sync acknowledgement, and a second inspect found every root
+unchanged. The guarded beta then started at exact clean checkpoint `dc8608b` as
+PID `3912282`, authenticated as application `479029527553638401`, returned a
+ready protected inventory for the configured development guild/capabilities,
+and was the sole development writer.
+
+Deployment uses the explicit no-announcement acceptance route. This
+operator-only lifecycle control does not belong on the wider-tester checklist,
+and no reporter or tester notification is warranted. Discord command-cache
+delivery and the actual supervisor cycle still require a configured superuser
+or owner to invoke the command; offline coverage proves both modes, exact force
+confirmation, exit 75, cancellation, and denial boundaries without fabricating
+a user interaction.
 
 ## Standard work-unit template
 
@@ -14328,10 +14340,22 @@ not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
 - Tier-3 complete-diff review found no remaining blocker. Implementation/tests
   are checkpointed at `579ff94`. No database gate is warranted because the unit
   has no database path and the P9.12 full stopped-writer gate is current.
-- Integrated the reviewed unit as accumulation merge `6720e25`. Accumulation
-  close-out/push, development-guild `/operator` apply, guarded beta restart,
-  runtime verification, and explicit no-announcement disposition remain
-  pending.
+- Integrated the reviewed unit as accumulation merge `6720e25`, committed and
+  pushed clean close-out `dc8608b`, and verified the exact GitHub ref. Stopped
+  only the guarded beta; the host-wide writer audit was clear. Applied only the
+  development guild's changed `operator` root with no global sync, then proved
+  all eleven roots converged.
+- Restarted the guarded beta from exact checkpoint `dc8608b`; PID `3912282`
+  authenticated as expected beta application `479029527553638401`, returned a
+  ready protected inventory, and is the sole development writer. Selected
+  no-announcement acceptance because this is an operator-only lifecycle
+  control. The first real Discord invocation remains for a configured
+  superuser/owner rather than a fabricated bot-side interaction.
+- Next recommended: close H3 by making remote guild inspect/apply also read and
+  report the global command tree and refuse apply when it is nonempty, without
+  adding a global mutation operation. Also ready: the separate fail-closed
+  production timezone migration tool required by blocker B1; implementation
+  remains development-only until a later explicit production apply approval.
 
 ### 2026-08-10 — P9.12/H1-H2 runtime and native-start ban safety gated
 
