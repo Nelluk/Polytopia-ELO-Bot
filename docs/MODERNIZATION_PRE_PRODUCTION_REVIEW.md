@@ -383,8 +383,15 @@ Status: **Resolved by P9.17.**
 
 ### M2 — Backup execution can outlive both its view and Discord interaction token
 
-Status: **Open; P9.10 fixed repeated cancellation but did not change the
-five-minute view, interaction-token lifetime, or 30-minute process bound.**
+Status: **Resolved by P9.18.**
+
+P9.18 stops the preview view as soon as confirmation owns the panel, keeps the
+busy state immune to its former five-minute timeout, and caps the child at 12
+minutes so termination and terminal publication retain a three-minute margin
+inside the fresh component interaction's 15-minute token. Progress and the
+single terminal result replace the private original panel; no second terminal
+followup is sent. Focused tests cover synthetic five-minute timeout, the
+12/15-minute margin, success, timeout, failure, and cancellation.
 
 - **Location:** 30-minute process limit at `modules/operator_backup.py:29`;
   five-minute view at `modules/operator_backup_views.py:25`; timeout wording at
@@ -406,9 +413,18 @@ five-minute view, interaction-token lifetime, or 30-minute process bound.**
 
 ### M3 — Backup source validation is not tied to a reviewed release
 
-Status: **Open for the Discord-triggered backup path. P9.16 independently
-binds cutover-time backup provenance to the exact clean release, but does not
-alter the command implementation described here.**
+Status: **Resolved by P9.18; production activation remains separately gated.**
+
+P9.18 requires a private mode-0600 manifest bound to the exact clean checkout
+checkpoint and SHA-256 digests of the tracked/deployed backup shell, tracked
+reporting exporter, and resolved interpreter. Preflight uses `lstat`, rejects
+non-regular/symlink source or deployed scripts and unsafe ownership/modes,
+requires both tracked sources in the clean Git index, and proves the exporter
+will use the running bot's interpreter before spawn. A separate production-only
+plan/apply/validate tool prepares the atomic manifest during an approved
+cutover; no manifest was installed in this development unit. Focused tests
+cover missing/unpinned provenance, both script symlinks, dirty exporter, wrong
+checkpoint, wrong interpreter, and the valid pinned path.
 
 - **Location:** `modules/operator_backup.py:164`; additional executed exporter
   at `scripts/backup_db.sh:19` and `scripts/backup_db.sh:147`.

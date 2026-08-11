@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import FrozenInstanceError
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -17,6 +18,9 @@ from tests.test_newgame_worker import import_offline_runtime
 backup = import_offline_runtime('modules.operator_backup')
 views = import_offline_runtime('modules.operator_backup_views')
 administration = import_offline_runtime('modules.administration')
+release_tool = import_offline_runtime(
+    'scripts.manage_production_backup_release'
+)
 
 
 def request(**overrides):
@@ -40,6 +44,10 @@ def runtime(**overrides):
         current_username='nelluk',
         source_script=Path('/missing/source'),
         deployed_script=Path('/missing/deployed'),
+        reporting_exporter=Path('/missing/exporter'),
+        reporting_python=Path('/missing/python'),
+        current_executable=Path('/missing/python'),
+        release_manifest=Path('/missing/manifest'),
     )
     values.update(overrides)
     return backup.BackupRuntime(**values)
@@ -47,6 +55,52 @@ def runtime(**overrides):
 
 def artifact(label='Full database'):
     return backup.BackupArtifact(label, 1234, 1_700_000_000)
+
+
+def make_release_runtime(directory: str):
+    root = Path(directory)
+    (root / 'scripts').mkdir()
+    (root / '.venv/bin').mkdir(parents=True)
+    source = root / 'scripts/backup_db.sh'
+    deployed = root / 'deployed.sh'
+    exporter = root / 'scripts/export_reporting_duckdb.py'
+    python = root / '.venv/bin/python'
+    source.write_bytes(b'#!/bin/sh\nexit 0\n')
+    deployed.write_bytes(source.read_bytes())
+    exporter.write_bytes(b'print("export")\n')
+    python.write_bytes(b'python-runtime')
+    source.chmod(0o700)
+    deployed.chmod(0o700)
+    exporter.chmod(0o600)
+    python.chmod(0o700)
+    subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
+    subprocess.run(['git', 'add', 'scripts'], cwd=root, check=True)
+    subprocess.run(
+        [
+            'git', '-c', 'user.name=PolyBot Test',
+            '-c', 'user.email=polybot@example.invalid',
+            'commit', '-qm', 'reviewed release',
+        ],
+        cwd=root,
+        check=True,
+    )
+    checkpoint = subprocess.run(
+        ['git', 'rev-parse', 'HEAD'],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    value = runtime(
+        project_root=root,
+        source_script=source,
+        deployed_script=deployed,
+        reporting_exporter=exporter,
+        reporting_python=python,
+        current_executable=python,
+        release_manifest=root / backup.RELEASE_MANIFEST_NAME,
+    )
+    return value, checkpoint
 
 
 class FakeProcess:
@@ -95,33 +149,107 @@ class BackupBoundaryTests(unittest.TestCase):
                 backup.validate_runtime_sync(99, runtime())
         stat_path.assert_not_called()
 
-    def test_matching_private_owner_executable_scripts_pass(self):
+    def test_clean_pinned_release_and_runtime_pass(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / 'source.sh'
-            deployed = root / 'deployed.sh'
-            source.write_bytes(b'#!/bin/sh\nexit 0\n')
-            deployed.write_bytes(source.read_bytes())
-            source.chmod(0o700)
-            deployed.chmod(0o700)
-            value = runtime(source_script=source, deployed_script=deployed)
-            result = backup.validate_runtime_sync(10, value)
-        self.assertEqual(len(result.source_digest), 64)
-
-    def test_source_drift_fails_closed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / 'source.sh'
-            deployed = root / 'deployed.sh'
-            source.write_bytes(b'source')
-            deployed.write_bytes(b'drift')
-            source.chmod(0o700)
-            deployed.chmod(0o700)
-            with self.assertRaises(backup.BackupSourceError):
-                backup.validate_runtime_sync(
-                    10,
-                    runtime(source_script=source, deployed_script=deployed),
+            value, checkpoint = make_release_runtime(directory)
+            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+                manifest = backup.build_release_manifest_sync(
+                    value,
+                    expected_checkpoint=checkpoint,
                 )
+                backup.write_release_manifest_sync(value, manifest)
+                result = backup.validate_runtime_sync(10, value)
+        self.assertEqual(len(result.source_digest), 64)
+        self.assertEqual(result.release_checkpoint, checkpoint)
+
+    def test_matching_scripts_without_pinned_manifest_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value, _checkpoint = make_release_runtime(directory)
+            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+                    self.assertRaises(backup.BackupSourceError):
+                backup.validate_runtime_sync(10, value)
+
+    def test_source_and_deployed_symlinks_fail_closed(self):
+        for selected in ('source', 'deployed'):
+            with self.subTest(selected=selected), \
+                    tempfile.TemporaryDirectory() as directory:
+                value, checkpoint = make_release_runtime(directory)
+                with mock.patch.object(
+                    backup,
+                    'PRODUCTION_ROOT',
+                    value.project_root,
+                ):
+                    manifest = backup.build_release_manifest_sync(
+                        value,
+                        expected_checkpoint=checkpoint,
+                    )
+                    backup.write_release_manifest_sync(value, manifest)
+                    target = (
+                        value.source_script
+                        if selected == 'source'
+                        else value.deployed_script
+                    )
+                    original = target.with_name(target.name + '.real')
+                    target.rename(original)
+                    target.symlink_to(original)
+                    with mock.patch.object(
+                        backup,
+                        '_checkout_checkpoint',
+                        return_value=checkpoint,
+                    ), self.assertRaises(backup.BackupSourceError):
+                        backup.validate_runtime_sync(10, value)
+
+    def test_dirty_exporter_fails_before_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value, checkpoint = make_release_runtime(directory)
+            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+                manifest = backup.build_release_manifest_sync(
+                    value,
+                    expected_checkpoint=checkpoint,
+                )
+                backup.write_release_manifest_sync(value, manifest)
+                value.reporting_exporter.write_text('dirty\n', encoding='utf-8')
+                with self.assertRaises(backup.BackupSourceError):
+                    backup.validate_runtime_sync(10, value)
+
+    def test_wrong_checkout_checkpoint_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value, checkpoint = make_release_runtime(directory)
+            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+                manifest = backup.build_release_manifest_sync(
+                    value,
+                    expected_checkpoint=checkpoint,
+                )
+                wrong = backup.BackupReleaseManifest(
+                    **{
+                        **manifest.as_dict(),
+                        'release_checkpoint': 'f' * 40,
+                    }
+                )
+                backup.write_release_manifest_sync(value, wrong)
+                with self.assertRaises(backup.BackupSourceError):
+                    backup.validate_runtime_sync(10, value)
+
+    def test_wrong_interpreter_identity_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value, checkpoint = make_release_runtime(directory)
+            other = value.project_root / '.venv/bin/other-python'
+            other.write_bytes(b'other-runtime')
+            other.chmod(0o700)
+            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+                manifest = backup.build_release_manifest_sync(
+                    value,
+                    expected_checkpoint=checkpoint,
+                )
+                backup.write_release_manifest_sync(value, manifest)
+                with self.assertRaises(backup.BackupSourceError):
+                    backup.validate_runtime_sync(
+                        10,
+                        runtime(**{
+                            **value.__dict__,
+                            'current_executable': other,
+                        }),
+                    )
 
     def test_result_never_exposes_process_diagnostics(self):
         rendered = backup.format_result(backup.BackupResult(
@@ -294,6 +422,216 @@ class BackupExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(process.wait_completed.is_set())
         self.assertEqual(stream_drains, 2)
         self.assertIsNone(coordinator.active)
+
+
+class BackupViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    def interaction(self):
+        return SimpleNamespace(
+            user=SimpleNamespace(id=10),
+            response=SimpleNamespace(
+                defer=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+                edit_message=mock.AsyncMock(),
+            ),
+            edit_original_response=mock.AsyncMock(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+
+    async def test_five_minute_preview_timeout_cannot_expire_busy_panel(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def runner(_interaction):
+            started.set()
+            await release.wait()
+            return backup.BackupResult('success', 0, 301.0, (artifact(),))
+
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=runner,
+        )
+        interaction = self.interaction()
+        task = asyncio.create_task(view._run(interaction))
+        await asyncio.wait_for(started.wait(), 0.2)
+        self.assertTrue(view.busy)
+        self.assertTrue(view.is_finished())
+
+        await view.on_timeout()
+        self.assertIn('Backup running', view.status)
+        self.assertNotIn('expired', view.status)
+
+        release.set()
+        await task
+        self.assertTrue(view.finished)
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        interaction.followup.send.assert_not_awaited()
+        self.assertIn('completed', view.status)
+
+    async def test_twelve_minute_bound_leaves_interaction_expiry_margin(self):
+        self.assertEqual(backup.MAX_PROCESS_SECONDS, 12 * 60)
+        self.assertLessEqual(backup.MAX_PROCESS_SECONDS + 60, 15 * 60)
+        interaction = self.interaction()
+        result = backup.BackupResult('timeout', None, 12 * 60)
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=mock.AsyncMock(return_value=result),
+        )
+
+        await view._run(interaction)
+
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        interaction.followup.send.assert_not_awaited()
+        self.assertIn('12-minute limit', view.status)
+        self.assertNotIn('expired', view.status)
+
+    async def test_runner_failure_has_one_terminal_panel_and_no_followup(self):
+        interaction = self.interaction()
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=mock.AsyncMock(side_effect=backup.BackupExecutionError(
+                'bounded failure'
+            )),
+        )
+
+        await view._run(interaction)
+
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        interaction.followup.send.assert_not_awaited()
+        self.assertEqual(view.status, 'bounded failure')
+        self.assertTrue(view.finished)
+
+    async def test_running_panel_edit_failure_does_not_cancel_accepted_backup(self):
+        class FakeHTTPException(Exception):
+            pass
+
+        interaction = self.interaction()
+        interaction.edit_original_response.side_effect = [
+            FakeHTTPException(),
+            None,
+        ]
+        runner = mock.AsyncMock(return_value=backup.BackupResult(
+            'success', 0, 1.0, (artifact(),)
+        ))
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=runner,
+        )
+
+        with mock.patch.object(views.discord, 'HTTPException', FakeHTTPException):
+            await view._run(interaction)
+
+        runner.assert_awaited_once_with(interaction)
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        self.assertTrue(view.finished)
+        self.assertIn('completed', view.status)
+
+    async def test_cancellation_publishes_terminal_panel_then_propagates(self):
+        interaction = self.interaction()
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=mock.AsyncMock(side_effect=asyncio.CancelledError),
+        )
+
+        with self.assertRaises(asyncio.CancelledError):
+            await view._run(interaction)
+
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        interaction.followup.send.assert_not_awaited()
+        self.assertIn('interrupted', view.status)
+        self.assertFalse(view.busy)
+
+
+class BackupReleaseToolTests(unittest.TestCase):
+    manifest = backup.BackupReleaseManifest(
+        schema_version=1,
+        release_checkpoint='a' * 40,
+        backup_script_sha256='b' * 64,
+        reporting_exporter_sha256='c' * 64,
+        python_resolved_path='/reviewed/python',
+        python_sha256='d' * 64,
+    )
+
+    def test_nonproduction_refuses_before_inspection(self):
+        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'development'}), \
+                mock.patch.object(
+                    backup,
+                    'build_release_manifest_sync',
+                ) as build:
+            result = release_tool.main(
+                ['--checkpoint', 'a' * 40],
+                runtime=runtime(),
+            )
+        self.assertEqual(result, 2)
+        build.assert_not_called()
+
+    def test_plan_is_read_only_and_apply_requires_exact_confirmation(self):
+        value = runtime()
+        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
+                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+                mock.patch.object(
+                    backup,
+                    'build_release_manifest_sync',
+                    return_value=self.manifest,
+                ), mock.patch.object(
+                    backup,
+                    'write_release_manifest_sync',
+                ) as write:
+            plan_result = release_tool.main(
+                ['--checkpoint', 'a' * 40],
+                runtime=value,
+            )
+            refused_result = release_tool.main(
+                ['--checkpoint', 'a' * 40, '--apply'],
+                runtime=value,
+            )
+        self.assertEqual((plan_result, refused_result), (0, 2))
+        write.assert_not_called()
+
+    def test_apply_installs_only_after_exact_confirmation(self):
+        value = runtime()
+        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
+                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+                mock.patch.object(
+                    backup,
+                    'build_release_manifest_sync',
+                    return_value=self.manifest,
+                ), mock.patch.object(
+                    backup,
+                    'write_release_manifest_sync',
+                ) as write:
+            result = release_tool.main(
+                [
+                    '--checkpoint',
+                    'a' * 40,
+                    '--apply',
+                    '--confirm',
+                    backup.RELEASE_MANIFEST_CONFIRMATION,
+                ],
+                runtime=value,
+            )
+        self.assertEqual(result, 0)
+        write.assert_called_once_with(value, self.manifest)
+
+    def test_validate_requires_manifest_preflight_checkpoint_match(self):
+        value = runtime()
+        preflight = backup.BackupPreflight('b' * 64, 'a' * 40)
+        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
+                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+                mock.patch.object(
+                    backup,
+                    'validate_runtime_sync',
+                    return_value=preflight,
+                ) as validate, mock.patch.object(
+                    backup,
+                    'build_release_manifest_sync',
+                ) as build:
+            result = release_tool.main(
+                ['--checkpoint', 'a' * 40, '--validate'],
+                runtime=value,
+            )
+        self.assertEqual(result, 0)
+        validate.assert_called_once_with(value.owner_id, value)
+        build.assert_not_called()
 
 
 class BackupAdapterTests(unittest.IsolatedAsyncioTestCase):

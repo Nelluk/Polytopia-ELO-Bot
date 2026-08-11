@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 Status: Active
 
@@ -490,24 +490,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.17/M1+M4+M5 retained interaction boundaries is
-Complete in accumulation at merge checkpoint `e34e007`. Implementation
-checkpoint `88ad772` and evidence checkpoint `cd55eea` were reviewed from
-exact clean accumulation checkpoint `4d94743`. `PolyGame` now parses only a
-bounded primitive integer and leaves authoritative game/guild/state lookup to
-the existing workers. `$getname` and `$getnames` use one bounded immutable read
-service with worker-owned connections and cancellation drainage. Native team
-show and team leaderboard publication now resolve a real public channel or
-report an explicit private publication failure, never a purported public
-followup inherited from an ephemeral defer. Unexpected prefix failures retain
-their full traceback only in server logs and expose a short correlation
-reference in Discord. Focused affected coverage passes 155/155. Complete
-discovery runs 1,627 tests: 1,553 pass, 71 intentionally skip, and only the
-same three missing-`duckdb` environment cases fail. No new schema boundary was
-introduced, so the documented cadence does not warrant a development database
-gate. M1, M4, and M5 are resolved; M2, M3, M6, M7, and part of L1 remain open.
-The guarded beta is healthy on exact runtime checkpoint `e34e007`; no command
-apply or tester announcement was warranted.**
+Current active unit: **P9.18/M2+M3 operator-backup lifecycle and provenance is
+Tier-3 reviewed and accepted for accumulation integration from exact clean
+base `3290d80a536874ab6434d4bbb967458b83b6e139`. Implementation checkpoint
+`c1e1c8d` and review corrections `ac665f1` / `31edd75` cap execution at 12
+minutes,
+stop preview expiry while busy, publish exactly one terminal private panel,
+and require an atomic private manifest binding the clean checkout, shell,
+exporter, and running interpreter before spawn. Focused affected coverage
+passes 78/78. Complete discovery runs 1,640 tests: 1,566 pass, 71 intentionally
+skip, and only the same three missing-`duckdb` environment cases fail. The
+unit changes no database or command shape, so neither a development-database
+gate nor guild command apply is warranted. M2 and M3 are resolved in the
+reviewed branch; M6, M7, and part of L1 remain open.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -11708,7 +11703,7 @@ release candidate.
 ## P9 — Production rollout and prefix lifecycle
 
 Status: **In progress; source safety and production-preparation units through
-P9.16 are implemented; remaining adversarial corrections, release-candidate
+P9.18 are implemented; remaining adversarial corrections, release-candidate
 validation, activation, and rollout remain separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
@@ -13595,6 +13590,60 @@ repository-only consistency pass. M6 waits on the production communities'
 exact support/privacy-route decision; M7 remains the final R-002 candidate
 freeze after the preceding corrections.
 
+### P9.18 — M2/M3 operator-backup lifecycle and release provenance
+
+Status: **Tier-3 reviewed and accepted for accumulation integration**
+
+Branch/base: `codex/p9-18-m2-m3-backup-provenance`, exact clean accumulation
+base `3290d80a536874ab6434d4bbb967458b83b6e139`.
+Implementation/tests checkpoint: `c1e1c8d`; durability review correction:
+`ac665f1`; final delivery review correction: `31edd75`.
+
+The private owner-only `/operator database backup` confirmation now stops its
+five-minute preview timer immediately after the requester confirms. Its running
+panel therefore cannot expire into false rerun guidance. The child-process
+ceiling is 12 minutes, leaving three minutes within the fresh component
+interaction's 15-minute token for process-group termination, output drainage,
+artifact inspection, and one terminal panel replacement. Success, host-lock,
+timeout, bounded failure, and cancellation no longer add a second followup.
+
+Every preview and confirmed execution still revalidates before spawn. The new
+mode-0600 ignored release manifest pins the exact clean Git checkpoint and
+SHA-256 identities of the tracked/deployed shell, tracked reporting exporter,
+and resolved interpreter. Source/deployed symlinks, non-regular files, unsafe
+owners/modes, tracked changes, untracked source substitutions, wrong checkout,
+wrong interpreter, or digest drift fail closed. The interpreter may retain the
+normal virtual-environment symlink only because its resolved path, executable
+identity, ownership/mode, digest, and equality with the running bot interpreter
+are all pinned. The absolute `/usr/bin/git` inspector and all file/Git/hash work
+remain on the existing bounded file executor.
+
+`scripts/manage_production_backup_release.py` provides a production-only,
+exact-checkpoint plan plus explicitly confirmed atomic apply and read-only
+validate modes. The modernization cutover runbook makes manifest installation
+a distinct production-file approval after the exact checkout and locked
+environment are ready, and requires regeneration for a manifest-aware rollback.
+No production file, checkout, service, database, backup, or Discord resource
+was accessed or changed by this unit.
+
+Focused operator-backup/restart/deployment/taxonomy/policy coverage passes
+**78/78**. Complete offline discovery runs **1,640 tests: 1,566 pass, 71
+intentional gated skips, and only the three documented missing-`duckdb`
+environment cases fail**. Compilation, shell syntax, and `git diff --check`
+pass. Tier-3 review added directory `fsync` after atomic manifest replacement
+and ensured a failed nonterminal running-panel edit cannot cancel an already
+accepted backup; no remaining blocker was found. Because this production-only
+path changes no
+database graph, schema, application-command shape, or development behavior,
+the development-database gate and development-guild command apply are not
+warranted. Production manifest installation and first backup remain separately
+approved cutover operations.
+
+Next recommended action after integration: complete L1's repository-only
+consistency pass so stale active wording and duplicated historical authority
+cannot mislead R-002. Also selectable after a product decision: M6's exact
+production support/privacy route. M7 remains the final exact-candidate freeze.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14604,6 +14653,32 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-11 — P9.18/M2+M3 backup lifecycle/provenance reviewed
+
+- Reconciled clean local, tracking, and GitHub accumulation checkpoint
+  `3290d80a536874ab6434d4bbb967458b83b6e139`, created isolated branch/worktree
+  `codex/p9-18-m2-m3-backup-provenance`, and passed the unchanged development
+  profile/database/task/API setup gate.
+- Stopped confirmation-view expiry while execution is active, bounded the
+  child to 12 minutes within the 15-minute component token, and consolidated
+  terminal delivery into one private panel replacement. Added exact clean
+  release checkpoint plus shell/exporter/interpreter digest provenance,
+  non-symlink/owner/mode checks, and separately gated atomic manifest
+  plan/apply/validate tooling. No backup or production resource was touched.
+- Focused affected coverage passes 78 tests. Complete discovery runs 1,640
+  tests with 71 intentional skips and only the same three known missing-DuckDB
+  environment failures. Compilation, shell syntax, and diff checks pass. No
+  database boundary or command shape warrants a PostgreSQL gate or guild apply.
+- Tier-3 full-diff review added a directory durability sync after atomic
+  manifest publication and kept an accepted backup running if only its
+  nonterminal progress edit fails. No remaining blocker was found.
+  Implementation is `c1e1c8d`; durability correction is `ac665f1`; final
+  delivery correction is `31edd75`. M2 and M3 are resolved on the reviewed unit
+  branch and await accumulation integration.
+- Next recommended after integration: L1's repository-only consistency pass.
+  M6 is also selectable once the exact production support/privacy route and
+  monitoring owner/cadence are decided; M7 remains the final candidate freeze.
 
 ### 2026-08-10 — P9.17/M1+M4+M5 interaction boundaries implemented
 
