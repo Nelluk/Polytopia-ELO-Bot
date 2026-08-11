@@ -651,12 +651,15 @@ document using version/digest/base/actor optimistic evidence; validation uses
 the current member-free Discord role/channel snapshot; discard only expires
 the inactive row. No operation activates a revision, changes runtime state,
 writes registry/revision/audit history, enrolls a guild, or synchronizes
-commands. The additive one-table development migration plan is connection-free
-and digest-bound; live apply and the transactional PostgreSQL lifecycle gate
-remain separately approval-gated, so the beta and command tree are unchanged.
-Activation/reconciliation and rollback-to-revision remain separate later
-units. Implementation checkpoint is `ec3922b`, evidence checkpoint is
-`2f29667`, and pushed accumulation close-out checkpoint is `17871ea`.**
+commands. The approved additive one-table development migration applied and
+verified at the exact plan digest; the transactional lifecycle and complete
+stopped-writer PostgreSQL gates pass. Only the existing development-guild
+`operator` root was updated, the global tree remains empty, and the durable
+beta runs the clean renamed checkpoint with healthy database authority and
+readiness. Activation/reconciliation and rollback-to-revision remain separate
+later units. Implementation checkpoint is `ec3922b`, evidence checkpoint is
+`2f29667`, initial close-out is `17871ea`, and the pre-deployment public-name
+correction/deployment checkpoint is `ebbe9e9`.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14980,13 +14983,14 @@ keep onboarding, delegation, and production authority separate.
 
 ### P10.6b1 — Inactive owner draft and preview boundary
 
-Status: **Implemented, offline reviewed, and integrated; development schema
-apply, real-schema gate, and deployment pending.**
+Status: **Complete, integrated, development-schema gated, guild-registered,
+and beta deployed; owner interaction acceptance pending.**
 
 Branch/base: `codex/p10-6b1-guild-config-drafts`, exact clean pushed
 accumulation checkpoint `930aa5cb13decc67ac76882057a03b22e07ad551`.
 Implementation checkpoint: `ec3922b`.
 Evidence/fast-forward integration checkpoint: `2f29667`.
+Pre-deployment rename/deployment checkpoint: `ebbe9e9`.
 
 Risk tier: **Tier 3 configuration mutation boundary.** Drafts are deliberately
 non-authoritative, but the unit establishes the write/concurrency contract
@@ -15021,9 +15025,8 @@ and primitives, never ORM models. A committed write followed by Discord edit
 failure remains truthfully recoverable through Refresh; failed pre-commit
 validation/CAS rolls back.
 
-Affected focused validation passes 60 tests with one intentionally gated
-real-schema case. Complete offline discovery passes all 1,868 tests with 81
-intentional gated skips. Tier-3 complete-diff review found and corrected
+Affected focused validation passes 60 tests. Complete offline discovery passes
+all 1,868 tests with 81 intentional gated skips. Tier-3 complete-diff review found and corrected
 allowlist tamper handling, exact-timestamp expiry, and improper edit-only
 evidence forwarding from the Refresh/Validate/Reset controls; no remaining
 actionable finding is known. The exact connection-free schema plan digest is
@@ -15031,11 +15034,26 @@ actionable finding is known. The exact connection-free schema plan digest is
 The operational contract is
 `docs/DEVELOPMENT_GUILD_CONFIGURATION_DRAFTS.md`.
 
-Next action: request separate approval for a stopped-beta development-only
-one-table apply and rolled-back lifecycle gate. Do not
-register or deploy `/operator guild edit` until that gate passes. P10.6b2 may
-then separately design exact activation and post-commit runtime reconciliation;
-rollback remains separately bounded.
+The approved apply created and independently verified the exact schema-version
+one table without changing active configuration. The unit lifecycle passed
+inside an always-rolled-back transaction; the complete stopped-writer database
+gate ran 81 tests, passing 80 with only the established operator-managed
+fixture round trip skipped. Remote command inspection showed an empty global
+tree and exactly one development-guild update to the existing `operator` root;
+apply succeeded and repeat inspection is fully unchanged.
+
+The durable beta runs exact clean checkpoint
+`ebbe9e9a22438ea186c6ecf5d93d6801364cd926` as PID `206404`, authenticated
+as development application `479029527553638401`, with zero restart churn and
+one host-wide development writer. Startup published matched database
+generation 1 for guild `478571892832206869`; all five protected Beta Lab packs
+are ready. Acceptance route is operator test first: Nelluk may now exercise
+`/operator guild edit`. This owner-only surface does not warrant a tester
+checklist change or announcement.
+
+Next action: P10.6b2 should separately design exact draft activation and
+truthful post-commit runtime reconciliation. Rollback-to-revision remains a
+separately bounded following unit.
 
 ## Standard work-unit template
 
@@ -16158,7 +16176,7 @@ replacement for P10.5's static-equality promotion condition.
 
 ### D-056 — Stage complete inactive drafts before activation
 
-Status: **Accepted; implemented by P10.6b1 pending gated schema apply**
+Status: **Accepted; implemented and development-gated by P10.6b1**
 
 Use one 24-hour configured-owner-bound draft per already enrolled guild. A
 draft is always a complete canonical schema-versioned document copied from an
@@ -16188,8 +16206,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6a complete in development; P10.6b1 inactive
-draft tooling is implemented pending its gated development apply.** The
+Design status: **P10.1 through P10.6b1 complete in development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16339,7 +16356,7 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
-### 2026-08-11 — P10.6b1 inactive owner drafts implemented offline
+### 2026-08-11 — P10.6b1 inactive owner drafts implemented and deployed
 
 - Nelluk briefly exercised all four P10.6a owner commands and reported that
   they appeared to work correctly; no defect was reported from that bounded
@@ -16393,6 +16410,32 @@ deferred into this post-modernization backlog.
 - Accumulation close-out checkpoint `17871ea` was pushed and independently
   verified on GitHub. Local, tracking, and GitHub accumulation state reconciled
   exactly before requesting the separate live development schema gate.
+- Pre-deployment correction `ebbe9e9` renamed the public command to
+  `/operator guild edit`, retained no temporary alias, repeated 60 focused
+  tests and all 1,868 offline tests with 81 intentional skips, and was exact
+  fast-forward integrated and pushed before the stopped-writer window.
+- Stopped only guarded beta PID `173430`; the user service became inactive and
+  the host-wide writer audit was clear. The approved exact plan
+  `P10.6B1 APPLY 4c97d1502519480f0a2f31ac0fb4f4c297770ee5bfd9ed0cacd7a74f3c323dc6`
+  created one `guild_configuration_draft` table. Independent verify matched
+  schema version 1 and the same digest; active configuration was unchanged.
+- The real-schema create/read/replace/expire lifecycle passed inside its
+  guaranteed rollback. The complete stopped-writer PostgreSQL gate ran 81
+  tests: 80 passed and only the established operator-managed fixture round
+  trip skipped. No draft fixture was retained.
+- Remote inspection showed an empty global command tree and exactly one update
+  to the existing `operator` root in development guild `478571892832206869`.
+  Exact guild-only apply succeeded; repeat inspection reports all 11 roots
+  unchanged and the global tree still empty.
+- The durable beta started clean checkpoint
+  `ebbe9e9a22438ea186c6ecf5d93d6801364cd926` as PID `206404`, authenticated
+  as application `479029527553638401`, with zero restart churn and exactly one
+  host-wide development writer. Startup published matched database generation
+  1 and all five protected Beta Lab packs report ready.
+- Acceptance route is operator test first. No `BETA_WHAT_TO_TEST.md` change or
+  announcement was made because this is an owner-only configuration editor.
+  Next: Nelluk can exercise `/operator guild edit`; P10.6b2 is the separately
+  bounded activation/reconciliation design and implementation unit.
 
 ### 2026-08-11 — P10.6a owner configuration reads implemented
 
