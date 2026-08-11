@@ -614,9 +614,9 @@ separate.**
 P10.6a owner guild-configuration inspection is implemented on
 `codex/p10-6a-guild-config-read` from exact clean pushed accumulation base
 `d870df6ab11979b653e966dfbcb2d19e97cfa588`. Implementation checkpoint
-`67e9066` is Tier-3 reviewed, complete-offline validated, and read-only
-development-database gated; integration and beta deployment remain pending.
-It adds four private owner-only commands beneath
+`67e9066` and database-gate/evidence checkpoint `8884b91` are Tier-3 reviewed,
+complete-offline validated, integrated by exact fast-forward, and deployed to
+the development beta. It adds four private owner-only commands beneath
 `/operator guild`: a bounded registry list, compact sectioned active settings,
 exact live validation, and bounded revision/audit history for the current
 already enrolled guild. Every read uses one worker-owned read-only connection,
@@ -625,7 +625,16 @@ the database schema/identity, active document digest, current Discord role and
 channel references, and running immutable revision/generation/digest. P10.6a
 creates no revision or audit, changes no enrollment or authority, and does not
 implement drafts, activation, rollback, onboarding, delegation, reload, or
-production operation.**
+production operation. The command apply updated only the existing `operator`
+root in development guild `478571892832206869`; post-apply inspection found
+all 11 guild roots unchanged and the global tree empty. The durable beta runs
+checkpoint `8884b913381887dfdfac9ef32493cd16d97d81ee` as PID `173430`, with
+zero restart churn, exactly one host-wide development writer, authenticated
+development identity, matched database generation 1, and all five Beta Lab
+packs ready. Direct owner interaction remains Nelluk's acceptance check. No
+tester checklist or announcement was warranted for this owner-only surface.
+Next selectable work is P10.6b's separately reviewed draft/activation/rollback
+mutation boundary.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14886,8 +14895,8 @@ keep new-guild enrollment and command deployment out of P10.6.
 
 ### P10.6a — Owner guild-configuration inspection
 
-Status: **Implemented, Tier-3 reviewed, and database-gated; integration and
-beta deployment pending.**
+Status: **Complete, integrated, development-guild registered, and beta
+validated.**
 
 Branch/base: `codex/p10-6a-guild-config-read`, exact clean pushed accumulation
 checkpoint `d870df6ab11979b653e966dfbcb2d19e97cfa588`.
@@ -14931,10 +14940,21 @@ complete discovery passes all 1,836 tests with 80 intentional gated skips; and
 the stopped-writer database gate runs 79 tests with 78 passes and one retained-
 fixture skip.
 
-Next action: integrate, perform the development-guild-only command plan/apply
-while the beta is stopped, restart the guarded beta, and privately verify the
-new command tree and runtime health before deciding the announcement
-disposition.
+Integration fast-forwarded the accumulation branch through `8884b91`. The
+offline and remote plans changed only the existing development `operator`
+root; exact guild-only apply succeeded, the repeat inspection is unchanged,
+and the global command tree remains empty. The guarded beta runs the full
+checkpoint `8884b913381887dfdfac9ef32493cd16d97d81ee` with the exact database
+snapshot and protected readiness healthy. The four ephemeral owner responses
+cannot be invoked by the deployment tooling without impersonating Nelluk, so
+they remain a bounded manual acceptance check. No tester checklist edit or
+announcement is warranted.
+
+Next action: scope P10.6b as the separately reviewed draft/activation/rollback
+mutation boundary. Preserve digest-bound previews, stale-confirmation
+rejection, transactional audit, explicit restart/reconciliation truth, and a
+reviewed replacement for P10.5's transitional static-equality startup gate;
+keep onboarding, delegation, and production authority separate.
 
 ## Standard work-unit template
 
@@ -16062,8 +16082,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.5 complete; P10.6a reviewed and
-database-gated pending integration.** The
+Design status: **P10.1 through P10.6a complete in development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16241,8 +16260,22 @@ deferred into this post-modernization backlog.
   repeated stopped-writer run passes 78 of 79 tests with only the retained
   operator-fixture round trip intentionally skipped. The new P10.6a real-graph
   test validates all four owner read surfaces without a database write.
-- Next: integrate, apply only the reviewed development-guild command change,
-  restart the guarded beta, and record runtime evidence.
+- Exact fast-forward integrated evidence checkpoint `8884b91`. The offline
+  and remote command plans targeted only development guild
+  `478571892832206869`, with one update to the existing `operator` root and an
+  empty global tree. Exact guild-only apply succeeded; repeat inspection found
+  all 11 roots unchanged and the global tree still empty.
+- The durable beta started clean checkpoint
+  `8884b913381887dfdfac9ef32493cd16d97d81ee` as PID `173430`, authenticated as
+  application `479029527553638401`, with zero restart churn and exactly one
+  host-wide development writer. Its runtime log proves database authority
+  published matched generation 1, and protected Beta Lab status reports all
+  five packs ready. Direct execution of the four ephemeral owner commands is
+  left to Nelluk because deployment tooling does not impersonate an owner
+  interaction.
+- Acceptance route: no announcement. This is an owner-only operational
+  surface, not a tester workflow; no `BETA_WHAT_TO_TEST.md` change or Discord
+  post was made. Next: scope P10.6b mutation controls separately.
 
 ### 2026-08-11 — P10.5 database authority implemented and database-gated
 
