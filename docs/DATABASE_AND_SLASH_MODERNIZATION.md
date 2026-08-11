@@ -490,8 +490,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23c guided Beta Lab scenarios is complete in
-accumulation and deployed for Nelluk-only acceptance, from exact clean
+Current active unit: **P9.24 M7/R-002 exact release-candidate freeze is in
+progress on `codex/p9-24-m7-release-candidate`, from exact clean pushed
+accumulation base `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`. This Tier-3
+evidence unit adds a strict non-secret candidate record and validator, binds
+the cutover-critical source digests and every required gate to one full SHA,
+and prepares a short tester instruction draft without sending it. Initial
+cutover review caught and corrects the production runbook's mistaken use of
+development guild `478571892832206869` as PolyChampions; the tracked runtime
+authority identifies production PolyChampions as `447883341463814144`.
+Candidate readiness must remain blocked for any non-green offline dependency
+case or incomplete bounded human beta matrix. No production configuration,
+checkout, database, service, Discord tree, or announcement is authorized by
+this freeze.**
+
+P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
+Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
 `2cd2544f561d9723c89a537659d592e2b3934456`. Nelluk's first acceptance pass
 found that P9.23b did not explain what to do after lane creation and did not
@@ -14336,6 +14350,50 @@ development-guild inspection reports the same eleven roots, no global roots,
 and no create/update/removal, so no application-command apply occurred. No
 tester announcement was prepared or delivered; Nelluk must first inspect the
 private flow and separately approve any instructions or ping.
+
+### P9.24 — M7/R-002 exact release-candidate freeze
+
+Status: **In progress; repository evidence tooling and unsent tester draft
+implemented, exact candidate validation pending.**
+
+Branch/base: `codex/p9-24-m7-release-candidate`, exact clean pushed
+accumulation checkpoint `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`.
+
+Risk tier: **Tier 3 release evidence and production-target policy**. The unit
+does not perform production work. It owns a strict non-secret JSON evidence
+record, candidate-tree digest/ancestry checks, complete finding inventory,
+four exact-SHA gates, the cutover-critical review, and a concise unsent tester
+draft. The source candidate and later evidence commit are deliberately
+distinct: evidence may describe the frozen source SHA without creating an
+impossible self-referential Git commit.
+
+The validator requires exact digests for the lock, canonical service, canary
+drop-in, production migration, command manager, cutover runbook, and tester
+draft. It rejects a wrong/abbreviated candidate or rollback, missing gate,
+gate evidence from another SHA, unresolved adversarial finding, finding
+checkpoint outside the candidate, stale digest, unexpected field, suspected
+secret material, unsafe manifest path, nonempty global-tree policy, changed
+omitted capability, or production support/canary route drift. `validate`
+checks structure/repository evidence while `require-ready` additionally fails
+until cutover review, complete offline discovery, stopped-writer development
+PostgreSQL discovery, and the bounded beta matrix all pass.
+
+Cutover review found a concrete prior error: the production runbook called
+development guild `478571892832206869` PolyChampions. Runtime configuration,
+the tracked server-settings authority, and existing source links agree that
+production PolyChampions is `447883341463814144`; the unit corrects the
+runbook and locks that distinction in regression coverage and the release
+record. The desired release plan retains `tools_support` for both production
+guilds, adds the approved user canary only to production PolyChampions, omits
+`operator`, `elo_maintenance`, and `beta_testing`, and expects an empty global
+tree. Actual production configuration and Discord state must still be checked
+under their separate pre-maintenance approvals.
+
+The tester draft says `WHAT TO TEST`, asks for only one useful task, leads with
+`/whattotest`, explains short versus guided paths, requires refresh and cleanup,
+and points confusing behavior to contextual **Report problem**. It contains no
+live ping and must not be delivered until Nelluk separately approves it after
+the candidate is ready and all planned downtime is complete.
 
 ## Standard work-unit template
 

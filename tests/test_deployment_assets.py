@@ -81,6 +81,14 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('not standing production authorization', runbook)
         self.assertIn('POLYBOT_RELEASE_SHA', runbook)
         self.assertIn('POLYBOT_ROLLBACK_SHA', runbook)
+        self.assertIn(
+            'Initial native canary guild: PolyChampions, `447883341463814144`',
+            runbook,
+        )
+        self.assertNotIn(
+            'Initial native canary guild: PolyChampions, `478571892832206869`',
+            runbook,
+        )
         self.assertIn('unresolved adversarial-review items', runbook)
         self.assertIn("application_command_all_guild_capabilities` is exactly\n  `('tools_support',)`", runbook)
         self.assertIn("every allowlisted guild has a valid `staff_help_channel`", runbook)

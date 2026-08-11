@@ -79,7 +79,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P9.23c guided Beta Lab scenarios',
+            'Current active unit: **P9.24 M7/R-002 exact release-candidate',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)
@@ -102,6 +102,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         review = _read('docs/MODERNIZATION_PRE_PRODUCTION_REVIEW.md')
         self.assertIn('| M1–M5 | Resolved |', review)
         self.assertIn('| M6 | Resolved |', review)
+        self.assertIn('| M7 | In progress |', review)
         self.assertIn('| L1 | Resolved |', review)
         self.assertIn('| N1 import/startup schema DDL | High |', review)
         self.assertIn(

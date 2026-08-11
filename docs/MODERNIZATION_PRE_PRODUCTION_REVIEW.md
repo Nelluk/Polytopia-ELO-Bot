@@ -61,7 +61,7 @@ release-candidate evidence gate after those bounded pre-freeze units.
 | H8 | Resolved | P9.11 identity-before-startup-effects ordering |
 | M1–M5 | Resolved | P9.17 interaction boundaries and P9.18 backup lifecycle/provenance |
 | M6 | Resolved | P9.20 direct per-guild production relay and all-guild capability policy |
-| M7 | Open by design | R-002 final-HEAD release-candidate evidence |
+| M7 | In progress | P9.24/R-002 exact release-candidate evidence |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
 
 ## Blocker
@@ -540,7 +540,7 @@ Status: **Resolved by P9.20.**
 
 ### M7 — No final-HEAD release-candidate evidence exists
 
-Status: **Open by design and owned by R-002 after all preceding corrections.**
+Status: **In progress through P9.24/R-002 after all preceding corrections.**
 
 - **Location:** required gates at
   `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11699`, audit R-002 at

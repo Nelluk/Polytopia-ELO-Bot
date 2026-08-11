@@ -23,7 +23,7 @@ backup, test, or health result. Never improvise around a failed gate.
 - Database: `polytopia2`; role from the reviewed production profile and live
   `current_user`
 - Discord application: `484067640302764042`
-- Initial native canary guild: PolyChampions, `478571892832206869`
+- Initial native canary guild: PolyChampions, `447883341463814144`
 - Initial native capabilities: `core_user`, `team`, `league`, `house`, `squad`
 - All configured production guilds: `tools_support` exposing only `/staffhelp`
 - Initially omitted capabilities: `operator`, `elo_maintenance`, and
@@ -93,7 +93,7 @@ check must prove:
 - `background_tasks_enabled = true`, `api_enabled = false`, and the existing
   reviewed Bullet policy;
 - only reviewed production guilds are allowlisted;
-- PolyChampions `478571892832206869` receives exactly
+- PolyChampions `447883341463814144` receives exactly
   `('core_user', 'team', 'league', 'house', 'squad')` for the initial canary;
 - `application_command_all_guild_capabilities` is exactly
   `('tools_support',)`, exposing only `/staffhelp` in every allowlisted guild;

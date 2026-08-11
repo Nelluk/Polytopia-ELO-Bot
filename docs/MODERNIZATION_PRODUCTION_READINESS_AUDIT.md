@@ -88,6 +88,10 @@ offline discovery.
 
 ### R-002 — Build one release candidate
 
+Status: In progress through P9.24. The strict non-secret manifest/validator
+and exact-gate procedure are implemented; exact candidate validation and its
+bounded beta evidence remain to be recorded.
+
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable
 evidence merely to make the large final branch look smaller. The review should
