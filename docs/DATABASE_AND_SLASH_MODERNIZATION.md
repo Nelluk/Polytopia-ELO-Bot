@@ -491,7 +491,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.6b2 owner activation and runtime reconciliation is
-implemented on `codex/p10-6b2-guild-config-activation` from exact clean pushed
+integrated into accumulation from `codex/p10-6b2-guild-config-activation` and
+exact clean pushed
 accumulation base `02d88287ead146e289652340aa757fc627cd76e0`.
 Implementation checkpoint `203b7bf` adds digest-confirmed activation, one
 atomic immutable revision/registry-generation/protected-audit/draft-expiry
@@ -508,8 +509,9 @@ and unchanged capability policy. Database-gate correction `9a3e69b` makes the
 shared integration harness load current active database authority directly.
 The complete stopped-writer gate passes 82 tests: 81 passed and only the
 established operator-managed fixture round trip skipped. Integration/evidence,
-accumulation push, command plan/apply, and beta restart are next. No production
-action is authorized.**
+accumulation fast-forward checkpoint is `04fb785`. The accumulation close-out
+push, command plan/apply, and beta restart are next. No production action is
+authorized.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15052,13 +15054,14 @@ separately bounded following unit.
 
 ### P10.6b2 — Owner activation and runtime reconciliation
 
-Status: **Implemented, Tier-3 reviewed, and development-database gated;
-integration remains pending.**
+Status: **Implemented, Tier-3 reviewed, development-database gated, and exact
+fast-forward integrated; deployment remains pending.**
 
 Branch/base: `codex/p10-6b2-guild-config-activation`, exact clean pushed
 accumulation checkpoint `02d88287ead146e289652340aa757fc627cd76e0`.
 Implementation checkpoint: `203b7bf`.
 Database-gate correction: `9a3e69b`.
+Exact fast-forward integration checkpoint: `04fb785`.
 
 Risk tier: **Tier 3 authoritative configuration mutation and runtime
 publication boundary.**
@@ -15120,8 +15123,8 @@ rollback-to-revision, production authority, or production operation. The
 existing command description changes, so a development-guild-only command
 plan/apply and guarded beta restart are appropriate after integration.
 
-Next action: integrate and push the reviewed unit, then apply only
-the development-guild command description and restart the guarded beta.
+Next action: push the clean accumulation close-out, then apply only the
+development-guild command description and restart the guarded beta.
 P10.6b3 rollback-to-revision is the next separately bounded implementation.
 
 ## Standard work-unit template
@@ -16496,6 +16499,12 @@ deferred into this post-modernization backlog.
   development-guild-only command
   description apply and guarded beta restart. P10.6b3 rollback-to-revision is
   the next bounded unit.
+- Exact fast-forward integration advanced clean accumulation from
+  `02d88287ead146e289652340aa757fc627cd76e0` through all four unit checkpoints
+  to `04fb785`. The guarded beta remains intentionally stopped after the green
+  writer/database window. Next: commit/push the accumulation close-out, run the
+  offline and remote development-guild command plans, apply only the reviewed
+  description change, and start/verify the clean integrated checkpoint.
 
 ### 2026-08-11 — P10.6b1 inactive owner drafts implemented and deployed
 
