@@ -244,7 +244,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 command.name
                 for command in operator_group.get_command('guild').commands
             },
-            {'list', 'settings', 'validate', 'history'},
+            {'list', 'settings', 'validate', 'history', 'draft'},
         )
         self.assertEqual(
             operator_group.default_permissions,

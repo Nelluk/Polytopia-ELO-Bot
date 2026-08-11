@@ -52,6 +52,9 @@ from modules import operator_beta_fixtures_views
 from modules import operator_beta_fixtures_workers
 from modules import operator_guild_configuration as operator_guild_configuration_service
 from modules import operator_guild_configuration_workers
+from modules import operator_guild_configuration_drafts as operator_guild_draft_service
+from modules import operator_guild_configuration_draft_views
+from modules import operator_guild_configuration_draft_workers
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -1188,6 +1191,82 @@ class administration(commands.Cog):
             interaction,
             operation=operator_guild_configuration_workers.HISTORY,
         )
+
+    async def _operator_guild_draft_operation(
+        self,
+        interaction: discord.Interaction,
+        operation: str,
+        *,
+        expected_draft_version: int | None = None,
+        expected_draft_digest: str | None = None,
+        replacement_document=None,
+    ):
+        request = operator_guild_draft_service.build_request(
+            bot=self.bot,
+            interaction=interaction,
+            operation=operation,
+            expected_draft_version=expected_draft_version,
+            expected_draft_digest=expected_draft_digest,
+            replacement_document=replacement_document,
+        )
+        return await operator_guild_configuration_draft_workers.run_draft_operation(
+            request
+        )
+
+    @operator_guild_group.command(
+        name='draft',
+        description='Privately create, edit, and validate an inactive draft.',
+    )
+    async def operator_guild_draft_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        access_error = operator_guild_draft_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await self._operator_guild_draft_operation(
+                interaction,
+                operator_guild_configuration_draft_workers.SHOW,
+            )
+            runtime_record = settings.database_guild_configuration(
+                int(interaction.guild_id)
+            )
+            if runtime_record is None:
+                raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftValidationError(
+                    'The running database guild configuration is not published.'
+                )
+            role_names, channel_names = (
+                operator_guild_configuration_draft_views.identity_maps(
+                    interaction.guild
+                )
+            )
+            view = operator_guild_configuration_draft_views.GuildConfigurationDraftWorkspace(
+                requester_id=int(interaction.user.id),
+                active_document=runtime_record.document,
+                result=result,
+                runner=self._operator_guild_draft_operation,
+                role_names=role_names,
+                channel_names=channel_names,
+            )
+            await operator_guild_configuration_draft_views.publish_private(
+                interaction,
+                view,
+            )
+            return view
+        except operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator guild-configuration draft failure')
+            return await interaction.followup.send(
+                'Could not open the guild-configuration draft workspace. '
+                'Active configuration was unchanged.',
+                ephemeral=True,
+            )
 
     @operator_channels_group.command(
         name='purge',
