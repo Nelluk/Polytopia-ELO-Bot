@@ -221,6 +221,13 @@ writer development-database gate are green.**
 
 ### H6 — Approved operator retirements remain executable, and destructive channel purge is unresolved
 
+**Resolution:** Closed across P9.8, P9.9, and P9.13. P9.8 removes the obsolete
+`gtest`, `ptrophies`, and `boost_from` handlers; P9.9 replaces the unsafe manual
+purge with owner-only preview/selection/typed-confirmation reconciliation; and
+P9.13 replaces the restart aliases with supervised `/operator bot restart`,
+owner-only force confirmation, and deliberate exit status 75. Registry tests
+require every retired prefix and alias to remain absent.
+
 - **Location:** `$gtest` at `modules/league.py:1401`; `$ptrophies` at
   `modules/administration.py:2500`; `$boost_from` at
   `modules/administration.py:2555`; `$purge_game_channels` at

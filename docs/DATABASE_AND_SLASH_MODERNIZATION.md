@@ -13269,6 +13269,61 @@ intentionally skips** under the exact development identity with the beta
 writer stopped. No schema, dependency, command-tree, production, or global
 Discord operation is involved.
 
+### P9.13 — Supervised native bot restart
+
+Status: **Tier-3 reviewed on the unit branch; accumulation integration and
+development-guild deployment pending**
+
+Branch/base: `codex/p9-13-operator-bot-restart`, exact clean accumulation base
+`85496c8dd27b4ac973d590b1b318ab388586ff6e`. Implementation/tests checkpoint:
+`579ff94`.
+
+The approved lifecycle contract is one native `/operator bot restart` command
+with optional `force`. A normal restart preserves configured-superuser access,
+uses a private requester-bound confirmation, and rechecks known ELO,
+pending-game, manual-backup, and manual-channel-purge ownership before process
+shutdown. `force:true` is owner-only, displays the active-work warning, and
+requires exact typed `RESTART NOW` confirmation. The old `$restart`,
+`$restart_force`, and `$quit` names are retired with no compatibility wrapper.
+
+Both modes require an exact systemd invocation marker and a clean Git checkout
+at preview and confirmation time. The preview shows the recorded running
+checkpoint and the clean checkpoint that the supervisor will load. Acceptance
+sets prefix and native maintenance gates, updates the private Components-v2
+confirmation before downtime, preserves cleanup of task-owned temporary
+notices, closes the Discord client, and lets the ordinary entrypoint exit with
+deliberate status 75. The reviewed service policies restart that exit; the bot
+does not receive sudo, `systemctl`, generic process-manager, database, or
+production-deployment authority. A failed acknowledgement, checkout check, or
+close resets maintenance state and does not falsely claim a restart.
+
+The service and view modules are model-free. Git inspection uses bounded async
+subprocesses; cancellation kills and reaps the child. Accepted shutdown is
+single-flight and drains through repeated interaction cancellation. New native
+application commands receive a private maintenance denial while shutdown is in
+progress, matching the existing prefix maintenance boundary.
+
+Validation/evidence:
+
+- focused restart coverage: **19 passed**;
+- affected restart, taxonomy, command policy/management, beta operations, and
+  startup-identity matrix: **88 passed**;
+- complete offline discovery: **1,593 tests; 1,520 passed, 70 intentional
+  skips, and only the three documented missing-`duckdb` environment cases**
+  (runtime import, installed-inventory assertion, and reporting-export import);
+- compilation and `git diff --check`: passed; and
+- Tier-3 complete-diff review found no remaining product, authorization,
+  lifecycle, cancellation, Components-v2, or process-ownership blocker.
+
+This unit changes no schema, database query/mutation, fixture, or background
+task. The immediately preceding P9.12 stopped-writer full development gate is
+current, so another PostgreSQL window is not warranted. Deployment still
+requires stopping only the durable beta, running the offline desired-tree plan,
+inspecting/applying only the configured development guild because `/operator`
+changed, and restarting once at the clean integrated checkpoint. This
+operator-only workflow does not warrant a tester checklist entry or wider-beta
+announcement.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14234,7 +14289,48 @@ ownership immediately before each irreversible deletion, delete first, and
 conditionally clear the exact reference with protected audit afterward.
 Retire `$purge_game_channels` with this replacement.
 
+### D-048 — Restart through deliberate supervised process exit
+
+Status: **Accepted; implemented by P9.13**
+
+Expose restart only as `/operator bot restart`; retire `$restart`,
+`$restart_force`, and `$quit` without a retained wrapper. Normal restart remains
+available to configured superusers and refuses known active mutation, backup,
+or purge work after private confirmation. Force remains owner-only and requires
+exact typed `RESTART NOW` confirmation.
+
+The bot must never run `systemctl`, sudo, or a generic host command. It verifies
+a clean checkout and systemd invocation, enters maintenance, closes cleanly,
+and returns deliberate exit status 75 so the existing reviewed service policy
+performs the restart. Force bypasses only the known active-work refusal; it does
+not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
+
 ## Progress log
+
+### 2026-08-10 — P9.13 supervised native restart implemented and reviewed
+
+- Reconciled clean local, tracking, and exact GitHub accumulation checkpoint
+  `85496c8`; the sole guarded development beta remained healthy at running code
+  checkpoint `7dbda64` as PID `3863626` and expected application
+  `479029527553638401`.
+- Created isolated branch/worktree `codex/p9-13-operator-bot-restart` from the
+  exact base and passed the development-only setup/profile gate.
+- Added `/operator bot restart force`, configured-superuser normal access,
+  owner-only exact force confirmation, clean-checkout and systemd guards,
+  immutable activity/checkpoint previews, maintenance gates, cancellation-safe
+  single-flight shutdown, and deliberate exit 75. Retired all three legacy
+  lifecycle prefix names with no wrapper and granted the bot no service-manager
+  authority.
+- Focused validation passed 19 tests; the affected matrix passed 88. Complete
+  discovery ran 1,593 tests with 70 skips and only the three known
+  missing-`duckdb` environment failures. Compilation and diff checks passed;
+  no dependency was installed or synchronized.
+- Tier-3 complete-diff review found no remaining blocker. Implementation/tests
+  are checkpointed at `579ff94`. No database gate is warranted because the unit
+  has no database path and the P9.12 full stopped-writer gate is current.
+- Accumulation integration/push, development-guild `/operator` apply, guarded
+  beta restart, runtime verification, and explicit no-announcement disposition
+  remain pending.
 
 ### 2026-08-10 — P9.12/H1-H2 runtime and native-start ban safety gated
 
