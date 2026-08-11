@@ -1,6 +1,8 @@
 # Dynamic Guild Configuration and Onboarding Design
 
-Status: design accepted for planning; implementation is a later bounded unit.
+Status: architecture accepted; migration step 2's offline typed contract is
+implemented. Database, runtime-authority, and operator-control-plane work
+remain separately bounded.
 
 This document defines a safe replacement for PolyBot's hand-edited
 `server_settings.py` / `server_settings_dev.py` guild dictionaries. It is an
@@ -286,7 +288,9 @@ Validation has three layers.
 - bound `max_team_size` to the repository-backed game-size contract;
 - reject `require_teams=true` when `allow_teams=false`;
 - allow `@everyone` only in user-level role lists;
-- reject overlap that would make helper/mod/delegated authority ambiguous;
+- permit intentional helper/mod hierarchy overlap, while rejecting duplicates
+  within a role list, ambiguous legacy-name resolution, `@everyone` staff
+  authority, and future delegation overlap that would broaden authority;
 - validate only known repository-backed command capabilities; and
 - compute a canonical digest independent of JSON key order.
 
@@ -344,9 +348,12 @@ configuration export, not an untracked Python copy that can drift.
 Each step is a separate bounded unit with its own review and evidence.
 
 1. **Contract and inventory (this document).** No runtime or schema change.
-2. **Typed schema/service offline implementation.** Add frozen value objects,
-   validators, canonical serialization, and repository contract tests without
-   changing runtime reads.
+2. **Typed schema/service offline implementation (complete in P10.2).** Frozen
+   value objects, strict validators, canonical serialization/digests, and
+   connection-free legacy materialization exist without changing runtime
+   reads. The contract stores exact role IDs, preserves semantic role/channel
+   order, canonicalizes command capabilities, rejects incomplete or extended
+   documents, and treats `@everyone` as valid only in user permission tiers.
 3. **Additive development schema and import tooling.** Under separate schema
    approval, add the revisioned tables and a connection-free plan plus gated
    development apply/verify/idempotency path. Materialize every inherited

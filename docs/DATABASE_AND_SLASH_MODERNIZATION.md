@@ -527,6 +527,18 @@ validation, recovery, migration stages, and required tests. It performs no
 schema, runtime, database, Discord, beta, dependency, or production change.
 Implementation remains separately selectable.**
 
+P10.2 offline typed guild configuration contract is complete from exact clean
+accumulation base `0aaffdf95f893a6a5ab697b83fadf6d462dffb56`.
+Implementation checkpoint `7b7ed882716729a05e08dd4c70daf9afcac9bbdc`
+adds frozen schema-version-one value objects, strict complete-document
+validation, canonical serialization/digests, and connection-free legacy
+default/override materialization with explicit unambiguous role-name
+resolution. It changes no runtime settings authority and performs no schema,
+database, Discord, beta, dependency, or production operation. Focused tests
+pass 12/12 and complete offline discovery passes all 1,766 tests with 76
+intentional skips. The next staged implementation is additive development
+schema/import tooling, which requires separate schema-migration approval.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14507,6 +14519,51 @@ handling, and an explicit static-source rollback during transition. No schema
 migration, database access, beta restart, command plan/apply, dependency
 change, or production access occurred in P10.1.
 
+### P10.2 — Offline typed guild configuration contract
+
+Status: **Complete; runtime remains on the static guild configuration source.**
+
+Branch/base: `codex/p10-2-guild-config-schema`, exact clean pushed accumulation
+checkpoint `0aaffdf95f893a6a5ab697b83fadf6d462dffb56`.
+
+Implementation checkpoint: `7b7ed882716729a05e08dd4c70daf9afcac9bbdc`.
+
+Risk tier: **Tier 2 pure policy/validation contract**. The code is not imported
+by current runtime paths, but it defines the security-sensitive shape later
+database and control-plane units must consume.
+
+The new `modules/guild_configuration_schema.py` contract:
+
+- owns a frozen schema-version-one document for the 26 live legacy guild
+  settings plus explicit per-guild command capabilities;
+- requires the exact complete nested JSON shape, strict scalar types, bounded
+  strings/lists/team size, unique positive IDs, and consistent team policy;
+- stores role/channel/category IDs, permits `@everyone` only in user-level
+  permission tiers, and deliberately preserves valid Helper/Mod hierarchy
+  overlap used by current configuration;
+- keeps semantic role/channel ordering while sorting and deduplicating only
+  command capabilities through the repository capability-policy vocabulary;
+- produces deterministic guild-bound SHA-256 digests from canonical JSON;
+- materializes one complete inherited legacy default/override snapshot only
+  from explicit caller-supplied role resolution, rejecting missing, ambiguous,
+  duplicate, obsolete, or unknown values; and
+- imports without `POLYBOT_ENV`, Discord, Peewee, runtime settings, or I/O.
+
+Focused contract validation passes 12/12. Complete offline discovery passes
+all 1,766 tests with 76 intentional skips. `py_compile`, import with
+`POLYBOT_ENV` unset, and `git diff --check` pass. Ruff and mypy are not present
+in the locked environment and were not installed. Complete-diff review found
+and corrected unsafe `@everyone` Helper/Mod/inactive acceptance and clarified
+the intentional Helper/Mod overlap policy; no remaining actionable finding is
+known.
+
+This unit creates no PostgreSQL tables, reads no live guild objects, changes no
+settings lookup, and does not implement profile-specific capability policy,
+live same-guild reference validation, enrollment, delegation, activation,
+caching, or command synchronization. Those remain fail-closed future layers.
+No development-database gate or beta restart is warranted for unreachable pure
+offline code.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15522,6 +15579,28 @@ command capabilities remain owner-controlled and Discord tree synchronization
 remains a separate explicit operation. The full contract and staged migration
 are recorded in `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md`.
 
+### D-051 — Make the guild document complete, frozen, and guild-bound
+
+Status: **Accepted; implemented offline by P10.2**
+
+Schema version one materializes all 26 live legacy fields for one exact guild;
+there is no runtime inheritance from a mutable default document. Unknown and
+missing fields fail closed. Role, channel, and category references are stored
+as IDs. `@everyone` is represented by the guild ID and is legal only in user
+permission tiers, while intentional Helper/Mod hierarchy overlap remains
+valid. Ordered role/channel policies retain their source order because the
+first configured destination or authority may be semantically significant.
+Only command capabilities are canonicalized to sorted unique repository-known
+names.
+
+Canonical JSON and its SHA-256 digest cover the schema version, guild ID, every
+field, semantic list order, and command capabilities. Legacy conversion is a
+pure plan operation supplied with an explicit role-name resolution snapshot;
+it never performs Discord or database I/O. Live object ownership, environment-
+specific capability restrictions, persistence, activation, and runtime cache
+publication remain separate validators/services rather than weakening this
+portable contract.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15529,17 +15608,19 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 complete.** The inventory and architecture are recorded
-in `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` and decision D-050. The design
+Design status: **P10.1 and P10.2 complete.** The inventory, architecture, and
+offline typed contract are recorded in
+`docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md`, decision D-050, and decision
+D-051. The design
 selects a PostgreSQL revision service, immutable runtime snapshots, owner-only
 initial enrollment, Discord-first control plane, opt-in local delegation, and
 separate explicit command synchronization. It excludes secrets, process
 identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration. The
-next selectable unit is the offline typed schema/value-object and validation
-service with no runtime authority switch. Later units own additive development
-schema/import, shadow reads, an explicit authority switch, owner editing,
+next selectable unit is additive development schema/import tooling under
+separate schema-migration approval. Later units own shadow reads, an explicit
+authority switch, owner editing,
 quarantined onboarding, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
@@ -15674,6 +15755,35 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.2 offline typed guild configuration contract complete
+
+- Created `codex/p10-2-guild-config-schema` from exact clean pushed
+  accumulation checkpoint `0aaffdf95f893a6a5ab697b83fadf6d462dffb56` and
+  recorded implementation checkpoint
+  `7b7ed882716729a05e08dd4c70daf9afcac9bbdc`.
+- Added a pure schema-version-one module with frozen nested value objects,
+  exact complete JSON validation, deterministic canonical JSON and guild-bound
+  digests, bounded IDs/lists/scalars, team cross-field validation, and
+  repository-known command capability validation.
+- Added connection-free legacy materialization for all 27 tracked defaults:
+  the 26 live values are fully materialized, the obsolete singular match
+  channel must be cleared, and role names must resolve through an explicit
+  snapshot to exactly one safe role ID.
+- Tier-2 complete-diff review caught an unsafe privilege edge and now rejects
+  `@everyone` for Helper, Mod, and inactive roles while retaining its intended
+  use in user permission tiers. Review also clarified that current intentional
+  Helper/Mod hierarchy overlap is valid and that semantic role/channel order
+  must not be sorted away.
+- Focused contract tests pass 12/12; complete offline discovery passes all
+  1,766 tests with 76 intentional skips. `py_compile`, environment-free import,
+  and `git diff --check` pass. Ruff and mypy are absent from the locked
+  environment and were not installed.
+- No schema, database, runtime-authority, Discord, command-sync, beta,
+  dependency, or production operation occurred. The healthy beta does not need
+  a restart for unreachable offline code. Next recommended is P10.3 additive
+  development schema/import tooling, requiring separate schema-migration
+  approval.
 
 ### 2026-08-11 — P10.1 dynamic guild configuration architecture complete
 
