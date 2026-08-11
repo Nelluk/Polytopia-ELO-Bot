@@ -14527,6 +14527,8 @@ Branch/base: `codex/p10-2-guild-config-schema`, exact clean pushed accumulation
 checkpoint `0aaffdf95f893a6a5ab697b83fadf6d462dffb56`.
 
 Implementation checkpoint: `7b7ed882716729a05e08dd4c70daf9afcac9bbdc`.
+Evidence and exact fast-forward integration checkpoint:
+`cf8faf5d8b4ff92110c1ac5f9a06a80b754c430a`.
 
 Risk tier: **Tier 2 pure policy/validation contract**. The code is not imported
 by current runtime paths, but it defines the security-sensitive shape later
@@ -15784,6 +15786,12 @@ deferred into this post-modernization backlog.
   a restart for unreachable offline code. Next recommended is P10.3 additive
   development schema/import tooling, requiring separate schema-migration
   approval.
+- Accepted the complete two-commit unit by exact fast-forward into
+  `codex/database-slash-modernization` at
+  `cf8faf5d8b4ff92110c1ac5f9a06a80b754c430a`; this accumulation close-out is
+  the next checkpoint. The beta remains on its prior runtime checkpoint because
+  P10.2 is unreachable offline code, so no restart, command apply, or tester
+  announcement is warranted.
 
 ### 2026-08-11 — P10.1 dynamic guild configuration architecture complete
 
