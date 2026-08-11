@@ -491,8 +491,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.18/M2+M3 operator-backup lifecycle and provenance is
-Tier-3 reviewed and accepted for accumulation integration from exact clean
-base `3290d80a536874ab6434d4bbb967458b83b6e139`. Implementation checkpoint
+Complete in accumulation at merge checkpoint `981d41e`. It was reviewed from
+exact clean base `3290d80a536874ab6434d4bbb967458b83b6e139`. Implementation checkpoint
 `c1e1c8d` and review corrections `ac665f1` / `31edd75` cap execution at 12
 minutes,
 stop preview expiry while busy, publish exactly one terminal private panel,
@@ -501,8 +501,10 @@ exporter, and running interpreter before spawn. Focused affected coverage
 passes 78/78. Complete discovery runs 1,640 tests: 1,566 pass, 71 intentionally
 skip, and only the same three missing-`duckdb` environment cases fail. The
 unit changes no database or command shape, so neither a development-database
-gate nor guild command apply is warranted. M2 and M3 are resolved in the
-reviewed branch; M6, M7, and part of L1 remain open.**
+gate nor guild command apply is warranted. M2 and M3 are resolved; M6, M7, and
+part of L1 remain open. The guarded beta remains healthy on runtime checkpoint
+`e34e007`; this production-only path is unavailable in development, so a beta
+restart would not exercise it and was not warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13592,12 +13594,13 @@ freeze after the preceding corrections.
 
 ### P9.18 — M2/M3 operator-backup lifecycle and release provenance
 
-Status: **Tier-3 reviewed and accepted for accumulation integration**
+Status: **Complete in accumulation; production activation remains separately gated**
 
 Branch/base: `codex/p9-18-m2-m3-backup-provenance`, exact clean accumulation
 base `3290d80a536874ab6434d4bbb967458b83b6e139`.
 Implementation/tests checkpoint: `c1e1c8d`; durability review correction:
 `ac665f1`; final delivery review correction: `31edd75`.
+Roadmap/review evidence checkpoint: `3741433`; accumulation merge: `981d41e`.
 
 The private owner-only `/operator database backup` confirmation now stops its
 five-minute preview timer immediately after the requester confirms. Its running
@@ -13638,6 +13641,17 @@ database graph, schema, application-command shape, or development behavior,
 the development-database gate and development-guild command apply are not
 warranted. Production manifest installation and first backup remain separately
 approved cutover operations.
+
+The accepted branch merged into accumulation at `981d41e`. Read-only
+host-wide inspection found exactly the established development writer: PID
+`3982635`, user `nelluk`, checkout `/home/nelluk/PolyBot39-dev`, runtime
+checkpoint `e34e007f6c5aec20bb822d71676fa0fed5e4ea73`, expected beta application
+`479029527553638401`, active/running service state, and zero current restart
+churn. Recent logs show successful gateway resumes with no new traceback. The
+unit changes only a production-refused execution path and no command shape, so
+restarting the beta, applying the guild tree, changing the checklist, or
+announcing to testers would create interruption without exercising P9.18 and
+was not warranted.
 
 Next recommended action after integration: complete L1's repository-only
 consistency pass so stale active wording and duplicated historical authority
@@ -14674,8 +14688,13 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   manifest publication and kept an accepted backup running if only its
   nonterminal progress edit fails. No remaining blocker was found.
   Implementation is `c1e1c8d`; durability correction is `ac665f1`; final
-  delivery correction is `31edd75`. M2 and M3 are resolved on the reviewed unit
-  branch and await accumulation integration.
+  delivery correction is `31edd75`; evidence is `3741433`; accumulation merge
+  is `981d41e`. M2 and M3 are resolved with no remaining blocker.
+- Read-only host-wide beta inspection found the active/running service at PID
+  `3982635`, exact checkout `/home/nelluk/PolyBot39-dev`, runtime checkpoint
+  `e34e007`, expected application `479029527553638401`, zero current restart
+  churn, and healthy gateway resumes. No restart, command apply, checklist
+  change, or announcement was warranted for a production-only refused path.
 - Next recommended after integration: L1's repository-only consistency pass.
   M6 is also selectable once the exact production support/privacy route and
   monitoring owner/cadence are decided; M7 remains the final candidate freeze.
