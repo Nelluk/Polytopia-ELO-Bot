@@ -490,34 +490,24 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6b2 owner activation and runtime reconciliation is
-complete and deployed to the development beta after integration from
-`codex/p10-6b2-guild-config-activation` and
-exact clean pushed
-accumulation base `02d88287ead146e289652340aa757fc627cd76e0`.
-Implementation checkpoint `203b7bf` adds digest-confirmed activation, one
-atomic immutable revision/registry-generation/protected-audit/draft-expiry
-transaction, complete post-commit worker reload, and a guarded event-loop
-snapshot replacement. Database-authority startup now loads the validated
-active database graph directly; explicit static source remains the rollback.
-Command-capability changes and no-op drafts cannot activate, command
-synchronization remains separate, and rollback-to-revision remains P10.6b3.
-Focused validation passes 111 tests with two explicit database gates skipped;
-complete offline discovery passes all 1,880 tests with 82 intentional gated
-skips. Tier-3 review is green after tightening allowlist typing, exact
-generation/inventory reconciliation, no-op rejection, full-digest usability,
-and unchanged capability policy. Database-gate correction `9a3e69b` makes the
-shared integration harness load current active database authority directly.
-The complete stopped-writer gate passes 82 tests: 81 passed and only the
-established operator-managed fixture round trip skipped. Integration/evidence,
-accumulation fast-forward checkpoint is `04fb785`; pushed close-out checkpoint
-and running beta code are `897de2cd2add0b7f84b53c0a44d757c78eb56fd9`.
-The guild-only command apply changed only the existing `operator` root and the
-global tree remains empty. PID `227875` authenticated as the development beta,
-published database generation 1 through `status=active-loaded`, and reports all
-five Beta Lab packs ready. Owner interaction acceptance is pending. No tester
-checklist or announcement was warranted, and no production action is
-authorized.**
+Current active unit: **P10.6b3 monotonic rollback-to-revision is implemented
+and in Tier-3 validation on `codex/p10-6b3-guild-config-rollback`, based on
+exact clean pushed accumulation checkpoint
+`174bbb7424d9594e7cb7ff64ce3dda3d696389ef`. The new private owner-only
+`/operator guild rollback revision:<number>` preview binds an earlier
+same-guild document's full digest to the exact current revision, generation,
+and digest, then requires `ROLLBACK <revision> <full-digest>`. Commit clones
+that document into a new complete immutable revision, advances generation,
+and records source/prior/changed-path evidence without deleting history or
+consuming a draft. No-op and command-capability-drift targets fail closed.
+After commit, the existing complete worker reload and exact event-loop
+publication boundary reconcile runtime state; cancellation and presentation
+failures preserve truthful committed-state reporting. Focused validation
+currently passes 101 tests. Complete offline discovery, the stopped-writer
+PostgreSQL rollback proof, complete-diff review, integration/push, guild-only
+command registration, and beta verification remain before close-out. No
+schema, enrollment, delegation, global sync, production authority, or
+production operation is in scope.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15136,6 +15126,57 @@ through `/operator guild edit`. P10.6b3 rollback-to-revision is the recommended
 next separately bounded implementation; coordinated command-capability
 activation remains a useful alternative.
 
+### P10.6b3 — Monotonic rollback-to-revision
+
+Status: **Implemented and in Tier-3 validation.**
+
+Branch/base: `codex/p10-6b3-guild-config-rollback`, exact clean pushed
+accumulation checkpoint `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`.
+
+Risk tier: **Tier 3 authoritative configuration mutation and runtime
+publication boundary.**
+
+The private owner-only `/operator guild rollback revision:<number>` command
+loads an exact earlier same-guild revision, validates the complete document
+and current live Discord references, and shows a model-free Components v2
+preview with the changed paths and full source digest. Confirmation requires
+`ROLLBACK <revision> <full-source-digest>` exactly and remains bound to the
+previewed active revision, generation, and digest. Intervening activation,
+source drift, a no-op source, a current/future source, or changed application-
+command capabilities fails closed and requires a fresh preview where
+applicable.
+
+One repeatable-read worker transaction locks and verifies the current active
+registry evidence, appends the historical document as a new complete immutable
+revision whose parent is the current active revision, advances generation
+once, and appends one protected rollback audit with source revision/digest,
+prior revision/generation/digest, and changed paths. It never moves the pointer
+backward, deletes history, rewrites an old document, or consumes a draft. Any
+existing draft naturally becomes stale and must be reset before a later edit.
+
+After commit, a separately owned read-only connection reloads the complete
+active graph and the event-loop adapter publishes only an exact new runtime
+snapshot with unchanged unrelated guilds and command policy. Pre-commit
+failures roll back atomically. Post-commit reload, publication, cancellation,
+or response-edit failures retain truthful committed revision/generation
+evidence and direct reconciliation through `/operator bot restart` when
+runtime publication cannot be verified.
+
+Focused validation currently passes 101 tests. Dedicated coverage includes
+the monotonic storage graph and protected audit, exact confirmation and stale-
+preview rejection, current live references, no-op and command-policy blockers,
+model-free publishers, transaction rollback, post-commit reload/publication
+failure, worker connection ownership, cancellation before and after commit,
+event-loop responsiveness, owner/access denial, and final-panel failure. A
+separately gated stopped-writer PostgreSQL case activates a temporary ordinary-
+settings revision, clones the original into a newer rollback revision, verifies
+the graph/audit, and always rolls the outer transaction back.
+
+This unit adds no schema, enrollment, delegation, draft consumption, global
+command synchronization, production authority, or production operation. The
+new nested command requires only a reviewed development-guild update to the
+existing `operator` root after integration.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16304,6 +16345,26 @@ development-guild-only operation and must never become a hidden effect of a
 settings activation. Rollback-to-revision, enrollment, and delegation remain
 separate units.
 
+### D-058 — Roll back by appending history, not moving it backward
+
+Status: **Accepted; implemented by P10.6b3**
+
+Rollback selects an exact earlier same-guild document but appends it as a new
+complete immutable revision whose parent is the currently active revision.
+Revision and generation remain monotonic; no old document, protected audit,
+or active pointer history is rewritten or deleted. Preview and exact typed
+confirmation bind the source revision/full digest and the current active
+revision/generation/digest, so an intervening activation or source mismatch
+fails before write.
+
+Rollback uses the same post-commit complete reload and exact event-loop
+publication boundary as activation. A failure after commit reports the new
+revision/generation truthfully and requires runtime reconciliation; it cannot
+claim database rollback. Existing inactive drafts are not consumed and become
+stale naturally. No-op sources and sources with different application-command
+capabilities are rejected because command registration remains a separate
+coordinated operation.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16311,7 +16372,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6b2 implemented in development.** The
+Design status: **P10.1 through P10.6b3 implemented in development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16326,8 +16387,9 @@ Implementation is intentionally staged rather than one large migration.
 P10.6a establishes the read-only owner surface for already enrolled guilds.
 P10.6b1 isolates draft editing and preview from authority; P10.6b2 adds
 ordinary-settings activation and exact runtime reconciliation while keeping
-command deployment separate. Later units own rollback, quarantined onboarding,
-delegation, production canary, and static retirement.
+command deployment separate; P10.6b3 adds monotonic rollback-to-revision.
+Later units own coordinated command-capability activation, quarantined
+onboarding, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.

@@ -56,6 +56,7 @@ from modules import operator_guild_configuration_workers
 from modules import operator_guild_configuration_drafts as operator_guild_draft_service
 from modules import operator_guild_configuration_draft_views
 from modules import operator_guild_configuration_draft_workers
+from modules import operator_guild_configuration_rollback_views
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -1201,6 +1202,12 @@ class administration(commands.Cog):
         expected_draft_version: int | None = None,
         expected_draft_digest: str | None = None,
         replacement_document=None,
+        target_revision: int | None = None,
+        expected_target_digest: str | None = None,
+        expected_active_revision: int | None = None,
+        expected_active_generation: int | None = None,
+        expected_active_digest: str | None = None,
+        confirmation_text: str | None = None,
     ):
         current_snapshot = {
             int(guild_id): (
@@ -1212,35 +1219,106 @@ class administration(commands.Cog):
             if (record := settings.database_guild_configuration(guild_id))
             is not None
         }
-        request = operator_guild_draft_service.build_request(
-            bot=self.bot,
-            interaction=interaction,
-            operation=operation,
-            expected_draft_version=expected_draft_version,
-            expected_draft_digest=expected_draft_digest,
-            replacement_document=replacement_document,
-        )
+        if operation in {
+            operator_guild_configuration_draft_workers.ROLLBACK_PREVIEW,
+            operator_guild_configuration_draft_workers.ROLLBACK_COMMIT,
+        }:
+            if target_revision is None:
+                raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftValidationError(
+                    'A rollback source revision is required.'
+                )
+            request = operator_guild_draft_service.build_rollback_request(
+                bot=self.bot,
+                interaction=interaction,
+                operation=operation,
+                target_revision=target_revision,
+                expected_target_digest=expected_target_digest,
+                expected_active_revision=expected_active_revision,
+                expected_active_generation=expected_active_generation,
+                expected_active_digest=expected_active_digest,
+                confirmation_text=confirmation_text,
+            )
+        else:
+            request = operator_guild_draft_service.build_request(
+                bot=self.bot,
+                interaction=interaction,
+                operation=operation,
+                expected_draft_version=expected_draft_version,
+                expected_draft_digest=expected_draft_digest,
+                replacement_document=replacement_document,
+            )
         result = await operator_guild_configuration_draft_workers.run_draft_operation(
             request
         )
-        if result.activation is not None:
+        committed_change = result.activation or result.rollback
+        if committed_change is not None:
             try:
                 settings.reconcile_database_guild_configuration(
                     result.runtime_snapshot,
                     expected_current=current_snapshot,
-                    activated_guild_id=result.activation.guild_id,
+                    activated_guild_id=committed_change.guild_id,
                     expected_activation=(
-                        result.activation.revision,
-                        result.activation.generation,
-                        result.activation.document_digest,
+                        committed_change.revision,
+                        committed_change.generation,
+                        committed_change.document_digest,
                     ),
                 )
             except Exception as exc:
+                if result.rollback is not None:
+                    raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationRollbackCommitted(
+                        result.rollback
+                    ) from exc
+                assert result.activation is not None
                 raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationActivationCommitted(
                     result.activation
                 ) from exc
             result = replace(result, runtime_published=True)
         return result
+
+    @operator_guild_group.command(
+        name='rollback',
+        description='Restore an earlier document as a new configuration revision.',
+    )
+    @discord.app_commands.describe(
+        revision='Earlier revision number shown by /operator guild history.',
+    )
+    async def operator_guild_rollback_slash(
+        self,
+        interaction: discord.Interaction,
+        revision: discord.app_commands.Range[int, 1],
+    ):
+        access_error = operator_guild_draft_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await self._operator_guild_draft_operation(
+                interaction,
+                operator_guild_configuration_draft_workers.ROLLBACK_PREVIEW,
+                target_revision=int(revision),
+            )
+            view = operator_guild_configuration_rollback_views.GuildConfigurationRollbackWorkspace(
+                requester_id=int(interaction.user.id),
+                result=result,
+                runner=self._operator_guild_draft_operation,
+            )
+            await operator_guild_configuration_rollback_views.publish_private(
+                interaction,
+                view,
+            )
+            return view
+        except operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator guild-configuration rollback failure')
+            return await interaction.followup.send(
+                'Could not open the guild-configuration rollback preview. '
+                'Active configuration was unchanged.',
+                ephemeral=True,
+            )
 
     @operator_guild_group.command(
         name='edit',

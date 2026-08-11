@@ -31,8 +31,13 @@ REPLACE = 'replace'
 DISCARD = 'discard'
 VALIDATE = 'validate'
 ACTIVATE = 'activate'
-OPERATIONS = frozenset({SHOW, RESET, REPLACE, DISCARD, VALIDATE, ACTIVATE})
-WRITE_OPERATIONS = frozenset({RESET, REPLACE, DISCARD, ACTIVATE})
+ROLLBACK_PREVIEW = 'rollback_preview'
+ROLLBACK_COMMIT = 'rollback_commit'
+OPERATIONS = frozenset({
+    SHOW, RESET, REPLACE, DISCARD, VALIDATE, ACTIVATE,
+    ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
+})
+WRITE_OPERATIONS = frozenset({RESET, REPLACE, DISCARD, ACTIVATE, ROLLBACK_COMMIT})
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -78,6 +83,20 @@ class OperatorGuildConfigurationActivationCommitted(
         )
 
 
+class OperatorGuildConfigurationRollbackCommitted(
+    OperatorGuildConfigurationDraftError,
+):
+    """Rollback committed, but the running immutable snapshot was not replaced."""
+
+    def __init__(self, rollback: drafts.GuildConfigurationRollback):
+        self.rollback = rollback
+        super().__init__(
+            f'Configuration rollback r{rollback.revision}/g{rollback.generation} '
+            'committed, but runtime publication could not be verified. The '
+            'database is authoritative; use `/operator bot restart` to reconcile.'
+        )
+
+
 @dataclass(frozen=True)
 class GuildConfigurationDraftRequest:
     operation: str
@@ -95,6 +114,12 @@ class GuildConfigurationDraftRequest:
     expected_draft_digest: str | None = None
     replacement_document_json: str | None = field(default=None, repr=False)
     discord_snapshot_json: str | None = field(default=None, repr=False)
+    target_revision: int | None = None
+    expected_target_digest: str | None = None
+    expected_active_revision: int | None = None
+    expected_active_generation: int | None = None
+    expected_active_digest: str | None = None
+    confirmation_text: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -103,6 +128,22 @@ class GuildConfigurationDraftValidation:
     document_valid: bool
     live_references_valid: bool
     runtime_snapshot_current: bool
+
+
+@dataclass(frozen=True)
+class GuildConfigurationRollbackPreview:
+    guild_id: int
+    active_revision: int
+    active_generation: int
+    active_document_digest: str
+    source_revision: int
+    source_document_digest: str
+    changed_paths: tuple[str, ...]
+    source_document: GuildConfigurationDocument = field(repr=False)
+
+    @property
+    def confirmation(self) -> str:
+        return f'ROLLBACK {self.source_revision} {self.source_document_digest}'
 
 
 @dataclass(frozen=True)
@@ -115,6 +156,8 @@ class GuildConfigurationDraftResult:
     draft: drafts.StoredGuildConfigurationDraft | None
     validation: GuildConfigurationDraftValidation | None = None
     activation: drafts.GuildConfigurationActivation | None = None
+    rollback_preview: GuildConfigurationRollbackPreview | None = None
+    rollback: drafts.GuildConfigurationRollback | None = None
     runtime_snapshot: runtime.GuildConfigurationRuntimeSnapshot | None = field(
         default=None,
         repr=False,
@@ -188,6 +231,19 @@ def _validate_request(
         raise OperatorGuildConfigurationDraftValidationError(
             'Development database authentication is unavailable.'
         )
+    if request.operation not in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT} and any(
+            value is not None for value in (
+                request.target_revision,
+                request.expected_target_digest,
+                request.expected_active_revision,
+                request.expected_active_generation,
+                request.expected_active_digest,
+                request.confirmation_text,
+            )
+    ):
+        raise OperatorGuildConfigurationDraftValidationError(
+            'Rollback evidence is accepted only by rollback operations.'
+        )
     if request.operation == REPLACE:
         _strict_positive(request.expected_draft_version, 'Expected draft version')
         if not isinstance(request.expected_draft_digest, str) or not _HEX_DIGEST.fullmatch(
@@ -210,16 +266,81 @@ def _validate_request(
             raise OperatorGuildConfigurationDraftValidationError(
                 'Discard does not accept replacement content.'
             )
+    elif request.operation in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT}:
+        _strict_positive(request.target_revision, 'Rollback source revision')
+        if request.operation == ROLLBACK_PREVIEW:
+            if any(value is not None for value in (
+                request.expected_target_digest,
+                request.expected_active_revision,
+                request.expected_active_generation,
+                request.expected_active_digest,
+                request.confirmation_text,
+            )):
+                raise OperatorGuildConfigurationDraftValidationError(
+                    'Rollback preview does not accept commit evidence.'
+                )
+        else:
+            _strict_positive(
+                request.expected_active_revision,
+                'Expected active revision',
+            )
+            _strict_positive(
+                request.expected_active_generation,
+                'Expected active generation',
+            )
+            if (
+                    not isinstance(request.expected_target_digest, str)
+                    or not _HEX_DIGEST.fullmatch(request.expected_target_digest)
+                    or not isinstance(request.expected_active_digest, str)
+                    or not _HEX_DIGEST.fullmatch(request.expected_active_digest)
+            ):
+                raise OperatorGuildConfigurationDraftValidationError(
+                    'The expected rollback evidence is invalid.'
+                )
+            if (
+                    request.expected_active_revision != request.runtime_revision
+                    or request.expected_active_generation != request.runtime_generation
+                    or request.expected_active_digest
+                    != request.runtime_document_digest
+            ):
+                raise OperatorGuildConfigurationDraftConflict(
+                    'The active configuration changed after rollback preview; '
+                    'open a fresh preview.'
+                )
+            expected = (
+                f'ROLLBACK {request.target_revision} '
+                f'{request.expected_target_digest}'
+            )
+            if request.confirmation_text != expected:
+                raise OperatorGuildConfigurationDraftValidationError(
+                    f'Rollback requires exact confirmation {expected!r}.'
+                )
+        if any(value is not None for value in (
+            request.expected_draft_version,
+            request.expected_draft_digest,
+            request.replacement_document_json,
+        )):
+            raise OperatorGuildConfigurationDraftValidationError(
+                'Rollback does not accept draft evidence.'
+            )
     elif any(value is not None for value in (
         request.expected_draft_version,
         request.expected_draft_digest,
         request.replacement_document_json,
+        request.target_revision,
+        request.expected_target_digest,
+        request.expected_active_revision,
+        request.expected_active_generation,
+        request.expected_active_digest,
+        request.confirmation_text,
     )):
         raise OperatorGuildConfigurationDraftValidationError(
             'Optimistic draft evidence is accepted only by edit, discard, or '
             'activation.'
         )
-    if request.operation in {VALIDATE, ACTIVATE}:
+    if request.operation in {
+        VALIDATE, ACTIVATE, ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
+    }:
         if not request.discord_snapshot_json:
             raise OperatorGuildConfigurationDraftValidationError(
                 'Live Discord identity is required for draft validation.'
@@ -242,6 +363,12 @@ def request_from_profile(
     expected_draft_digest: str | None = None,
     replacement_document: Mapping[str, Any] | None = None,
     discord_snapshot: Mapping[str, Any] | None = None,
+    target_revision: int | None = None,
+    expected_target_digest: str | None = None,
+    expected_active_revision: int | None = None,
+    expected_active_generation: int | None = None,
+    expected_active_digest: str | None = None,
+    confirmation_text: str | None = None,
 ) -> GuildConfigurationDraftRequest:
     if (
             getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
@@ -292,6 +419,12 @@ def request_from_profile(
         expected_draft_digest=expected_draft_digest,
         replacement_document_json=freeze(replacement_document),
         discord_snapshot_json=freeze(discord_snapshot),
+        target_revision=target_revision,
+        expected_target_digest=expected_target_digest,
+        expected_active_revision=expected_active_revision,
+        expected_active_generation=expected_active_generation,
+        expected_active_digest=expected_active_digest,
+        confirmation_text=confirmation_text,
     )
     return _validate_request(request)
 
@@ -377,9 +510,9 @@ def _active(
     return value
 
 
-def _live_validate(
+def _live_validate_document(
     request: GuildConfigurationDraftRequest,
-    draft: drafts.StoredGuildConfigurationDraft,
+    document: GuildConfigurationDocument,
 ) -> None:
     try:
         snapshot_value = json.loads(request.discord_snapshot_json or '')
@@ -389,8 +522,8 @@ def _live_validate(
             allowed_guild_ids=request.allowed_guild_ids,
         )
         storage.validate_document_references(
-            draft.document,
-            snapshots[draft.guild_id],
+            document,
+            snapshots[document.guild_id],
         )
     except (
         json.JSONDecodeError,
@@ -400,6 +533,13 @@ def _live_validate(
         raise OperatorGuildConfigurationDraftValidationError(
             'The draft does not validate against current Discord roles and channels.'
         ) from exc
+
+
+def _live_validate(
+    request: GuildConfigurationDraftRequest,
+    draft: drafts.StoredGuildConfigurationDraft,
+) -> None:
+    _live_validate_document(request, draft.document)
 
 
 def _changed_paths(
@@ -466,6 +606,8 @@ def execute_draft_operation(
         ) from exc
     committed = False
     activation = None
+    rollback = None
+    rollback_preview = None
     try:
         readonly = request.operation not in WRITE_OPERATIONS
         connection.set_session(
@@ -498,7 +640,74 @@ def execute_draft_operation(
             )
             actor = f'discord:{request.requester_id}'
             validation = None
-            if request.operation == RESET:
+            if request.operation in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT}:
+                assert request.target_revision is not None
+                if request.target_revision >= active_revision:
+                    raise OperatorGuildConfigurationDraftValidationError(
+                        'Rollback requires an earlier same-guild revision.'
+                    )
+                try:
+                    source_document, source_digest = drafts.select_revision(
+                        cursor,
+                        request.guild_id,
+                        request.target_revision,
+                    )
+                except drafts.GuildConfigurationDraftStorageError as exc:
+                    raise OperatorGuildConfigurationDraftValidationError(
+                        str(exc)
+                    ) from exc
+                if (
+                        request.operation == ROLLBACK_COMMIT
+                        and source_digest != request.expected_target_digest
+                ):
+                    raise OperatorGuildConfigurationDraftConflict(
+                        'The selected rollback revision digest changed.'
+                    )
+                _live_validate_document(request, source_document)
+                if (
+                        source_document.command_capabilities
+                        != active_document.command_capabilities
+                ):
+                    raise OperatorGuildConfigurationDraftValidationError(
+                        'This historical revision has different command '
+                        'capabilities and cannot be rolled back until command '
+                        'deployment is coordinated.'
+                    )
+                changed_paths = _changed_paths(active_document, source_document)
+                if not changed_paths:
+                    raise OperatorGuildConfigurationDraftValidationError(
+                        'The selected historical document is identical to the '
+                        'active configuration; there is nothing to roll back.'
+                    )
+                rollback_preview = GuildConfigurationRollbackPreview(
+                    guild_id=request.guild_id,
+                    active_revision=active_revision,
+                    active_generation=active_generation,
+                    active_document_digest=active_digest,
+                    source_revision=request.target_revision,
+                    source_document_digest=source_digest,
+                    changed_paths=changed_paths,
+                    source_document=source_document,
+                )
+                if request.operation == ROLLBACK_COMMIT:
+                    try:
+                        rollback = drafts.rollback_to_revision(
+                            cursor,
+                            guild_id=request.guild_id,
+                            active_revision=active_revision,
+                            active_generation=active_generation,
+                            active_document_digest=active_digest,
+                            source_revision=request.target_revision,
+                            source_document=source_document,
+                            source_document_digest=source_digest,
+                            actor=actor,
+                            changed_paths=changed_paths,
+                        )
+                    except drafts.GuildConfigurationDraftStorageError as exc:
+                        raise OperatorGuildConfigurationDraftConflict(
+                            str(exc)
+                        ) from exc
+            elif request.operation == RESET:
                 draft = drafts.put_draft(
                     cursor,
                     guild_id=request.guild_id,
@@ -604,33 +813,48 @@ def execute_draft_operation(
                 connection.commit()
                 committed = True
             runtime_snapshot = None
-            if activation is not None:
+            committed_change = activation or rollback
+            if committed_change is not None:
                 try:
                     runtime_snapshot = _post_commit_runtime_snapshot(request)
                     published = runtime_snapshot.guilds[request.guild_id]
                     if (
-                            published.revision != activation.revision
-                            or published.generation != activation.generation
-                            or published.document_digest != activation.document_digest
+                            published.revision != committed_change.revision
+                            or published.generation != committed_change.generation
+                            or published.document_digest != committed_change.document_digest
                     ):
                         raise OperatorGuildConfigurationDraftValidationError(
                             'The committed revision was not present in the reloaded graph.'
                         )
                 except Exception as exc:
-                    raise OperatorGuildConfigurationActivationCommitted(
-                        activation
-                    ) from exc
+                    if rollback is not None:
+                        raise OperatorGuildConfigurationRollbackCommitted(
+                            rollback
+                        ) from exc
+                    assert activation is not None
+                    raise OperatorGuildConfigurationActivationCommitted(activation) from exc
             return GuildConfigurationDraftResult(
                 operation=request.operation,
                 guild_id=request.guild_id,
-                active_revision=(activation.revision if activation else active_revision),
-                active_generation=(activation.generation if activation else active_generation),
-                active_document_digest=(
-                    activation.document_digest if activation else active_digest
+                active_revision=(
+                    committed_change.revision
+                    if committed_change is not None else active_revision
                 ),
-                draft=draft,
+                active_generation=(
+                    committed_change.generation
+                    if committed_change is not None else active_generation
+                ),
+                active_document_digest=(
+                    committed_change.document_digest
+                    if committed_change is not None else active_digest
+                ),
+                draft=(None if request.operation in {
+                    ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
+                } else draft),
                 validation=validation,
                 activation=activation,
+                rollback_preview=rollback_preview,
+                rollback=rollback,
                 runtime_snapshot=runtime_snapshot,
                 committed=committed,
             )
@@ -658,9 +882,24 @@ async def _drain_future(future: Future):
             cancellation = exc
     if cancellation is not None:
         try:
-            future.result()
+            result = future.result()
+        except (
+            OperatorGuildConfigurationActivationCommitted,
+            OperatorGuildConfigurationRollbackCommitted,
+        ):
+            raise
         except BaseException:
-            pass
+            raise cancellation
+        if (
+                isinstance(result, GuildConfigurationDraftResult)
+                and result.rollback is not None
+        ):
+            raise OperatorGuildConfigurationRollbackCommitted(result.rollback)
+        if (
+                isinstance(result, GuildConfigurationDraftResult)
+                and result.activation is not None
+        ):
+            raise OperatorGuildConfigurationActivationCommitted(result.activation)
         raise cancellation
     return future.result()
 
@@ -679,6 +918,7 @@ __all__ = [
     'GuildConfigurationDraftRequest',
     'GuildConfigurationDraftResult',
     'GuildConfigurationDraftValidation',
+    'GuildConfigurationRollbackPreview',
     'OPERATIONS',
     'OperatorGuildConfigurationDraftConflict',
     'OperatorGuildConfigurationDraftError',
@@ -686,8 +926,11 @@ __all__ = [
     'OperatorGuildConfigurationDraftUnavailable',
     'OperatorGuildConfigurationDraftValidationError',
     'OperatorGuildConfigurationActivationCommitted',
+    'OperatorGuildConfigurationRollbackCommitted',
     'REPLACE',
     'RESET',
+    'ROLLBACK_COMMIT',
+    'ROLLBACK_PREVIEW',
     'SHOW',
     'VALIDATE',
     'WRITE_OPERATIONS',

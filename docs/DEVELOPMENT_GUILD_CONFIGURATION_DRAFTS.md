@@ -1,9 +1,11 @@
-# Development guild-configuration drafts and activation
+# Development guild-configuration drafts, activation, and rollback
 
 P10.6b1 adds one private owner-managed inactive configuration draft for each
 already enrolled development guild. P10.6b2 activates reviewed ordinary
-settings and publishes a new immutable runtime snapshot. Neither unit enrolls
-a guild, synchronizes commands, or authorizes production work.
+settings and publishes a new immutable runtime snapshot. P10.6b3 restores an
+earlier accepted document by cloning it into a new monotonic revision and
+publishing that complete snapshot. None of these units enrolls a guild,
+synchronizes commands, or authorizes production work.
 
 ## Fixed safety contract
 
@@ -25,6 +27,11 @@ a guild, synchronizes commands, or authorizes production work.
 - After commit, a separate read-only connection reloads the complete active
   graph. Publication requires exact committed evidence and unchanged unrelated
   guilds. A failure is committed/reconciliation-required, never rolled back.
+- Rollback is owner-only and requires an exact earlier same-guild revision.
+  Preview and confirmation bind the source document's full digest and the
+  current active revision, generation, and digest. The commit appends a new
+  complete revision and audit event; it never moves the active pointer
+  backward, deletes history, or consumes a draft.
 
 The private `/operator guild edit` workspace exposes Create/Reset, Refresh,
 six section selectors, typed role/channel/category selectors, Validate,
@@ -32,6 +39,15 @@ Activate, and Discard. Validation checks the complete document and current
 same-guild Discord role/channel identity. Activate is disabled until the
 current nonempty draft has validated and then requires typing
 `ACTIVATE <full-digest>` exactly.
+
+The private `/operator guild rollback revision:<number>` command displays the
+source and current revision evidence, changed fields, and full source digest.
+It requires typing `ROLLBACK <revision> <full-source-digest>` exactly. A stale
+active revision or changed source digest requires a fresh preview. A source
+with different application-command capabilities and a no-op source are
+rejected because this unit cannot silently drift the registered Discord tree.
+An existing inactive draft is not changed; after rollback its base is stale,
+so reset it before making further edits.
 
 Activation does not synchronize application commands. A draft that changes
 command capabilities may be edited but cannot activate in P10.6b2. Use the
@@ -113,5 +129,18 @@ POLYBOT_P10_6B2_ACTIVATION_INTEGRATION=1 \
 It creates an edited draft, appends and selects the active revision, verifies
 the exact generation/audit and consumed draft, and then rolls the outer
 transaction back. It leaves no revision, audit, generation, or draft fixture.
-Rollback-to-revision and any production schema/import remain later separately
-reviewed units.
+
+P10.6b3 adds a third gated proof under the same stopped-writer boundary:
+
+```bash
+POLYBOT_ENV=development \
+POLYBOT_P10_6B3_ROLLBACK_INTEGRATION=1 \
+  .venv/bin/python -m unittest \
+  tests.test_guild_configuration_rollback_database
+```
+
+It activates a temporary ordinary-settings revision, clones the original
+document into a newer rollback revision, verifies the monotonic generation,
+parent/source evidence, and protected audit, and then rolls the outer
+transaction back. It retains no revision, audit, generation, or draft change.
+Any production schema/import remains a separately reviewed unit.

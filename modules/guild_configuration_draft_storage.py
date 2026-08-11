@@ -31,6 +31,8 @@ DRAFT_TTL_HOURS = 24
 DRAFT_ADVISORY_LOCK_KEY = 0x50313036
 ACTIVATION_SOURCE_KIND = 'owner_activation'
 ACTIVATION_EVENT_TYPE = 'activation'
+ROLLBACK_SOURCE_KIND = 'rollback'
+ROLLBACK_EVENT_TYPE = 'rollback'
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -86,6 +88,21 @@ class GuildConfigurationActivation:
     guild_id: int
     previous_revision: int
     previous_generation: int
+    revision: int
+    generation: int
+    event_number: int
+    document_digest: str
+    source_digest: str
+    actor: str
+    document: GuildConfigurationDocument = field(repr=False)
+
+
+@dataclass(frozen=True)
+class GuildConfigurationRollback:
+    guild_id: int
+    previous_revision: int
+    previous_generation: int
+    source_revision: int
     revision: int
     generation: int
     event_number: int
@@ -468,6 +485,34 @@ def select_active_configuration(
     return revision, generation, document, digest
 
 
+def select_revision(
+    cursor: Any,
+    guild_id: int,
+    revision_number: int,
+) -> tuple[GuildConfigurationDocument, str]:
+    guild_id = _strict_positive(guild_id, 'Revision guild ID')
+    revision_number = _strict_positive(revision_number, 'Revision number')
+    cursor.execute(
+        f'SELECT schema_version, document, document_digest '
+        f'FROM "{storage.REVISION_TABLE}" '
+        'WHERE guild_id = %s AND revision_number = %s',
+        (guild_id, revision_number),
+    )
+    row = cursor.fetchone()
+    if row is None or len(row) != 3:
+        raise GuildConfigurationDraftStorageError(
+            f'Revision {revision_number} does not exist for this guild.'
+        )
+    schema_version, document_value, digest = row
+    document = _validate_document_row(
+        guild_id=guild_id,
+        schema_version=schema_version,
+        document_value=document_value,
+        stored_digest=digest,
+    )
+    return document, digest
+
+
 def put_draft(
     cursor: Any,
     *,
@@ -752,6 +797,194 @@ def activate_draft(
     )
 
 
+def rollback_source_digest(
+    *,
+    guild_id: int,
+    active_revision: int,
+    active_generation: int,
+    source_revision: int,
+    source_document_digest: str,
+    actor: str,
+) -> str:
+    guild_id = _strict_positive(guild_id, 'Rollback guild ID')
+    active_revision = _strict_positive(active_revision, 'Active revision')
+    active_generation = _strict_positive(active_generation, 'Active generation')
+    source_revision = _strict_positive(source_revision, 'Rollback source revision')
+    if (
+            not isinstance(source_document_digest, str)
+            or not _HEX_DIGEST.fullmatch(source_document_digest)
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'Rollback source document digest is invalid.'
+        )
+    if not isinstance(actor, str) or not actor or len(actor) > 200:
+        raise GuildConfigurationDraftStorageError('Rollback actor is invalid.')
+    return _canonical_digest({
+        'source_kind': ROLLBACK_SOURCE_KIND,
+        'guild_id': guild_id,
+        'active_revision': active_revision,
+        'active_generation': active_generation,
+        'source_revision': source_revision,
+        'source_document_digest': source_document_digest,
+        'actor': actor,
+    })
+
+
+def rollback_to_revision(
+    cursor: Any,
+    *,
+    guild_id: int,
+    active_revision: int,
+    active_generation: int,
+    active_document_digest: str,
+    source_revision: int,
+    source_document: GuildConfigurationDocument,
+    source_document_digest: str,
+    actor: str,
+    changed_paths: tuple[str, ...],
+) -> GuildConfigurationRollback:
+    """Clone one prior accepted document into a new monotonic revision."""
+
+    guild_id = _strict_positive(guild_id, 'Rollback guild ID')
+    active_revision = _strict_positive(active_revision, 'Active revision')
+    active_generation = _strict_positive(active_generation, 'Active generation')
+    source_revision = _strict_positive(source_revision, 'Rollback source revision')
+    if source_revision >= active_revision:
+        raise GuildConfigurationDraftStorageError(
+            'Rollback source must be an earlier revision.'
+        )
+    if (
+            not isinstance(active_document_digest, str)
+            or not _HEX_DIGEST.fullmatch(active_document_digest)
+            or not isinstance(source_document_digest, str)
+            or not _HEX_DIGEST.fullmatch(source_document_digest)
+            or not isinstance(source_document, GuildConfigurationDocument)
+            or source_document.guild_id != guild_id
+            or document_digest(source_document) != source_document_digest
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'Rollback document evidence is invalid.'
+        )
+    if (
+            not isinstance(changed_paths, tuple)
+            or not changed_paths
+            or len(changed_paths) > 100
+            or any(
+                not isinstance(value, str)
+                or not value
+                or len(value) > 200
+                for value in changed_paths
+            )
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'Rollback changed-path evidence is invalid.'
+        )
+    source_digest = rollback_source_digest(
+        guild_id=guild_id,
+        active_revision=active_revision,
+        active_generation=active_generation,
+        source_revision=source_revision,
+        source_document_digest=source_document_digest,
+        actor=actor,
+    )
+    payload = json.dumps(
+        document_to_mapping(source_document),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(',', ':'),
+    )
+    cursor.execute(
+        f'SELECT COALESCE(MAX(revision_number), 0) '
+        f'FROM "{storage.REVISION_TABLE}" WHERE guild_id = %s',
+        (guild_id,),
+    )
+    revision = _strict_positive(cursor.fetchone()[0] + 1, 'Next revision')
+    generation = active_generation + 1
+    cursor.execute(
+        f'SELECT COALESCE(MAX(event_number), 0) '
+        f'FROM "{storage.AUDIT_TABLE}" WHERE guild_id = %s',
+        (guild_id,),
+    )
+    event_number = _strict_positive(
+        cursor.fetchone()[0] + 1,
+        'Next audit event',
+    )
+    cursor.execute(
+        f'INSERT INTO "{storage.REVISION_TABLE}" '
+        '(guild_id, revision_number, schema_version, document, '
+        'document_digest, source_digest, parent_revision, source_kind, actor, '
+        'created_at) VALUES (%s, %s, %s, CAST(%s AS JSONB), %s, %s, %s, %s, '
+        '%s, CURRENT_TIMESTAMP)',
+        (
+            guild_id,
+            revision,
+            source_document.schema_version,
+            payload,
+            source_document_digest,
+            source_digest,
+            active_revision,
+            ROLLBACK_SOURCE_KIND,
+            actor,
+        ),
+    )
+    cursor.execute(
+        f'UPDATE "{storage.REGISTRY_TABLE}" SET active_revision = %s, '
+        'generation = %s, updated_at = CURRENT_TIMESTAMP '
+        'WHERE guild_id = %s AND enrollment_state = %s '
+        'AND active_revision = %s AND generation = %s',
+        (
+            revision,
+            generation,
+            guild_id,
+            'active',
+            active_revision,
+            active_generation,
+        ),
+    )
+    if cursor.rowcount != 1:
+        raise GuildConfigurationDraftStorageError(
+            'The active configuration changed during rollback.'
+        )
+    details = json.dumps({
+        'source_revision': source_revision,
+        'source_document_digest': source_document_digest,
+        'previous_revision': active_revision,
+        'previous_generation': active_generation,
+        'previous_document_digest': active_document_digest,
+        'source_digest': source_digest,
+        'changed_paths': list(changed_paths),
+    }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    cursor.execute(
+        f'INSERT INTO "{storage.AUDIT_TABLE}" '
+        '(guild_id, event_number, event_type, revision_number, generation, '
+        'document_digest, actor, details, created_at) VALUES '
+        '(%s, %s, %s, %s, %s, %s, %s, CAST(%s AS JSONB), CURRENT_TIMESTAMP)',
+        (
+            guild_id,
+            event_number,
+            ROLLBACK_EVENT_TYPE,
+            revision,
+            generation,
+            source_document_digest,
+            actor,
+            details,
+        ),
+    )
+    return GuildConfigurationRollback(
+        guild_id=guild_id,
+        previous_revision=active_revision,
+        previous_generation=active_generation,
+        source_revision=source_revision,
+        revision=revision,
+        generation=generation,
+        event_number=event_number,
+        document_digest=source_document_digest,
+        source_digest=source_digest,
+        actor=actor,
+        document=source_document,
+    )
+
+
 __all__ = [
     'ACTIVATION_EVENT_TYPE',
     'ACTIVATION_SOURCE_KIND',
@@ -767,6 +1000,9 @@ __all__ = [
     'EXPECTED_CONSTRAINTS',
     'GuildConfigurationDraftStorageError',
     'GuildConfigurationActivation',
+    'GuildConfigurationRollback',
+    'ROLLBACK_EVENT_TYPE',
+    'ROLLBACK_SOURCE_KIND',
     'StoredGuildConfigurationDraft',
     'apply_draft_schema',
     'activate_draft',
@@ -778,8 +1014,11 @@ __all__ = [
     'plan_to_mapping',
     'put_draft',
     'replace_draft',
+    'rollback_source_digest',
+    'rollback_to_revision',
     'select_active_configuration',
     'select_draft',
+    'select_revision',
     'validate_draft_schema',
     'verify_draft_schema',
 ]

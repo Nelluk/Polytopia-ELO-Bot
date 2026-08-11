@@ -246,6 +246,43 @@ def build_request(
     )
 
 
+def build_rollback_request(
+    *,
+    bot: Any,
+    interaction: Any,
+    operation: str,
+    target_revision: int,
+    expected_target_digest: str | None = None,
+    expected_active_revision: int | None = None,
+    expected_active_generation: int | None = None,
+    expected_active_digest: str | None = None,
+    confirmation_text: str | None = None,
+) -> workers.GuildConfigurationDraftRequest:
+    if operation not in {workers.ROLLBACK_PREVIEW, workers.ROLLBACK_COMMIT}:
+        raise GuildConfigurationDraftEditError(
+            'Unknown guild-configuration rollback operation.'
+        )
+    guild_id = int(interaction.guild_id)
+    snapshot = shadow.capture_discord_snapshot(
+        profile=settings.runtime_profile,
+        guilds=tuple(bot.guilds),
+    )
+    return workers.request_from_profile(
+        profile=settings.runtime_profile,
+        requester_id=int(interaction.user.id),
+        guild_id=guild_id,
+        operation=operation,
+        runtime_record=settings.database_guild_configuration(guild_id),
+        discord_snapshot=snapshot,
+        target_revision=int(target_revision),
+        expected_target_digest=expected_target_digest,
+        expected_active_revision=expected_active_revision,
+        expected_active_generation=expected_active_generation,
+        expected_active_digest=expected_active_digest,
+        confirmation_text=confirmation_text,
+    )
+
+
 __all__ = [
     'BOOLEAN',
     'CAPABILITIES',
@@ -271,6 +308,7 @@ __all__ = [
     'access_error',
     'add_id',
     'build_request',
+    'build_rollback_request',
     'changed_paths',
     'field_value',
     'fields_for_section',
