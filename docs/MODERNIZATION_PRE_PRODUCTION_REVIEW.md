@@ -11,14 +11,34 @@ Production baseline: `origin/master` at `c35e2f1`
 Review mode: read-only. No PostgreSQL, Discord, production data, service,
 dependency, sudo, or filesystem mutation was performed during the review.
 
+## 2026-08-11 final-review supplement
+
+The later GitHub-only adversarial review was pinned to
+`55eeb84951085ff55bdbe2eeca4a33519b942c4b` and compared with `master` at
+`c35e2f1d0011709d233c0aa8afa258602b457635`. It confirmed the matrix below but
+found two additional release blockers. The accumulation branch subsequently
+advanced to `92702262de60b7e7a73e6ec9d5286ba9d5b54419` only through the tracked
+post-modernization-roadmap documentation, so both findings remained valid at
+the P9.21 base.
+
+| Finding | Severity | P9.21 disposition |
+|---|---|---|
+| N1 import/startup schema DDL | High | Resolved by P9.21 checkpoint `e532ce4`: model import performs no connection/DDL, startup verifies the required schema read-only before ban reconciliation, and schema creation exists only in the explicit development bootstrap apply path. |
+| N2 production identity/password literal fallback | Medium | Resolved by P9.21 checkpoint `e532ce4`: explicit nonempty production `expected_bot_id` and `psql_password` are required before server-settings or later effects. |
+
+The source findings are corrected and Tier-3 reviewed, but M7/R-002 remains
+blocked until P9.21 is integrated, pushed, and its accepted accumulation
+checkpoint passes the required beta startup evidence. The external review
+performed no tests or live operations; P9.21's durable test and stopped-writer
+evidence is recorded in the roadmap and must later bind to the exact candidate.
+
 ## Recommendation
 
-The accumulation branch is **not ready to become a release candidate**. B1–B3,
-every High finding, M1–M6, and L1 are resolved by reviewed modernization units
-through P9.20. M6's environment-explicit `/staffhelp` delivery policy includes
-the production configuration gate. M7 is the remaining
-exact-HEAD release-candidate gate. A valid unresolved finding remains a
-release blocker even when its severity is Medium.
+The accumulation branch is **not yet ready to become a release candidate**.
+B1–B3, H1–H8, M1–M6, L1, and the later N1–N2 source findings are resolved in
+reviewed unit source through P9.21 checkpoint `e532ce4`. P9.21 still requires
+accumulation integration/push and exact-checkpoint beta startup evidence. M7
+then remains the final exact-HEAD release-candidate gate.
 
 ## Current resolution matrix
 
