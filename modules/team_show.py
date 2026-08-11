@@ -9,7 +9,12 @@ import time
 import discord
 
 import settings
-from modules import exceptions, team_emoji, team_show_workers
+from modules import (
+    exceptions,
+    interaction_lifecycle,
+    team_emoji,
+    team_show_workers,
+)
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -454,20 +459,16 @@ async def publish_native(
     result: team_show_workers.TeamShowResult,
 ):
     kwargs, view = _send_kwargs(result, requester_id=interaction.user.id)
+    channel = await interaction_lifecycle.resolve_public_interaction_channel(
+        interaction
+    )
     delete_original = getattr(interaction, 'delete_original_response', None)
     if callable(delete_original):
         try:
             await delete_original()
         except Exception:
             logger.debug('Private team-show acknowledgement could not be deleted', exc_info=True)
-    channel = getattr(interaction, 'channel', None)
-    sender = getattr(channel, 'send', None)
-    if callable(sender):
-        message = await sender(**kwargs)
-    else:
-        # A webhook-only test double or unusual channel can still publish a
-        # public follow-up without leaking the dense card into a private ack.
-        message = await interaction.followup.send(ephemeral=False, **kwargs)
+    message = await channel.send(**kwargs)
     view.message = message
     return message
 

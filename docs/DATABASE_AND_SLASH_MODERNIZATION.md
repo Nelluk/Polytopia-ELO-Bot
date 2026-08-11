@@ -490,26 +490,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.16/B2 modernization production cutover and rollback
-is Complete in accumulation at merge checkpoint `d4a37d0`. Implementation
-checkpoint `d754beb` and evidence checkpoint `8ddad6a` were reviewed from
-exact clean base `178f8e8`. The new runbook is explicitly separate from the
-historical Python upgrade, pins exact
-release/rollback commits, requires backup and host/PostgreSQL single-writer
-proof, applies/verifies additive schema before model code, supplies a tracked
-task-disabled `Restart=no` canary, separates canonical service activation from
-the PolyChampions-only command canary, and defines independent rollback and
-uncertain-effect handling. Focused cutover/migration/command/runtime coverage
-passes 67/67. Complete discovery runs 1,612 tests: 1,538 pass, 71 intentionally
-skip, and only the three known missing-`duckdb` environment cases fail. Tier-3
-complete-diff review found no remaining B2 blocker. No production, database,
-Discord, service, dependency, or beta mutation occurred; beta inspection was
-read-only. The
-adversarial matrix now states candidly that B1/B3 and H1–H8 are resolved, B2
-is resolved, and M1–M6, M7, and part of L1 remain open before a release
-candidate. The healthy beta remains on runtime checkpoint `8b9ede1`; B2 changes
-no bot runtime or command tree, so no restart/apply/announcement was
-warranted.**
+Current active unit: **P9.17/M1+M4+M5 retained interaction boundaries is
+Tier-3 reviewed on isolated implementation checkpoint `88ad772`, based on
+exact clean accumulation checkpoint `4d94743`. `PolyGame` now parses only a
+bounded primitive integer and leaves authoritative game/guild/state lookup to
+the existing workers. `$getname` and `$getnames` use one bounded immutable read
+service with worker-owned connections and cancellation drainage. Native team
+show and team leaderboard publication now resolve a real public channel or
+report an explicit private publication failure, never a purported public
+followup inherited from an ephemeral defer. Unexpected prefix failures retain
+their full traceback only in server logs and expose a short correlation
+reference in Discord. Focused affected coverage passes 155/155. Complete
+discovery runs 1,627 tests: 1,553 pass, 71 intentionally skip, and only the
+same three missing-`duckdb` environment cases fail. No new schema boundary was
+introduced, so the documented cadence does not warrant a development database
+gate. M1, M4, and M5 are resolved; M2, M3, M6, M7, and part of L1 remain open.
+Evidence/integration and accumulation push are the next actions.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13535,6 +13531,60 @@ and an uninstalled production canary asset, restarting it would create
 unnecessary tester interruption and would not exercise B2. No command plan or
 apply, checklist update, or announcement was warranted.
 
+### P9.17 — M1/M4/M5 retained interaction boundaries
+
+Status: **Tier-3 reviewed and accepted for accumulation integration**
+
+Branch/base: `codex/p9-17-m1-m4-m5-interaction-boundaries`, exact clean
+accumulation base `4d94743cebb66ac1c22ef004ecff3612da0e1260`.
+Implementation/tests checkpoint: `88ad772`.
+
+This combined unit closes three remaining medium adversarial findings whose
+changes share the Discord/event-loop boundary:
+
+- `PolyGame` is a syntax-only PostgreSQL-integer-range parser. Retained
+  `confirm`, `rankset`, `rankunset`, `unstart`, and `extend` pass a primitive
+  game ID to their existing authoritative workers; no live `Game` reaches the
+  event loop or crosses an await.
+- `$getname` and `$getnames` use a two-thread bounded reader with explicit
+  Peewee connection ownership, cancellation drainage, and frozen primitive
+  account/draft-order rows. Their aliases, successful output, draft order,
+  timezone display, and explicit cross-guild game-ID read remain intact.
+- `/leaderboard teams` and `/team show` require a real public channel sender.
+  They use the resolved interaction channel, then cache/fetch the exact
+  `channel_id`; failure is explicit and private, never a falsely public
+  followup inherited from an ephemeral defer.
+- unexpected prefix exceptions receive an eight-hex correlation reference.
+  The unwrapped exception and traceback remain in server logs; Discord output
+  contains no raw exception value, host/database detail, or owner/staff ping.
+
+Focused affected coverage passes **155/155**, including worker connection
+ownership, immutable/model-free snapshots, repeated-send rendering,
+cancellation drainage, event-loop heartbeat, primitive-ID prefix forwarding,
+exact-channel fetch/failure, and secret-sentinel disclosure tests. Complete
+offline discovery runs **1,627 tests: 1,553 pass, 71 intentionally skip, and
+only the same three known missing-`duckdb` environment cases fail**.
+Compilation and `git diff --check` pass.
+
+Tier-3 complete-diff review found no remaining blocker. The review corrected
+the legacy zero-ID `extend` edge so it reaches authoritative not-found
+validation, bounded primitive IDs to PostgreSQL's integer range, and converts
+channel-fetch exceptions into the same explicit private publication failure.
+The unit adds no schema or new query relationship, so the documented cadence
+does not warrant a stopped-writer development-database gate. It changes no
+application-command shape, so no development-guild command apply is needed.
+
+The durable beta inspection found service PID `3952018` active and running,
+expected application identity `479029527553638401` authenticated in the
+journal, zero restart churn, and a responsive development-only control socket.
+It remains on previously verified runtime checkpoint `8b9ede1` while this unit
+awaits integration. Beta restart/announcement disposition is decided after
+the clean accumulation push.
+
+Next action: commit this evidence, merge the accepted unit into accumulation,
+record the exact close-out checkpoint, push it, then deploy the runtime-only
+change without command synchronization if the final beta gate remains clean.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14544,6 +14594,31 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-10 — P9.17/M1+M4+M5 interaction boundaries implemented
+
+- Reconciled clean local, tracking, and GitHub accumulation checkpoint
+  `4d94743cebb66ac1c22ef004ecff3612da0e1260`, created isolated branch/worktree
+  `codex/p9-17-m1-m4-m5-interaction-boundaries`, and passed the unchanged
+  development setup identity/task/API gate.
+- Replaced retained live-model game conversion with primitive ID parsing and
+  authoritative mutation-worker lookup; moved canonical account/draft-order
+  reads to a bounded immutable worker; removed inherited-private webhook
+  fallbacks from the two public read publishers; and replaced raw public
+  prefix exception output with generic correlation-reference messaging.
+- Focused affected coverage passes 155 tests. Complete discovery runs 1,627
+  tests with 71 skips and only the same three known missing-`duckdb`
+  environment failures. Compilation/diff checks pass. No dependency was
+  installed and no new schema boundary warranted a development database gate.
+- Tier-3 complete-diff review corrected zero/oversized ID parity and fetch
+  failure classification, then accepted implementation checkpoint `88ad772`
+  with no remaining blocker. M1, M4, and M5 are resolved; M2, M3, M6, M7, and
+  part of L1 remain open.
+- Read-only beta inspection found service PID `3952018` healthy, expected
+  application `479029527553638401` authenticated, zero restart churn, and the
+  development control socket responsive. No production resource was touched.
+  Next: evidence commit, accumulation merge/close-out/push, then final beta
+  lifecycle disposition.
 
 ### 2026-08-10 — P9.16/B2 modernization cutover procedure implemented
 

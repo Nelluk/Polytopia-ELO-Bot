@@ -357,7 +357,7 @@ review and stopped-writer development-database gate are green.**
 
 ### M1 — Retained prefix adapters still create event-loop ORM boundaries
 
-Status: **Open; still reproduced in the current accumulation source.**
+Status: **Resolved by P9.17.**
 
 - **Location:** `PolyGame` at `modules/games.py:115`; canonical-name reads at
   `modules/games.py:2841` and `modules/games.py:2902`.
@@ -374,6 +374,12 @@ Status: **Open; still reproduced in the current accumulation source.**
 - **Focused regression:** slow converter/name readers with an event-loop
   heartbeat; require primitive-only renderer inputs and zero ORM calls between
   sends.
+- **Resolution:** `PolyGame` is now a syntax-only bounded integer converter;
+  the existing mutation workers perform the authoritative game lookup and
+  mutable-state validation. Retained canonical-name and draft-order commands
+  use a dedicated bounded reader with worker-owned connections and frozen
+  primitive snapshots. Cancellation drains the worker before release, and
+  focused heartbeat/model-free/parity tests cover the retained commands.
 
 ### M2 — Backup execution can outlive both its view and Discord interaction token
 
@@ -422,7 +428,7 @@ alter the command implementation described here.**
 
 ### M4 — Two public read fallbacks inherit private deferred visibility
 
-Status: **Open; both fallback branches remain in current source.**
+Status: **Resolved by P9.17.**
 
 - **Location:** private defer and fallback at `modules/games.py:1010` and
   `modules/games.py:1063`; team-show fallback at `modules/team_show.py:452`;
@@ -439,10 +445,15 @@ Status: **Open; both fallback branches remain in current source.**
 - **Focused regression:** use the inheritance-aware fake with no
   `interaction.channel`; assert resolved channel publication or a private
   failure, never a purported public webhook followup.
+- **Resolution:** both publishers now require a real channel sender. They use
+  the resolved interaction channel first, then the exact `channel_id` through
+  the client cache/fetch path. If no sender is available, they retain the
+  private acknowledgement and explicitly report that public publication did
+  not occur; neither path uses an inherited webhook as a public fallback.
 
 ### M5 — Unexpected prefix exceptions leak raw text publicly
 
-Status: **Open; the prefix-wide handler still interpolates the exception.**
+Status: **Resolved by P9.17.**
 
 - **Location:** `bot.py:270`.
 - **Observable risk:** exception text may contain database details, host paths,
@@ -454,6 +465,10 @@ Status: **Open; the prefix-wide handler still interpolates the exception.**
   logs, add a correlation token, and send a generic public message.
 - **Focused regression:** inject an exception containing a secret sentinel; it
   may appear in captured logs but never in Discord output.
+- **Resolution:** unexpected retained-prefix failures receive an eight-hex
+  correlation reference. The full unwrapped exception and traceback remain in
+  server logs, while Discord receives only a generic message and that
+  reference, with no raw exception text or automatic user mentions.
 
 ### M6 — The production support/privacy fallback is still unspecified
 

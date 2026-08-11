@@ -826,11 +826,9 @@ class PlayerRegistrationCommandTests(unittest.IsolatedAsyncioTestCase):
             invoked_with='getcode',
             send=mock.AsyncMock(),
         )
-        stored = SimpleNamespace(
-            name='AccountUser',
-            polytopia_name='Canonical Name',
-            name_steam='Legacy Steam Name',
-            polytopia_id='legacy-code',
+        stored = games.legacy_name_workers.AccountNameSnapshot(
+            display_name='AccountUser',
+            account_name='Canonical Name',
         )
         with (
             mock.patch.object(
@@ -839,9 +837,9 @@ class PlayerRegistrationCommandTests(unittest.IsolatedAsyncioTestCase):
                 new=mock.AsyncMock(return_value=[target]),
             ),
             mock.patch.object(
-                games.DiscordMember,
-                'get_or_none',
-                return_value=stored,
+                games.legacy_name_workers,
+                'run_account_name',
+                new=mock.AsyncMock(return_value=stored),
             ),
         ):
             await command.callback(games.polygames.__new__(games.polygames), ctx)

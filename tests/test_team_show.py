@@ -675,6 +675,29 @@ class TeamShowPresentationTests(unittest.TestCase):
             'ephemeral', interaction.channel.send.await_args.kwargs
         )
 
+    def test_native_publish_fetches_exact_channel_instead_of_followup(self):
+        public_channel = SimpleNamespace(
+            send=mock.AsyncMock(return_value='message')
+        )
+        client = SimpleNamespace(
+            get_channel=mock.Mock(return_value=None),
+            fetch_channel=mock.AsyncMock(return_value=public_channel),
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=101),
+            channel_id=555,
+            channel=None,
+            client=client,
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+        )
+
+        asyncio.run(service.publish_native(interaction, result()))
+
+        client.fetch_channel.assert_awaited_once_with(555)
+        public_channel.send.assert_awaited_once()
+        interaction.followup.send.assert_not_awaited()
+
 
 class TeamShowCommandTests(unittest.IsolatedAsyncioTestCase):
     def _interaction(self):
@@ -783,6 +806,53 @@ class TeamShowCommandTests(unittest.IsolatedAsyncioTestCase):
             ephemeral=True,
         )
         interaction.channel.send.assert_not_awaited()
+
+    async def test_slash_missing_public_channel_reports_private_failure(self):
+        group = next(
+            command
+            for command in administration.administration.__cog_app_commands__
+            if command.name == 'team'
+        )
+        command = group.get_command('show')
+        interaction = self._interaction()
+        interaction.channel = None
+        interaction.client = SimpleNamespace(
+            get_channel=mock.Mock(return_value=None),
+            fetch_channel=mock.AsyncMock(return_value=None),
+        )
+        with (
+            mock.patch.object(
+                administration.team_show_service,
+                'native_access_error',
+                return_value=None,
+            ),
+            mock.patch.object(
+                administration.team_show_service,
+                'build_request',
+                return_value=request(),
+            ),
+            mock.patch.object(
+                administration.team_show_service,
+                'run',
+                new=mock.AsyncMock(return_value=result()),
+            ),
+            mock.patch.object(
+                administration.settings,
+                'guild_setting',
+                return_value='$',
+            ),
+        ):
+            await command.callback(
+                administration.administration.__new__(
+                    administration.administration
+                ),
+                interaction,
+                None,
+            )
+
+        message = interaction.followup.send.await_args.args[0]
+        self.assertIn('not published publicly', message)
+        self.assertTrue(interaction.followup.send.await_args.kwargs['ephemeral'])
 
     async def test_prefix_completed_deep_links_shared_service(self):
         command = next(

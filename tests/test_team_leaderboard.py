@@ -725,6 +725,113 @@ class TeamLeaderboardViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(channel.send.await_args.kwargs['view'].message, public_message)
         native_interaction.followup.send.assert_not_awaited()
 
+    async def test_native_command_fetches_channel_and_never_uses_public_followup(self):
+        command = next(
+            command
+            for command in next(
+                command
+                for command in games.polygames.__cog_app_commands__
+                if command.name == 'leaderboard'
+            ).commands
+            if command.name == 'teams'
+        )
+        response = FakeResponse()
+        public_channel = SimpleNamespace(
+            send=mock.AsyncMock(return_value=SimpleNamespace(id=99))
+        )
+        client = SimpleNamespace(
+            get_channel=mock.Mock(return_value=None),
+            fetch_channel=mock.AsyncMock(return_value=public_channel),
+        )
+        native_interaction = SimpleNamespace(
+            user=SimpleNamespace(id=777),
+            guild=SimpleNamespace(id=300),
+            channel_id=400,
+            channel=None,
+            client=client,
+            response=response,
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+        )
+        page = workers.team_leaderboard_page(result(1))
+        graph = workers.TeamLeaderboardGraph('native.png', b'graph')
+        cog = object.__new__(games.polygames)
+        with mock.patch.object(
+            games.team_leaderboard_service,
+            'native_access_error',
+            return_value=None,
+        ), mock.patch.object(
+            games.team_leaderboard_service,
+            'team_leaderboard_request_for_native',
+            return_value=workers.TeamLeaderboardRequest(guild_id=300),
+        ), mock.patch.object(
+            games.team_leaderboard_workers,
+            'run_team_leaderboard',
+            new=mock.AsyncMock(return_value=result(1)),
+        ), mock.patch.object(
+            games.team_leaderboard_service,
+            'render_page_graph',
+            new=mock.AsyncMock(return_value=(page, graph)),
+        ):
+            await command.callback(cog, native_interaction)
+
+        client.fetch_channel.assert_awaited_once_with(400)
+        public_channel.send.assert_awaited_once()
+        native_interaction.followup.send.assert_not_awaited()
+
+    async def test_native_command_reports_private_failure_without_destination(self):
+        command = next(
+            command
+            for command in next(
+                command
+                for command in games.polygames.__cog_app_commands__
+                if command.name == 'leaderboard'
+            ).commands
+            if command.name == 'teams'
+        )
+        response = FakeResponse()
+        native_interaction = SimpleNamespace(
+            user=SimpleNamespace(id=777),
+            guild=SimpleNamespace(id=300),
+            channel_id=400,
+            channel=None,
+            client=SimpleNamespace(
+                get_channel=mock.Mock(return_value=None),
+                fetch_channel=mock.AsyncMock(return_value=None),
+            ),
+            response=response,
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+        )
+        page = workers.team_leaderboard_page(result(1))
+        graph = workers.TeamLeaderboardGraph('native.png', b'graph')
+        cog = object.__new__(games.polygames)
+        with mock.patch.object(
+            games.team_leaderboard_service,
+            'native_access_error',
+            return_value=None,
+        ), mock.patch.object(
+            games.team_leaderboard_service,
+            'team_leaderboard_request_for_native',
+            return_value=workers.TeamLeaderboardRequest(guild_id=300),
+        ), mock.patch.object(
+            games.team_leaderboard_workers,
+            'run_team_leaderboard',
+            new=mock.AsyncMock(return_value=result(1)),
+        ), mock.patch.object(
+            games.team_leaderboard_service,
+            'render_page_graph',
+            new=mock.AsyncMock(return_value=(page, graph)),
+        ), mock.patch.object(games.logger, 'exception'):
+            await command.callback(cog, native_interaction)
+
+        native_interaction.delete_original_response.assert_not_awaited()
+        message = native_interaction.followup.send.await_args.args[0]
+        self.assertIn('not published publicly', message)
+        self.assertTrue(
+            native_interaction.followup.send.await_args.kwargs['ephemeral']
+        )
+
     async def test_native_access_failure_stays_private_after_immediate_defer(self):
         command = next(
             command
