@@ -499,8 +499,10 @@ and the ephemeral panel cannot update after its owning process exits.
 Implementation checkpoint `29a01ab` now states both facts and gives a
 10–20-second wait without adding a status command, presence manipulation, or
 lifecycle change. Focused restart coverage passes 19 tests; complete discovery
-reaches only the three known missing-`duckdb` environment failures. Clean
-close-out, push, and beta loading remain; B1 remains next afterward.**
+reaches only the three known missing-`duckdb` environment failures. The clean
+close-out is pushed and the guarded beta runs exact checkpoint `1add0f1` as
+the sole healthy development writer. No command apply or announcement was
+warranted. B1 is next.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13332,7 +13334,7 @@ a user interaction.
 
 ### P9.13a — Restart handoff copy clarification
 
-Status: **Complete in the accumulation branch; beta loading pending**
+Status: **Complete in the accumulation branch and loaded by the guarded beta**
 
 Branch/base: `codex/p9-13a-restart-panel-copy`, exact clean accumulation base
 `d7fc34dbf35385e069dd7dd40e0bc8c102af5c5e`. Implementation/tests checkpoint:
@@ -14447,9 +14449,13 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   Compilation and diff checks passed. Implementation is checkpointed at
   `29a01ab`; Tier-2 review found no remaining blocker.
 - Integrated the reviewed copy-only unit into accumulation at merge checkpoint
-  `821367d`. Next action: commit and push the clean close-out, restart the
-  guarded beta once to load it, verify health, and proceed to B1 without a
-  command-tree apply or tester announcement.
+  `821367d`, committed clean close-out `1add0f1`, and pushed it. Restarted only
+  the guarded development beta to load the callback copy; PID `3937152`
+  authenticated as expected application `479029527553638401`, records exact
+  checkpoint `1add0f104ae8ad8c3d4d709a13699237bec61e0e`, has no restart churn,
+  and is the sole development writer. No command-tree apply, checklist change,
+  or tester announcement was warranted. Next recommended: B1 production
+  timezone migration tooling without a production apply.
 
 ### 2026-08-10 — P9.14/H3 global command-tree guard reviewed
 
