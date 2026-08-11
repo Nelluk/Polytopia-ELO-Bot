@@ -11776,7 +11776,7 @@ Principal findings:
   `DiscordMember.timezone_offset_cleared`. The checked-in P6.2 tool correctly
   refuses production, so a separately reviewed, additive, production-only
   migration and verification path is a hard pre-deployment gate;
-- the command source currently loads ten roots. The recommended initial
+- at the P9.0 audit base, the command source loaded ten roots. The recommended initial
   PolyChampions-only canary assigns `core_user`, `team`, `league`, `house`,
   and `squad`, while excluding `elo_maintenance`, development-only
   `beta_testing`, and development-only feedback capability `tools_support`;
@@ -13702,8 +13702,9 @@ discovery ran **1,641 tests: 1,567 passed, 71 intentionally skipped, and only
 the three documented missing-`duckdb` environment cases failed**: the DuckDB
 runtime import, dependency inventory, and reporting-export module import.
 `git diff --check` passed. Tier-1 complete-diff review found no remaining
-blocker and confirmed that historical evidence remains labelled rather than
-silently rewritten. The accumulation merge and push remain pending.
+blocker after correcting one additional active-looking `currently` qualifier
+in the historical P9.0 ten-root finding. Historical evidence remains labelled
+rather than silently rewritten. The accumulation merge and push remain pending.
 
 Next action: finish L1 validation and integration. Then resolve M6 by recording
 the exact production support/privacy route, owner, monitoring cadence, and
@@ -14736,7 +14737,8 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   **19/19**. Complete offline discovery ran **1,641 tests: 1,567 passed, 71
   intentional skips, and only the same three missing-`duckdb` environment
   cases failed**. `git diff --check` passed, and Tier-1 complete-diff review
-  found no remaining blocker.
+  corrected one additional active-looking P9.0 ten-root qualifier and found no
+  remaining blocker.
 - No database, schema, Discord, beta, fixture, dependency, production, or sudo
   action occurred. Integration/push is next; no beta restart, guild apply,
   checklist change, or tester announcement is warranted for this repository-

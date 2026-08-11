@@ -79,6 +79,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn('Current active unit: **P9.19/L1', roadmap)
+        self.assertNotIn('command source currently loads ten roots', roadmap)
         compatibility_rows = {
             row.split(' ', 2)[1]: row
             for row in roadmap.splitlines()
