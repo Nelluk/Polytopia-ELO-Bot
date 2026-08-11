@@ -500,11 +500,12 @@ automatically create or reshuffle Discord roles/channels. It adds compact
 five-minute assignments plus at most three ELO-coordinated, requester-owned,
 30-minute game lanes through `/whattotest`, with exact dual ownership markers,
 fresh Ready/Unconfirmed/Completed games, names before IDs, direct feedback,
-and atomic release/reversal. Focused implementation validation is green;
-complete offline, stopped-writer PostgreSQL, final Tier-3 review, integration,
-push, and beta acceptance remain. The guarded beta still runs accumulation
-checkpoint `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389`; final accumulation HEAD
-`728a83e` differs only by P9.23a close-out documentation.**
+and atomic release/reversal. Tier-3 implementation review, focused/complete
+offline validation, and the stopped-writer PostgreSQL gate are green at
+implementation checkpoint `b7a4adf`; evidence commit, integration, push, and
+beta acceptance remain. The guarded beta was stopped cleanly after verifying
+its prior checkpoint `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389` and remains
+intentionally down only for this deployment window.**
 
 P9.22 pre-M7 beta testability/readiness is complete in accumulation and
 deployed to the development beta; wider human acceptance is pending. It was built on
@@ -14112,8 +14113,8 @@ numbering, and tracked Components-v2 body bounds. No blocking finding remains.
 
 ### P9.23b — Human self-service Beta Lab lanes
 
-Status: **In progress; implementation and focused offline validation complete,
-full validation and integration pending.**
+Status: **Tier-3 reviewed and database-gated; integration and beta acceptance
+pending.**
 
 Branch/base: `codex/p9-23b-self-service-lanes`, exact clean accumulation base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`.
@@ -14163,12 +14164,38 @@ connection-thread ownership, event-loop responsiveness, read and mutation
 cancellation, requester-only/expired controls, quick-test rotation, names
 before IDs, report context, command shape, and application-command policy.
 Compilation and `git diff --check` pass. The real PostgreSQL round trip is
-implemented behind the unchanged development integration gate and uses an
-outer rollback scope so it retains no lane, player, audit, or ELO change.
+implemented behind the unchanged development integration gate and uses exact
+finally cleanup so it retains no lane, player, audit, or ELO change.
 Complete offline discovery runs **1,717 tests: 1,639 pass, 75 are intentionally
 gated/skipped, and only the three documented missing-DuckDB environment cases
 fail** (runtime import, dependency inventory, and reporting-export import).
 No dependency was installed or synchronized.
+
+The mandatory stopped-writer gate first verified the prior beta as PID
+`102474`, authenticated application `479029527553638401`, zero restart churn,
+and the only authorized development writer. It stopped only
+`polybot-development-beta@main.service`; service state became inactive and the
+host-wide audit reported zero candidate writers and zero unreadable processes.
+The initial new integration case correctly exposed that a test-only outer
+rollback scope cannot contain a production-shaped worker-owned
+`connection_context()`: Peewee refused to close the connection while that
+outer transaction remained open. The test was corrected to exercise the real
+standalone connection lifecycle with exact unique-ID cleanup in `finally`.
+The isolated corrected case passed, then the complete exact
+`development`/`polytopia_dev`/`polybot_dev` gate ran **74 tests: 73 passed and
+the retained operator-fixture round trip skipped intentionally**. The new case
+proved audit failure rolls back all three rows, successful claim/load/release
+returns immutable exact IDs and names, opponent Player/DiscordMember ELO is
+restored, and no synthetic Player, member, game, or audit remains.
+
+Complete-diff review found and corrected four substantive boundaries before
+acceptance: a displaced server-structure return and missing manifest import;
+partial two-of-three lane graphs that initially appeared merely in progress
+instead of failing closed; cleanup timestamp sorting that could compare naive
+and timezone-aware datetimes; and stale panel role snapshots that could have
+authorized a claim after tester-role removal. Cleanup remains available to an
+exact lane owner after role removal so permission changes cannot strand owned
+data. No blocking review finding remains.
 
 Out of scope: Discord role/channel creation or reassignment, paired-human
 queues, temporary permission personas, automatic registration, arbitrary
@@ -14177,11 +14204,12 @@ and global command synchronization. Future scenario expansion should be based
 on observed tester friction rather than attempting a static full-production
 clone.
 
-Remaining before acceptance: complete offline discovery; stopped-writer exact
-development PostgreSQL gate including the new mutation round trip; final
-complete-diff review; implementation/evidence commits; accumulation merge and
-push; beta restart and authenticated health/invocation checks; and one reviewed
-`WHAT TO TEST` announcement only after all planned downtime is complete.
+Implementation checkpoint: `b7a4adf`. Remaining before acceptance: evidence
+commit; accumulation merge and push; beta restart and authenticated
+health/invocation checks; and one reviewed `WHAT TO TEST` announcement only
+after all planned downtime is complete. No command shape changed, so the
+offline command plan must be reviewed but no development-guild apply is
+expected.
 
 ## Standard work-unit template
 
@@ -15320,6 +15348,43 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.23b self-service Beta Lab reviewed and database-gated
+
+- Created `codex/p9-23b-self-service-lanes` from exact clean local/tracking/
+  GitHub accumulation checkpoint `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`
+  and recorded reviewed implementation checkpoint `b7a4adf`.
+- Reconciled the live beta guild read-only before design: the existing server
+  already has the reviewed House/Team structure, and all human testers use the
+  pinned `testers` Helper role. Revised the unit from broad Discord setup to
+  short guided assignments and safe per-tester database-owned game lanes; no
+  Discord role or channel was created, adopted, or reassigned.
+- Added five rotating read-oriented tests and at most three concurrent
+  requester-owned 30-minute lanes through the private `/whattotest` panel.
+  Each lane contains fresh Ready, Unconfirmed, and Completed 1v1 games, shows
+  participant names plus IDs, survives panel expiry, cleans up through
+  Finished/Release, and prefills lane/game context in the established
+  development feedback modal.
+- Kept claim, expiry cleanup, ELO reversal, protected audit, and terminal
+  immutable snapshot in one ELO-coordinated transaction behind exact profile,
+  live database, guild, tester-role, dual-marker, participant-graph, capacity,
+  and bounded-query checks. Ordinary games and the operator result bundle are
+  outside deletion authority.
+- Focused validation passed 88 tests. Complete offline discovery ran 1,717
+  tests with 1,639 passes, 75 intentional skips, and only the same three
+  missing-DuckDB environment failures. No dependency was changed.
+- Verified the prior durable beta as PID `102474`, expected beta application,
+  zero restart churn, and the authorized development writer. Stopped only its
+  user service and required an inactive service plus a clear host-wide audit.
+  The complete gated PostgreSQL suite then passed 73 of 74 tests with the one
+  retained operator-fixture round trip intentionally skipped. The new real-
+  schema mutation case retains no Player, member, game, audit, or ELO change.
+- Tier-3 review corrected displaced status code/import, exact-three-scenario
+  refusal, timezone-safe cleanup ordering, stale-role claim revalidation, and
+  the production-shaped integration-test connection lifecycle. No blocking
+  finding remains. Next: commit evidence, merge/push accumulation, review the
+  unchanged command plan, start and verify the exact clean checkpoint, and
+  post the reviewed tester announcement last.
 
 ### 2026-08-11 — P9.23a Beta Lab foundation reviewed and database-gated
 
