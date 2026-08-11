@@ -491,9 +491,9 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.15/B1 production timezone migration tooling is
-implemented and Tier-3 validated on isolated branch
-`codex/p9-15-b1-production-timezone-migration` at checkpoint `1c8ffa5`, based
-on exact clean accumulation checkpoint `7f30721`. The production-only tool is
+Complete in accumulation at merge checkpoint `8b9ede1`. Implementation
+checkpoint `1c8ffa5` and roadmap evidence checkpoint `c7333aa` were reviewed
+from exact clean accumulation base `7f30721`. The production-only tool is
 connection-free by default, fail-closed on environment/configured/live
 database and role identity, schema-qualified, transactional, idempotent, and
 has read-only verify with no destructive rollback. Focused coverage passes
@@ -502,8 +502,9 @@ and only the three known missing-`duckdb` environment cases fail. With only the
 development beta stopped and the host-wide writer audit clear, the complete
 gated `polytopia_dev` suite passed 69 tests with one retained-fixture skip; the
 B1 path first proved the schema complete and therefore executed no DDL. No
-production connection or DDL occurred. Complete-diff review and accumulation
-integration are next.**
+production connection or DDL occurred. The guarded beta is healthy at exact
+integrated checkpoint `8b9ede1` as the sole development writer. No command
+apply, checklist update, or announcement was warranted. B2 is next.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13421,11 +13422,13 @@ apply, checklist change, tester announcement, or runtime deployment.
 
 ### P9.15 — B1 production timezone migration tooling
 
-Status: **Implemented and Tier-3 validated; accumulation integration pending**
+Status: **Complete in accumulation; production execution remains separately
+gated**
 
 Branch/base: `codex/p9-15-b1-production-timezone-migration`, exact clean
 accumulation base `7f3072186e287bf61266441002aef6f3dd97cc94`.
 Implementation/tests checkpoint: `1c8ffa5`.
+Roadmap evidence checkpoint: `c7333aa`; accumulation merge: `8b9ede1`.
 
 The new production-only migration surface is deliberately separate from the
 P6.2 development tool, whose production refusal remains unchanged. Running
@@ -13463,6 +13466,13 @@ No production configuration was loaded, no production connection or DDL was
 attempted, and no schema, fixture, Discord, command-tree, or dependency change
 occurred. Production execution remains a separate B2/maintenance-window
 approval boundary.
+
+After the stopped-writer gate, the guarded development beta was restored from
+the clean integrated checkpoint. PID `3952018` authenticated as expected
+application `479029527553638401`, reports exact startup checkpoint `8b9ede1`,
+has zero service restart churn, and is the sole development writer. B1 changes
+no loaded bot callback or command shape, so no development-guild apply,
+checklist update, or tester announcement was warranted.
 
 ## Standard work-unit template
 
@@ -14496,8 +14506,13 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   before invoking the idempotent apply path, proving that no DDL was needed or
   executed.
 - No production profile was loaded, no production connection or DDL occurred,
-  and no Discord or dependency operation ran. Complete-diff acceptance and
-  accumulation integration are next; B2 remains the next recommended unit.
+  and no Discord or dependency operation ran. Accepted the complete diff,
+  committed roadmap evidence at `c7333aa`, and merged it into accumulation at
+  `8b9ede1`. Restored the guarded beta at that exact checkpoint as PID
+  `3952018`; it authenticated as application `479029527553638401`, has zero
+  restart churn, and is the sole development writer. No command apply,
+  checklist update, or announcement was warranted. B2 remains the next
+  recommended unit.
 
 ### 2026-08-10 — P9.13a restart handoff feedback investigated and corrected
 

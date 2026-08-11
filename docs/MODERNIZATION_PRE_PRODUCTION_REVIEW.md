@@ -22,9 +22,10 @@ candidate review.
 
 ### B1 — The production timezone migration does not exist
 
-Status: **Resolved by P9.15 implementation checkpoint `1c8ffa5`; Tier-3
-offline and stopped-writer development-database validation are green. No
-production connection or DDL was attempted.**
+Status: **Resolved by P9.15 implementation checkpoint `1c8ffa5`, evidence
+checkpoint `c7333aa`, and accumulation merge `8b9ede1`; Tier-3 offline and
+stopped-writer development-database validation are green. No production
+connection or DDL was attempted.**
 
 - **Location:** `modules/models.py:365`,
   `modules/player_timezone_migration.py:3`,

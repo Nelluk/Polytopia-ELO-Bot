@@ -85,8 +85,9 @@ single superficial pass over 277 changed files is sufficient.
 
 ### R-003 — Add the production timezone migration
 
-Status: Complete in P9.15 implementation checkpoint `1c8ffa5`; integration
-and production use remain separately gated.
+Status: Complete through P9.15 implementation checkpoint `1c8ffa5`, evidence
+checkpoint `c7333aa`, and accumulation merge `8b9ede1`; production use remains
+separately gated.
 
 Create a separate production-operations unit. It must:
 
