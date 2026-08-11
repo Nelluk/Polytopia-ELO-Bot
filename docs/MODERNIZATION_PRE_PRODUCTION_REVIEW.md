@@ -38,7 +38,8 @@ in the roadmap and must later bind to the exact candidate.
 The reviewed source blockers are resolved. B1–B3, H1–H8, M1–M6, L1, and the
 later N1–N2 findings are complete through P9.21. The recommended bounded
 pre-M7 beta-testability unit was selected as P9.22; its source and stopped-
-writer validation are complete, with integration and beta deployment pending.
+writer validation are complete and integrated at `d58a2c7`, with beta
+deployment pending.
 After P9.22 closes, M7 is the final exact-HEAD release-candidate evidence gate.
 
 ## Current resolution matrix

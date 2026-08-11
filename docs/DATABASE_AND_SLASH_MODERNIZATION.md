@@ -490,8 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.22 pre-M7 beta testability/readiness is In progress
-on `codex/p9-22-beta-testability`, from exact clean local/tracking/GitHub
+Current active unit: **P9.22 pre-M7 beta testability/readiness is integrated
+and pending development-guild apply/beta acceptance. It was built on
+`codex/p9-22-beta-testability`, from exact clean local/tracking/GitHub
 accumulation checkpoint `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
 This Tier-3 unit keeps `/whattotest` public and read-only while adding a live
 immutable readiness summary for the three exactly owned result scenarios.
@@ -506,9 +507,10 @@ and only the three known missing-DuckDB environment cases. The stopped-writer
 development gate passes 71 of 72 tests with the retained owned-fixture round
 trip intentionally skipped; the new real-schema readiness test is read-only.
 The offline desired tree is valid and remote inspection proposes only an
-`operator` root update in guild `478571892832206869`. Complete-diff review,
-unit commits, accumulation integration, guild-scoped apply, beta start, smoke,
-and tester release remain pending.**
+`operator` root update in guild `478571892832206869`. Implementation checkpoint
+`47dbd0a` and evidence checkpoint `3a8c444` merged without conflict at
+`d58a2c72c68d93edeea2d2bd659ea7615c164008`. Guild-scoped apply, beta start,
+smoke, and tester release remain pending.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13918,8 +13920,7 @@ beta convenience tooling is desired.
 
 ### P9.22 — Pre-M7 beta testability and owned-scenario readiness
 
-Status: **In progress; implementation and stopped-writer validation complete,
-integration/deployment pending**
+Status: **Integrated; development-guild apply and beta acceptance pending**
 
 Branch/base: `codex/p9-22-beta-testability`, exact clean accumulation base
 `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
@@ -13983,8 +13984,8 @@ global Discord operation occurred.
 The model-free offline desired-tree plan contains the expected eleven roots.
 Remote read-only inspection found zero global commands and the same eleven
 development-guild roots; the only proposed guild change is an update of the
-existing `operator` root. Apply remains pending until the reviewed unit is
-integrated at a clean accumulation checkpoint.
+existing `operator` root. Apply remains pending at the clean integrated
+accumulation checkpoint.
 
 Tier-3 complete-diff review found and corrected two boundary defects before
 commit: the first draft loaded its terminal fixture snapshot just after the
@@ -13996,11 +13997,11 @@ without an unbounded query. It additionally excludes bot identities from
 participants and applies a per-user cooldown to the newly database-backed
 `/whattotest` read. Final review found no remaining blocker.
 
-Next: finish Tier-3 complete-diff review, commit implementation and evidence,
-merge into accumulation, push, apply only guild `478571892832206869`, start the
-durable beta at the exact clean integrated checkpoint, verify `/whattotest`
-and both operator command shapes, then deliver the reviewed WHAT TO TEST
-announcement as the terminal deployment action.
+Implementation/tests checkpoint `47dbd0a`; roadmap evidence checkpoint
+`3a8c444`. Both were accepted and merged into accumulation without conflict at
+`d58a2c72c68d93edeea2d2bd659ea7615c164008`. The remaining sequence is the
+clean integration-evidence commit/push, exact development-guild apply, durable
+beta start and health/readiness smoke, then the terminal tester announcement.
 
 ## Standard work-unit template
 
@@ -15170,6 +15171,12 @@ deferred into this post-modernization backlog.
   bounded owned-row discovery to `expected + 1`, excluded bot participants,
   and added the `/whattotest` read cooldown. Focused and complete validation
   were rerun after correction; no remaining review blocker was found.
+- Accepted implementation `47dbd0a` and evidence `3a8c444` merged into
+  accumulation without conflict at
+  `d58a2c72c68d93edeea2d2bd659ea7615c164008`. Focused integration validation
+  passes 69 tests. Next: commit/push integration evidence, apply only the
+  configured development guild, start/smoke the exact clean checkpoint, and
+  finish with the reviewed tester announcement.
 
 ### 2026-08-11 — P9.21 final-review startup blockers corrected and reviewed
 
