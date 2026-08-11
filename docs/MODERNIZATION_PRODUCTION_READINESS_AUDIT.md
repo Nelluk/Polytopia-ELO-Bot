@@ -13,12 +13,14 @@ database, service, Discord, or schema action.
 
 The modernization architecture is suitable for a production canary, but the
 current accumulation branch is not yet a releasable production checkpoint.
-Three bounded preparation stages remain:
+Four bounded preparation stages remain:
 
-1. write and review a modernization-specific cutover and rollback runbook;
-2. validate one reconciled release candidate offline and through the stopped-
+1. finish review/integration of the implemented modernization-specific cutover
+   and rollback runbook;
+2. close the still-valid M1–M6 and L1 adversarial findings;
+3. validate one reconciled release candidate offline and through the stopped-
    writer development PostgreSQL gate; and
-3. after separate approval, deploy one production process and enable a
+4. after separate approval, deploy one production process and enable a
    guild-scoped native-command canary only in PolyChampions.
 
 The dependency/PostgreSQL upgrade completed before this project is not an
@@ -114,6 +116,9 @@ first proved the columns already existed, so the apply path executed no DDL.
 
 ### R-004 — Replace the historical cutover procedure
 
+Status: Implemented by P9.16 checkpoint `d754beb`; Tier-3 complete-diff and
+offline validation are green, and accumulation integration is pending.
+
 `docs/PRODUCTION_CUTOVER.md` accurately records the completed Python 3.12 and
 PostgreSQL dependency cutover. Its Python 3.9 rollback is explicitly retired.
 A new modernization runbook must cover:
@@ -131,6 +136,18 @@ A new modernization runbook must cover:
 No tester announcement should precede an extended maintenance window. Publish
 only after the service and command tree are healthy and the requested tester
 actions are actually available.
+
+P9.16 adds `docs/MODERNIZATION_PRODUCTION_CUTOVER.md` as the explicit
+modernization authority and labels `docs/PRODUCTION_CUTOVER.md` historical
+only. The new procedure pins full release/rollback commits, the locked Python
+3.12 environment and canonical service, exact backup provenance/validation,
+host/process/PostgreSQL single-writer proof, schema-before-model apply/verify,
+a tracked task-disabled `Restart=no` canary, clean canonical activation,
+separate global-read/guild-only command inspection and apply, terminal
+announcement ordering, and independent code/config, additive-schema, command-
+tree, database-restore, and uncertain-effect dispositions. It also refuses a
+release record with unresolved adversarial findings or no exact production
+support/privacy route.
 
 ### R-005 — Configure and prove the production command canary
 
@@ -213,19 +230,21 @@ for every retained operation.
 1. R-001 upstream reconciliation.
 2. Operator cleanup decisions that affect the final code checkpoint.
 3. R-003 production migration implementation and offline review.
-4. R-004 modernization cutover/rollback runbook and production config plan.
-5. R-002 release-candidate review, complete offline tests, stopped-beta full
+4. R-004 modernization cutover/rollback runbook and production config plan
+   (implemented by P9.16; integration pending).
+5. Close the still-valid M1–M6 and L1 adversarial findings.
+6. R-002 release-candidate review, complete offline tests, stopped-beta full
    development PostgreSQL gate, and a bounded beta release matrix.
-6. Push/open the final accumulation-to-`master` integration review; merge only
+7. Push/open the final accumulation-to-`master` integration review; merge only
    after explicit approval.
-7. In one separately approved maintenance window: verify backup, stop the
+8. In one separately approved maintenance window: verify backup, stop the
    production writer, prove no second writer, apply/verify additive schema,
    deploy the exact code/config/locked environment, run a task-disabled
    process canary, then start the canonical production service.
-8. Observe retained prefix behavior before changing the Discord command tree.
-9. Plan, inspect, and explicitly apply the PolyChampions-only capability set;
+9. Observe retained prefix behavior before changing the Discord command tree.
+10. Plan, inspect, and explicitly apply the PolyChampions-only capability set;
    re-inspect convergence and publish the targeted canary announcement.
-10. If the native surface is unhealthy, clear the canary capability assignment
+11. If the native surface is unhealthy, clear the canary capability assignment
     and explicitly apply the resulting removal plan while leaving retained
     prefixes and additive columns available.
 
@@ -238,7 +257,10 @@ boundaries.
 - Read-only merge-tree preview identified the exact overlapping files.
 - Model diff proved exactly two added columns.
 - Dependency diff proved no `pyproject.toml` or `uv.lock` divergence.
-- Model-free command load reported ten roots and no database connection.
+- The audit-time model-free command load reported ten roots and no database
+  connection. The later reviewed P9.2 operator infrastructure adds the
+  eleventh current root, `/operator`; initial production canary policy still
+  omits that capability.
 - Focused readiness suite passed **114 tests** across command policy/management,
   runtime configuration, deployment assets, dependency compatibility,
   timezone migration safety, beta operations, and beta readiness.
@@ -249,6 +271,6 @@ boundaries.
 
 ## Next action
 
-Make the operator carry-forward decisions that affect the release candidate,
-then start the separate production timezone migration. Do not combine operator
-cleanup with production DDL.
+Finish P9.16/B2 review and integration, then close M1–M6 and the remaining L1
+consistency debt before R-002 freezes and validates one exact release
+candidate. Production execution remains separately approval-gated.

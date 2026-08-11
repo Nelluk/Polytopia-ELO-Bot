@@ -13,10 +13,31 @@ dependency, sudo, or filesystem mutation was performed during the review.
 
 ## Recommendation
 
-The accumulation branch is **not ready to become a release candidate**. B1 and
-B3 are resolved by reviewed modernization units; B2, the modernization-specific
-cutover and rollback runbook, remains the active blocker before release-
-candidate review.
+The accumulation branch is **not ready to become a release candidate**. B1,
+B3, and every High finding are resolved by reviewed modernization units. B2 is
+implemented on the P9.16 unit branch and awaits integration. M1–M6 remain open;
+M7 is the later exact-HEAD release-candidate gate; and L1 is only partially
+reconciled. A valid unresolved finding remains a release blocker even when its
+severity is Medium or Low.
+
+## Current resolution matrix
+
+| Finding | State | Durable evidence / next owner |
+|---|---|---|
+| B1 | Resolved | P9.15 production-only migration tooling |
+| B2 | Implemented; integration pending | P9.16 checkpoint `d754beb` |
+| B3 | Resolved | P9.7a transaction truthfulness and P9.7b immutable publication |
+| H1–H2 | Resolved | P9.12 explicit environment and native-start ban parity |
+| H3 | Resolved | P9.14 global-tree inspect/apply guard |
+| H4 | Resolved | P9.7b–P9.7d immutable result/correction snapshots |
+| H5 | Resolved | P9.7e–P9.7g recurring-task workers/reconciliation |
+| H6 | Resolved | P9.8, P9.9, and P9.13 retirements/replacements |
+| H7 | Resolved | P9.10 repeated-cancellation-safe backup cleanup |
+| H8 | Resolved | P9.11 identity-before-startup-effects ordering |
+| M1–M5 | Open | Separate bounded source corrections before R-002 |
+| M6 | Open; decision/evidence required | Exact production support/privacy route |
+| M7 | Open by design | R-002 final-HEAD release-candidate evidence |
+| L1 | Partially resolved | Separate consistency reconciliation before R-002 |
 
 ## Blocker
 
@@ -54,6 +75,9 @@ connection or DDL was attempted.**
   timeout; and provides read-only verification with no destructive rollback.
 
 ### B2 — There is no modernization cutover and rollback runbook
+
+Status: **Implemented by P9.16 checkpoint `d754beb`; Tier-3 complete-diff and
+offline validation are green, and accumulation integration is pending.**
 
 - **Location:** `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:105`,
   `docs/PRODUCTION_CUTOVER.md:1`, and `docs/PRODUCTION_CUTOVER.md:44`.
@@ -186,6 +210,10 @@ green.**
 
 ### H4 — Converted result and correction paths still perform synchronous ORM reloads and carry live models through awaits
 
+Status: **Resolved across P9.7b, P9.7c, and P9.7d; immutable worker-loaded
+snapshots now cover confirmation, ordinary win/unwin, and rank/unstart, and
+their Discord publishers are model-free.**
+
 - **Location:** ordinary win at `modules/game_win.py:250`; unwin at
   `modules/games.py:4546`; confirm/rank/unstart at
   `modules/administration.py:184`, `modules/administration.py:225`, and
@@ -209,6 +237,11 @@ green.**
   based on the committed snapshot.
 
 ### H5 — Enabled production background tasks remain synchronous and non-reconciling
+
+Status: **Resolved across P9.7e, P9.7f, and P9.7g; automatic confirmation,
+champion reconciliation, and completed-channel purge now use bounded workers,
+authoritative revalidation/reconciliation, cycle containment, and immutable
+plans.**
 
 - **Location:** task activation at `modules/games.py:271` and
   `modules/administration.py:131`; channel purge at `modules/games.py:6125`;
@@ -322,6 +355,8 @@ review and stopped-writer development-database gate are green.**
 
 ### M1 — Retained prefix adapters still create event-loop ORM boundaries
 
+Status: **Open; still reproduced in the current accumulation source.**
+
 - **Location:** `PolyGame` at `modules/games.py:115`; canonical-name reads at
   `modules/games.py:2841` and `modules/games.py:2902`.
 - **Observable risk:** mutation converters synchronously connect/load a live
@@ -339,6 +374,9 @@ review and stopped-writer development-database gate are green.**
   sends.
 
 ### M2 — Backup execution can outlive both its view and Discord interaction token
+
+Status: **Open; P9.10 fixed repeated cancellation but did not change the
+five-minute view, interaction-token lifetime, or 30-minute process bound.**
 
 - **Location:** 30-minute process limit at `modules/operator_backup.py:29`;
   five-minute view at `modules/operator_backup_views.py:25`; timeout wording at
@@ -360,6 +398,10 @@ review and stopped-writer development-database gate are green.**
 
 ### M3 — Backup source validation is not tied to a reviewed release
 
+Status: **Open for the Discord-triggered backup path. P9.16 independently
+binds cutover-time backup provenance to the exact clean release, but does not
+alter the command implementation described here.**
+
 - **Location:** `modules/operator_backup.py:164`; additional executed exporter
   at `scripts/backup_db.sh:19` and `scripts/backup_db.sh:147`.
 - **Observable risk:** `Path.stat()` follows symlinks, source ownership/type is
@@ -377,6 +419,8 @@ review and stopped-writer development-database gate are green.**
   modified exporter, and wrong checkout checkpoint must fail before spawn.
 
 ### M4 — Two public read fallbacks inherit private deferred visibility
+
+Status: **Open; both fallback branches remain in current source.**
 
 - **Location:** private defer and fallback at `modules/games.py:1010` and
   `modules/games.py:1063`; team-show fallback at `modules/team_show.py:452`;
@@ -396,6 +440,8 @@ review and stopped-writer development-database gate are green.**
 
 ### M5 — Unexpected prefix exceptions leak raw text publicly
 
+Status: **Open; the prefix-wide handler still interpolates the exception.**
+
 - **Location:** `bot.py:270`.
 - **Observable risk:** exception text may contain database details, host paths,
   identifiers, or user-provided values, and is interpolated directly into a
@@ -408,6 +454,9 @@ review and stopped-writer development-database gate are green.**
   may appear in captured logs but never in Discord output.
 
 ### M6 — The production support/privacy fallback is still unspecified
+
+Status: **Open; P9.16 makes the exact route/owner/cadence a release-record stop
+condition but cannot invent the production community's operational choice.**
 
 - **Location:** `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11709`,
   `docs/PRIVACY_READINESS_CHECKLIST.md:14`, and `PRIVACY.md:127`.
@@ -424,6 +473,8 @@ review and stopped-writer development-database gate are green.**
   supplied.
 
 ### M7 — No final-HEAD release-candidate evidence exists
+
+Status: **Open by design and owned by R-002 after all preceding corrections.**
 
 - **Location:** required gates at
   `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11699`, audit R-002 at
@@ -442,6 +493,11 @@ review and stopped-writer development-database gate are green.**
 ## Low / documentation
 
 ### L1 — Roadmap and evidence records are internally stale
+
+Status: **Partially resolved. The date, example production database, diff
+cleanliness, and recent execution pointer are current; the phase summary,
+selected compatibility rows, taxonomy implementation inventory, and some
+historical next-action text still require one bounded consistency pass.**
 
 - **Exact records:**
   - "Last updated" remains 2026-08-09 at

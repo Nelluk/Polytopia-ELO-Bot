@@ -2,8 +2,8 @@
 
 This runbook documents the B1/R-003 additive schema tool. It is not standing
 authorization to access or modify the production database. Production verify
-and apply require separate explicit approval and must later be embedded in the
-modernization cutover sequence defined by B2.
+and apply require separate explicit approval and are embedded in the reviewed
+ordering at `docs/MODERNIZATION_PRODUCTION_CUTOVER.md`.
 
 ## Fixed scope
 
