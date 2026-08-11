@@ -490,19 +490,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.13a restart handoff copy is reviewed on isolated
-branch `codex/p9-13a-restart-panel-copy` from exact clean, pushed accumulation
-base `d7fc34d`. User feedback initially suggested restart failure, but service
-and application logs proved four accepted beta restarts each exited with
-status 75 and returned ready under systemd; the latest moved PID `3924884` to
-`3930134` and loaded checkpoint `d7fc34d`. Discord's member presence did not
-visibly drop during the roughly ten-second gateway absence, and the ephemeral
-panel cannot update after its owning process exits. Implementation checkpoint
-`29a01ab` now states both facts and gives a 10–20-second wait without adding a
-status command, presence manipulation, or lifecycle change. Focused restart
-coverage passes 19 tests; complete discovery reaches only the three known
-missing-`duckdb` environment failures. Integration and beta loading remain
-pending; B1 remains next afterward.**
+Current active unit: **P9.13a restart handoff copy is Complete in accumulation
+at merge checkpoint `821367d`. User feedback initially suggested restart
+failure, but service and application logs proved four accepted beta restarts
+each exited with status 75 and returned ready under systemd. Discord's member
+presence did not visibly drop during the roughly ten-second gateway absence,
+and the ephemeral panel cannot update after its owning process exits.
+Implementation checkpoint `29a01ab` now states both facts and gives a
+10–20-second wait without adding a status command, presence manipulation, or
+lifecycle change. Focused restart coverage passes 19 tests; complete discovery
+reaches only the three known missing-`duckdb` environment failures. Clean
+close-out, push, and beta loading remain; B1 remains next afterward.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13334,11 +13332,12 @@ a user interaction.
 
 ### P9.13a — Restart handoff copy clarification
 
-Status: **Tier-2 reviewed; integration and beta loading pending**
+Status: **Complete in the accumulation branch; beta loading pending**
 
 Branch/base: `codex/p9-13a-restart-panel-copy`, exact clean accumulation base
 `d7fc34dbf35385e069dd7dd40e0bc8c102af5c5e`. Implementation/tests checkpoint:
 `29a01ab`.
+Roadmap evidence checkpoint: `7501d04`; accumulation merge: `821367d`.
 
 Direct user feedback reported that an accepted restart appeared to do nothing.
 The application log recorded the exact acceptance and the service journal
@@ -14447,9 +14446,10 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   with 70 skips and only the three known missing-`duckdb` environment failures.
   Compilation and diff checks passed. Implementation is checkpointed at
   `29a01ab`; Tier-2 review found no remaining blocker.
-- Next action: commit this evidence, integrate and push the reviewed copy-only
-  unit, restart the guarded beta once to load it, verify health, and proceed to
-  B1 without a command-tree apply or tester announcement.
+- Integrated the reviewed copy-only unit into accumulation at merge checkpoint
+  `821367d`. Next action: commit and push the clean close-out, restart the
+  guarded beta once to load it, verify health, and proceed to B1 without a
+  command-tree apply or tester announcement.
 
 ### 2026-08-10 — P9.14/H3 global command-tree guard reviewed
 
