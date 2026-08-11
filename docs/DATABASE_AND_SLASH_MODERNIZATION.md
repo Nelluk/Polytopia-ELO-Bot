@@ -14463,6 +14463,8 @@ deferred to separately selected bounded units.**
 Branch/base: `codex/p10-1-dynamic-guild-config-design`, exact clean pushed
 accumulation checkpoint `a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb`.
 
+Design checkpoint: `46e4eb151ada2f107f35e4b97a833e01216bde47`.
+
 Risk tier: **Tier 1 documentation/architecture**. The design changes no
 runtime behavior and authorizes no schema or production operation.
 
@@ -15670,6 +15672,35 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.1 dynamic guild configuration architecture complete
+
+- Created `codex/p10-1-dynamic-guild-config-design` from exact clean pushed
+  accumulation checkpoint `a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb`
+  and recorded design checkpoint `46e4eb151ada2f107f35e4b97a833e01216bde47`.
+- Inventoried all 27 tracked default guild keys and classified the 26 live
+  settings, the unused singular match-channel predecessor, command capability
+  policy, hard-coded server topology, lobby presets, ban state, product
+  catalogs, runtime bootstrap/security, and the unrelated existing
+  `Configuration` draft table.
+- Added `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` with a typed PostgreSQL
+  revision envelope, immutable event-loop-safe snapshots, owner-only initial
+  enrollment, explicit ordinary-versus-security delegation, Discord-first
+  editing, separate command synchronization, validation/recovery semantics,
+  ten staged migration units, and the required implementation evidence.
+- Recorded D-049 so the exact release candidate remains an evidence baseline
+  rather than a development embargo. New runtime work is allowed, but must not
+  borrow stale exact-SHA evidence before production.
+- Complete Tier-1 diff review found and corrected one permission-design issue:
+  ordinary delegated managers may not change bot authorization roles or
+  private reporting routes. Focused documentation/deployment consistency
+  passes 6 tests, the inventory check covers 27/27 defaults, `git diff
+  --check` passes, and the existing release-candidate validator retains its
+  three passing and two pending gates.
+- No runtime code, schema, database, beta, Discord command, dependency,
+  production, or production-configuration operation occurred. Recommended
+  next implementation is the offline typed value-object/schema validator with
+  no runtime authority switch.
 
 ### 2026-08-11 — M7 exact-candidate environment blockers cleared
 
