@@ -585,22 +585,31 @@ announcement is warranted because P10.4 changes no command or tester-facing
 workflow. The final accumulation close-out push follows this evidence.**
 
 P10.5 explicit development database guild-configuration authority is
-implemented and development-database gated on
+complete, integrated, development-database gated, and beta-validated from
 `codex/p10-5-guild-config-authority` from exact clean pushed accumulation base
 `edf1ba75aa356257e7ce24a08723e0f3c13fb9d2`. Implementation checkpoint
 `16cbc50` adds the exact pre-start `static`/`database` selector, command/event
 fail-closed startup gate, one immutable legacy-compatible snapshot, stable-ID
 role authorization/effect resolution, no-fallback startup failure, and the
 static restart rollback. Read-only gate checkpoint `13460ad` adds an exact
-real-graph publication regression. Focused P10 validation passes 47 tests,
+real-graph publication regression; roadmap evidence and exact fast-forward
+integration checkpoint is `a57af358cfe7d950506c8586d4fc84a2140a944e`.
+Focused P10 validation passes 47 tests,
 affected role/configuration validation passes 267 tests, complete offline
 discovery passes all 1,813 tests with 78 intentional skips, and the complete
 stopped-writer development PostgreSQL gate passes 78 tests with one
 intentional retained-fixture skip. Tier-3 complete-diff review found and
 corrected one startup race: database-selected processes now expose neither a
 static guild allowlist nor static command capabilities before publication.
-Integration and a guarded beta restart with the ignored development selector
-set to `database` are the remaining P10.5 close-out actions.**
+The ignored development selector is now `database`; the durable beta runs the
+exact integration checkpoint as PID `151903`, authenticated as the development
+application, with one host-wide writer, zero restart churn, and a startup log
+proving matched stored generation 1 was published for guild
+`478571892832206869`. All 11 development-guild command roots are unchanged and
+all five protected Beta Lab packs are ready. No command apply, tester-checklist
+change, or announcement was warranted. Next selectable work is P10.6's owner
+control plane for the already enrolled development guild; enrollment remains
+separate.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14782,14 +14791,15 @@ claim must refresh the exact candidate/gates rather than inheriting them.
 
 ### P10.5 — Explicit development database authority
 
-Status: **Implemented, Tier-3 reviewed, and development-database gated;
-integration and beta validation pending.**
+Status: **Complete; Tier-3 reviewed, integrated, development-database gated,
+and beta-validated.**
 
 Branch/base: `codex/p10-5-guild-config-authority`, exact clean pushed
 accumulation checkpoint `edf1ba75aa356257e7ce24a08723e0f3c13fb9d2`.
 
 Implementation checkpoint: `16cbc50`. Gated authority-verification checkpoint:
-`13460ad`.
+`13460ad`. Roadmap evidence and exact fast-forward integration checkpoint:
+`a57af358cfe7d950506c8586d4fc84a2140a944e`.
 
 Risk tier: **Tier 3 runtime permission/configuration authority boundary.** It
 changes which complete guild policy the development bot serves, but writes no
@@ -14842,10 +14852,21 @@ reload, revision writes, drafts, editing, activation, onboarding, delegation,
 or production import/canary. While the static comparison is the promotion
 gate, stored edits cannot intentionally diverge; the owner-control-plane unit
 must replace that transitional condition before database-only changes. No
-application-command apply, tester-checklist edit, or announcement is required.
-Next action: integrate the reviewed unit, set only the ignored development
-selector to `database`, restart the durable beta, and verify exact source,
-generation, identity, checkpoint, single-writer health, and Beta Lab status.
+application-command apply, tester-checklist edit, or announcement was required.
+
+The ignored development profile now selects `database`. The guarded beta runs
+the exact integration checkpoint as PID `151903`, authenticated as application
+`479029527553638401`, with zero restart churn and exactly one host-wide
+development writer. Startup published the matched immutable generation 1 graph
+for guild `478571892832206869`; all five protected Beta Lab packs are ready.
+An explicit remote inspection found all 11 desired guild command roots
+unchanged, with no global commands, so no apply occurred. The tracked static
+copy and selector remain the reviewed restart rollback.
+
+Next action: scope P10.6 as an owner-only control plane for the already enrolled
+development guild. Prefer a first bounded read/preview/validate/history surface
+before separately enabling digest-confirmed revision activation and rollback;
+keep new-guild enrollment and command deployment out of P10.6.
 
 ## Standard work-unit template
 
@@ -15955,7 +15976,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.5 complete after integration.** The
+Design status: **P10.1 through P10.5 complete.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16133,9 +16154,20 @@ deferred into this post-modernization backlog.
   real runtime-snapshot publication case all pass against exact
   `development` / `polytopia_dev` / `polybot_dev`.
 - No schema/data, Discord command, production, dependency, fixture cleanup,
-  or announcement operation occurred. Next: integrate, select database only
-  in the ignored development profile, restart the guarded beta, and verify
-  source/generation/checkpoint/identity/single-writer/Beta Lab health.
+  or announcement operation occurred during implementation and database
+  validation.
+- Accepted the three-commit unit by exact fast-forward at
+  `a57af358cfe7d950506c8586d4fc84a2140a944e`, selected `database` only in the
+  ignored development profile, and started the guarded beta at that exact
+  checkpoint. PID `151903` is active as the exact development application with
+  zero restart churn and one host-wide writer. Its startup log proves matched
+  generation 1 publication for guild `478571892832206869`.
+- Remote command inspection reports no global commands and all 11 desired
+  development-guild roots unchanged; no apply occurred. All five protected
+  Beta Lab packs remain ready. No tester-visible behavior changed, so no
+  checklist edit or announcement occurred. Next: P10.6 owner control-plane
+  read/preview/validate/history for the already enrolled development guild,
+  followed separately by digest-confirmed activation/rollback.
 
 ### 2026-08-11 — P10.4 development shadow read database-gated
 
