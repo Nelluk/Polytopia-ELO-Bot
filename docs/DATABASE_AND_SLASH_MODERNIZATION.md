@@ -490,12 +490,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.19/L1 repository consistency is in progress from
+Current active unit: **P9.19/L1 repository consistency is reviewed and ready
+for accumulation integration from
 exact clean accumulation checkpoint
 `3560a2f7919150c474ecdeba5bc432894acd57b7`. This Tier-1 repository-only unit
 reconciles current roadmap, compatibility, taxonomy, readiness-audit, and
 adversarial-review authority while preserving explicitly labelled historical
-evidence. It adds a model-free source-root/document consistency regression and
+evidence. Implementation/tests checkpoint `cea5085` adds a model-free source-
+root/document consistency regression. Focused affected coverage passes 19/19;
+complete offline discovery runs 1,641 tests: 1,567 pass, 71 intentionally skip,
+and only the same three missing-`duckdb` environment cases fail. The unit
 changes no runtime, schema, database graph, command shape, or Discord behavior.
 M6 remains the only product/operations decision before M7/R-002 freezes an
 exact release candidate.**
@@ -13657,7 +13661,7 @@ production support/privacy route. M7 remains the final exact-candidate freeze.
 
 ### P9.19 — L1 repository consistency reconciliation
 
-Status: **In progress on the isolated unit branch**
+Status: **Reviewed on the isolated unit branch; ready for integration**
 
 Branch/base: `codex/p9-19-l1-repository-consistency`, exact clean accumulation
 base `3560a2f7919150c474ecdeba5bc432894acd57b7`.
@@ -13692,9 +13696,14 @@ sections. There is no database path, command-tree change, runtime behavior, or
 Discord effect, so a development PostgreSQL gate, guild apply, beta restart,
 checklist edit, or tester announcement is not warranted.
 
-Implementation evidence and integration checkpoint: pending focused and
-complete offline validation, Tier-1 complete-diff review, accumulation merge,
-and push.
+Implementation/tests checkpoint: `cea5085`. Focused consistency, application-
+command-management, and taxonomy coverage passed **19/19**. Complete offline
+discovery ran **1,641 tests: 1,567 passed, 71 intentionally skipped, and only
+the three documented missing-`duckdb` environment cases failed**: the DuckDB
+runtime import, dependency inventory, and reporting-export module import.
+`git diff --check` passed. Tier-1 complete-diff review found no remaining
+blocker and confirmed that historical evidence remains labelled rather than
+silently rewritten. The accumulation merge and push remain pending.
 
 Next action: finish L1 validation and integration. Then resolve M6 by recording
 the exact production support/privacy route, owner, monitoring cadence, and
@@ -14709,6 +14718,29 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-11 — P9.19/L1 repository consistency reviewed
+
+- Reconciled exact clean local, tracking, and GitHub accumulation checkpoint
+  `3560a2f7919150c474ecdeba5bc432894acd57b7`, then created the isolated
+  `codex/p9-19-l1-repository-consistency` unit from that exact base.
+- Updated C-012/C-013 and C-025 from stale pending language to their verified
+  completed outcomes, corrected P9.6's chronological next-action authority,
+  and reconciled current taxonomy, readiness-audit, and adversarial-review
+  state while retaining historical audit/checkpoint evidence.
+- Added one fresh-process model-free consistency regression that derives the
+  exact eleven source roots and verifies current taxonomy/readiness inventory,
+  P9 status, selected compatibility outcomes, review resolution, and the
+  `polytopia2` example configuration.
+- Implementation/tests checkpoint `cea5085`; focused affected coverage passed
+  **19/19**. Complete offline discovery ran **1,641 tests: 1,567 passed, 71
+  intentional skips, and only the same three missing-`duckdb` environment
+  cases failed**. `git diff --check` passed, and Tier-1 complete-diff review
+  found no remaining blocker.
+- No database, schema, Discord, beta, fixture, dependency, production, or sudo
+  action occurred. Integration/push is next; no beta restart, guild apply,
+  checklist change, or tester announcement is warranted for this repository-
+  only unit.
 
 ### 2026-08-11 — P9.18/M2+M3 backup lifecycle/provenance reviewed
 
