@@ -490,9 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23a Beta Lab foundation is implemented, Tier-3
-reviewed, and stopped-writer validated on its isolated branch from exact clean
-accumulation base `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`. It consolidates the already
+Current active unit: **P9.23a Beta Lab foundation is complete, integrated,
+pushed, development-guild applied, and deployed from exact clean accumulation
+base `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`. It consolidates the already
 owned WB1.3b server structure, leaderboard showcase, and game-result scenarios
 behind one status/plan surface; replaces `/whattotest` public followup spam with
 one private requester-bound categorized dashboard; shows participant names
@@ -501,9 +501,11 @@ through the running beta's protected socket. It does not yet create Discord
 roles/channels or broaden fixture ownership. P9.23b will add manifest-owned
 production-shaped scenario packs after the foundation's collision and repair
 boundaries are validated. Implementation checkpoint `51370f0`; accumulation
-integration fast-forward is complete at `658bc8e8761caa6c6b5557211b1b2b496b05caca`;
-the clean accumulation close-out, guild-only command convergence, guarded beta
-restart, live verification, and terminal tester announcement are next.**
+integration fast-forward completed at `658bc8e8761caa6c6b5557211b1b2b496b05caca`;
+the guarded beta runs accumulation checkpoint
+`b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389`, and the reviewed tester release
+posted as message `1536747111016566855`. P9.23b expanded manifest-owned scenario
+packs are the recommended next bounded unit.**
 
 P9.22 pre-M7 beta testability/readiness is complete in accumulation and
 deployed to the development beta; wider human acceptance is pending. It was built on
@@ -14038,8 +14040,8 @@ source implementation.
 
 ### P9.23a — Beta Lab foundation and compact testing dashboard
 
-Status: **Implementation, Tier-3 review, and stopped-writer validation complete;
-ready for accumulation integration and development-beta rollout.**
+Status: **Complete in accumulation and deployed to the development beta;
+wider human acceptance is open.**
 
 Branch/base: `codex/p9-23a-beta-lab-foundation`, exact clean accumulation base
 `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`.
@@ -15270,16 +15272,40 @@ deferred into this post-modernization backlog.
   suite then passed 72 of 73 tests with the one operator-owned fixture round
   trip intentionally skipped. The new combined status verifier was read-only;
   no fixture refresh or schema mutation occurred.
-- The beta remains intentionally stopped only for the short integration and
-  rollout window. Next action: commit this evidence, integrate into
-  accumulation, plan/apply only the development-guild command-description
-  change, start the guarded beta at the integrated checkpoint, verify the new
-  socket/dashboard health, then post the reviewed WHAT TO TEST release last.
+- At the database-gate checkpoint, the beta remained intentionally stopped for
+  the short integration and rollout window. The subsequent steps below
+  committed the evidence, integrated it, converged only the development-guild
+  command description, restarted the guarded beta, verified socket/dashboard
+  health, and posted the reviewed WHAT TO TEST release last.
 - Accepted the complete two-commit branch without conflict by fast-forwarding
   accumulation from `34b19e2` through exact checkpoint
   `658bc8e8761caa6c6b5557211b1b2b496b05caca`. The integration checkout was
   clean and remained two commits ahead of its unchanged GitHub tracking ref;
   no production ref or checkout was accessed.
+- Recorded clean accumulation integration checkpoint
+  `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389`, pushed it, and refreshed the
+  exact tracking ref so local, tracking, and GitHub values matched. The offline
+  command plan targeted only guild `478571892832206869`; remote inspection
+  found `/whattotest` as the sole update and zero global commands. The exact
+  guild-only apply converged all 11 roots, and post-apply inspection reported
+  no remaining change with global count still zero.
+- Started only the durable beta from that clean checkpoint. Before the terminal
+  announcement, it was active/running as PID `102474`, authenticated in the
+  journal as application `479029527553638401`, had zero restart churn, and was
+  the sole host-wide development writer. The protected Beta Lab status reported
+  all packs ready: 2 Houses/3 Teams, 24 synthetic players/48 completed games,
+  and result games `2286`/`2287`/`2288` for `nelluk.` and
+  `testaccount12174`.
+- Chose wider-tester acceptance. Reviewed release
+  `2026-08-11-p9-23a-beta-lab` pings testers with a short WHAT TO TEST flow for
+  the private dashboard, category navigation, names/IDs, and quick release
+  pass. It posted once to `todo-and-changelog` as message
+  `1536747111016566855` and mirrored privately after all planned downtime and
+  health checks. That successful delivery was the terminal deployment action.
+- No fixture refresh, schema migration, global command synchronization,
+  production operation, or post-announcement lifecycle action occurred. Next:
+  collect dashboard feedback while selecting P9.23b's manifest-owned expansion
+  boundary.
 
 ### 2026-08-11 — P9.22 beta-testability implementation and gates complete
 
