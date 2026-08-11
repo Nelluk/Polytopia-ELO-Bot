@@ -490,8 +490,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6b3 monotonic rollback-to-revision is Tier-3
-reviewed and integrated from
+Current active unit: **P10.6b3 monotonic rollback-to-revision is complete,
+integrated, pushed, development-guild registered, and deployed from
 `codex/p10-6b3-guild-config-rollback`, based on
 exact clean pushed accumulation checkpoint
 `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`. The new private owner-only
@@ -511,10 +511,16 @@ fallback. The stopped-writer PostgreSQL gate runs 83 tests: 82 pass and only
 the established operator-managed fixture round trip skips; the rollback graph
 is fully outer-transaction rolled back. Implementation/evidence checkpoint is
 `f506883`; evidence checkpoint is `5fc3ac7`, which is also the exact
-fast-forward integration checkpoint. Accumulation close-out/push, guild-only
-command registration, and beta verification remain; the beta is intentionally
-stopped after the database gate. No schema, enrollment, delegation, global
-sync, production authority, or production operation is in scope.**
+fast-forward integration checkpoint. Clean pushed close-out and running code
+checkpoint is `acbfd6e861bb0889e9a48e9123fd12a2744e2856`. The guild-only apply
+updated only the existing `operator` root; repeat inspection shows all 11 roots
+unchanged and the global tree empty. PID `248922` authenticated as development
+application `479029527553638401`, loaded database generation 1, and has zero
+restart churn with exactly one host-wide development writer. Owner interaction
+acceptance is pending. No tester checklist or announcement was warranted. No
+schema, enrollment, delegation, global sync, production authority, or
+production operation occurred. Next recommended: P10.6c coordinated command-
+capability activation; P10.7 quarantined onboarding is also ready.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15135,7 +15141,8 @@ activation remains a useful alternative.
 
 ### P10.6b3 — Monotonic rollback-to-revision
 
-Status: **Tier-3 reviewed and integrated; deployment pending.**
+Status: **Complete, integrated, pushed, development-guild registered, and beta
+deployed; owner interaction acceptance pending.**
 
 Branch/base: `codex/p10-6b3-guild-config-rollback`, exact clean pushed
 accumulation checkpoint `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`.
@@ -15196,11 +15203,28 @@ offline or real-schema finding is known. Implementation and evidence
 checkpoint: `f506883`.
 
 Exact fast-forward integration checkpoint: `5fc3ac7`.
+Accumulation close-out and running code checkpoint: `acbfd6e`.
 
 This unit adds no schema, enrollment, delegation, draft consumption, global
 command synchronization, production authority, or production operation. The
 new nested command requires only a reviewed development-guild update to the
 existing `operator` root after integration.
+
+Offline planning was bounded to development guild `478571892832206869`.
+Remote inspection found an empty global tree and exactly one update to the
+existing `operator` root; guild-only apply succeeded, and repeat inspection
+reports all 11 roots unchanged with no global roots. The guarded beta runs
+clean pushed checkpoint `acbfd6e` as PID `248922`, authenticated as application
+`479029527553638401`, with zero restart churn and one host-wide development
+writer. Startup loaded database authority generation 1 and left automatic
+command synchronization disabled. Live owner acceptance remains: activate one
+harmless ordinary setting to create a prior revision, then rollback to the
+original revision and verify the preview/result. No tester checklist or
+announcement was made because this is an owner-only recovery workflow.
+
+Next action: P10.6c should coordinate application-command capability
+activation with an explicit development-guild plan/apply and fail-closed
+runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
 ## Standard work-unit template
 
@@ -16588,6 +16612,24 @@ deferred into this post-modernization backlog.
   through implementation `f506883` and evidence `5fc3ac7`; the accumulation
   head is now `5fc3ac7`. Next: commit and push the close-out, then perform the
   reviewed development-guild-only command plan/apply and guarded beta start.
+- Pushed clean accumulation close-out checkpoint
+  `acbfd6e861bb0889e9a48e9123fd12a2744e2856`. Offline planning was bounded to
+  guild `478571892832206869`; remote inspection proved the global tree empty
+  and exactly one update to the existing `operator` root. Guild-only apply
+  succeeded, and repeat inspection reports all 11 roots unchanged with no
+  global roots.
+- Started only the guarded development beta from exact checkpoint `acbfd6e`.
+  PID `248922` authenticated as application `479029527553638401`, reports
+  active/running with zero restarts, and is the sole host-wide development
+  writer. Startup logged `source=database status=active-loaded` at generation
+  1, successful schema preflight, disabled Bullet/background startup behavior,
+  and disabled automatic application-command synchronization.
+- Deployment acceptance is owner-first: create one harmless ordinary-settings
+  activation, then use `/operator guild rollback` to restore its source
+  revision. No tester checklist, release manifest, or announcement was made
+  because the bounded change is an owner-only recovery control. P10.6c
+  coordinated command-capability activation is recommended next; P10.7
+  quarantined onboarding is also ready.
 
 ### 2026-08-11 — P10.6b2 activation implemented and offline reviewed
 
