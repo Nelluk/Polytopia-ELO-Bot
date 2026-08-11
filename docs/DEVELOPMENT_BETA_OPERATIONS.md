@@ -121,6 +121,21 @@ systemctl --user stop polybot-development-beta@main.service
 systemctl --user restart polybot-development-beta@main.service
 ```
 
+After P9.13 is registered in the development guild, a configured superuser may
+also request the same supervised lifecycle through `/operator bot restart`.
+The normal private confirmation refuses known active ELO, pending-game, backup,
+or manual-purge work. Only the configured owner may use `force:true`, which
+requires typing `RESTART NOW` exactly. Both modes require a clean checkout and
+the systemd invocation marker; the bot closes and exits 75, and the existing
+`Restart=on-failure` policy starts the clean checkpoint. The bot never invokes
+`systemctl` or receives host-command authority.
+
+This Discord control is for a human operator's bounded live refresh. It does
+not replace the documented stop/plan/guild-apply/start sequence, authorize a
+database or command operation, or make it safe to interrupt an announcement.
+Codex-managed deployments continue to use the explicit lifecycle sequence and
+finish every planned downtime before any tester notification.
+
 Stop is the clean shutdown path. `KillSignal=SIGINT`, a 45-second stop
 timeout, `Restart=on-failure`, a five-second backoff, and a five-starts-per-
 minute limit are deliberate. A restart is not a release operation.

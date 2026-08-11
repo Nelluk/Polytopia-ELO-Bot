@@ -137,7 +137,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in operator_group.commands},
-            {'tribe', 'player', 'database', 'channels'},
+            {'tribe', 'player', 'database', 'channels', 'bot'},
         )
         self.assertEqual(
             {
@@ -166,6 +166,13 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 for command in operator_group.get_command('database').commands
             },
             {'backup'},
+        )
+        self.assertEqual(
+            {
+                command.name
+                for command in operator_group.get_command('bot').commands
+            },
+            {'restart'},
         )
         self.assertEqual(
             operator_group.default_permissions,
