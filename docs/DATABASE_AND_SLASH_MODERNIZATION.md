@@ -490,26 +490,31 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23c guided Beta Lab scenarios is reviewed and
-database-gated on `codex/p9-23c-guided-scenarios`, from exact clean
+Current active unit: **P9.23c guided Beta Lab scenarios is complete in
+accumulation and deployed for Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
 `2cd2544f561d9723c89a537659d592e2b3934456`. Nelluk's first acceptance pass
 found that P9.23b did not explain what to do after lane creation and did not
 place a tester into a realistic Team/House/role persona. This Tier-3 correction
-will replace the ambiguous lane page with selectable tasks containing exact
+replaces the ambiguous lane page with selectable tasks containing exact
 slash fields and expected results, a real refresh, and one finish/cleanup
-action. It will add only dedicated zero-permission, exactly owned Beta Lab Team
+action. It adds only dedicated zero-permission, exactly owned Beta Lab Team
 and staff-persona roles plus an owned Beta Lab House/Team fixture; existing
 legacy Team roles will not be adopted, reordered, or reassigned. Persona roles
 must correspond to an active owned session, reconcile fail-closed after partial
 Discord/database effects, and be removed during cleanup. Implementation
 checkpoint `5f5e793` passes 100 focused tests, complete offline discovery with
 only the three known missing-DuckDB cases, and the complete 75-test stopped-
-writer PostgreSQL gate with one intentional fixture skip. Accumulation
-integration and development-only setup/deployment remain pending. The
-deployment route is Nelluk-only acceptance: do not ping testers or send a wider
-release until Nelluk has inspected the live workflow and separately approves
-its instructions.**
+writer PostgreSQL gate with one intentional fixture skip; evidence checkpoint
+`59e2571` was accepted by fast-forward. The durable beta runs exact clean code
+checkpoint `59e2571f742986a87c711b05b444af2c47ff88ea` as PID `121252`,
+authenticated as development application `479029527553638401`. Both exact
+persona roles and the owned House `256` / Team `802` are prepared, and
+protected status reports all five packs ready. Read-only guild inspection
+reports the same eleven command roots with no create, update, or removal, so no
+command apply occurred. The deployment route remains Nelluk-only acceptance:
+do not ping testers or send a wider release until Nelluk has inspected the live
+workflow and separately approves its instructions.**
 
 P9.23b human self-service Beta Lab lanes is complete in accumulation and
 deployed from `a284713e108c80b34e32fb436c879b28e9501e7c`, from exact clean base
@@ -14255,8 +14260,7 @@ operation, or post-announcement lifecycle action occurred.
 
 ### P9.23c — Guided human scenarios and owned personas
 
-Status: **Implementation reviewed and stopped-writer gate passed; accumulation
-integration and Nelluk-only deployment pending.**
+Status: **Complete in accumulation and deployed for Nelluk-only acceptance.**
 
 Branch/base: `codex/p9-23c-guided-scenarios`, exact clean accumulation base
 `2cd2544f561d9723c89a537659d592e2b3934456`.
@@ -14318,6 +14322,20 @@ unassignable-role refusal, fail-closed startup and panel expiry, undelivered-
 panel compensation, cancellation drainage, and role removal before lane
 release. No blocking review finding remains. No command shape changed; no
 guild or global command apply is warranted.
+
+The accepted implementation/evidence checkpoints `5f5e793` / `59e2571` were
+integrated into the accumulation branch by exact fast-forward. The ignored
+development profile now treats `testers` as Lab access only and recognizes
+only `Helper` plus the temporary `Beta Lab Staff` persona as helper roles. The
+first staged launch created exact zero-permission roles `1536774337179295824`
+and `1536774337976074401`. A second clear-writer window seeded exact owned
+House `256` and Team `802`; the final beta runs PID `121252` at clean checkpoint
+`59e2571f742986a87c711b05b444af2c47ff88ea` as application
+`479029527553638401`. Protected status reports all five packs ready. Read-only
+development-guild inspection reports the same eleven roots, no global roots,
+and no create/update/removal, so no application-command apply occurred. No
+tester announcement was prepared or delivered; Nelluk must first inspect the
+private flow and separately approve any instructions or ping.
 
 ## Standard work-unit template
 
@@ -15456,6 +15474,30 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.23c integrated and staged for Nelluk acceptance
+
+- Accepted implementation `5f5e793` and evidence `59e2571` by exact
+  fast-forward into `codex/database-slash-modernization` from verified clean
+  checkpoint `2cd2544`.
+- Updated only the ignored development profile so `testers` grants Lab access
+  without helper authority; active guided sessions temporarily lease the
+  zero-permission `Beta Lab Staff` persona instead.
+- Launched the integrated beta, verified application `479029527553638401`, and
+  created only exact owned zero-permission roles `1536774337179295824` (Team)
+  and `1536774337976074401` (Staff) through the authenticated control socket.
+- Stopped only that beta, required the host-wide writer audit to report clear,
+  and seeded exact owned House `256` / Team `802` under the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` gate.
+- The final durable beta runs exact clean code checkpoint
+  `59e2571f742986a87c711b05b444af2c47ff88ea` as PID `121252`. Protected role
+  status is ready and the combined Lab status reports all five packs ready.
+- Read-only inspection confirms the configured development guild still has
+  the exact same eleven roots with no create, update, or removal; the global
+  tree remains empty. No command apply or global synchronization occurred.
+- No tester ping, release announcement, or private staff mirror was sent. The
+  next action is Nelluk's live private `/whattotest` acceptance pass; tester
+  instructions require separate approval afterward.
 
 ### 2026-08-11 — P9.23c guided personas reviewed and database-gated
 
