@@ -573,8 +573,10 @@ passes all 1,802 tests with 78 intentional skips. The new live read-only
 comparison reports an exact match, and the complete stopped-writer PostgreSQL
 gate passes 78 tests with one intentional retained-fixture skip. No schema,
 configuration authority, command, Discord, dependency, or production change
-occurred. Tier-3 complete-diff review, roadmap evidence, accumulation
-integration, beta restart/health verification, and exact push remain.**
+occurred. Tier-3 complete-diff review found no remaining actionable issue and
+accepted the three-commit unit by exact fast-forward at
+`5e14109df10293db7ad6f12b861354018e0b53a8`. Beta restart/health
+verification and the final accumulation close-out push remain.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14683,8 +14685,8 @@ shadow comparison while static remains authoritative.
 
 ### P10.4 — Development startup shadow comparison
 
-Status: **Implementation and development-database validation complete;
-integration and beta startup evidence pending.**
+Status: **Integrated after implementation and development-database
+validation; beta startup evidence pending.**
 
 Branch/base: `codex/p10-4-guild-config-shadow`, exact clean pushed
 accumulation checkpoint `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
@@ -14692,6 +14694,8 @@ accumulation checkpoint `9c4ddcabef83ece60889ee3a04809fe4a71ef3d8`.
 Implementation checkpoint: `99cc9e564cba2acc9710a44bc0d50f1657222c86`.
 Isolated-worktree gate correction:
 `bee0a26666fe705b59d2e9e0b72b1d27fdc6a7f5`.
+Evidence and exact fast-forward integration checkpoint:
+`5e14109df10293db7ad6f12b861354018e0b53a8`.
 
 Risk tier: **Tier 3 runtime/database-read and future authority-promotion
 boundary**. It writes no schema or data, but its health result is designed to
@@ -16004,8 +16008,10 @@ deferred into this post-modernization backlog.
   and one intentional operator-fixture skip.
 - No schema/data migration, authority switch, Discord mutation, command sync,
   dependency, production, or announcement operation occurred. Complete-diff
-  Tier-3 review, integration, clean accumulation push, and beta startup/health
-  evidence remain before close-out.
+  Tier-3 review found no remaining actionable issue and accepted the full unit
+  by exact fast-forward at
+  `5e14109df10293db7ad6f12b861354018e0b53a8`. Beta startup/health evidence
+  and the final clean accumulation push remain before close-out.
 
 ### 2026-08-11 — P10.3 additive development storage/import database-gated
 
