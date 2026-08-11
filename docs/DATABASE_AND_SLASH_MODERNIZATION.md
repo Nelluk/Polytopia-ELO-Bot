@@ -13723,7 +13723,7 @@ Next action at this historical checkpoint: resolve M6, then perform M7/R-002.
 
 ### P9.20 — M6 environment-explicit staff-help delivery
 
-Status: **Complete in accumulation; beta disposition and push pending**
+Status: **Complete in accumulation; accumulation close-out and push pending**
 
 Branch/base: `codex/p9-20-m6-production-staffhelp`, exact clean accumulation
 base `2d5639d117e4e711df5290deed080a82e9aee278`.
@@ -13777,6 +13777,33 @@ pass. Tier-3 complete-diff review rejected the default `@everyone` helper role,
 wrapped configuration lookup failures into the safe fail-closed category, and
 preserved the development beta's existing validation wording. No remaining
 blocker was found.
+
+The accepted unit merged at
+`9b248d335353b0b8c394f0be5a33bb08ae1db2e9`; integration/runbook evidence is
+`e27556b`. Read-only host-wide inspection first found the single healthy
+development writer at PID `3982635`, checkpoint
+`e34e007f6c5aec20bb822d71676fa0fed5e4ea73`, expected application
+`479029527553638401`, and zero restart churn. Because P9.20 changes the loaded
+development `/staffhelp` dispatch path, the durable beta was cleanly restarted
+after integration. Its prestart writer gate passed; PID `57757` authenticated
+as the expected beta application and now runs exact checkpoint
+`e27556b0ae90b4dd9ab86fcfd5b9c61df897b29b` with service state active/running,
+zero automatic restarts, one host-wide development candidate, and no unreadable
+processes. The local release-control status request completed.
+
+The command root, options, capability assignment, and development behavior are
+unchanged, so no guild command plan/apply, development-database gate, checklist
+edit, or tester announcement was warranted. The deployment uses the no-
+announcement route because the visible beta experience is unchanged; existing
+testers continue to own ordinary `/staffhelp` acceptance through the running
+checklist. No production resource was accessed or changed.
+
+Next recommended action: M7/R-002, freezing one exact release-candidate HEAD
+and binding complete offline, stopped-writer development PostgreSQL, cutover-
+critical review, and bounded beta evidence to it. The post-modernization
+dynamic guild-configuration control-plane design remains a useful alternative
+planning unit, but the recommendation is to defer it until M7 and the canary
+gates close.
 
 ## Standard work-unit template
 
@@ -14811,7 +14838,19 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   existing development validation wording, and found no remaining blocker.
   No database gate was warranted. The reviewed branch merged into accumulation
   at `9b248d335353b0b8c394f0be5a33bb08ae1db2e9`; beta disposition and close-out
-  remain pending.
+  followed through integration evidence checkpoint `e27556b`.
+- Read-only beta inspection found the healthy prior writer at PID `3982635`
+  and checkpoint `e34e007`. Because this unit changes the loaded development
+  dispatcher, the durable beta was cleanly restarted after integration. Its
+  prestart gate passed; the one resulting writer is PID `57757`, authenticated
+  as application `479029527553638401`, active/running at exact checkpoint
+  `e27556b0ae90b4dd9ab86fcfd5b9c61df897b29b`, with zero automatic restarts and
+  a healthy local control response.
+- Command shape and development behavior are unchanged, so no command apply,
+  database gate, checklist change, or announcement was warranted. No
+  production action occurred. Next recommended: M7/R-002 exact-candidate
+  evidence; defer the dynamic guild-configuration design until after the
+  candidate/canary gates.
 
 ### 2026-08-11 — P9.19/L1 repository consistency reviewed
 
