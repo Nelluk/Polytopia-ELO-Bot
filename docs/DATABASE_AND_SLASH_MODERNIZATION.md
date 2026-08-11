@@ -13271,12 +13271,12 @@ Discord operation is involved.
 
 ### P9.13 — Supervised native bot restart
 
-Status: **Tier-3 reviewed on the unit branch; accumulation integration and
-development-guild deployment pending**
+Status: **Complete in the accumulation branch; development-guild deployment
+pending**
 
 Branch/base: `codex/p9-13-operator-bot-restart`, exact clean accumulation base
 `85496c8dd27b4ac973d590b1b318ab388586ff6e`. Implementation/tests checkpoint:
-`579ff94`.
+`579ff94`; roadmap evidence: `280f1b4`; accumulation merge: `6720e25`.
 
 The approved lifecycle contract is one native `/operator bot restart` command
 with optional `force`. A normal restart preserves configured-superuser access,
@@ -14328,9 +14328,10 @@ not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
 - Tier-3 complete-diff review found no remaining blocker. Implementation/tests
   are checkpointed at `579ff94`. No database gate is warranted because the unit
   has no database path and the P9.12 full stopped-writer gate is current.
-- Accumulation integration/push, development-guild `/operator` apply, guarded
-  beta restart, runtime verification, and explicit no-announcement disposition
-  remain pending.
+- Integrated the reviewed unit as accumulation merge `6720e25`. Accumulation
+  close-out/push, development-guild `/operator` apply, guarded beta restart,
+  runtime verification, and explicit no-announcement disposition remain
+  pending.
 
 ### 2026-08-10 — P9.12/H1-H2 runtime and native-start ban safety gated
 
