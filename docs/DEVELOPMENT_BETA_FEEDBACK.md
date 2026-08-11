@@ -10,13 +10,13 @@ requester-bound modal containing:
 - optional 1,000-character command/game/context text; and
 - optional PNG, JPEG, WebP, GIF, PDF, Markdown, or plain-text attachments.
 
-The authoritative JSONL store is development-only. This wider-beta intake is
-not yet a production-ready replacement; before P9, the project must separately
-approve a production-safe authoritative intake/retention path or another
-production relay design. The production checkout remains unchanged today, and
-production communities should use their currently deployed support/moderator
-route until that decision and rollout. The approved retirement of the legacy
-prefix is not reversed by this boundary.
+The authoritative JSONL store is development-only. P9.20 later retained this
+development record-first backend and added a distinct production backend to the
+same `/staffhelp` form: production relays directly to the invoking guild's
+configured channel and first Helper role without writing JSONL. That reviewed
+source design does not itself deploy or configure production; production
+rollout remains separately approved. The approved retirement of the legacy
+prefix is not reversed by either backend.
 
 The installed discord.py 2.7.1 Components v2 API supports `RadioGroup` and
 `FileUpload`; the native form accepts at most 10 files. Each file is limited
@@ -86,9 +86,10 @@ message. The WB1.2 public release channel is separate: `todo-and-changelog`
 (`481779940124000256`) never receives staffhelp report details or a fallback
 relay.
 
-The existing `tools_support` capability remains default-deny. No development
-capability assignment was changed, and no command synchronization or bot
-launch is part of WB1.1.
+Capability policy remains default-deny. WB1.1 itself changed no development
+assignment or Discord state; the later approved wider-beta setup assigned
+`tools_support` in the development guild. P9.20 changes no command shape, so it
+requires no additional command synchronization.
 
 ## Read-only operator commands
 

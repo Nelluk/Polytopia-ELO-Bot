@@ -491,8 +491,9 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.20/M6 environment-explicit staff-help delivery is
-Complete on its unit branch and pending accumulation integration. It was built
-on `codex/p9-20-m6-production-staffhelp`, from exact clean accumulation
+Complete in accumulation at merge checkpoint
+`9b248d335353b0b8c394f0be5a33bb08ae1db2e9`. It was built on
+`codex/p9-20-m6-production-staffhelp`, from exact clean accumulation
 checkpoint `2d5639d117e4e711df5290deed080a82e9aee278`. This Tier-3 unit keeps one
 public `/staffhelp` form while selecting exactly one backend from the explicit
 runtime profile. Development retains its durable JSONL record-first and fixed-
@@ -13722,7 +13723,7 @@ Next action at this historical checkpoint: resolve M6, then perform M7/R-002.
 
 ### P9.20 — M6 environment-explicit staff-help delivery
 
-Status: **Complete on unit branch; accumulation integration pending**
+Status: **Complete in accumulation; beta disposition and push pending**
 
 Branch/base: `codex/p9-20-m6-production-staffhelp`, exact clean accumulation
 base `2d5639d117e4e711df5290deed080a82e9aee278`.
@@ -14808,8 +14809,9 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 - Tier-3 complete-diff review rejected `@everyone` as a helper target, made
   configuration lookup failures fail closed without leaking detail, preserved
   existing development validation wording, and found no remaining blocker.
-  No database gate was warranted. Accumulation integration, beta disposition,
-  and close-out remain pending.
+  No database gate was warranted. The reviewed branch merged into accumulation
+  at `9b248d335353b0b8c394f0be5a33bb08ae1db2e9`; beta disposition and close-out
+  remain pending.
 
 ### 2026-08-11 — P9.19/L1 repository consistency reviewed
 
