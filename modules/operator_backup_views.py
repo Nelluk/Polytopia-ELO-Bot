@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 import logging
 
@@ -31,8 +32,9 @@ class BackupConfirmationView(discord.ui.LayoutView):
         self.busy = False
         self.finished = False
         self.status = (
-            'Reviewed source matches the deployed script. Confirm only when '
-            'an exceptional manual recovery point is needed.'
+            'The clean checkout, deployed script, exporter, and runtime match '
+            'the reviewed release manifest. Confirm only when an exceptional '
+            'manual recovery point is needed.'
         )
         self.rebuild()
 
@@ -88,44 +90,47 @@ class BackupConfirmationView(discord.ui.LayoutView):
         self.busy = True
         self.status = 'Backup running; do not start another host backup.'
         self.rebuild()
+        # The component interaction supplies a fresh 15-minute token. Stop the
+        # five-minute preview timer as soon as execution owns the panel so it
+        # cannot advertise an expiry/retry while the child remains active.
+        self.stop()
         await interaction.response.defer()
-        await self._edit()
+        await interaction.edit_original_response(view=self)
         try:
             result = await self.runner(interaction)
         except operator_backup.BackupConflictError as exc:
-            self.busy = False
-            self.status = str(exc)
-            self.rebuild()
-            await self._edit()
-            return await interaction.followup.send(str(exc), ephemeral=True)
+            return await self._finish(interaction, str(exc))
         except operator_backup.BackupError as exc:
-            self.finished = True
-            self.busy = False
-            self.status = str(exc)
-            self.rebuild()
-            self.stop()
-            await self._edit()
-            return await interaction.followup.send(str(exc), ephemeral=True)
+            return await self._finish(interaction, str(exc))
+        except asyncio.CancelledError:
+            await self._finish(
+                interaction,
+                'The backup was interrupted and its process group was '
+                'stopped. Inspect host logs and artifacts before retrying.',
+            )
+            raise
         except Exception:
             logger.exception('Unexpected operator backup view failure')
-            self.finished = True
-            self.busy = False
-            self.status = (
+            return await self._finish(
+                interaction,
                 'The backup ended without a trustworthy result. Inspect host '
-                'logs and artifacts before retrying.'
+                'logs and artifacts before retrying.',
             )
-            self.rebuild()
-            self.stop()
-            await self._edit()
-            return await interaction.followup.send(self.status, ephemeral=True)
+        await self._finish(interaction, operator_backup.format_result(result))
+
+    async def _finish(
+        self,
+        interaction: discord.Interaction,
+        status: str,
+    ) -> None:
+        """Replace the private panel with exactly one terminal result."""
 
         self.finished = True
         self.busy = False
-        self.status = operator_backup.format_result(result)
+        self.status = status
         self.rebuild()
         self.stop()
-        await self._edit()
-        await interaction.followup.send(self.status, ephemeral=True)
+        await interaction.edit_original_response(view=self)
 
     async def _cancel(self, interaction: discord.Interaction) -> None:
         self.finished = True
@@ -135,6 +140,8 @@ class BackupConfirmationView(discord.ui.LayoutView):
         await interaction.response.edit_message(view=self)
 
     async def on_timeout(self) -> None:
+        if self.busy or self.finished:
+            return
         self.finished = True
         self.status = 'This backup preview expired. Run the command again.'
         self.rebuild()

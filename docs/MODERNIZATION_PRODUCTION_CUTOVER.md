@@ -241,6 +241,36 @@ POLYBOT_ENV=production .venv/bin/python scripts/check_runtime_config.py
 Run the redacted runtime check with exact `POLYBOT_ENV=production`. It must not
 import models or connect to PostgreSQL or Discord. Do not start the bot yet.
 
+Prepare the private operator-backup release manifest only after the checkout
+and locked interpreter match the approved release. The first command is a
+read-only plan. Installing the ignored manifest is a distinct production-file
+write approval; it does not run a backup or connect to PostgreSQL. The final
+command rereads the private manifest and revalidates the clean exact checkout,
+tracked shell and exporter, owner-only deployed shell, and actual interpreter
+identity. Any symlink, tracked change, digest mismatch, wrong checkpoint, or
+unexpected owner/mode blocks the Discord-triggered backup before process spawn.
+
+```bash
+POLYBOT_ENV=production .venv/bin/python \
+  scripts/manage_production_backup_release.py \
+  --checkpoint "$POLYBOT_RELEASE_SHA"
+POLYBOT_ENV=production .venv/bin/python \
+  scripts/manage_production_backup_release.py \
+  --checkpoint "$POLYBOT_RELEASE_SHA" \
+  --apply \
+  --confirm P9-M3-PRODUCTION-BACKUP-RELEASE-APPLY
+POLYBOT_ENV=production .venv/bin/python \
+  scripts/manage_production_backup_release.py \
+  --checkpoint "$POLYBOT_RELEASE_SHA" \
+  --validate
+```
+
+The manifest is non-secret provenance at
+`/home/nelluk/PolyBot39/.operator-backup-release.json`, mode `0600`. Archive
+its JSON with the reviewed release record. Regenerate it after any approved
+release or rollback that changes the checkpoint, backup shell, reporting
+exporter, or interpreter. Never hand-edit it to bypass a validation failure.
+
 ### 4. Apply and verify the additive schema
 
 First run read-only verify under its separate production-access approval:
@@ -381,7 +411,10 @@ is the terminal deployment action.
 Leave the old schema unchanged. Restore the reviewed rollback checkout and
 ignored configuration if they were changed, synchronize only its reviewed
 locked environment when required, and start it through a task-disabled canary
-before returning to the canonical service. Do not touch the command tree.
+before returning to the canonical service. If the rollback retains the
+manifest-aware backup command, regenerate and validate its private provenance
+against `POLYBOT_ROLLBACK_SHA` before start. An older rollback may ignore the
+manifest. Do not touch the command tree.
 
 ### Failure after schema apply but before command apply
 
