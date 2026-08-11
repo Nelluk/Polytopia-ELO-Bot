@@ -491,7 +491,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.6b2 owner activation and runtime reconciliation is
-integrated into accumulation from `codex/p10-6b2-guild-config-activation` and
+complete and deployed to the development beta after integration from
+`codex/p10-6b2-guild-config-activation` and
 exact clean pushed
 accumulation base `02d88287ead146e289652340aa757fc627cd76e0`.
 Implementation checkpoint `203b7bf` adds digest-confirmed activation, one
@@ -509,8 +510,13 @@ and unchanged capability policy. Database-gate correction `9a3e69b` makes the
 shared integration harness load current active database authority directly.
 The complete stopped-writer gate passes 82 tests: 81 passed and only the
 established operator-managed fixture round trip skipped. Integration/evidence,
-accumulation fast-forward checkpoint is `04fb785`. The accumulation close-out
-push, command plan/apply, and beta restart are next. No production action is
+accumulation fast-forward checkpoint is `04fb785`; pushed close-out checkpoint
+and running beta code are `897de2cd2add0b7f84b53c0a44d757c78eb56fd9`.
+The guild-only command apply changed only the existing `operator` root and the
+global tree remains empty. PID `227875` authenticated as the development beta,
+published database generation 1 through `status=active-loaded`, and reports all
+five Beta Lab packs ready. Owner interaction acceptance is pending. No tester
+checklist or announcement was warranted, and no production action is
 authorized.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
@@ -15054,14 +15060,15 @@ separately bounded following unit.
 
 ### P10.6b2 — Owner activation and runtime reconciliation
 
-Status: **Implemented, Tier-3 reviewed, development-database gated, and exact
-fast-forward integrated; deployment remains pending.**
+Status: **Complete, integrated, pushed, development-guild registered, and beta
+deployed; owner interaction acceptance pending.**
 
 Branch/base: `codex/p10-6b2-guild-config-activation`, exact clean pushed
 accumulation checkpoint `02d88287ead146e289652340aa757fc627cd76e0`.
 Implementation checkpoint: `203b7bf`.
 Database-gate correction: `9a3e69b`.
 Exact fast-forward integration checkpoint: `04fb785`.
+Accumulation close-out / running code checkpoint: `897de2c`.
 
 Risk tier: **Tier 3 authoritative configuration mutation and runtime
 publication boundary.**
@@ -15120,12 +15127,14 @@ writer development gate.
 
 This unit adds no schema, global command sync, enrollment, delegation,
 rollback-to-revision, production authority, or production operation. The
-existing command description changes, so a development-guild-only command
-plan/apply and guarded beta restart are appropriate after integration.
+existing command description changed, so the deployment updated only the
+existing development-guild `operator` root. Repeat inspection shows all 11
+roots unchanged and the global tree empty.
 
-Next action: push the clean accumulation close-out, then apply only the
-development-guild command description and restart the guarded beta.
-P10.6b3 rollback-to-revision is the next separately bounded implementation.
+Next action: Nelluk should exercise one harmless ordinary-setting activation
+through `/operator guild edit`. P10.6b3 rollback-to-revision is the recommended
+next separately bounded implementation; coordinated command-capability
+activation remains a useful alternative.
 
 ## Standard work-unit template
 
@@ -16505,6 +16514,23 @@ deferred into this post-modernization backlog.
   writer/database window. Next: commit/push the accumulation close-out, run the
   offline and remote development-guild command plans, apply only the reviewed
   description change, and start/verify the clean integrated checkpoint.
+- Pushed clean accumulation close-out checkpoint
+  `897de2cd2add0b7f84b53c0a44d757c78eb56fd9`. Offline planning was bounded to
+  guild `478571892832206869`; remote inspection proved the global tree empty
+  and exactly one update to the existing `operator` root. Guild-only apply
+  succeeded with the explicit development/guild/no-global-sync gates, and
+  repeat inspection reports all 11 roots unchanged with no global roots.
+- Started only the guarded development beta from exact checkpoint `897de2c`.
+  PID `227875` authenticated as application `479029527553638401` with zero
+  restarts and exactly one host-wide development writer. Startup logs
+  `source=database status=active-loaded` and generation 1; all five protected
+  Beta Lab packs remain ready.
+- Deployment acceptance route is owner test first. No
+  `BETA_WHAT_TO_TEST.md` edit or announcement was made because activation is an
+  owner-only control-plane workflow and no ordinary tester action changed.
+  Next: Nelluk can make and activate one harmless ordinary-settings draft;
+  P10.6b3 rollback-to-revision is recommended, with coordinated command-
+  capability activation as the other selectable unit.
 
 ### 2026-08-11 — P10.6b1 inactive owner drafts implemented and deployed
 
