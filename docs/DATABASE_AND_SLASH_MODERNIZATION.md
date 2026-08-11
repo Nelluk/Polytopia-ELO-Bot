@@ -490,14 +490,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.19/L1 repository consistency is reviewed and ready
-for accumulation integration from
+Current active unit: **P9.19/L1 repository consistency is Complete in
+accumulation at merge checkpoint
+`a344ab44587a42e4c9801fdcb03398c788f38273`, from
 exact clean accumulation checkpoint
 `3560a2f7919150c474ecdeba5bc432894acd57b7`. This Tier-1 repository-only unit
 reconciles current roadmap, compatibility, taxonomy, readiness-audit, and
 adversarial-review authority while preserving explicitly labelled historical
 evidence. Implementation/tests checkpoint `cea5085` adds a model-free source-
-root/document consistency regression. Focused affected coverage passes 19/19;
+root/document consistency regression; evidence checkpoint `c987b8d` and review
+correction `3d10b05` record final validation. Focused affected coverage passes 19/19;
 complete offline discovery runs 1,641 tests: 1,567 pass, 71 intentionally skip,
 and only the same three missing-`duckdb` environment cases fail. The unit
 changes no runtime, schema, database graph, command shape, or Discord behavior.
@@ -13661,7 +13663,7 @@ production support/privacy route. M7 remains the final exact-candidate freeze.
 
 ### P9.19 — L1 repository consistency reconciliation
 
-Status: **Reviewed on the isolated unit branch; ready for integration**
+Status: **Complete in accumulation**
 
 Branch/base: `codex/p9-19-l1-repository-consistency`, exact clean accumulation
 base `3560a2f7919150c474ecdeba5bc432894acd57b7`.
@@ -13704,7 +13706,10 @@ runtime import, dependency inventory, and reporting-export module import.
 `git diff --check` passed. Tier-1 complete-diff review found no remaining
 blocker after correcting one additional active-looking `currently` qualifier
 in the historical P9.0 ten-root finding. Historical evidence remains labelled
-rather than silently rewritten. The accumulation merge and push remain pending.
+rather than silently rewritten. Evidence checkpoint `c987b8d`, review
+correction `3d10b05`, and accumulation merge
+`a344ab44587a42e4c9801fdcb03398c788f38273` complete the unit; the accumulation
+push is the remaining close-out action.
 
 Next action: finish L1 validation and integration. Then resolve M6 by recording
 the exact production support/privacy route, owner, monitoring cadence, and
@@ -14740,9 +14745,10 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   corrected one additional active-looking P9.0 ten-root qualifier and found no
   remaining blocker.
 - No database, schema, Discord, beta, fixture, dependency, production, or sudo
-  action occurred. Integration/push is next; no beta restart, guild apply,
+  action occurred. The reviewed unit merged into accumulation at
+  `a344ab44587a42e4c9801fdcb03398c788f38273`; no beta restart, guild apply,
   checklist change, or tester announcement is warranted for this repository-
-  only unit.
+  only unit. Accumulation close-out and push are next.
 
 ### 2026-08-11 — P9.18/M2+M3 backup lifecycle/provenance reviewed
 
