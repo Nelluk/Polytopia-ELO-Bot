@@ -14362,7 +14362,7 @@ accumulation checkpoint `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`.
 Risk tier: **Tier 3 release evidence and production-target policy**. The unit
 does not perform production work. It owns a strict non-secret JSON evidence
 record, candidate-tree digest/ancestry checks, complete finding inventory,
-four exact-SHA gates, the cutover-critical review, and a concise unsent tester
+five exact-SHA gates, the cutover-critical review, and a concise unsent tester
 draft. The source candidate and later evidence commit are deliberately
 distinct: evidence may describe the frozen source SHA without creating an
 impossible self-referential Git commit.
@@ -14376,7 +14376,9 @@ secret material, unsafe manifest path, nonempty global-tree policy, changed
 omitted capability, or production support/canary route drift. `validate`
 checks structure/repository evidence while `require-ready` additionally fails
 until cutover review, complete offline discovery, stopped-writer development
-PostgreSQL discovery, and the bounded beta matrix all pass.
+PostgreSQL discovery, the bounded beta matrix, and separately approved
+redacted production-configuration verification all pass. Human beta and
+production-configuration gates cannot pass while required checks are skipped.
 
 Cutover review found a concrete prior error: the production runbook called
 development guild `478571892832206869` PolyChampions. Runtime configuration,

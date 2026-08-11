@@ -37,13 +37,17 @@ Use only a manifest directly under `release-candidate-manifests/`:
 
 `inspect` validates the bounded JSON schema without invoking Git. `validate`
 also verifies commits, ancestry, evidence ancestry, and candidate-tree
-digests. `require-ready` additionally returns nonzero unless all four gates
+digests. `require-ready` additionally returns nonzero unless all five gates
 are `pass`:
 
 - cutover-critical review;
 - complete offline discovery;
 - complete stopped-writer development PostgreSQL discovery; and
-- the bounded human/live beta matrix.
+- the bounded human/live beta matrix; and
+- separately approved redacted production-configuration verification.
+
+Cutover review, the human beta matrix, and production configuration may not
+pass with skipped required checks.
 
 A known dependency limitation, pending human test, omitted gate, mismatched
 SHA, stale digest, wrong production route, or unresolved review item blocks

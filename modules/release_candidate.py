@@ -40,6 +40,7 @@ REQUIRED_GATES = (
     'offline_suite',
     'development_database_suite',
     'bounded_beta_matrix',
+    'production_configuration',
 )
 _SHA = re.compile(r'^[0-9a-f]{40}$')
 _DIGEST = re.compile(r'^[0-9a-f]{64}$')
@@ -249,6 +250,16 @@ def _gates(value: Any, candidate_sha: str) -> Mapping[str, GateEvidence]:
             raise ReleaseCandidateError(f'{name} cannot pass with failures.')
         if status == 'pass' and passed == 0:
             raise ReleaseCandidateError(f'{name} cannot pass without evidence items.')
+        if (
+                status == 'pass'
+                and skipped
+                and name in {
+                    'cutover_review', 'bounded_beta_matrix',
+                    'production_configuration',
+                }):
+            raise ReleaseCandidateError(
+                f'{name} cannot pass with incomplete required checks.'
+            )
         gates[name] = GateEvidence(
             status=status,
             candidate_sha=candidate_sha,

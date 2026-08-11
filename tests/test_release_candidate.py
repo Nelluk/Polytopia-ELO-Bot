@@ -115,6 +115,17 @@ class ReleaseCandidateTests(unittest.TestCase):
                 release_candidate.ReleaseCandidateError, 'cannot pass with failures'):
             release_candidate.validate(value)
 
+    def test_beta_gate_cannot_pass_with_skipped_human_checks(self):
+        value = manifest_value(gate_status='pass')
+        gate = value['gates']['bounded_beta_matrix']
+        gate['total'] = 2
+        gate['passed'] = 1
+        gate['skipped'] = 1
+
+        with self.assertRaisesRegex(
+                release_candidate.ReleaseCandidateError, 'incomplete required'):
+            release_candidate.validate(value)
+
     def test_missing_review_finding_is_rejected(self):
         value = manifest_value()
         value['adversarial_findings'].pop()
