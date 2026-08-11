@@ -387,8 +387,9 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
         message = SimpleNamespace(edit=mock.AsyncMock())
         return SimpleNamespace(
             guild_id=300,
+            guild=SimpleNamespace(id=300, roles=()),
             channel_id=400,
-            user=SimpleNamespace(id=user_id, display_name='Owner'),
+            user=SimpleNamespace(id=user_id, display_name='Owner', roles=()),
             response=SimpleNamespace(
                 send_message=mock.AsyncMock(),
                 defer=mock.AsyncMock(),
@@ -423,7 +424,12 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
             if item.name == 'whattotest'
         )
         interaction = self.interaction()
-        status = SimpleNamespace(overall='ready', packs=(), result_snapshot=None)
+        status = SimpleNamespace(
+            guild_id=300,
+            overall='ready',
+            packs=(),
+            result_snapshot=None,
+        )
         guide = misc.beta_testing_guide.parse_checklist(
             '# 🧪 WHAT TO TEST\n\n## Games\n\n- Run /game show.'
         )
@@ -443,6 +449,12 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
             misc.beta_lab_sessions,
             'run_requester_session',
             new=mock.AsyncMock(return_value=None),
+        ), mock.patch.object(
+            misc.beta_lab_personas,
+            'role_status',
+            return_value=misc.beta_lab_personas.PersonaStatus(
+                False, 'not prepared', None, None,
+            ),
         ):
             await command.callback(SimpleNamespace(bot=object()), interaction)
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
@@ -452,6 +464,65 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
             type(interaction.edit_original_response.await_args.kwargs['view']).__name__,
         )
         interaction.followup.send.assert_not_awaited()
+
+    async def test_undelivered_reopened_panel_revokes_restored_persona(self):
+        command = next(
+            item for item in misc.misc.__cog_app_commands__
+            if item.name == 'whattotest'
+        )
+        interaction = self.interaction()
+        interaction.edit_original_response.side_effect = RuntimeError(
+            'delivery failed'
+        )
+        session = SimpleNamespace(state='ready')
+        status = SimpleNamespace(
+            guild_id=300,
+            overall='ready',
+            packs=(SimpleNamespace(
+                key=misc.beta_lab_workers.GUIDED_PERSONAS,
+                state='ready',
+                title='Guided personas',
+                detail='Database persona ready.',
+                action='Start a guided session.',
+            ),),
+            result_snapshot=None,
+        )
+        guide = misc.beta_testing_guide.parse_checklist(
+            '# Guide\n\n## Games\n\n- Run /game show.'
+        )
+        with mock.patch.object(
+            misc.settings,
+            'runtime_profile',
+            SimpleNamespace(environment='development'),
+        ), mock.patch.object(
+            misc.beta_testing_guide, 'load_guide', return_value=guide,
+        ), mock.patch.object(
+            misc.beta_lab_workers, 'run_status',
+            new=mock.AsyncMock(return_value=status),
+        ), mock.patch.object(
+            misc.beta_lab_sessions, 'run_requester_session',
+            new=mock.AsyncMock(return_value=session),
+        ), mock.patch.object(
+            misc.beta_lab_sessions, 'run_active_owner_ids',
+            new=mock.AsyncMock(return_value=(10,)),
+        ), mock.patch.object(
+            misc.beta_lab_personas, 'role_status',
+            return_value=misc.beta_lab_personas.PersonaStatus(
+                True, 'ready', 700, 701,
+            ),
+        ), mock.patch.object(
+            misc.beta_lab_personas, 'reconcile_members',
+            new=mock.AsyncMock(),
+        ), mock.patch.object(
+            misc.beta_lab_personas, 'set_member_active',
+            new=mock.AsyncMock(),
+        ) as set_active:
+            with self.assertRaisesRegex(RuntimeError, 'delivery failed'):
+                await command.callback(SimpleNamespace(bot=object()), interaction)
+        self.assertEqual(
+            [call.kwargs['active'] for call in set_active.await_args_list],
+            [True, False],
+        )
 
 
 if __name__ == '__main__':

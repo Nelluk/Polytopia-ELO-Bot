@@ -487,6 +487,21 @@ def load_requester_session(
     return owned[0] if owned else None
 
 
+def load_active_owner_ids(
+    guild_id: int,
+    *,
+    now_epoch: int | None = None,
+) -> tuple[int, ...]:
+    _validate_profile(guild_id)
+    now_epoch = int(time.time() if now_epoch is None else now_epoch)
+    with models.db.connection_context():
+        _live_identity()
+        _grouped, snapshots = _load_all(for_update=False, now_epoch=now_epoch)
+    return tuple(sorted(
+        item.requester_id for item in snapshots if item.state != 'expired'
+    ))
+
+
 def _delete_records(records: Sequence[_Record]) -> tuple[int, ...]:
     game_ids = tuple(sorted(int(item.game.id) for item in records))
     for item in sorted(
@@ -732,6 +747,10 @@ async def run_requester_session(
     request: BetaLabSessionRequest,
 ) -> BetaLabSessionSnapshot | None:
     return await _run_read(load_requester_session, request)
+
+
+async def run_active_owner_ids(guild_id: int) -> tuple[int, ...]:
+    return await _run_read(load_active_owner_ids, guild_id)
 
 
 async def _run_mutation(operation: str, request, worker):

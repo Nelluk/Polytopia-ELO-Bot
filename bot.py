@@ -162,6 +162,7 @@ class MyBot(commands.Bot):
         self._startup_schema_preflight_lock = asyncio.Lock()
         self._startup_bans_reconciled = False
         self._startup_ban_lock = asyncio.Lock()
+        self._beta_persona_reconciliation_lock = asyncio.Lock()
         self._restart_exit_status = None
         # Guild commands are deployed out-of-process.  Keep runtime dispatch
         # failures observable and always acknowledge a delivered interaction
@@ -310,6 +311,30 @@ class MyBot(commands.Bot):
                 result.polytopia_rows,
             )
             return result
+
+    async def _revoke_beta_lab_personas(self) -> int:
+        """Fail closed across starts/reconnects for temporary beta authority."""
+
+        if settings.runtime_profile.environment != 'development':
+            return 0
+        async with self._beta_persona_reconciliation_lock:
+            personas = importlib.import_module('modules.beta_lab_personas')
+            policy = personas.manifest()
+            guild = self.get_guild(policy.guild_id)
+            if guild is None:
+                raise RuntimeError(
+                    'The configured development guild is unavailable for '
+                    'Beta Lab persona reconciliation.'
+                )
+            removed = await personas.revoke_members_on_startup(
+                settings.runtime_profile,
+                guild,
+            )
+            logger.info(
+                'Startup Beta Lab persona reconciliation revoked_members=%s',
+                removed,
+            )
+            return removed
 
     async def setup_hook(self):
         try:
@@ -525,6 +550,17 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             else:
                 logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
                 await g.leave()
+
+        try:
+            await bot._revoke_beta_lab_personas()
+        except Exception:
+            logger.critical(
+                'Startup Beta Lab persona reconciliation failed; closing '
+                'instead of retaining temporary staff authority.',
+                exc_info=True,
+            )
+            await bot.close()
+            raise
 
         logger.info(
             'Automatic application-command synchronization is disabled. '

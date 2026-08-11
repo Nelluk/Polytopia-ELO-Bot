@@ -32,7 +32,7 @@ confirmation. That path calls the same preview, ELO coordinator, transaction,
 and ownership implementation; it is not a second fixture writer. See
 `docs/DEVELOPMENT_BETA_LAB.md`.
 
-P9.23b adds a separate in-process tester lane path through `/whattotest`.
+P9.23b/P9.23c add a separate guided tester path through `/whattotest`.
 It does not reuse or delete the operator result bundle. Each authorized tester
 gets three fresh games with dual name/notes ownership markers, a 30-minute
 lease, and one fixed registered fixture opponent. Claim and release serialize
@@ -105,18 +105,20 @@ the ignored CLI manifest; database ownership markers remain authoritative.
 
 ### In-process human-tester workflow
 
-Run `/whattotest`, then choose **Create my game lane**. This requires the
+Run `/whattotest`, then choose **Start guided session**. This requires the
 pinned development `testers` role and an existing Player registration. The
-private panel lists names as well as diagnostic IDs and gives one command for
-each fresh scenario. Rerun `/whattotest` to recover an active lane after the
-panel expires.
+private panel offers independent Team/House, win, confirm, and undo tasks.
+Each task gives exact slash fields and an expected result. The owned Team and
+staff-persona roles exist only while the session is active. Rerun
+`/whattotest` to recover an active lane and its roles after panel expiry or a
+bot restart.
 
-Choose **Finished** or **Release lane** to remove the exact owned games and
-reverse their ELO. A tester who loses the role may still release a lane they
-already own. Do not change the lane games' names or notes; if either ownership
-marker or the exact three-game graph is damaged, mutation fails closed for an
-operator to inspect. Ordinary games and the operator-owned result bundle are
-outside lane cleanup authority.
+Choose **Finish and clean up** to remove the persona roles, exact owned games,
+and their ELO effects. A tester who loses the access role may still clean up a
+lane they already own. Do not change the lane games' names or notes; if either
+ownership marker or the exact three-game graph is damaged, mutation fails
+closed for an operator to inspect. Ordinary games and the operator-owned result
+bundle are outside lane cleanup authority.
 
 ## Created scenarios
 

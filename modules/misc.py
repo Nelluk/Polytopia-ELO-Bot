@@ -15,6 +15,7 @@ from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
 from modules import beta_lab_sessions
+from modules import beta_lab_personas
 from modules import beta_lab_workers
 from modules import beta_readiness
 from modules import beta_testing_guide
@@ -377,6 +378,53 @@ class misc(commands.Cog):
                 'read-only tests are still safe to use.'
             )
         lane_authorized = has_lane_role or session is not None
+        persona_database_ready = any(
+            pack.key == beta_lab_workers.GUIDED_PERSONAS and pack.state == 'ready'
+            for pack in status.packs
+        )
+        persona_role_status = beta_lab_personas.role_status(
+            settings.runtime_profile,
+            interaction.guild,
+        )
+        status = beta_lab_workers.with_persona_role_status(
+            status,
+            ready=persona_role_status.ready,
+            detail=persona_role_status.detail,
+        )
+        persona_assigned = False
+        if persona_role_status.ready:
+            try:
+                async def reconcile_and_restore() -> bool:
+                    active_owner_ids = await beta_lab_sessions.run_active_owner_ids(
+                        int(interaction.guild_id)
+                    )
+                    await beta_lab_personas.reconcile_members(
+                        settings.runtime_profile,
+                        interaction.guild,
+                        active_owner_ids=active_owner_ids,
+                    )
+                    if session is not None and session.state != 'expired':
+                        await beta_lab_personas.set_member_active(
+                            settings.runtime_profile,
+                            interaction.guild,
+                            interaction.user,
+                            active=True,
+                        )
+                        return True
+                    return False
+
+                persona_assigned = await beta_testing_dashboard._finish_started(
+                    asyncio.create_task(reconcile_and_restore())
+                )
+            except (beta_lab_sessions.BetaLabSessionError, beta_lab_personas.BetaLabPersonaError) as exc:
+                lane_notice = str(exc)
+        elif lane_notice is None:
+            lane_notice = persona_role_status.detail
+        lane_authorized = (
+            lane_authorized
+            and persona_database_ready
+            and persona_role_status.ready
+        )
         view = beta_testing_dashboard.BetaTestingDashboard(
             bot=self.bot,
             requester_id=int(interaction.user.id),
@@ -392,7 +440,26 @@ class misc(commands.Cog):
         if lane_notice:
             view.notice = lane_notice
             view.rebuild()
-        await interaction.edit_original_response(content=None, view=view)
+        try:
+            await interaction.edit_original_response(content=None, view=view)
+        except BaseException:
+            if persona_assigned:
+                try:
+                    await beta_testing_dashboard._finish_started(
+                        asyncio.create_task(
+                            beta_lab_personas.set_member_active(
+                                settings.runtime_profile,
+                                interaction.guild,
+                                interaction.user,
+                                active=False,
+                            )
+                        )
+                    )
+                except Exception:
+                    logger.exception(
+                        'Could not compensate an undelivered Beta Lab panel persona.'
+                    )
+            raise
         try:
             view.message = await interaction.original_response()
         except discord.HTTPException:

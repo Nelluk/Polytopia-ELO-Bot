@@ -11,6 +11,7 @@ from pathlib import Path
 import settings
 from modules import (
     beta_lab_manifest,
+    beta_lab_personas,
     beta_lab_sessions,
     beta_readiness,
     beta_wider_setup,
@@ -24,7 +25,8 @@ STRUCTURE = 'server-structure'
 LEADERBOARD = 'leaderboard-showcase'
 RESULTS = 'game-results'
 SESSION_LANES = 'self-service-game-lanes'
-PACKS = (STRUCTURE, LEADERBOARD, RESULTS, SESSION_LANES)
+GUIDED_PERSONAS = 'guided-personas'
+PACKS = (STRUCTURE, LEADERBOARD, RESULTS, SESSION_LANES, GUIDED_PERSONAS)
 REFRESH_CONFIRMATION = 'REFRESH-game-results'
 
 
@@ -239,6 +241,21 @@ def _session_status(guild_id: int) -> BetaLabPackStatus:
     )
 
 
+def _persona_status() -> BetaLabPackStatus:
+    status = beta_lab_personas.database_status(settings.runtime_profile)
+    return BetaLabPackStatus(
+        key=GUIDED_PERSONAS,
+        title='Guided Team/House persona',
+        state='ready' if status.ready else 'blocked',
+        detail=status.detail,
+        action=(
+            'Start a guided session to receive the owned Team and staff roles.'
+            if status.ready else
+            'An operator must prepare the exact owned persona resources.'
+        ),
+    )
+
+
 def load_status(guild_id: int) -> BetaLabStatus:
     guild_id = _validate(guild_id)
     structure = _structure_status(guild_id)
@@ -255,7 +272,8 @@ def load_status(guild_id: int) -> BetaLabStatus:
         )
         snapshot = None
     sessions = _session_status(guild_id)
-    packs = (structure, leaderboard, results, sessions)
+    personas = _persona_status()
+    packs = (structure, leaderboard, results, sessions, personas)
     states = {pack.state for pack in packs}
     if states == {'ready'}:
         overall = 'ready'
@@ -270,6 +288,52 @@ def load_status(guild_id: int) -> BetaLabStatus:
         overall=overall,
         packs=packs,
         result_snapshot=snapshot,
+    )
+
+
+def with_persona_role_status(
+    status: BetaLabStatus,
+    *,
+    ready: bool,
+    detail: str,
+) -> BetaLabStatus:
+    """Fold live Discord role readiness into the worker-loaded DB pack."""
+
+    packs = tuple(
+        (
+            BetaLabPackStatus(
+                key=pack.key,
+                title=pack.title,
+                state='ready' if ready and pack.state == 'ready' else 'blocked',
+                detail=(
+                    f'{pack.detail} {detail}'
+                    if ready and pack.state == 'ready'
+                    else detail if not ready else pack.detail
+                ),
+                action=(
+                    pack.action
+                    if ready and pack.state == 'ready'
+                    else 'An operator must prepare the exact owned persona resources.'
+                ),
+            )
+            if pack.key == GUIDED_PERSONAS else pack
+        )
+        for pack in status.packs
+    )
+    states = {pack.state for pack in packs}
+    if states == {'ready'}:
+        overall = 'ready'
+    elif 'blocked' in states:
+        overall = 'blocked'
+    elif states.intersection({'missing', 'refreshable'}):
+        overall = 'needs attention'
+    else:
+        overall = 'unknown'
+    return BetaLabStatus(
+        guild_id=status.guild_id,
+        overall=overall,
+        packs=packs,
+        result_snapshot=status.result_snapshot,
     )
 
 

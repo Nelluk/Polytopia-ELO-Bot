@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import discord
+import settings
 
 from modules import (
     beta_feedback_views,
     beta_lab_catalog,
+    beta_lab_personas,
     beta_lab_sessions,
     beta_lab_workers,
     beta_testing_guide,
@@ -25,6 +28,21 @@ _STATE_ICON = {
 }
 
 
+async def _finish_started(task: asyncio.Task):
+    """Drain a started session/persona transition despite caller cancellation."""
+
+    current = asyncio.current_task()
+    while True:
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if task.done():
+                return task.result()
+            if current is not None:
+                while current.cancelling():
+                    current.uncancel()
+
+
 def _safe(value: str) -> str:
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
@@ -32,8 +50,8 @@ def _safe(value: str) -> str:
 def overview_markdown(status: beta_lab_workers.BetaLabStatus) -> str:
     lines = [
         '# 🧪 Beta Lab',
-        '**Start here:** choose **Give me a 5-minute test**, or create a '
-        'private game lane for result-changing commands.',
+        '**Start here:** choose **Give me a 5-minute test** for a read-only '
+        'task, or **Start guided session** for Team, House, and game-result tasks.',
         '',
         f'**Lab health:** {status.overall.title()}',
     ]
@@ -84,34 +102,83 @@ def quick_test_markdown(test: beta_lab_catalog.QuickTest) -> str:
     return '\n'.join(lines)
 
 
-def lane_markdown(session: beta_lab_sessions.BetaLabSessionSnapshot) -> str:
+def lane_markdown(
+    session: beta_lab_sessions.BetaLabSessionSnapshot,
+    task_key: str | None = None,
+) -> str:
     scenario_by_name = {item.scenario: item for item in session.scenarios}
+    if task_key is None:
+        exercised = sum(item.status == 'exercised' for item in session.scenarios)
+        return '\n'.join((
+            '# 🎮 Guided test session',
+            f'**Tester:** {_safe(session.requester_name)}',
+            f'**Fixture opponent:** {_safe(session.opponent_name)}',
+            f'**Session:** `{session.session_id}` • expires <t:{session.expires_epoch}:R>',
+            '',
+            '**Choose one task below. You do not have to complete all four.**',
+            'Each task shows the exact slash-command fields and what should happen.',
+            f'**Game progress:** {exercised} of {len(session.scenarios)} scenarios exercised.',
+            '',
+            'After running a command, return here and choose **Refresh results**. '
+            'Use **Report problem** if the response is wrong or the instructions are unclear.',
+            'When you are done, choose **Finish and clean up** to remove your test games and persona roles.',
+        ))
+
+    if task_key == 'team':
+        return '\n'.join((
+            '# 🏠 Team and House task',
+            '**Goal:** verify that the bot recognizes your temporary league membership.',
+            '',
+            '1. Run `/team show` with `team: Beta Lab Team`.',
+            f'   **Expected:** the roster includes {_safe(session.requester_name)} and the card shows `Beta Lab House`.',
+            '2. Run `/house list`, select `Beta Lab House`, and open its Team.',
+            '   **Expected:** `Beta Lab Team` appears under that House.',
+            '3. Optionally run `/leaderboard teams` and look for `Beta Lab Team`.',
+            '',
+            'Return to this panel afterward. Choose another task, report a problem, or finish.',
+        ))
+
     lines = [
-        '# 🎮 My game lane',
-        f'**Tester:** {_safe(session.requester_name)}',
-        f'**Fixture opponent:** {_safe(session.opponent_name)}',
-        f'**Lane:** `{session.session_id}` • {session.state} • expires '
-        f'<t:{session.expires_epoch}:R>',
-        '',
-        'Each game starts in a different result state:',
+        '# 🎮 Game result task',
     ]
     instructions = {
-        'ready': 'Run `/game win GAME_ID` and follow the result flow.',
-        'unconfirmed': 'Run `/game result confirm GAME_ID`.',
-        'completed': 'Run `/game result undo GAME_ID`.',
+        'win': (
+            'ready',
+            'Test an ordinary win claim',
+            ('Run `/game win` with:',
+             None,
+             f'`winner: {_safe(session.requester_name)}`'),
+            'A public win claim should name you as winner and remain unconfirmed (1 of 2 sides confirmed).',
+        ),
+        'confirm': (
+            'unconfirmed',
+            'Test staff confirmation',
+            ('Run `/game result confirm` with:', None),
+            'The result should become confirmed publicly and ELO/result publication should run once.',
+        ),
+        'undo': (
+            'completed',
+            'Test result undo',
+            ('Run `/game result undo` with:', None),
+            'The completed result and its ELO change should be reversed once with a public reset notice.',
+        ),
     }
-    for scenario in beta_lab_sessions.SCENARIOS:
-        item = scenario_by_name.get(scenario)
-        if item is None:
-            continue
-        lines.append(
-            f'- **{scenario.title()}** — game `{item.game_id}` '
-            f'({_safe(item.status)}): {instructions[scenario].replace("GAME_ID", str(item.game_id))}'
-        )
+    scenario, title, command_lines, expected = instructions[task_key]
+    item = scenario_by_name[scenario]
+    lines.extend((
+        f'**Goal:** {_safe(title)}.',
+        f'**Current state:** {_safe(item.status.title())}',
+        '',
+        command_lines[0],
+        f'`game_id: {item.game_id}`',
+    ))
+    lines.extend(line for line in command_lines[2:] if line is not None)
     lines.extend((
         '',
-        'When done, choose **Finished**. Choose **Release lane** if you are '
-        'stopping early. Both safely remove only your three owned test games.',
+        f'**Expected:** {_safe(expected)}',
+        '',
+        'Return here and choose **Refresh results**. Then choose another task, '
+        'report a problem, or finish.',
         '-# Do not edit the game name or notes; those fields carry the lane’s '
         'safety markers.',
     ))
@@ -148,6 +215,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.section_key: str | None = None
         self.page = 0
         self.mode = 'overview'
+        self.task_key: str | None = None
         self.quick_index = self.requester_id % len(beta_lab_catalog.QUICK_TESTS)
         self.notice: str | None = None
         self.busy = False
@@ -196,7 +264,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         elif self.mode == 'quick':
             body = quick_test_markdown(beta_lab_catalog.QUICK_TESTS[self.quick_index])
         elif self.mode == 'lane' and self.session is not None:
-            body = lane_markdown(self.session)
+            body = lane_markdown(self.session, self.task_key)
         else:
             body = overview_markdown(self.status)
         if self.notice:
@@ -249,23 +317,23 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         )
         quick.callback = self._quick
         lane = discord.ui.Button(
-            label='My game lane' if self.session else 'Create my game lane',
+            label='Session home' if self.session else 'Start guided session',
             style=discord.ButtonStyle.success,
             disabled=disabled or not self.lane_authorized,
         )
         lane.callback = self._lane
+        refresh = discord.ui.Button(
+            label='Refresh results',
+            style=discord.ButtonStyle.secondary,
+            disabled=disabled or self.session is None,
+        )
+        refresh.callback = self._refresh
         finished = discord.ui.Button(
-            label='Finished',
+            label='Finish and clean up',
             style=discord.ButtonStyle.success,
             disabled=disabled or self.session is None,
         )
         finished.callback = self._finished
-        release = discord.ui.Button(
-            label='Release lane',
-            style=discord.ButtonStyle.danger,
-            disabled=disabled or self.session is None,
-        )
-        release.callback = self._release
         report = discord.ui.Button(
             label='Report problem',
             style=discord.ButtonStyle.secondary,
@@ -280,12 +348,38 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(self._body()),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(quick, lane, finished, release, report),
+            discord.ui.ActionRow(quick, lane, refresh, finished, report),
+            *(
+                (discord.ui.ActionRow(
+                    self._task_button('Team & House', 'team', disabled),
+                    self._task_button('Win claim', 'win', disabled),
+                    self._task_button('Confirm result', 'confirm', disabled),
+                    self._task_button('Undo result', 'undo', disabled),
+                ),)
+                if self.session is not None else ()
+            ),
             discord.ui.ActionRow(selector),
             discord.ui.ActionRow(overview, previous, following),
             discord.ui.TextDisplay(f'-# {footer}'),
             accent_colour=discord.Colour.blurple(),
         ))
+
+    def _task_button(self, label: str, key: str, disabled: bool):
+        button = discord.ui.Button(
+            label=label,
+            style=(
+                discord.ButtonStyle.primary
+                if self.task_key == key else discord.ButtonStyle.secondary
+            ),
+            disabled=disabled,
+        )
+        button.callback = {
+            'team': self._team_task,
+            'win': self._win_task,
+            'confirm': self._confirm_task,
+            'undo': self._undo_task,
+        }[key]
+        return button
 
     async def _edit_after_defer(self, interaction: discord.Interaction) -> None:
         self.rebuild()
@@ -340,6 +434,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
     async def _lane(self, interaction: discord.Interaction) -> None:
         if self.session is not None:
             self.mode = 'lane'
+            self.task_key = None
             self.section_key = None
             self.notice = None
             self.rebuild()
@@ -351,14 +446,162 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.busy = True
         try:
             self.session = await beta_lab_sessions.run_claim_session(self._request())
+            await _finish_started(asyncio.create_task(
+                self._activate_persona(interaction)
+            ))
             self.mode = 'lane'
+            self.task_key = None
             self.section_key = None
-            self.notice = 'Your lane is ready.'
-        except beta_lab_sessions.BetaLabSessionError as exc:
-            self.notice = str(exc)
+            self.notice = 'Your guided session is ready. Choose any task below.'
+        except (
+            beta_lab_sessions.BetaLabSessionError,
+            beta_lab_personas.BetaLabPersonaError,
+        ) as exc:
+            if self.session is not None:
+                try:
+                    request = beta_lab_sessions.BetaLabSessionReleaseRequest(
+                        guild_id=self.guild_id,
+                        requester_id=self.requester_id,
+                        requester_name=self.requester_name,
+                        role_ids=self.role_ids,
+                        session_id=self.session.session_id,
+                        outcome='released',
+                    )
+                    await _finish_started(asyncio.create_task(
+                        self._remove_persona_and_release(interaction, request)
+                    ))
+                    self.session = None
+                except Exception:
+                    logger.exception('Could not compensate failed persona assignment')
+                    self.notice = (
+                        f'{exc} The game session may still exist; do not retry '
+                        'until an operator reconciles it.'
+                    )
+                else:
+                    self.notice = f'{exc} No game session was retained.'
+            else:
+                self.notice = str(exc)
         except Exception:
             logger.exception('Unexpected Beta Lab lane claim failure')
-            self.notice = 'The lane could not be created. No retry is needed until staff checks it.'
+            if self.session is not None:
+                try:
+                    request = beta_lab_sessions.BetaLabSessionReleaseRequest(
+                        guild_id=self.guild_id,
+                        requester_id=self.requester_id,
+                        requester_name=self.requester_name,
+                        role_ids=self.role_ids,
+                        session_id=self.session.session_id,
+                        outcome='released',
+                    )
+                    await _finish_started(asyncio.create_task(
+                        self._remove_persona_and_release(interaction, request)
+                    ))
+                    self.session = None
+                    self.notice = (
+                        'The guided session could not be activated; no game '
+                        'session or persona was retained.'
+                    )
+                except Exception:
+                    logger.exception(
+                        'Could not compensate unexpected guided-session activation failure'
+                    )
+                    self.notice = (
+                        'The guided session could not be reconciled. Do not '
+                        'retry until staff inspects it.'
+                    )
+            else:
+                self.notice = (
+                    'The lane could not be created. No retry is needed until '
+                    'staff checks it.'
+                )
+        finally:
+            self.busy = False
+        await self._edit_after_defer(interaction)
+
+    async def _activate_persona(self, interaction: discord.Interaction) -> None:
+        active_owner_ids = await beta_lab_sessions.run_active_owner_ids(
+            self.guild_id
+        )
+        await beta_lab_personas.reconcile_members(
+            settings.runtime_profile,
+            interaction.guild,
+            active_owner_ids=active_owner_ids,
+        )
+        await beta_lab_personas.set_member_active(
+            settings.runtime_profile,
+            interaction.guild,
+            interaction.user,
+            active=True,
+        )
+
+    async def _remove_persona_and_release(
+        self,
+        interaction: discord.Interaction,
+        request: beta_lab_sessions.BetaLabSessionReleaseRequest,
+    ) -> beta_lab_sessions.BetaLabSessionReleaseResult:
+        await beta_lab_personas.set_member_active(
+            settings.runtime_profile,
+            interaction.guild,
+            interaction.user,
+            active=False,
+        )
+        return await beta_lab_sessions.run_release_session(request)
+
+    async def _choose_task(self, interaction: discord.Interaction, key: str) -> None:
+        self.mode = 'lane'
+        self.task_key = key
+        self.section_key = None
+        self.notice = None
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
+
+    async def _team_task(self, interaction: discord.Interaction) -> None:
+        await self._choose_task(interaction, 'team')
+
+    async def _win_task(self, interaction: discord.Interaction) -> None:
+        await self._choose_task(interaction, 'win')
+
+    async def _confirm_task(self, interaction: discord.Interaction) -> None:
+        await self._choose_task(interaction, 'confirm')
+
+    async def _undo_task(self, interaction: discord.Interaction) -> None:
+        await self._choose_task(interaction, 'undo')
+
+    async def _refresh(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        self.busy = True
+        try:
+            self.session = await beta_lab_sessions.run_requester_session(self._request())
+            if self.session is not None and self.session.state != 'expired':
+                await _finish_started(asyncio.create_task(
+                    self._activate_persona(interaction)
+                ))
+                self.notice = 'Progress refreshed from the live test games.'
+            elif self.session is None:
+                active_owner_ids = await beta_lab_sessions.run_active_owner_ids(
+                    self.guild_id
+                )
+                await beta_lab_personas.reconcile_members(
+                    settings.runtime_profile,
+                    interaction.guild,
+                    active_owner_ids=active_owner_ids,
+                )
+                self.mode = 'overview'
+                self.task_key = None
+                self.notice = 'This guided session no longer exists.'
+            else:
+                await beta_lab_personas.set_member_active(
+                    settings.runtime_profile,
+                    interaction.guild,
+                    interaction.user,
+                    active=False,
+                )
+                self.notice = 'This session expired. Finish cleanup before starting another.'
+        except (beta_lab_sessions.BetaLabSessionError, beta_lab_personas.BetaLabPersonaError) as exc:
+            self.notice = str(exc)
+        except Exception:
+            logger.exception('Unexpected guided-session refresh failure')
+            self.notice = 'The session could not be refreshed; do not repeat a result mutation.'
         finally:
             self.busy = False
         await self._edit_after_defer(interaction)
@@ -381,17 +624,23 @@ class BetaTestingDashboard(discord.ui.LayoutView):
             outcome=outcome,
         )
         try:
-            result = await beta_lab_sessions.run_release_session(request)
+            result = await _finish_started(asyncio.create_task(
+                self._remove_persona_and_release(interaction, request)
+            ))
             self.session = None
             self.mode = 'overview'
+            self.task_key = None
             self.section_key = None
             self.notice = (
                 'Thanks — your lane was removed and its test games were cleaned up.'
                 if result.released else
                 'That lane was already absent; no ordinary games were changed.'
             )
-        except beta_lab_sessions.BetaLabSessionError as exc:
-            self.notice = str(exc)
+        except (beta_lab_sessions.BetaLabSessionError, beta_lab_personas.BetaLabPersonaError) as exc:
+            self.notice = (
+                f'{exc} Your temporary authority is removed; choose Refresh '
+                'results to revalidate the lane before continuing.'
+            )
         except Exception:
             logger.exception('Unexpected Beta Lab lane release failure')
             self.notice = (
@@ -404,9 +653,6 @@ class BetaTestingDashboard(discord.ui.LayoutView):
 
     async def _finished(self, interaction: discord.Interaction) -> None:
         await self._finish(interaction, 'finished')
-
-    async def _release(self, interaction: discord.Interaction) -> None:
-        await self._finish(interaction, 'released')
 
     async def _report(self, interaction: discord.Interaction) -> None:
         context = 'Beta Lab `/whattotest` dashboard'
@@ -423,6 +669,27 @@ class BetaTestingDashboard(discord.ui.LayoutView):
 
     async def on_timeout(self) -> None:
         self.expired = True
+        if self.session is not None:
+            guild = self.bot.get_guild(self.guild_id)
+            member = (
+                guild.get_member(self.requester_id)
+                if guild is not None else None
+            )
+            if member is not None:
+                try:
+                    await _finish_started(asyncio.create_task(
+                        beta_lab_personas.set_member_active(
+                            settings.runtime_profile,
+                            guild,
+                            member,
+                            active=False,
+                        )
+                    ))
+                except beta_lab_personas.BetaLabPersonaError:
+                    logger.exception(
+                        'Could not revoke expired Beta Lab panel persona for %s',
+                        self.requester_id,
+                    )
         self.rebuild()
         if self.message is not None:
             try:

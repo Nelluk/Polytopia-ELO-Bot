@@ -1,6 +1,6 @@
 # Development Beta Lab
 
-Status: compact dashboard plus self-service game lanes
+Status: compact dashboard plus guided self-service scenarios
 
 The Beta Lab turns the existing development fixtures and PolyChamps-shaped
 guild resources into one coherent testing surface. It is not a production
@@ -8,7 +8,7 @@ clone and never reads production configuration, Discord state, or data.
 
 ## Available packs
 
-The lab recognizes four exact packs:
+The lab recognizes five exact packs:
 
 - `server-structure`: the reviewed WB1.3b two-House/three-Team setup and its
   pinned existing Team-role bindings;
@@ -17,14 +17,20 @@ The lab recognizes four exact packs:
 - `game-results`: the three exactly marked Ready, Unconfirmed, and Completed
   games retained for operator readiness and reset checks; and
 - `self-service-game-lanes`: up to three concurrent requester-owned bundles,
-  each with fresh Ready, Unconfirmed, and Completed games for a human tester.
+  each with fresh Ready, Unconfirmed, and Completed games for a human tester;
+  and
+- `guided-personas`: one exactly owned `Beta Lab House` / `Beta Lab Team`
+  database fixture and two dedicated zero-permission Discord roles used only
+  during an active guided session.
 
 Status is ready only when every pack is canonical. A missing or ambiguous pack
 is reported rather than inferred from unrelated guild or database objects.
-The lab does not create Discord roles or channels. The development guild
-already has the pinned `testers` role, three exact Team roles, and the reviewed
-House/Team database setup. Broad automatic role reassignment would be unsafe
-for the current human pool because `testers` also supplies Helper access.
+The lab never modifies channels, existing Team roles, or arbitrary member
+roles. The pinned `testers` role supplies lab access only. A separately owned
+`Beta Lab Team` role makes Team/House inference realistic, while `Beta Lab
+Staff` temporarily supplies the bot's development Helper classification. Both
+roles carry zero Discord permissions and are assigned only after a database
+session is active.
 
 ## Compact tester workspace
 
@@ -34,15 +40,16 @@ requester-bound Components v2 workspace. The initial view shows:
 - overall and per-pack readiness;
 - current result-scenario names and game IDs;
 - participant display names, with IDs retained only as diagnostics; and
-- a **Give me a 5-minute test** action, a tester-only game-lane action, and a
-  direct **Report problem** action.
+- a **Give me a 5-minute test** action, a tester-only guided-session action,
+  and a direct **Report problem** action.
 
 The tracked `docs/BETA_WHAT_TO_TEST.md` remains the full checklist authority.
 The dashboard parses its `##` sections and presents at most five bounded items
 at a time through a category selector and Previous/Next controls. It never
 posts the complete checklist as a chain of public followups. Controls expire
 after ten minutes and are usable only by the requester. A lane survives panel
-expiry; rerunning `/whattotest` reopens it.
+expiry, but its temporary persona is revoked; rerunning `/whattotest` reopens
+the lane and revalidates the persona.
 
 ### Human tester flow
 
@@ -50,18 +57,24 @@ expiry; rerunning `/whattotest` reopens it.
 2. Choose **Give me a 5-minute test** for one short read-oriented assignment.
    Repeated clicks rotate among player, leaderboard, Team/House, game-search,
    and league workspaces.
-3. Members with the pinned `testers` role may choose **Create my game lane**.
-   The bot creates three fresh 1v1 games owned by that requester and shows
-   participant names, exact game IDs, and the command to exercise each state.
-4. Choose **Finished** after completing the flow, or **Release lane** when
-   stopping early. Both reverse any lane ELO and delete exactly those three
-   marked games. Use **Report problem** to open `/staffhelp` with the lane and
-   game IDs already filled in.
+3. Members with the pinned `testers` role may choose **Start guided session**.
+   The bot creates three fresh 1v1 games owned by that requester and temporarily
+   assigns the owned Team and staff-persona roles.
+4. Choose one of **Team & House**, **Win claim**, **Confirm result**, or **Undo
+   result**. Each page gives the exact slash fields and observable expected
+   result; no tester is expected to complete all four.
+5. Return to the private panel and choose **Refresh results** after a game
+   command. Rerun `/whattotest` if the panel expires.
+6. Choose **Finish and clean up** whenever done. It removes the temporary roles,
+   reverses lane ELO, and deletes exactly the three marked games. Use **Report
+   problem** to open `/staffhelp` with the lane and game IDs already filled in.
 
 There are at most three active lanes and each lease lasts 30 minutes. Expired
 lanes are reclaimed by the next claim. A tester may own only one active lane.
 Removing the tester role prevents a new claim but does not prevent the owner
-from releasing an already-owned lane.
+from cleaning up an already-owned lane. A bot start or Discord reconnect
+revokes every owned persona role; an active session is reauthorized only after
+the tester reopens `/whattotest` and the database lease is revalidated.
 
 The tracked manifest at `data/development/beta_lab_manifest.json` pins the
 development guild, tester role, two already registered fallback opponents,
@@ -109,6 +122,41 @@ The separate leaderboard and WB1.3b CLIs retain their stopped-writer seed and
 cleanup boundaries in this foundation. The lab plan points to those boundaries
 when a pack is absent; it does not bypass them.
 
+### One-time guided-persona preparation
+
+The Discord and PostgreSQL resources use two explicit stages because those
+systems cannot share a transaction. With the reviewed beta running, inspect
+and create only the two owned roles through its authenticated local socket:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_beta_lab_personas.py roles-status
+
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_beta_lab_personas.py roles-setup \
+  --confirm PREPARE-BETA-LAB-PERSONAS
+```
+
+Then stop the durable beta, verify the writer gate is clear, and seed only the
+owned House/Team rows:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_beta_lab_personas.py database-status
+
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_beta_lab_personas.py database-seed \
+  --confirm PREPARE-BETA-LAB-PERSONAS
+```
+
+Seed writes private pending ownership evidence inside the database transaction
+and promotes it only after commit. If a commit or publication outcome is
+unknown, do not retry seed. With the beta still stopped, use the exact
+`database-reconcile --confirm RECONCILE-BETA-LAB-PERSONAS` operation; it
+promotes evidence only for an exact committed match or removes it only when
+both candidate rows are absent. Partial or conflicting state requires manual
+review.
+
 ## Safety and remaining expansion boundary
 
 Every path requires exact `development`, guild `478571892832206869`, database
@@ -116,9 +164,10 @@ Every path requires exact `development`, guild `478571892832206869`, database
 expected beta application/control socket. Reads and mutations run off the
 Discord event loop. Cancellation drains already-started worker work.
 
-No Discord resource mutation is part of a lane, so the self-service path does
-not claim cross-system atomicity. Future expansion can add more short
-assignments and database-owned scenarios. Paired-user queues, temporary
-permission personas, or automatic Discord role/channel setup remain separate
-units because they require explicit human coordination or durable staged
-Discord reconciliation. The lab cannot manufacture Discord accounts.
+Discord role assignment and database lane creation cannot be atomic. The lane
+commits first; persona failure triggers exact lane compensation, and ambiguous
+compensation tells the tester not to retry. Cleanup removes bot authority
+before deleting the lane. Startup revocation is deliberately stronger than
+session restoration, so a crash cannot preserve temporary staff authority.
+Future expansion can add more short assignments and database-owned scenarios,
+but the lab cannot manufacture Discord accounts.

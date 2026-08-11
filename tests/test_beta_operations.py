@@ -14,7 +14,12 @@ from unittest import mock
 
 import discord
 
-from modules import beta_feedback, beta_lab_workers, beta_operations
+from modules import (
+    beta_feedback,
+    beta_lab_personas,
+    beta_lab_workers,
+    beta_operations,
+)
 from scripts import (
     audit_development_beta_processes,
     manage_beta_release,
@@ -694,6 +699,38 @@ class ReleaseControlAndSeparationTests(unittest.IsolatedAsyncioTestCase):
                 'pack': 'game-results',
                 'confirm': 'wrong',
             })
+
+    async def test_persona_role_setup_requires_exact_control_confirmation(self):
+        control = beta_operations.BetaReleaseControl.__new__(
+            beta_operations.BetaReleaseControl
+        )
+        guild = object()
+        control.profile = object()
+        control.service = SimpleNamespace(
+            _assert_authenticated_identity=mock.Mock(),
+            _guild=mock.Mock(return_value=guild),
+        )
+        with mock.patch.object(
+            beta_lab_personas,
+            'setup_roles',
+            new=mock.AsyncMock(return_value=beta_lab_personas.PersonaRoleBinding(
+                700, 701,
+            )),
+        ) as setup:
+            with self.assertRaises(beta_operations.BetaOperationsError):
+                await control._dispatch({
+                    'operation': 'beta-lab-persona-setup',
+                    'confirm': 'wrong',
+                })
+            setup.assert_not_awaited()
+            result = await control._dispatch({
+                'operation': 'beta-lab-persona-setup',
+                'confirm': 'PREPARE-BETA-LAB-PERSONAS',
+            })
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['team_role_id'], 700)
+        self.assertEqual(result['staff_role_id'], 701)
+        setup.assert_awaited_once_with(control.profile, guild)
 
     async def test_unix_control_socket_is_local_and_status_is_read_only(self):
         with tempfile.TemporaryDirectory() as directory:

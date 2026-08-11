@@ -355,26 +355,19 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         from modules import beta_lab_manifest, beta_lab_sessions, beta_readiness
 
         guild_id = beta_readiness.BETA_GUILD_ID
-        manifest = beta_lab_manifest.load(Path(__file__).resolve().parents[1])
-        opponent_id = manifest.opponent_user_ids[0]
-        opponent = (
-            self.models.Player
-            .select(self.models.Player, self.models.DiscordMember)
-            .join(self.models.DiscordMember)
-            .where(
-                (self.models.Player.guild_id == guild_id)
-                & (self.models.DiscordMember.discord_id == opponent_id)
-            )
-            .get()
-        )
-        original_opponent_elo = (
-            int(opponent.elo),
-            int(opponent.elo_alltime),
-            int(opponent.discord_member.elo),
-            int(opponent.discord_member.elo_alltime),
+        reviewed_manifest = beta_lab_manifest.load(
+            Path(__file__).resolve().parents[1]
         )
         suffix = uuid.uuid4().hex[:10]
         requester_id = 8_850_000_000_000_000 + (uuid.uuid4().int % 1_000_000)
+        opponent_id = 8_851_000_000_000_000 + (uuid.uuid4().int % 1_000_000)
+        manifest = beta_lab_manifest.BetaLabManifest(
+            guild_id=guild_id,
+            tester_role_id=reviewed_manifest.tester_role_id,
+            opponent_user_ids=(opponent_id, opponent_id + 1),
+            maximum_active_game_lanes=reviewed_manifest.maximum_active_game_lanes,
+            lease_minutes=reviewed_manifest.lease_minutes,
+        )
         request = beta_lab_sessions.BetaLabSessionRequest(
             guild_id=guild_id,
             requester_id=requester_id,
@@ -384,6 +377,21 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
 
         claimed = None
         try:
+            opponent_member = self.models.DiscordMember.create(
+                discord_id=opponent_id,
+                name=f'Lane Opponent {suffix}',
+            )
+            opponent = self.models.Player.create(
+                discord_member=opponent_member,
+                guild_id=guild_id,
+                name=f'Lane Opponent {suffix}',
+            )
+            original_opponent_elo = (
+                int(opponent.elo),
+                int(opponent.elo_alltime),
+                int(opponent.discord_member.elo),
+                int(opponent.discord_member.elo_alltime),
+            )
             member = self.models.DiscordMember.create(
                 discord_id=requester_id,
                 name=f'Lane Tester {suffix}',
@@ -394,60 +402,65 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 name=f'Lane Tester {suffix}',
             )
             with mock.patch.object(
-                self.models.GameLog,
-                'write',
-                side_effect=peewee.OperationalError('injected lane audit failure'),
-            ), self.assertRaisesRegex(
-                peewee.OperationalError,
-                'injected lane audit failure',
+                beta_lab_sessions,
+                '_manifest',
+                return_value=manifest,
             ):
-                beta_lab_sessions.claim_session(
+                with mock.patch.object(
+                    self.models.GameLog,
+                    'write',
+                    side_effect=peewee.OperationalError('injected lane audit failure'),
+                ), self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'injected lane audit failure',
+                ):
+                    beta_lab_sessions.claim_session(
+                        request,
+                        now_epoch=1_900_000_000,
+                        session_id_factory=lambda _size: '111111111111',
+                    )
+                self.models.db.connect(reuse_if_open=True)
+                self.assertFalse(self.models.Game.select().where(
+                    self.models.Game.notes.startswith(beta_lab_sessions.NOTES_PREFIX)
+                    & self.models.Game.notes.contains('lease=111111111111')
+                ).exists())
+
+                claimed = beta_lab_sessions.claim_session(
                     request,
                     now_epoch=1_900_000_000,
-                    session_id_factory=lambda _size: '111111111111',
+                    session_id_factory=lambda _size: '222222222222',
                 )
-            self.models.db.connect(reuse_if_open=True)
-            self.assertFalse(self.models.Game.select().where(
-                self.models.Game.notes.startswith(beta_lab_sessions.NOTES_PREFIX)
-                & self.models.Game.notes.contains('lease=111111111111')
-            ).exists())
+                self.assertEqual(claimed.requester_name, f'Lane Tester {suffix}')
+                self.assertEqual(claimed.opponent_id, opponent_id)
+                self.assertEqual(
+                    tuple(item.scenario for item in claimed.scenarios),
+                    beta_lab_sessions.SCENARIOS,
+                )
+                self.assertEqual(len(claimed.game_ids), 3)
+                self.assertIsInstance(claimed.fingerprint, str)
 
-            claimed = beta_lab_sessions.claim_session(
-                request,
-                now_epoch=1_900_000_000,
-                session_id_factory=lambda _size: '222222222222',
-            )
-            self.assertEqual(claimed.requester_name, f'Lane Tester {suffix}')
-            self.assertEqual(claimed.opponent_id, opponent_id)
-            self.assertEqual(
-                tuple(item.scenario for item in claimed.scenarios),
-                beta_lab_sessions.SCENARIOS,
-            )
-            self.assertEqual(len(claimed.game_ids), 3)
-            self.assertIsInstance(claimed.fingerprint, str)
-
-            loaded = beta_lab_sessions.load_requester_session(
-                request,
-                now_epoch=1_900_000_000,
-            )
-            self.assertEqual(loaded, claimed)
-            released = beta_lab_sessions.release_session(
-                beta_lab_sessions.BetaLabSessionReleaseRequest(
-                    guild_id=guild_id,
-                    requester_id=requester_id,
-                    requester_name=f'Lane Tester {suffix}',
-                    role_ids=(manifest.tester_role_id,),
-                    session_id=claimed.session_id,
-                    outcome='finished',
-                ),
-                now_epoch=1_900_000_001,
-            )
-            self.assertTrue(released.released)
-            self.assertEqual(released.removed_game_ids, claimed.game_ids)
-            self.assertIsNone(beta_lab_sessions.load_requester_session(
-                request,
-                now_epoch=1_900_000_001,
-            ))
+                loaded = beta_lab_sessions.load_requester_session(
+                    request,
+                    now_epoch=1_900_000_000,
+                )
+                self.assertEqual(loaded, claimed)
+                released = beta_lab_sessions.release_session(
+                    beta_lab_sessions.BetaLabSessionReleaseRequest(
+                        guild_id=guild_id,
+                        requester_id=requester_id,
+                        requester_name=f'Lane Tester {suffix}',
+                        role_ids=(manifest.tester_role_id,),
+                        session_id=claimed.session_id,
+                        outcome='finished',
+                    ),
+                    now_epoch=1_900_000_001,
+                )
+                self.assertTrue(released.released)
+                self.assertEqual(released.removed_game_ids, claimed.game_ids)
+                self.assertIsNone(beta_lab_sessions.load_requester_session(
+                    request,
+                    now_epoch=1_900_000_001,
+                ))
             self.models.db.connect(reuse_if_open=True)
             reloaded_opponent = self.models.Player.get_by_id(opponent.id)
             self.assertEqual(
@@ -481,15 +494,16 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.models.GameLog.delete().where(
                 self.models.GameLog.message.contains(str(requester_id))
             ).execute()
-            cleanup_member = self.models.DiscordMember.get_or_none(
-                self.models.DiscordMember.discord_id == requester_id
-            )
-            if cleanup_member is not None:
-                self.models.Player.delete().where(
-                    (self.models.Player.guild_id == guild_id)
-                    & (self.models.Player.discord_member == cleanup_member.id)
-                ).execute()
-                cleanup_member.delete_instance()
+            for cleanup_discord_id in (requester_id, opponent_id):
+                cleanup_member = self.models.DiscordMember.get_or_none(
+                    self.models.DiscordMember.discord_id == cleanup_discord_id
+                )
+                if cleanup_member is not None:
+                    self.models.Player.delete().where(
+                        (self.models.Player.guild_id == guild_id)
+                        & (self.models.Player.discord_member == cleanup_member.id)
+                    ).execute()
+                    cleanup_member.delete_instance()
 
     def test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures(self):
         """Exercise the real schema through the existing strict gate only."""
@@ -8161,6 +8175,122 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.GameLog.delete().where(
                     self.models.GameLog.message.contains(marker)
                 ).execute()
+
+    def test_beta_lab_persona_seed_commit_publication_and_reconciliation(self):
+        """Exercise the staged P9.23c persona fixture on the stopped writer."""
+
+        from dataclasses import replace
+        from modules import beta_lab_personas as personas
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        suffix = uuid.uuid4().hex[:12]
+        policy = SimpleNamespace(
+            guild_id=guild_id,
+            tester_role_id=480905534019731476,
+            house_name=f'Beta Lab IT House {suffix}',
+            team_name=f'Beta Lab IT Team {suffix}',
+            staff_role_name='Beta Lab Staff',
+        )
+        with tempfile.TemporaryDirectory(prefix='polybot-p923c-') as directory:
+            project_root = Path(directory)
+            profile = replace(
+                self.profile,
+                project_root=project_root,
+                log_root=project_root / 'logs' / 'development',
+            )
+            role_state = {
+                'schema_version': 1,
+                'guild_id': guild_id,
+                'team_role_id': 9_230_001,
+                'team_role_name': policy.team_name,
+                'staff_role_id': 9_230_002,
+                'staff_role_name': policy.staff_role_name,
+            }
+            created_house_id = None
+            created_team_id = None
+            try:
+                personas._write_state(
+                    profile,
+                    personas.ROLE_STATE_FILENAME,
+                    role_state,
+                )
+                self.models.db.close()
+                with mock.patch.object(personas, 'manifest', return_value=policy), \
+                        mock.patch.object(
+                            personas,
+                            '_write_state',
+                            side_effect=RuntimeError('P9.23c evidence write failure'),
+                        ):
+                    with self.assertRaisesRegex(
+                        RuntimeError, 'evidence write failure',
+                    ):
+                        personas.seed_database(profile)
+
+                self.models.db.connect(reuse_if_open=True)
+                self.assertEqual(
+                    self.models.House.select().where(
+                        self.models.House.name == policy.house_name
+                    ).count(),
+                    0,
+                )
+                self.assertEqual(
+                    self.models.Team.select().where(
+                        (self.models.Team.guild_id == guild_id)
+                        & (self.models.Team.name == policy.team_name)
+                    ).count(),
+                    0,
+                )
+
+                self.models.db.close()
+                with mock.patch.object(personas, 'manifest', return_value=policy), \
+                        mock.patch.object(
+                            personas,
+                            '_publish_database_state',
+                            side_effect=personas.BetaLabPersonaError(
+                                'P9.23c publication failure'
+                            ),
+                        ):
+                    with self.assertRaisesRegex(
+                        personas.BetaLabPersonaError,
+                        'publication failure',
+                    ):
+                        personas.seed_database(profile)
+
+                self.models.db.connect(reuse_if_open=True)
+                house = self.models.House.get(
+                    self.models.House.name == policy.house_name
+                )
+                team = self.models.Team.get(
+                    (self.models.Team.guild_id == guild_id)
+                    & (self.models.Team.name == policy.team_name)
+                )
+                created_house_id = int(house.id)
+                created_team_id = int(team.id)
+                self.assertEqual(int(team.house_id), created_house_id)
+                self.assertEqual(int(team.league_tier), 1)
+
+                self.models.db.close()
+                with mock.patch.object(personas, 'manifest', return_value=policy):
+                    blocked = personas.database_status(profile)
+                    self.assertFalse(blocked.ready)
+                    self.assertIn('Pending', blocked.detail)
+                    reconciled = personas.reconcile_pending_database(profile)
+                    self.assertTrue(reconciled.ready)
+                    self.assertEqual(reconciled.team_id, created_team_id)
+                    self.assertEqual(reconciled.house_id, created_house_id)
+                    repeated = personas.seed_database(profile)
+                    self.assertTrue(repeated.ready)
+                    self.assertEqual(repeated.team_id, created_team_id)
+            finally:
+                self.models.db.connect(reuse_if_open=True)
+                with self.models.db.atomic():
+                    self.models.Team.delete().where(
+                        (self.models.Team.guild_id == guild_id)
+                        & (self.models.Team.name == policy.team_name)
+                    ).execute()
+                    self.models.House.delete().where(
+                        self.models.House.name == policy.house_name
+                    ).execute()
 
 
 if __name__ == '__main__':

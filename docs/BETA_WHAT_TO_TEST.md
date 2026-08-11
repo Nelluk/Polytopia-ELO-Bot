@@ -10,10 +10,11 @@ problem** button or `/staffhelp`.
 
 For a low-friction pass, run `/whattotest` and choose **Give me a 5-minute
 test**. Click it again for another short assignment. Testers can choose
-**Create my game lane** for fresh Ready, Unconfirmed, and Completed games;
-the private panel supplies names, IDs, commands, and cleanup. Choose
-**Finished** or **Release lane** when done. The full sections below are a
-reference, not a request to test everything in one sitting.
+**Start guided session** for an owned Team/House persona plus fresh Ready,
+Unconfirmed, and Completed games. Choose any one task; its page supplies exact
+slash fields and the expected result. Use **Refresh results**, then **Finish
+and clean up** whenever done. The full sections below are a reference, not a
+request to test everything in one sitting.
 
 ## Games
 
@@ -23,17 +24,16 @@ reference, not a request to test everything in one sitting.
   draft interaction—and the join reaction should still be added.
 - Interactive open-game card: join, leave, refresh, start, and delete controls
 - Interactive game card actions appropriate to the game state
-- `/game win`: create your own lane and use its **Ready** game for an ordinary
-  claim, then confirm it
-  through the opponent flow. Check the pending/confirmed wording, game card,
+- `/game win`: start a guided session, choose **Win claim**, and use the exact
+  fields shown for its Ready game. Check the pending wording, game card,
   channel notices, announcements, and any ELO/Nova/experience/champion effects;
   a publication warning after a committed result must say not to retry.
-- `/game result confirm`: use your lane's **Unconfirmed** game as staff and
-  verify the
+- `/game result confirm`: choose **Confirm result** and use the exact
+  Unconfirmed game as the temporary staff persona. Verify the
   same committed result/card/effects appear without duplicated audit or role
   work. Compare retained `$confirm` behavior where applicable.
-- `/game result undo`: use your lane's **Completed** game, verify its result
-  and ELO
+- `/game result undo`: choose **Undo result**, use the exact Completed game,
+  and verify its result and ELO
   reset once, and check the public reset notice plus experience/champion role
   reconciliation. Compare retained `$unwin`; an after-commit warning must not
   invite a duplicate undo.
@@ -93,7 +93,8 @@ reference, not a request to test everything in one sitting.
 
 - `/team create`
 - `/team emoji`, `/team image`, `/team name`, `/team server`, `/team tier`, and `/team house`: read, edit, clear where offered, requester-team inference, and public actor attribution
-- Team permission checks using `@testers` (staff) and `@Mod` roles
+- Team permission checks using the temporary `Beta Lab Staff` persona and
+  existing Mod roles; the pinned `testers` role supplies lab access, not staff
 - `/team show`: explicit and inferred-team lookup, dense roster/ELO card, graph and image display, recent/all-completed activity toggle, missing-role warning, and desktop/mobile layout
 
 ## Houses

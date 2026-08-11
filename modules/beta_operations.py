@@ -1399,6 +1399,33 @@ class BetaReleaseControl:
             return dict(self.service.status())
         if operation == 'readiness-inventory':
             return dict(await self.service.readiness_inventory())
+        if operation in {'beta-lab-persona-status', 'beta-lab-persona-setup'}:
+            from modules import beta_lab_personas
+            self.service._assert_authenticated_identity()
+            guild = self.service._guild()
+            try:
+                if operation == 'beta-lab-persona-setup':
+                    if request.get('confirm') != 'PREPARE-BETA-LAB-PERSONAS':
+                        raise BetaOperationsError(
+                            'Persona setup requires the exact confirmation token.'
+                        )
+                    binding = await beta_lab_personas.setup_roles(self.profile, guild)
+                    status = beta_lab_personas.PersonaStatus(
+                        True,
+                        'The dedicated zero-permission Team and staff-persona roles are ready.',
+                        binding.team_role_id,
+                        binding.staff_role_id,
+                    )
+                else:
+                    status = beta_lab_personas.role_status(self.profile, guild)
+            except beta_lab_personas.BetaLabPersonaError as exc:
+                raise BetaOperationsError(str(exc)) from exc
+            return {
+                'ready': status.ready,
+                'detail': status.detail,
+                'team_role_id': status.team_role_id,
+                'staff_role_id': status.staff_role_id,
+            }
         if operation in {'beta-lab-status', 'beta-lab-plan'}:
             from modules import beta_lab_workers
             self.service._assert_authenticated_identity()

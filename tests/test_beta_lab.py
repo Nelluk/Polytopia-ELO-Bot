@@ -58,6 +58,7 @@ class BetaLabWorkerTests(unittest.TestCase):
                 mock.patch.object(lab, '_structure_status', return_value=pack(lab.STRUCTURE)), \
                 mock.patch.object(lab, '_leaderboard_status', return_value=pack(lab.LEADERBOARD)), \
                 mock.patch.object(lab, '_session_status', return_value=pack(lab.SESSION_LANES)), \
+                mock.patch.object(lab, '_persona_status', return_value=pack(lab.GUIDED_PERSONAS)), \
                 mock.patch.object(
                     lab,
                     '_result_status',
@@ -70,6 +71,23 @@ class BetaLabWorkerTests(unittest.TestCase):
         plan = status.plan_dict()
         self.assertEqual(plan['live_apply_supported'], [lab.RESULTS])
         self.assertFalse(plan['discord_resource_mutation_supported'])
+
+    def test_live_role_readiness_is_part_of_guided_pack_health(self):
+        status = lab.BetaLabStatus(
+            300,
+            'ready',
+            (pack(lab.GUIDED_PERSONAS), pack(lab.RESULTS)),
+            None,
+        )
+        blocked = lab.with_persona_role_status(
+            status,
+            ready=False,
+            detail='The owned roles are absent.',
+        )
+        self.assertEqual(blocked.overall, 'blocked')
+        self.assertEqual(blocked.packs[0].state, 'blocked')
+        self.assertIn('roles are absent', blocked.packs[0].detail)
+        self.assertEqual(status.overall, 'ready')
 
     def test_cli_refuses_wrong_confirmation_before_socket(self):
         with mock.patch.object(manage_beta_lab, '_profile', return_value=object()), \
@@ -358,6 +376,26 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(view.expired)
         self.assertTrue(all(item.disabled for item in view.walk_children() if hasattr(item, 'disabled')))
 
+    async def test_panel_expiry_revokes_temporary_persona_without_releasing_lane(self):
+        member = SimpleNamespace(id=10)
+        guild = SimpleNamespace(get_member=lambda member_id: member if member_id == 10 else None)
+        bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 300 else None)
+        session = SimpleNamespace()
+        view = self.view(bot=bot, session=session)
+        with mock.patch.object(
+            dashboard.beta_lab_personas,
+            'set_member_active',
+            new=mock.AsyncMock(),
+        ) as set_active:
+            await view.on_timeout()
+        set_active.assert_awaited_once_with(
+            dashboard.settings.runtime_profile,
+            guild,
+            member,
+            active=False,
+        )
+        self.assertIs(view.session, session)
+
     async def test_quick_test_cycles_without_database_work(self):
         view = self.view()
         interaction = SimpleNamespace(
@@ -391,8 +429,10 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         )
         interaction = SimpleNamespace(
             user=SimpleNamespace(
+                id=10,
                 roles=(SimpleNamespace(id=500),),
             ),
+            guild=object(),
             response=SimpleNamespace(defer=mock.AsyncMock()),
             edit_original_response=mock.AsyncMock(),
         )
@@ -401,11 +441,28 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             dashboard.beta_lab_sessions,
             'run_claim_session',
             new=mock.AsyncMock(return_value=session),
+        ), mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_active_owner_ids',
+            new=mock.AsyncMock(return_value=(10,)),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'reconcile_members',
+            new=mock.AsyncMock(),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'set_member_active',
+            new=mock.AsyncMock(),
         ):
             await view._lane(interaction)
         self.assertIs(view.session, session)
         self.assertIn('Fixture Friend', view._body())
-        self.assertIn('game `41`', view._body())
+        self.assertIn('Choose one task', view._body())
+        interaction.response.edit_message = mock.AsyncMock()
+        await view._win_task(interaction)
+        self.assertIn('`game_id: 41`', view._body())
+        self.assertIn('`winner: Nelluk`', view._body())
+        self.assertIn('remain unconfirmed', view._body())
 
         result = dashboard.beta_lab_sessions.BetaLabSessionReleaseResult(
             session_id=session.session_id,
@@ -417,10 +474,126 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             dashboard.beta_lab_sessions,
             'run_release_session',
             new=mock.AsyncMock(return_value=result),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'set_member_active',
+            new=mock.AsyncMock(),
         ):
             await view._finished(interaction)
         self.assertIsNone(view.session)
         self.assertIn('cleaned up', view.notice)
+
+    async def test_cancelled_lane_callback_drains_persona_assignment(self):
+        session = dashboard.beta_lab_sessions.BetaLabSessionSnapshot(
+            session_id='abcdef123456',
+            guild_id=300,
+            requester_id=10,
+            requester_name='Nelluk',
+            opponent_id=20,
+            opponent_name='Fixture Friend',
+            expires_epoch=1_786_445_600,
+            state='ready',
+            scenarios=(),
+            fingerprint='fingerprint',
+        )
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def assign(*_args, **_kwargs):
+            started.set()
+            await release.wait()
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=10, roles=(SimpleNamespace(id=500),)),
+            guild=object(),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        view = self.view()
+        with mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_claim_session',
+            new=mock.AsyncMock(return_value=session),
+        ), mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_active_owner_ids',
+            new=mock.AsyncMock(return_value=(10,)),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'reconcile_members',
+            new=mock.AsyncMock(),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'set_member_active',
+            side_effect=assign,
+        ):
+            task = asyncio.create_task(view._lane(interaction))
+            await started.wait()
+            task.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(task.done())
+            release.set()
+            await task
+        self.assertIs(view.session, session)
+        self.assertIn('guided session is ready', view.notice)
+
+    async def test_post_claim_activation_failure_removes_persona_and_lane(self):
+        session = dashboard.beta_lab_sessions.BetaLabSessionSnapshot(
+            session_id='abcdef123456',
+            guild_id=300,
+            requester_id=10,
+            requester_name='Nelluk',
+            opponent_id=20,
+            opponent_name='Fixture Friend',
+            expires_epoch=1_786_445_600,
+            state='ready',
+            scenarios=(),
+            fingerprint='fingerprint',
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=10, roles=(SimpleNamespace(id=500),)),
+            guild=object(),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        view = self.view()
+        released = dashboard.beta_lab_sessions.BetaLabSessionReleaseResult(
+            session_id=session.session_id,
+            released=True,
+            removed_game_ids=(41, 42, 43),
+            outcome='released',
+        )
+        with mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_claim_session',
+            new=mock.AsyncMock(return_value=session),
+        ), mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_active_owner_ids',
+            new=mock.AsyncMock(side_effect=(
+                dashboard.beta_lab_sessions.BetaLabSessionValidationError(
+                    'active session reload failed'
+                )
+            )),
+        ), mock.patch.object(
+            dashboard.beta_lab_personas,
+            'set_member_active',
+            new=mock.AsyncMock(),
+        ) as set_active, mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_release_session',
+            new=mock.AsyncMock(return_value=released),
+        ) as release_session:
+            await view._lane(interaction)
+        self.assertIsNone(view.session)
+        self.assertIn('No game session was retained', view.notice)
+        set_active.assert_awaited_once_with(
+            dashboard.settings.runtime_profile,
+            interaction.guild,
+            interaction.user,
+            active=False,
+        )
+        release_session.assert_awaited_once()
 
     async def test_report_button_prefills_lane_context(self):
         session = SimpleNamespace(session_id='abcdef123456', game_ids=(41, 42, 43))
