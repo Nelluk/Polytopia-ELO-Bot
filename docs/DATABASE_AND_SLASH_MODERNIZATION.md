@@ -640,9 +640,10 @@ Nelluk subsequently exercised all four P10.6a owner commands and reported that
 they appeared to work correctly. That closes the bounded manual acceptance
 check with no defect reported.
 
-P10.6b1 inactive owner guild-configuration drafts are implemented and offline
-reviewed on `codex/p10-6b1-guild-config-drafts` from exact clean pushed
-accumulation base `930aa5cb13decc67ac76882057a03b22e07ad551`. The unit adds
+P10.6b1 inactive owner guild-configuration drafts are implemented, offline
+reviewed, and integrated on `codex/p10-6b1-guild-config-drafts` from exact
+clean pushed accumulation base
+`930aa5cb13decc67ac76882057a03b22e07ad551`. The unit adds
 one separately versioned 24-hour draft row per already enrolled guild and one
 private `/operator guild draft` Components v2 workspace. Reset copies the
 exact active revision/generation; typed edits replace a complete canonical
@@ -654,7 +655,9 @@ commands. The additive one-table development migration plan is connection-free
 and digest-bound; live apply and the transactional PostgreSQL lifecycle gate
 remain separately approval-gated, so the beta and command tree are unchanged.
 Activation/reconciliation and rollback-to-revision remain separate later
-units. Implementation checkpoint is `ec3922b`.**
+units. Implementation checkpoint is `ec3922b`, evidence checkpoint is
+`2f29667`, and the accumulation branch is at that exact fast-forward pending
+the close-out push.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14978,12 +14981,13 @@ keep onboarding, delegation, and production authority separate.
 
 ### P10.6b1 — Inactive owner draft and preview boundary
 
-Status: **Implemented and offline reviewed; development schema apply,
-real-schema gate, integration, and deployment pending.**
+Status: **Implemented, offline reviewed, and integrated; development schema
+apply, real-schema gate, and deployment pending.**
 
 Branch/base: `codex/p10-6b1-guild-config-drafts`, exact clean pushed
 accumulation checkpoint `930aa5cb13decc67ac76882057a03b22e07ad551`.
 Implementation checkpoint: `ec3922b`.
+Evidence/fast-forward integration checkpoint: `2f29667`.
 
 Risk tier: **Tier 3 configuration mutation boundary.** Drafts are deliberately
 non-authoritative, but the unit establishes the write/concurrency contract
@@ -15028,9 +15032,9 @@ actionable finding is known. The exact connection-free schema plan digest is
 The operational contract is
 `docs/DEVELOPMENT_GUILD_CONFIGURATION_DRAFTS.md`.
 
-Next action: commit and integrate the inactive draft unit, then request
-separate approval for a stopped-beta
-development-only one-table apply and rolled-back lifecycle gate. Do not
+Next action: push the accumulation close-out, then request separate approval
+for a stopped-beta development-only one-table apply and rolled-back lifecycle
+gate. Do not
 register or deploy `/operator guild draft` until that gate passes. P10.6b2 may
 then separately design exact activation and post-commit runtime reconciliation;
 rollback remains separately bounded.
@@ -16372,8 +16376,14 @@ deferred into this post-modernization backlog.
   `4c97d1502519480f0a2f31ac0fb4f4c297770ee5bfd9ed0cacd7a74f3c323dc6`.
   No live schema apply, PostgreSQL integration case, command plan/apply, beta
   lifecycle action, tester checklist edit, or announcement has occurred.
-  Next: complete offline discovery/review and integrate the code, then request
-  the separately required stopped-beta development schema/lifecycle gate.
+  Next: request the separately required stopped-beta development schema and
+  lifecycle gate after the accumulation close-out push.
+- Evidence checkpoint `2f29667` was accepted by exact fast-forward into the
+  clean accumulation branch. The durable beta remains healthy on the prior
+  P10.6a process image as PID `173430`, active/running with zero restarts and
+  exactly the expected host-wide development writer. It was not restarted:
+  exposing the new draft command before the separately gated table apply would
+  be incoherent. No command plan/apply or announcement occurred.
 
 ### 2026-08-11 — P10.6a owner configuration reads implemented
 
