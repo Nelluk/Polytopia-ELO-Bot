@@ -14815,6 +14815,24 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
 
+### 2026-08-11 — Final pre-M7 adversarial-review package prepared
+
+- Reverified clean local accumulation, its tracking ref, and GitHub at exact
+  checkpoint `10ebefce8cba44a9d71a0d3c3d2277ce5488a6b7` before preparing the
+  review package.
+- Added `docs/MODERNIZATION_FINAL_ADVERSARIAL_REVIEW_PROMPT.md` for a read-only
+  GitHub-connector review. It requires the reviewer to resolve and bind evidence
+  to the exact live branch HEAD, compare `master`, independently re-audit
+  B1–B3/H1–H8/M1–M6/L1, search for new cross-unit defects, and distinguish
+  source failures from unperformed production gates, known environment
+  limitations, and optional backlog work.
+- The fresh adversarial review should precede M7/R-002's expensive exact-HEAD
+  offline, stopped-writer development PostgreSQL, beta, and cutover-evidence
+  gates. Any valid correction changes the candidate HEAD and must be resolved
+  before the final evidence freeze.
+- This preparation changes documentation only. It performs no database,
+  Discord, beta, production, dependency, service, fixture, or sudo action.
+
 ### 2026-08-11 — P9.20/M6 environment-explicit staff help reviewed
 
 - Reconciled exact clean local, tracking, and GitHub accumulation checkpoint
