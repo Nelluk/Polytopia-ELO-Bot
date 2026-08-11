@@ -490,24 +490,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.12/H1-H2 explicit runtime selection and native start
-ban parity is Complete and loaded by the guarded beta. Accumulation merge
-checkpoint `102d64a` starts from exact clean base `6812899`;
-implementation/tests checkpoint `5038282` makes runtime selection
-fail before effects unless `POLYBOT_ENV` is exactly `production` or
-`development`, adds model-free configured-ID/role denials to `/game start` and
-the pending-card Start action, and revalidates persisted account/guild-player
-bans in both worker phases. Gate-fixture correction `7660b3e` is green.
-Focused validation passes 81 tests and the affected matrix passes 193.
-Complete discovery runs 1,575 tests with 70 skips and reaches only the three
-known missing-`duckdb` environment failures. The corrected H2 real-schema
-verifier passes, followed by the complete stopped-writer gate at 69 tests: 68
-passed and one operator-owned fixture round trip intentionally skipped.
-The unchanged offline development-guild plan still has the established eleven
-roots, so no remote apply is warranted. Clean close-out `7dbda64` is pushed
-and runs as exact beta startup checkpoint under PID `3863626`, with the
-expected ready application and exactly one development writer. No tester
-announcement was warranted.**
+Current active unit: **P9.14/H3 global command-tree apply guard is implemented
+on isolated branch `codex/p9-14-h3-global-command-guard` from exact clean,
+pushed accumulation base `c21113b`. Implementation/tests checkpoint `8d5a65f`
+makes remote inspect/apply fetch and display Discord's global tree read-only,
+and makes apply refuse before any guild sync when that tree is nonempty. The
+tool still has no global mutation path. Focused and affected validation pass;
+complete discovery reaches only the three known missing-`duckdb` environment
+failures. A stopped-beta live read-only inspection found zero global roots and
+all eleven development-guild roots unchanged. Integration remains pending.
+The guarded beta is restored at prior running-code checkpoint `c21113b`, and
+H3 changes no bot runtime or command shape.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -11709,8 +11702,9 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; source units through P9.13 are complete; H3 global-tree
-safety, production activation, and rollout remain separately gated**
+Status: **In progress; source units through P9.13 are complete; P9.14/H3 is
+reviewed and pending integration; production activation and rollout remain
+separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -13336,6 +13330,56 @@ or owner to invoke the command; offline coverage proves both modes, exact force
 confirmation, exit 75, cancellation, and denial boundaries without fabricating
 a user interaction.
 
+### P9.14 — H3 global command-tree apply guard
+
+Status: **Tier-2 reviewed and development-inspected; integration pending**
+
+Branch/base: `codex/p9-14-h3-global-command-guard`, exact clean accumulation
+base `c21113b8d5a91b7173d7e14c46d85492e2a94a27`.
+Implementation/tests checkpoint: `8d5a65f`.
+
+Both remote command-management modes now fetch Discord's global application
+commands read-only before fetching the explicitly selected guilds. Their JSON
+output reports the global roots, count, and whether a guild apply is safe,
+alongside the normal guild plans. Inspect remains non-mutating even when stale
+globals exist. Apply validates the captured global snapshot before calling the
+guild apply helper and names every observed root when it refuses.
+
+An empty global snapshot preserves the existing explicit-guild behavior. The
+only `CommandTree.sync()` call still requires a `guild` argument; the CLI has
+no global scope, delete, clear, sync, or fallback operation. Cleaning a stale
+global tree therefore remains a separately reviewed and authorized operation
+rather than an accidental side effect of a guild canary deployment.
+
+Focused coverage proves global-first fetch ordering, nonempty-global inspect,
+pre-sync apply refusal, client cleanup, and empty-global apply, while retaining
+the existing test that guild preparation does not mutate another local scope.
+The unit changes no bot callback, application-command shape, database path,
+schema, fixture, background task, or production configuration.
+
+Validation/evidence:
+
+- focused management coverage passes **10/10** and the affected management,
+  policy, and taxonomy matrix passes **36/36**;
+- complete offline discovery runs **1,597 tests: 1,524 pass, 70 intentionally
+  skip, and only the three documented missing-`duckdb` environment cases
+  fail** (runtime import, installed-inventory assertion, and reporting-export
+  import);
+- compilation and `git diff --check` pass. Tier-2 complete-diff review found
+  and corrected one stale docstring that had not distinguished read-only
+  global inspection from forbidden global mutation; no behavioral blocker
+  remains; and
+- with only the development beta stopped and the host-wide writer audit clear,
+  a live inspect reported **zero global roots** and all **eleven** selected
+  development-guild roots unchanged. No apply or other Discord mutation ran.
+
+No PostgreSQL gate is warranted because H3 has no database path and the P9.12
+complete stopped-writer gate remains current. The guarded beta was restored at
+exact clean running checkpoint `c21113b8d5a91b7173d7e14c46d85492e2a94a27`
+as PID `3924884`, authenticated as application `479029527553638401`, has zero
+service restarts, and is the sole development writer. H3 requires no command
+apply, checklist change, tester announcement, or runtime deployment.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14317,7 +14361,68 @@ and returns deliberate exit status 75 so the existing reviewed service policy
 performs the restart. Force bypasses only the known active-work refusal; it does
 not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
 
+## Post-modernization backlog
+
+These are non-blocking design interests, not authorization or prerequisites
+for the current rollout.
+
+### Dynamic guild configuration and onboarding control plane
+
+Replace the current hand-edited `server_settings.py` guild dictionaries with a
+validated, auditable configuration service and an operator-facing setup/edit
+workflow. The eventual interface could be native Discord setup commands, a web
+admin surface, or both; that UX choice remains open.
+
+Recommendation: defer implementation until the modernization and production
+canary gates close. First inventory every current setting and separate mutable
+guild policy (roles, channels, feature/capability assignments, display rules)
+from process bootstrap and security material (tokens, database identity,
+expected application identity, and the authority allowed to enroll a guild).
+Do not place secrets or arbitrary executable Python in the dynamic store.
+
+The first bounded design unit should specify an approval-based new-guild
+enrollment state, typed validation and defaults, revision/audit history,
+atomic updates, cache invalidation, rollback, and recovery when Discord IDs are
+deleted or inaccessible. Storage authority and those failure semantics should
+be settled before choosing Discord versus web as the editing frontend. This is
+especially important because the bot currently leaves guilds absent from the
+static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
+
 ## Progress log
+
+### 2026-08-10 — P9.14/H3 global command-tree guard reviewed
+
+- Reconciled the clean local, tracking, and exact GitHub accumulation ref at
+  `c21113b`; no H3 branch or worktree existed. The guarded beta was healthy at
+  that same running-code checkpoint.
+- Created isolated branch/worktree
+  `codex/p9-14-h3-global-command-guard` from the exact base and passed the
+  development profile setup gate.
+- Added one read-only remote snapshot covering the global tree and explicitly
+  selected guilds. Inspect reports nonempty globals without mutation; apply
+  reports and refuses before its first guild sync. No global clear, delete,
+  sync, fallback, or command-line scope was added.
+- Focused management coverage passed 10 tests and the affected matrix passed
+  36. Complete discovery ran 1,597 tests with 70 skips and only the three known
+  missing-`duckdb` environment failures. Compilation and diff checks passed;
+  no dependency was installed or synchronized.
+- Tier-2 complete-diff review corrected one stale module description and found
+  no remaining safety or behavior blocker. Implementation/tests are
+  checkpointed at `8d5a65f`. No database gate is warranted.
+- Stopped only the guarded beta and proved the host-wide writer audit clear.
+  Live remote inspection found zero global roots and all eleven development
+  guild roots unchanged; no apply or other Discord mutation occurred.
+- Restored the guarded beta at exact clean checkpoint `c21113b` as PID
+  `3924884`; it authenticated as expected application `479029527553638401`,
+  has no restart churn, and is the sole development writer. No checklist edit
+  or announcement is warranted because H3 changes only operator tooling and
+  the remote tree was already converged.
+- Recorded a non-blocking post-modernization design backlog for dynamic,
+  auditable guild settings and onboarding. Recommended sequencing is to finish
+  modernization first, then inventory and separate mutable guild policy from
+  bootstrap/security authority before choosing a Discord or web frontend.
+- Next action: commit the roadmap/runbook evidence, merge the reviewed unit
+  into accumulation, add the clean close-out checkpoint, and push.
 
 ### 2026-08-10 — P9.13 supervised native restart implemented and reviewed
 

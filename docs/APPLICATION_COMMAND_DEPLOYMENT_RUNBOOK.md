@@ -73,12 +73,16 @@ owner/superuser checks remain the authoritative authorization boundary.
    --confirm-no-global-sync
    ```
 
-   `--mode inspect` fetches current guild commands without mutation. `--mode
-   apply` creates/replaces desired roots and prunes obsolete roots by replacing
-   only the selected guild's local definitions on the client's existing
-   `CommandTree`, then syncing with an explicit guild. Global definitions and
-   every other guild scope remain untouched. Repeating an unchanged plan
-   performs no remote sync. There is no global mode or global fallback.
+   Both remote modes first fetch and display the remote global command tree as
+   a read-only `global` snapshot alongside the selected `guilds` plans.
+   `--mode inspect` never mutates either scope. `--mode apply` refuses before
+   any guild synchronization when the global snapshot is nonempty; the error
+   names the observed global roots. An empty global snapshot permits the tool
+   to create/replace desired roots and prune obsolete roots by replacing only
+   the selected guild's local definitions on the client's existing
+   `CommandTree`, then syncing with an explicit guild. Every other guild scope
+   remains untouched. Repeating an unchanged plan performs no remote sync.
+   There is no global apply, removal, synchronization, or fallback path.
 4. After the explicit guild operation is complete and separately approved,
    launch exactly one development beta from the reviewed checkpoint. Startup
    performs no command synchronization. Verify the authenticated application,
@@ -92,6 +96,8 @@ owner/superuser checks remain the authoritative authorization boundary.
 - Never use this runbook to connect a beta process to `polytopia2`.
 - Never call `CommandTree.sync()` without an explicit guild. This tool does
   not expose a global deployment flag.
+- A nonempty global snapshot is evidence for a separately reviewed cleanup,
+  not authority to remove it. Do not weaken or bypass the guild-apply guard.
 - Planning and application-command synchronization do not require a database;
   do not add a database fixture or weaken a database gate for them.
 - A failed validation must be fixed in policy/configuration before any remote
