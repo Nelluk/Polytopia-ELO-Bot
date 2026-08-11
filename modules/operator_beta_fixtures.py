@@ -7,6 +7,12 @@ import discord
 from modules import operator_beta_fixtures_workers as workers
 
 
+def _safe_name(value: str) -> str:
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(str(value))
+    )
+
+
 def actor_description(member) -> str:
     name = str(
         getattr(member, 'display_name', None)
@@ -52,7 +58,16 @@ def readiness_markdown(snapshot: workers.BetaFixtureSnapshot) -> str:
         f'**Result scenarios:** {snapshot.readiness.title()}',
         snapshot.detail,
     ]
-    if snapshot.user_ids:
+    if snapshot.participants:
+        lines.append(
+            '**Participants:** '
+            + ', '.join(
+                f'**{_safe_name(item.display_name)}** '
+                f'(`{item.user_id}`)'
+                for item in snapshot.participants
+            )
+        )
+    elif snapshot.user_ids:
         lines.append(
             '**Participants:** '
             + ', '.join(f'`{value}`' for value in snapshot.user_ids)
@@ -71,12 +86,24 @@ def readiness_markdown(snapshot: workers.BetaFixtureSnapshot) -> str:
     return '\n'.join(lines)
 
 
-def completion_markdown(result: workers.BetaFixtureResult) -> str:
+def completion_markdown(
+    result: workers.BetaFixtureResult,
+    *,
+    participants: tuple[workers.BetaFixtureParticipant, ...] = (),
+) -> str:
     verb = 'prepared' if result.operation == workers.PREPARE else 'reset'
     lines = [
         f'Beta result fixtures were **{verb}** successfully.',
         'Participants: '
-        + ', '.join(f'`{value}`' for value in result.user_ids),
+        + (
+            ', '.join(
+                f'**{_safe_name(item.display_name)}** '
+                f'(`{item.user_id}`)'
+                for item in participants
+            )
+            if participants else
+            ', '.join(f'`{value}`' for value in result.user_ids)
+        ),
     ]
     lines.extend(
         f'- **{item.scenario.title()}** — game `{item.game_id}`'

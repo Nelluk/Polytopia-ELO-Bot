@@ -14,6 +14,12 @@ from modules import operator_beta_fixtures_workers as workers
 logger = logging.getLogger('polybot.' + __name__)
 
 
+def _safe_name(value: str) -> str:
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(str(value))
+    )
+
+
 class BetaFixturePreviewView(discord.ui.LayoutView):
     def __init__(
         self,
@@ -83,6 +89,11 @@ class BetaFixturePreviewView(discord.ui.LayoutView):
                 'reverses their ELO effects, and creates a fresh fixed bundle.'
             )
         )
+        participant_text = ', '.join(
+            f'**{_safe_name(item.display_name)}** '
+            f'(`{item.user_id}`)'
+            for item in self.preview.participants
+        ) or ', '.join(f'`{value}`' for value in self.preview.user_ids)
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(
                 f'# {title}\n'
@@ -91,7 +102,7 @@ class BetaFixturePreviewView(discord.ui.LayoutView):
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Participants after commit:** '
-                + ', '.join(f'`{value}`' for value in self.preview.user_ids)
+                + participant_text
                 + f'\n{warning}\n-# {self.status}'
             ),
             discord.ui.ActionRow(confirm, cancel),
@@ -142,12 +153,18 @@ class BetaFixturePreviewView(discord.ui.LayoutView):
             return await interaction.followup.send(self.status, ephemeral=True)
         self.busy = False
         self.finished = True
-        self.status = service.completion_markdown(result)
+        self.status = service.completion_markdown(
+            result,
+            participants=self.preview.participants,
+        )
         self.rebuild()
         self.stop()
         await self._edit()
         await interaction.followup.send(
-            service.completion_markdown(result),
+            service.completion_markdown(
+                result,
+                participants=self.preview.participants,
+            ),
             ephemeral=True,
         )
 

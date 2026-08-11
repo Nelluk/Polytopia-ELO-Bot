@@ -1,6 +1,11 @@
 # 🧪 WHAT TO TEST
 
-This is the running wider-beta checklist—not just the newest release. Please use the native slash commands and interactive controls below on desktop or mobile. Report confusing behavior, missing information, permission problems, stale cards, and unexpected private/public responses with `/staffhelp`.
+This is the full running wider-beta checklist—not just the newest release.
+`/whattotest` presents these sections through a compact private Beta Lab
+dashboard instead of posting the whole file into a channel. Use the native
+slash commands and interactive controls below on desktop or mobile. Report
+confusing behavior, missing information, permission problems, stale cards,
+and unexpected private/public responses with `/staffhelp`.
 
 ## Games
 

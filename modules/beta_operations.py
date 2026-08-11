@@ -1399,6 +1399,33 @@ class BetaReleaseControl:
             return dict(self.service.status())
         if operation == 'readiness-inventory':
             return dict(await self.service.readiness_inventory())
+        if operation in {'beta-lab-status', 'beta-lab-plan'}:
+            from modules import beta_lab_workers
+            self.service._assert_authenticated_identity()
+            self.service._guild()
+            status = await beta_lab_workers.run_status(BETA_GUILD_ID)
+            return (
+                status.plan_dict()
+                if operation == 'beta-lab-plan'
+                else status.as_dict()
+            )
+        if operation == 'beta-lab-refresh':
+            from modules import beta_lab_workers
+            self.service._assert_authenticated_identity()
+            self.service._guild()
+            if request.get('pack') != beta_lab_workers.RESULTS:
+                raise BetaOperationsError(
+                    'The foundation can refresh only the game-results pack.'
+                )
+            if request.get('confirm') != beta_lab_workers.REFRESH_CONFIRMATION:
+                raise BetaOperationsError(
+                    'Beta Lab refresh requires the exact confirmation token.'
+                )
+            result = await beta_lab_workers.refresh_results(
+                guild_id=BETA_GUILD_ID,
+                actor='Local Beta Lab operator',
+            )
+            return result.as_dict()
         raise BetaOperationsError('Unknown beta control operation.')
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:

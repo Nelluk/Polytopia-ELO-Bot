@@ -74,6 +74,24 @@ def canonical_state():
 
 
 class BetaFixtureWorkerTests(unittest.TestCase):
+    def test_readiness_and_completion_render_names_before_diagnostic_ids(self):
+        participant = workers.BetaFixtureParticipant(10, 'Nelluk')
+        snapshot = workers._snapshot(canonical_state())
+        snapshot = workers.replace(snapshot, participants=(participant,))
+        self.assertIn('**Nelluk** (`10`)', service.readiness_markdown(snapshot))
+        result = workers.BetaFixtureResult(
+            operation=workers.RESET,
+            guild_id=300,
+            user_ids=(10,),
+            scenarios=(),
+            old_game_ids=(1, 2, 3),
+            new_game_ids=(4, 5, 6),
+        )
+        self.assertIn(
+            '**Nelluk** (`10`)',
+            service.completion_markdown(result, participants=(participant,)),
+        )
+
     def test_requests_and_results_are_immutable_primitive_snapshots(self):
         request = workers.BetaFixtureCommitRequest(
             operation=workers.RESET,
@@ -131,6 +149,7 @@ class BetaFixtureWorkerTests(unittest.TestCase):
         with mock.patch.object(workers.settings, 'owner_id', 10), \
                 mock.patch.object(workers, '_validate_runtime', return_value=300), \
                 mock.patch.object(workers, '_load_state', return_value=state()), \
+                mock.patch.object(workers, '_load_participants', return_value=()), \
                 mock.patch.object(workers, '_validate_registered_users') as registered:
             preview = workers.load_preview(request)
         self.assertEqual(preview.user_ids, (10, 20))
@@ -140,7 +159,8 @@ class BetaFixtureWorkerTests(unittest.TestCase):
                 mock.patch.object(workers, '_validate_runtime', return_value=300), \
                 mock.patch.object(
                     workers, '_load_state', return_value=canonical_state()
-                ), mock.patch.object(workers, '_validate_registered_users'):
+                ), mock.patch.object(workers, '_load_participants', return_value=()), \
+                mock.patch.object(workers, '_validate_registered_users'):
             with self.assertRaises(workers.BetaFixtureValidationError):
                 workers.load_preview(request)
 
@@ -162,7 +182,8 @@ class BetaFixtureWorkerTests(unittest.TestCase):
                 mock.patch.object(workers, '_validate_runtime', return_value=300), \
                 mock.patch.object(
                     workers, '_load_state', return_value=canonical_state()
-                ), mock.patch.object(workers, '_validate_registered_users'):
+                ), mock.patch.object(workers, '_load_participants', return_value=()), \
+                mock.patch.object(workers, '_validate_registered_users'):
             preview = workers.load_preview(request)
         self.assertEqual(preview.user_ids, (10, 20))
         self.assertEqual(preview.snapshot.game_ids, (1, 2, 3))
@@ -170,7 +191,8 @@ class BetaFixtureWorkerTests(unittest.TestCase):
         ambiguous = state(game('ready', 1, participants=(10,)))
         with mock.patch.object(workers.settings, 'owner_id', 10), \
                 mock.patch.object(workers, '_validate_runtime', return_value=300), \
-                mock.patch.object(workers, '_load_state', return_value=ambiguous):
+                mock.patch.object(workers, '_load_state', return_value=ambiguous), \
+                mock.patch.object(workers, '_load_participants', return_value=()):
             with self.assertRaises(workers.BetaFixtureValidationError):
                 workers.load_preview(request)
 
@@ -394,27 +416,37 @@ class BetaFixtureAdapterTests(unittest.IsolatedAsyncioTestCase):
         interaction.response.send_message.assert_awaited_once()
         run_preview.assert_not_awaited()
 
-    async def test_whattotest_defers_and_publishes_dynamic_readiness(self):
+    async def test_whattotest_opens_private_compact_dashboard(self):
         command = next(
             item for item in misc.misc.__cog_app_commands__
             if item.name == 'whattotest'
         )
         interaction = self.interaction()
-        snapshot = workers._snapshot(canonical_state())
+        status = SimpleNamespace(overall='ready', packs=(), result_snapshot=None)
+        guide = misc.beta_testing_guide.parse_checklist(
+            '# 🧪 WHAT TO TEST\n\n## Games\n\n- Run /game show.'
+        )
         with mock.patch.object(
             misc.settings,
             'runtime_profile',
             SimpleNamespace(environment='development'),
         ), mock.patch.object(
-            misc.operator_beta_fixtures_workers,
-            'run_readiness',
-            new=mock.AsyncMock(return_value=snapshot),
+            misc.beta_testing_guide,
+            'load_guide',
+            return_value=guide,
+        ), mock.patch.object(
+            misc.beta_lab_workers,
+            'run_status',
+            new=mock.AsyncMock(return_value=status),
         ):
             await command.callback(SimpleNamespace(), interaction)
-        interaction.response.defer.assert_awaited_once_with()
-        text = interaction.followup.send.await_args_list[0].args[0]
-        self.assertIn('Fixture readiness', text)
-        self.assertIn('game `1`', text)
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.edit_original_response.assert_awaited_once()
+        self.assertIn(
+            'BetaTestingDashboard',
+            type(interaction.edit_original_response.await_args.kwargs['view']).__name__,
+        )
+        interaction.followup.send.assert_not_awaited()
 
 
 if __name__ == '__main__':

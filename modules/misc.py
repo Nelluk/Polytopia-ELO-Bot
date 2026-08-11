@@ -14,9 +14,9 @@ from modules import game_ping_workers
 from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
+from modules import beta_lab_workers
 from modules import beta_testing_guide
-from modules import operator_beta_fixtures as operator_beta_fixtures_service
-from modules import operator_beta_fixtures_workers
+from modules import beta_testing_dashboard
 from modules import staff_help
 # import modules.imgen as imgen
 # import modules.achievements as achievements
@@ -314,7 +314,7 @@ class misc(commands.Cog):
 
     @discord.app_commands.command(
         name='whattotest',
-        description='Show the current wider-beta testing checklist.',
+        description='Open your private compact Beta Lab testing dashboard.',
     )
     @discord.app_commands.guild_only()
     @discord.app_commands.checks.cooldown(
@@ -323,16 +323,16 @@ class misc(commands.Cog):
         key=lambda interaction: interaction.user.id,
     )
     async def whattotest_slash(self, interaction: discord.Interaction):
-        """Publish scenario readiness and the tracked beta checklist."""
+        """Open a compact private Beta Lab dashboard."""
 
         if settings.runtime_profile.environment != 'development':
             return await interaction.response.send_message(
                 'This temporary command is available only on the development bot.',
                 ephemeral=True,
             )
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         try:
-            checklist = beta_testing_guide.load_checklist()
+            guide = beta_testing_guide.load_guide()
         except OSError:
             logger.exception('Could not load the beta what-to-test checklist.')
             return await interaction.followup.send(
@@ -340,28 +340,24 @@ class misc(commands.Cog):
                 ephemeral=True,
             )
         try:
-            readiness = await operator_beta_fixtures_workers.run_readiness(
-                operator_beta_fixtures_workers.BetaFixtureReadRequest(
-                    guild_id=int(interaction.guild_id),
-                )
-            )
-            readiness_text = operator_beta_fixtures_service.readiness_markdown(
-                readiness
-            )
+            status = await beta_lab_workers.run_status(int(interaction.guild_id))
         except Exception:
-            logger.exception('Could not load beta fixture readiness.')
-            readiness_text = (
-                '## Fixture readiness\n'
-                '**Temporarily unavailable.** The tracked testing checklist '
-                'is still shown below; an operator should inspect fixture '
-                'state before using a scenario game.'
+            logger.exception('Could not load Beta Lab status.')
+            return await interaction.followup.send(
+                'The Beta Lab status is temporarily unavailable. No testing '
+                'state was changed.',
+                ephemeral=True,
             )
-        pages = beta_testing_guide.message_pages(
-            f'{readiness_text}\n\n{checklist}'
+        view = beta_testing_dashboard.BetaTestingDashboard(
+            requester_id=int(interaction.user.id),
+            status=status,
+            guide=guide,
         )
-        await interaction.followup.send(pages[0])
-        for page in pages[1:]:
-            await interaction.followup.send(page)
+        await interaction.edit_original_response(content=None, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
 
     @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='n_tribes [-banned_tribe ...]')
     @settings.in_bot_channel()

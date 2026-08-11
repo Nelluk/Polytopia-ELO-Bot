@@ -334,6 +334,21 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             for item in snapshot.scenarios
         ))
 
+    def test_beta_lab_combined_status_reads_real_owned_packs_without_writes(self):
+        from modules import beta_lab_workers, beta_readiness
+
+        guild_id = beta_readiness.BETA_GUILD_ID
+        before = self.models.Game.select().count()
+        status = asyncio.run(beta_lab_workers.run_status(guild_id))
+        after = self.models.Game.select().count()
+
+        self.assertEqual(status.guild_id, guild_id)
+        self.assertEqual(
+            tuple(pack.key for pack in status.packs),
+            beta_lab_workers.PACKS,
+        )
+        self.assertEqual(before, after)
+
     def test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures(self):
         """Exercise the real schema through the existing strict gate only."""
 

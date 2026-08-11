@@ -34,3 +34,18 @@ class BetaWhatToTestTests(unittest.TestCase):
             )
 
         self.assertIn('No testing items', pages[0])
+
+    def test_guide_parses_sections_and_small_item_pages(self):
+        guide = beta_testing_guide.load_guide()
+
+        self.assertEqual(guide.title, 'WHAT TO TEST')
+        self.assertGreater(len(guide.sections), 5)
+        games = next(item for item in guide.sections if item.key == 'games')
+        self.assertIn('/game win', ' '.join(games.items))
+        pages = beta_testing_guide.item_pages(
+            games,
+            maximum_items=3,
+            maximum_characters=1500,
+        )
+        self.assertTrue(all(1 <= len(page) <= 3 for page in pages))
+        self.assertEqual(sum(len(page) for page in pages), len(games.items))

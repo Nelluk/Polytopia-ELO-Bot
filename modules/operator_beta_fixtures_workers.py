@@ -7,7 +7,7 @@ import functools
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 import settings
 from modules import dev_fixtures, elo_jobs, models
@@ -65,6 +65,12 @@ class BetaFixtureScenario:
 
 
 @dataclass(frozen=True)
+class BetaFixtureParticipant:
+    user_id: int
+    display_name: str
+
+
+@dataclass(frozen=True)
 class BetaFixtureSnapshot:
     guild_id: int
     user_ids: tuple[int, ...]
@@ -74,6 +80,7 @@ class BetaFixtureSnapshot:
     detail: str
     resettable: bool
     fingerprint: str
+    participants: tuple[BetaFixtureParticipant, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -82,6 +89,7 @@ class BetaFixturePreview:
     snapshot: BetaFixtureSnapshot
     user_ids: tuple[int, ...]
     can_commit: bool
+    participants: tuple[BetaFixtureParticipant, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -240,9 +248,50 @@ def _load_state(guild_id: int) -> dev_fixtures.FixtureState:
         raise BetaFixtureValidationError(str(exc)) from exc
 
 
+def _load_participants(
+    guild_id: int,
+    user_ids: tuple[int, ...],
+) -> tuple[BetaFixtureParticipant, ...]:
+    if not user_ids:
+        return ()
+    with models.db.connection_context():
+        try:
+            dev_fixtures.validate_live_identity(
+                *dev_fixtures._live_identity(models)
+            )
+        except dev_fixtures.FixtureSafetyError as exc:
+            raise BetaFixtureValidationError(str(exc)) from exc
+        rows = tuple(
+            models.Player
+            .select(models.Player, models.DiscordMember)
+            .join(models.DiscordMember)
+            .where(
+                (models.Player.guild_id == guild_id)
+                & (models.DiscordMember.discord_id.in_(user_ids))
+            )
+        )
+    names = {
+        int(row.discord_member.discord_id): str(
+            row.name or row.nick or row.discord_member.name
+        )
+        for row in rows
+    }
+    return tuple(
+        BetaFixtureParticipant(
+            user_id=user_id,
+            display_name=names.get(user_id, f'User {user_id}'),
+        )
+        for user_id in user_ids
+    )
+
+
 def load_readiness(request: BetaFixtureReadRequest) -> BetaFixtureSnapshot:
     guild_id = _validate_runtime(request.guild_id)
-    return _snapshot(_load_state(guild_id))
+    snapshot = _snapshot(_load_state(guild_id))
+    return replace(
+        snapshot,
+        participants=_load_participants(guild_id, snapshot.user_ids),
+    )
 
 
 def _validate_registered_users(guild_id: int, user_ids: tuple[int, ...]) -> None:
@@ -305,6 +354,11 @@ def load_preview(request: BetaFixturePreviewRequest) -> BetaFixturePreview:
         snapshot=snapshot,
         user_ids=user_ids,
         can_commit=True,
+        participants=(
+            snapshot.participants
+            if user_ids == snapshot.user_ids
+            else _load_participants(guild_id, user_ids)
+        ),
     )
 
 

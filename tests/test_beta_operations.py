@@ -14,7 +14,7 @@ from unittest import mock
 
 import discord
 
-from modules import beta_feedback, beta_operations
+from modules import beta_feedback, beta_lab_workers, beta_operations
 from scripts import (
     audit_development_beta_processes,
     manage_beta_release,
@@ -642,6 +642,59 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ReleaseControlAndSeparationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_control_dispatches_bounded_beta_lab_operations(self):
+        control = beta_operations.BetaReleaseControl.__new__(
+            beta_operations.BetaReleaseControl
+        )
+        control.service = SimpleNamespace(
+            _assert_authenticated_identity=mock.Mock(),
+            _guild=mock.Mock(),
+        )
+        status = beta_lab_workers.BetaLabStatus(
+            guild_id=beta_operations.BETA_GUILD_ID,
+            overall='ready',
+            packs=(),
+            result_snapshot=None,
+        )
+        with mock.patch.object(
+            beta_lab_workers,
+            'run_status',
+            new=mock.AsyncMock(return_value=status),
+        ):
+            result = await control._dispatch({'operation': 'beta-lab-plan'})
+        self.assertEqual(result['overall'], 'ready')
+        self.assertEqual(result['live_apply_supported'], ['game-results'])
+
+        refresh_result = beta_lab_workers.BetaLabRefreshResult(
+            pack='game-results',
+            committed=True,
+            old_game_ids=(1, 2, 3),
+            new_game_ids=(4, 5, 6),
+            status=status,
+        )
+        with mock.patch.object(
+            beta_lab_workers,
+            'refresh_results',
+            new=mock.AsyncMock(return_value=refresh_result),
+        ) as refresh:
+            result = await control._dispatch({
+                'operation': 'beta-lab-refresh',
+                'pack': 'game-results',
+                'confirm': beta_lab_workers.REFRESH_CONFIRMATION,
+            })
+        self.assertTrue(result['committed'])
+        refresh.assert_awaited_once_with(
+            guild_id=beta_operations.BETA_GUILD_ID,
+            actor='Local Beta Lab operator',
+        )
+
+        with self.assertRaises(beta_operations.BetaOperationsError):
+            await control._dispatch({
+                'operation': 'beta-lab-refresh',
+                'pack': 'game-results',
+                'confirm': 'wrong',
+            })
+
     async def test_unix_control_socket_is_local_and_status_is_read_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

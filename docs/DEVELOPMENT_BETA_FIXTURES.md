@@ -26,6 +26,11 @@ the only reviewed in-process write path: they use the bot's ELO coordinator,
 worker-local database connections, exact development identity gates, private
 previews, stale-state revalidation, one transaction, and immutable results.
 They do not authorize command-line fixture writes while the beta is running.
+The P9.23a Beta Lab foundation also permits the same exact result reset through
+the protected local control socket and its exact `REFRESH-game-results`
+confirmation. That path calls the same preview, ELO coordinator, transaction,
+and ownership implementation; it is not a second fixture writer. See
+`docs/DEVELOPMENT_BETA_LAB.md`.
 
 The selected user IDs must already have `DiscordMember` and `Player` records
 in the development guild. The harness does not create or modify users.

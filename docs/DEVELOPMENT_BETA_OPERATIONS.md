@@ -509,11 +509,12 @@ one-shot state rules to obtain shorter output.
 Read `/staffhelp` reports with the WB1.1 read-only utility. Treat the
 development feedback root as sensitive; retention/redaction and fixture
 cleanup remain separately approved filesystem/database actions. Do not run
-the out-of-process fixture CLI while the beta writer is running. The only
-running-beta exception is the owner-only, ELO-coordinated `/operator beta
-prepare` or `/operator beta reset` workflow documented in
-`docs/DEVELOPMENT_BETA_FIXTURES.md`; it retains the same exact identity and
-ownership gates.
+the out-of-process fixture CLI while the beta writer is running. The running-
+beta exceptions are the owner-only, ELO-coordinated `/operator beta prepare`
+and `/operator beta reset` workflows plus the P9.23a protected-socket
+`game-results` refresh. All three reach the same exact fixture preview,
+coordinator, transaction, and ownership gates documented in
+`docs/DEVELOPMENT_BETA_FIXTURES.md` and `docs/DEVELOPMENT_BETA_LAB.md`.
 
 If the service fails its preflight, inspect the journal and profile output;
 do not weaken a guard. If a release is blocked by a wrong identity, channel,
