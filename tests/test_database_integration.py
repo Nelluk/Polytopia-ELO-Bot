@@ -116,7 +116,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             finally:
                 transaction.rollback()
 
-    def test_model_import_initialized_expected_schema(self):
+    def test_existing_schema_is_complete_without_model_import_ddl(self):
         expected_tables = {
             'apiapplication',
             'configuration',
@@ -134,6 +134,30 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         ).fetchall()
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
+
+    def test_startup_schema_preflight_is_read_only_and_complete(self):
+        """Prove the ordinary startup contract on the stopped dev writer."""
+
+        from modules import startup_schema_preflight as preflight
+        from modules.database_schema_contract import REQUIRED_TABLES
+
+        request = preflight.StartupSchemaPreflightRequest(
+            database_name=self.profile.database_name,
+            database_user=self.profile.database_user,
+            database_password=self.profile.database_password,
+            database_host=self.profile.database_host,
+            database_port=self.profile.database_port,
+        )
+        self.models.db.close()
+        try:
+            result = preflight.inspect_startup_schema(request)
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+
+        self.assertEqual(result.database_name, 'polytopia_dev')
+        self.assertEqual(result.database_user, 'polybot_dev')
+        self.assertEqual(result.verified_tables, REQUIRED_TABLES)
+        self.assertTrue(result.winner_foreign_key_verified)
 
     def test_production_timezone_tooling_is_idempotent_on_development_schema(self):
         """Exercise B1 transaction logic only after proving no DDL is needed."""

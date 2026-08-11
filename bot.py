@@ -158,6 +158,8 @@ class MyBot(commands.Bot):
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
         self.beta_release_control = None
         self._startup_identity_validated = False
+        self._startup_schema_preflight_complete = False
+        self._startup_schema_preflight_lock = asyncio.Lock()
         self._startup_bans_reconciled = False
         self._startup_ban_lock = asyncio.Lock()
         self._restart_exit_status = None
@@ -235,6 +237,41 @@ class MyBot(commands.Bot):
         settings.runtime_profile.validate_logged_in_bot(int(self.user.id))
         self._startup_identity_validated = True
 
+    async def _preflight_startup_schema(self):
+        if not self._startup_identity_validated:
+            raise RuntimeError(
+                'Startup schema preflight requires validated bot identity.'
+            )
+        if self._startup_schema_preflight_complete:
+            return None
+        async with self._startup_schema_preflight_lock:
+            if self._startup_schema_preflight_complete:
+                return None
+            schema_preflight = importlib.import_module(
+                'modules.startup_schema_preflight'
+            )
+            profile = settings.runtime_profile
+            request = schema_preflight.StartupSchemaPreflightRequest(
+                database_name=profile.database_name,
+                database_user=profile.database_user,
+                database_password=profile.database_password,
+                database_host=profile.database_host,
+                database_port=profile.database_port,
+            )
+            result = await schema_preflight.run_startup_schema_preflight(
+                request
+            )
+            self._startup_schema_preflight_complete = True
+            logger.info(
+                'Startup schema preflight verified database=%s role=%s '
+                'tables=%s winner_foreign_key=%s',
+                result.database_name,
+                result.database_user,
+                len(result.verified_tables),
+                result.winner_foreign_key_verified,
+            )
+            return result
+
     async def _reconcile_startup_bans(self):
         if not self._startup_identity_validated:
             raise RuntimeError(
@@ -285,6 +322,7 @@ class MyBot(commands.Bot):
             )
             raise
 
+        await self._preflight_startup_schema()
         await self._reconcile_startup_bans()
         utilities = importlib.import_module('modules.utilities')
 

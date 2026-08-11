@@ -78,7 +78,10 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
 
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
-        self.assertIn('Current active unit: **P9.20/M6', roadmap)
+        self.assertIn(
+            'Current active unit: **P9.21 final-adversarial-review',
+            roadmap,
+        )
         self.assertNotIn('command source currently loads ten roots', roadmap)
         compatibility_rows = {
             row.split(' ', 2)[1]: row
@@ -100,6 +103,11 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         self.assertIn('| M1–M5 | Resolved |', review)
         self.assertIn('| M6 | Resolved |', review)
         self.assertIn('| L1 | Resolved |', review)
+        self.assertIn('| N1 import/startup schema DDL | High |', review)
+        self.assertIn(
+            '| N2 production identity/password literal fallback | Medium |',
+            review,
+        )
         self.assertIn('Status: **Resolved by P9.19.**', review)
 
         cutover = _read('docs/MODERNIZATION_PRODUCTION_CUTOVER.md')
@@ -116,6 +124,11 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
 
         example_config = _read('config.ini-EXAMPLE')
         self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polytopia2$')
+        self.assertRegex(
+            example_config,
+            r'(?m)^expected_bot_id\s*=\s*484067640302764042$',
+        )
+        self.assertRegex(example_config, r'(?m)^psql_password\s*=\s*CHANGEME$')
 
 
 if __name__ == '__main__':
