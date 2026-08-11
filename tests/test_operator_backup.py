@@ -192,7 +192,11 @@ class BackupBoundaryTests(unittest.TestCase):
                     original = target.with_name(target.name + '.real')
                     target.rename(original)
                     target.symlink_to(original)
-                    with self.assertRaises(backup.BackupSourceError):
+                    with mock.patch.object(
+                        backup,
+                        '_checkout_checkpoint',
+                        return_value=checkpoint,
+                    ), self.assertRaises(backup.BackupSourceError):
                         backup.validate_runtime_sync(10, value)
 
     def test_dirty_exporter_fails_before_execution(self):
@@ -495,6 +499,31 @@ class BackupViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         interaction.followup.send.assert_not_awaited()
         self.assertEqual(view.status, 'bounded failure')
         self.assertTrue(view.finished)
+
+    async def test_running_panel_edit_failure_does_not_cancel_accepted_backup(self):
+        class FakeHTTPException(Exception):
+            pass
+
+        interaction = self.interaction()
+        interaction.edit_original_response.side_effect = [
+            FakeHTTPException(),
+            None,
+        ]
+        runner = mock.AsyncMock(return_value=backup.BackupResult(
+            'success', 0, 1.0, (artifact(),)
+        ))
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=runner,
+        )
+
+        with mock.patch.object(views.discord, 'HTTPException', FakeHTTPException):
+            await view._run(interaction)
+
+        runner.assert_awaited_once_with(interaction)
+        self.assertEqual(interaction.edit_original_response.await_count, 2)
+        self.assertTrue(view.finished)
+        self.assertIn('completed', view.status)
 
     async def test_cancellation_publishes_terminal_panel_then_propagates(self):
         interaction = self.interaction()

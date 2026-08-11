@@ -95,7 +95,14 @@ class BackupConfirmationView(discord.ui.LayoutView):
         # cannot advertise an expiry/retry while the child remains active.
         self.stop()
         await interaction.response.defer()
-        await interaction.edit_original_response(view=self)
+        try:
+            await interaction.edit_original_response(view=self)
+        except discord.HTTPException:
+            logger.warning(
+                'Could not publish operator backup running state; continuing '
+                'with the accepted single-flight operation.',
+                exc_info=True,
+            )
         try:
             result = await self.runner(interaction)
         except operator_backup.BackupConflictError as exc:
