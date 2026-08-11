@@ -501,8 +501,9 @@ through the running beta's protected socket. It does not yet create Discord
 roles/channels or broaden fixture ownership. P9.23b will add manifest-owned
 production-shaped scenario packs after the foundation's collision and repair
 boundaries are validated. Implementation checkpoint `51370f0`; accumulation
-integration, guild-only command convergence, guarded beta restart, live
-verification, and terminal tester announcement are next.**
+integration fast-forward is complete at `658bc8e8761caa6c6b5557211b1b2b496b05caca`;
+the clean accumulation close-out, guild-only command convergence, guarded beta
+restart, live verification, and terminal tester announcement are next.**
 
 P9.22 pre-M7 beta testability/readiness is complete in accumulation and
 deployed to the development beta; wider human acceptance is pending. It was built on
@@ -15274,6 +15275,11 @@ deferred into this post-modernization backlog.
   accumulation, plan/apply only the development-guild command-description
   change, start the guarded beta at the integrated checkpoint, verify the new
   socket/dashboard health, then post the reviewed WHAT TO TEST release last.
+- Accepted the complete two-commit branch without conflict by fast-forwarding
+  accumulation from `34b19e2` through exact checkpoint
+  `658bc8e8761caa6c6b5557211b1b2b496b05caca`. The integration checkout was
+  clean and remained two commits ahead of its unchanged GitHub tracking ref;
+  no production ref or checkout was accessed.
 
 ### 2026-08-11 — P9.22 beta-testability implementation and gates complete
 
