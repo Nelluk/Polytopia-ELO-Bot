@@ -500,18 +500,18 @@ and prepares a short tester instruction draft without sending it. Initial
 cutover review caught and corrects the production runbook's mistaken use of
 development guild `478571892832206869` as PolyChampions; the tracked runtime
 authority identifies production PolyChampions as `447883341463814144`.
-Evidence checkpoint `e1749528f592fe6bd8fbfdee0787ea557ae071ca` is pushed on
-the accumulation branch. Complete-diff/cutover review and the stopped-writer
-75-test development-
-PostgreSQL gate pass. Complete offline discovery runs 1,750 tests with 1,671
-passes, 76 intentional skips, and the same three missing-DuckDB cases, so the
-offline gate is correctly blocked. The bounded beta matrix is pending the
-unsent tester pass, and actual redacted production-configuration verification
-remains separately approval-gated. The durable beta runs exact candidate
-`acf706f` as PID `125782`, authenticated as application `479029527553638401`,
-with both persona roles and all five packs ready. No command apply or tester
-announcement occurred. The candidate record is structurally/repository valid,
-but `require-ready` must continue to fail on those three open gates.**
+Evidence checkpoint `e1749528f592fe6bd8fbfdee0787ea557ae071ca` and close-out
+checkpoint `ccbc9c8a62b1d5fd4d37e40c1c96487ac5e9447a` are pushed on the
+accumulation branch. Complete-diff/cutover review passes. After Nelluk's
+separate dependency-sync approval, exact-candidate offline discovery passes
+all 1,754 tests with 76 intentional skips; the prior missing-DuckDB environment
+limitation is resolved. The stopped-writer 75-test development-PostgreSQL gate
+was rerun after synchronization and passes with one intentional retained-
+fixture skip. The bounded beta matrix is now entering its approved human test
+pass, while actual redacted production-configuration verification remains
+separately approval-gated. The candidate record is structurally/repository
+valid, but `require-ready` must continue to fail on those two open gates. No
+command apply or production action occurred.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14362,8 +14362,9 @@ private flow and separately approve any instructions or ping.
 
 ### P9.24 — M7/R-002 exact release-candidate freeze
 
-Status: **Exact source candidate frozen, integrated, database-gated, and live
-in the development beta; final readiness remains blocked/pending.**
+Status: **Exact source candidate frozen, integrated, and green on complete
+offline and development-database gates; human beta and production-
+configuration gates remain pending.**
 
 Branch/base: `codex/p9-24-m7-release-candidate`, exact clean pushed
 accumulation checkpoint `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`.
@@ -14402,29 +14403,32 @@ under their separate pre-maintenance approvals.
 
 The tester draft says `WHAT TO TEST`, asks for only one useful task, leads with
 `/whattotest`, explains short versus guided paths, requires refresh and cleanup,
-and points confusing behavior to contextual **Report problem**. It contains no
-live ping and must not be delivered until Nelluk separately approves it after
-the candidate is ready and all planned downtime is complete.
+and points confusing behavior to contextual **Report problem**. Nelluk has now
+approved its delivery. It must be sent only after the beta is healthy and all
+planned downtime is complete; successful delivery is the terminal deployment
+action.
 
 Frozen source candidate: `acf706fed8d51a061383e7caba2a4c210ec61981`
 (`186457d`, initial evidence gate; `980c644`, canary identity correction;
 `acf706f`, complete readiness-gate correction). The tracked evidence record is
 `release-candidate-manifests/modernization-rc1.json`. Focused release/
-deployment/document consistency passes **19/19**. Complete offline discovery
-runs **1,750 tests: 1,671 pass, 76 intentionally skip, and the same three
-missing-DuckDB cases fail**; no dependency was installed or synchronized.
-Only the development beta was stopped, the host-wide writer audit was clear,
-and the exact `development` / `polytopia_dev` / `polybot_dev` suite passes
-**75 tests: 74 passed and one operator-fixture round trip skipped**.
+deployment/document consistency passes **19/19**. After Nelluk separately
+approved `uv sync --locked`, the shared locked development environment added
+DuckDB 1.4.3 and reconciled cryptography from 49.0.0 to 50.0.0; the candidate
+tree remained unchanged. Exact-candidate offline discovery now passes **1,754
+tests: 1,678 passed and 76 intentionally skipped**, with no failures. Only the
+development beta was stopped, and the post-sync exact `development` /
+`polytopia_dev` / `polybot_dev` suite again passes **75 tests: 74 passed and
+one operator-fixture round trip skipped**.
 
-The final beta runs candidate `acf706f` as PID `125782`, expected application
-`479029527553638401`, active/running with zero restart churn. Protected status
-reports both roles, all five packs, and all three lanes ready. Read-only guild
-inspection remains converged at the same eleven roots with an empty global
-tree, so no apply occurred. The candidate validator reports cutover review and
-database gates `pass`, offline `blocked`, and bounded beta plus production
-configuration `pending`; `require-ready` exits nonzero. No tester ping, release
-announcement, staff mirror, production read, or production operation occurred.
+The approved next lifecycle action is to launch the clean accumulation
+evidence checkpoint with candidate runtime code unchanged, verify the expected
+development identity, five packs, three lanes, and unchanged guild-only
+command tree, then deliver the concise approved `WHAT TO TEST` release as the
+terminal deployment action. The candidate validator reports cutover review,
+offline, and database gates `pass`; bounded beta and production configuration
+remain `pending`, so `require-ready` still exits nonzero. No command apply or
+production operation is planned.
 
 ## Standard work-unit template
 
@@ -15563,6 +15567,31 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — M7 exact-candidate environment blockers cleared
+
+- Reverified clean, equal local/upstream accumulation checkpoint `ccbc9c8` and
+  found the development beta already stopped before touching the shared
+  environment.
+- Under Nelluk's separate dependency-sync approval, ran `uv sync --locked` in
+  the development checkout. It installed locked DuckDB 1.4.3 and reconciled
+  cryptography from 49.0.0 to 50.0.0; no source or lock change resulted.
+- Created a temporary detached validation worktree at exact source candidate
+  `acf706fed8d51a061383e7caba2a4c210ec61981`. Full offline discovery passed
+  1,754 tests with 1,678 passes and 76 intentional skips; no failures remain.
+- While the beta remained stopped, reran the unchanged gated development-
+  PostgreSQL suite at the same candidate. All 75 cases completed with 74 passes
+  and the one intentional operator-managed-fixture skip. The temporary
+  worktree was cleanly removed.
+- The candidate record now marks cutover review, offline, and development-
+  database gates `pass`. The bounded human beta matrix and separately approved
+  redacted production-configuration verification remain pending, so the
+  candidate is not yet release-ready.
+- Nelluk approved the concise tester instructions and `@testers` delivery. The
+  remaining development sequence is a clean accumulation push, beta launch and
+  health/readiness/command-tree verification, then public plus private-mirror
+  delivery as the terminal deployment action. No command apply or production
+  action is warranted.
 
 ### 2026-08-11 — M7/R-002 source candidate frozen with explicit blockers
 

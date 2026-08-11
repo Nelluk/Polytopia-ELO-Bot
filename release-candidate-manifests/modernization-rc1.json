@@ -87,20 +87,16 @@
       ]
     },
     "offline_suite": {
-      "status": "blocked",
+      "status": "pass",
       "candidate_sha": "acf706fed8d51a061383e7caba2a4c210ec61981",
       "command": "POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest discover -q",
-      "total": 1750,
-      "passed": 1671,
+      "total": 1754,
+      "passed": 1678,
       "skipped": 76,
-      "failures": [
-        "dependency inventory does not contain the locked DuckDB package",
-        "runtime dependency import cannot import duckdb",
-        "reporting-export tests cannot import duckdb"
-      ],
+      "failures": [],
       "evidence": [
-        "The three cases are the documented unsynchronized-development-environment limitation.",
-        "No dependency was installed or synchronized, so M7 cannot claim a green offline gate."
+        "Nelluk separately approved uv sync --locked; the locked environment installed duckdb 1.4.3 and reconciled cryptography to 50.0.0 without changing the candidate tree.",
+        "Exact-candidate discovery at acf706f ran 1,754 tests with 1,678 passes, 76 intentional skips, and no failures."
       ]
     },
     "development_database_suite": {
