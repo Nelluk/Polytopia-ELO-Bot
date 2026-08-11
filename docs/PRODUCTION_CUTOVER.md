@@ -1,9 +1,18 @@
 # Python 3.12 production cutover and rollback
 
+Status: **historical completed dependency-upgrade record only**
+
+This document is not the database/slash modernization deployment authority.
+That separately reviewed procedure is
+`docs/MODERNIZATION_PRODUCTION_CUTOVER.md`. In particular, the historical
+statement below that this upgrade had no schema migration must never be used to
+bypass the modernization schema-before-code gate.
+
 This runbook records the reviewed and completed move of the production PolyELO
 bot from its legacy Python 3.9 virtual environment to the uv-managed Python
-3.12 environment. It also remains the recovery reference for this deployment;
-it is not standing authorization for a future deployment or rollback.
+3.12 environment. It remains historical reconstruction context for that
+completed dependency upgrade; it is not standing authorization or a current
+recovery procedure for a future deployment or rollback.
 
 ## Completion record
 

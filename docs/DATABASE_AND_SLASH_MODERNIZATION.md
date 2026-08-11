@@ -490,21 +490,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.15/B1 production timezone migration tooling is
-Complete in accumulation at merge checkpoint `8b9ede1`. Implementation
-checkpoint `1c8ffa5` and roadmap evidence checkpoint `c7333aa` were reviewed
-from exact clean accumulation base `7f30721`. The production-only tool is
-connection-free by default, fail-closed on environment/configured/live
-database and role identity, schema-qualified, transactional, idempotent, and
-has read-only verify with no destructive rollback. Focused coverage passes
-48/48. Complete discovery runs 1,611 tests: 1,537 pass, 71 intentionally skip,
-and only the three known missing-`duckdb` environment cases fail. With only the
-development beta stopped and the host-wide writer audit clear, the complete
-gated `polytopia_dev` suite passed 69 tests with one retained-fixture skip; the
-B1 path first proved the schema complete and therefore executed no DDL. No
-production connection or DDL occurred. The guarded beta is healthy at exact
-integrated checkpoint `8b9ede1` as the sole development writer. No command
-apply, checklist update, or announcement was warranted. B2 is next.**
+Current active unit: **P9.16/B2 modernization production cutover and rollback
+is implemented on isolated branch `codex/p9-16-b2-modernization-cutover` at
+checkpoint `d754beb`, based on exact clean accumulation `178f8e8`. The new
+runbook is explicitly separate from the historical Python upgrade, pins exact
+release/rollback commits, requires backup and host/PostgreSQL single-writer
+proof, applies/verifies additive schema before model code, supplies a tracked
+task-disabled `Restart=no` canary, separates canonical service activation from
+the PolyChampions-only command canary, and defines independent rollback and
+uncertain-effect handling. Focused cutover/migration/command/runtime coverage
+passes 67/67. Complete discovery runs 1,612 tests: 1,538 pass, 71 intentionally
+skip, and only the three known missing-`duckdb` environment cases fail. Tier-3
+complete-diff review found no remaining B2 blocker. No production,
+database, Discord, service, dependency, or beta operation has occurred. The
+adversarial matrix now states candidly that B1/B3 and H1–H8 are resolved, B2
+awaits integration, and M1–M6, M7, and part of L1 remain open before a release
+candidate.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -962,7 +963,7 @@ this decision does not authorize production deployment or synchronization.
 | P7 | Complete | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | Complete | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | P8.28 final residual audit; all active P8 user/staff paths bounded, operator debt carried explicitly into P9 |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
-| P9 | Planned | Production rollout and remaining per-unit prefix lifecycle decisions, with the approved WB1.1 staffhelp retirement retained | Approved production-safe intake/retention decision, deployment, monitoring, and separate lifecycle plan |
+| P9 | In progress | Production preparation, adversarial corrections, rollout, and remaining per-unit prefix lifecycle decisions | Close valid adversarial findings, freeze one exact release candidate, then separately approve production deployment/canary |
 
 ## P0 — Serialized ELO and slash-command pilot
 
@@ -11698,17 +11699,15 @@ Changed files: `modules/game_record_views.py`, `modules/games.py`,
 `tests/test_newgame_worker.py`, `tests/test_player_registration.py`, and
 `tests/test_player_timezone.py`.
 
-Next action: restart the guarded beta from the clean integrated checkpoint and
-publish the approved targeted **WHAT TO TEST** announcement. Wider-beta users
-should verify retryable `/game record` confirmation, visible
-`/player register member` targeting, and clean public registration/timezone
-success without `Unknown Message` noise.
+Next action: complete Tier-3 review and integration of P9.16/B2, then close the
+still-valid M1–M6 and L1 adversarial findings before R-002 freezes an exact
+release candidate.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; source safety units through P9.14 are complete;
-production migration/cutover preparation, activation, and rollout remain
-separately gated**
+Status: **In progress; source safety and production-preparation units through
+P9.16 are implemented; remaining adversarial corrections, release-candidate
+validation, activation, and rollout remain separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
 of beta acceptance.
@@ -13474,6 +13473,56 @@ has zero service restart churn, and is the sole development writer. B1 changes
 no loaded bot callback or command shape, so no development-guild apply,
 checklist update, or tester announcement was warranted.
 
+### P9.16 — B2 modernization production cutover and rollback
+
+Status: **Implemented and Tier-3 validated; accumulation integration pending**
+
+Branch/base: `codex/p9-16-b2-modernization-cutover`, exact clean accumulation
+base `178f8e840b7628625c506b764764f6fbd38112b6`.
+Implementation/tests checkpoint: `d754beb`.
+
+`docs/MODERNIZATION_PRODUCTION_CUTOVER.md` is now the explicit modernization
+operations authority. The completed Python 3.12 runbook is labelled historical
+only and cannot supply the modernization schema or rollback gates. The new
+runbook:
+
+- requires a non-secret release record with full release/rollback commits,
+  exact-HEAD R-002 evidence, reviewed lock/unit digests, redacted identity,
+  capability diff, support/privacy route, and distinct operation approvals;
+- fixes the production configuration plan at `polytopia2`, application
+  `484067640302764042`, PolyChampions guild `478571892832206869`, and initial
+  `core_user`/`team`/`league`/`house`/`squad` capabilities while omitting
+  operator, maintenance, development support, and beta roots;
+- orders fresh backup, production stop, host-wide process and PostgreSQL
+  session audit, final stopped-writer backup, exact fast-forward/locked
+  environment, read-only schema verify, gated additive apply/verify, tracked
+  task-disabled canary, clean canonical start, retained-prefix observation,
+  and separate guild-only command inspect/apply;
+- provides a tracked canary drop-in with exact production Python/profile,
+  `--skip_tasks`, and `Restart=no`, then requires its removal and canonical
+  unit comparison before normal task-enabled startup;
+- requires an empty global command tree, exact PolyChampions-only apply gates,
+  convergence inspection, and no global mutation path; and
+- separates code/config rollback, non-destructive additive-schema disposition,
+  command-tree rollback, exceptional database restore, and uncertain external
+  effect reconciliation. Announcement delivery remains the terminal action.
+
+The cutover procedure is not authorization to execute any production action.
+Literal placeholders, unresolved adversarial findings, evidence from another
+HEAD, or a missing exact support/privacy route block R-002 and deployment.
+
+Focused deployment-asset, production-migration, command-management/policy, and
+runtime-configuration coverage passes **67/67**. Complete discovery runs
+**1,612 tests: 1,538 pass, 71 intentionally skip, and only the three documented
+missing-`duckdb` environment cases fail**. Compilation/diff checks pass.
+Tier-3 review corrected the historical document's ambiguous current-recovery
+wording and required exact backup provenance/validation, PostgreSQL-session
+audit, fast-forward/lock synchronization, and canary install/removal commands;
+no B2 blocker remains. B2 has no development-database path or Discord command
+shape; no PostgreSQL gate,
+development-guild apply, beta restart, checklist change, or announcement is
+warranted for this documentation/operations unit.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14483,6 +14532,33 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-10 — P9.16/B2 modernization cutover procedure implemented
+
+- Reconciled clean local, tracking, and GitHub accumulation checkpoint
+  `178f8e8`; the guarded beta was healthy as the sole development writer. No
+  prior B2 branch/worktree existed. Created isolated branch/worktree
+  `codex/p9-16-b2-modernization-cutover` and passed the development setup gate.
+- Added the separate modernization production cutover/rollback authority,
+  tracked task-disabled `Restart=no` canary drop-in, historical-only warning on
+  the Python upgrade record, and an ordering/fail-closed deployment-asset test
+  at checkpoint `d754beb`.
+- The procedure binds backup/schema/code/service/tree operations to exact
+  reviewed identities and approvals, makes schema verification precede model
+  startup, keeps command application guild-only and after retained-prefix
+  health, and treats the announcement as the final deployment action.
+- Reconciled the adversarial review instead of declaring it globally closed:
+  B1/B3 and H1–H8 are resolved; B2 awaits review/integration; M1–M6 remain
+  valid source/operations/product findings; M7 belongs to R-002; and L1 is
+  partially open. The cutover runbook makes any unresolved valid finding a
+  release-record stop condition.
+- Focused affected coverage passes 67 tests. Complete discovery runs 1,612
+  tests with 71 skips and only the three known missing-`duckdb` environment
+  failures. Compilation/diff checks pass. Tier-3 review corrected ambiguous
+  recovery authority and made backup, PostgreSQL-session, exact Git/lock, and
+  canary lifecycle commands executable and fail-closed; no B2 blocker remains.
+  No production checkout, configuration, service, database, Discord,
+  dependency, or beta mutation occurred.
 
 ### 2026-08-10 — P9.15/B1 production timezone migration tooling validated
 
