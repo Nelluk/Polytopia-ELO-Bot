@@ -490,18 +490,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.14/H3 global command-tree apply guard is Complete in
-the accumulation branch at merge checkpoint `4a645ed`. Implementation/tests
-checkpoint `8d5a65f` makes remote inspect/apply fetch and display Discord's
-global tree read-only, and makes apply refuse before any guild sync when that
-tree is nonempty. The tool still has no global mutation path. Focused and
-affected validation pass; complete discovery reaches only the three known
-missing-`duckdb` environment failures. A stopped-beta live read-only
-inspection found zero global roots and all eleven development-guild roots
-unchanged. The guarded beta is restored at its prior running-code checkpoint
-`c21113b`; no runtime deployment, command apply, or announcement is warranted.
-The next recommended bounded unit is B1 production timezone migration tooling,
-implemented and tested without applying it to production.**
+Current active unit: **P9.13a restart handoff copy is reviewed on isolated
+branch `codex/p9-13a-restart-panel-copy` from exact clean, pushed accumulation
+base `d7fc34d`. User feedback initially suggested restart failure, but service
+and application logs proved four accepted beta restarts each exited with
+status 75 and returned ready under systemd; the latest moved PID `3924884` to
+`3930134` and loaded checkpoint `d7fc34d`. Discord's member presence did not
+visibly drop during the roughly ten-second gateway absence, and the ephemeral
+panel cannot update after its owning process exits. Implementation checkpoint
+`29a01ab` now states both facts and gives a 10–20-second wait without adding a
+status command, presence manipulation, or lifecycle change. Focused restart
+coverage passes 19 tests; complete discovery reaches only the three known
+missing-`duckdb` environment failures. Integration and beta loading remain
+pending; B1 remains next afterward.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13331,6 +13332,39 @@ or owner to invoke the command; offline coverage proves both modes, exact force
 confirmation, exit 75, cancellation, and denial boundaries without fabricating
 a user interaction.
 
+### P9.13a — Restart handoff copy clarification
+
+Status: **Tier-2 reviewed; integration and beta loading pending**
+
+Branch/base: `codex/p9-13a-restart-panel-copy`, exact clean accumulation base
+`d7fc34dbf35385e069dd7dd40e0bc8c102af5c5e`. Implementation/tests checkpoint:
+`29a01ab`.
+
+Direct user feedback reported that an accepted restart appeared to do nothing.
+The application log recorded the exact acceptance and the service journal
+proved the old process exited with deliberate status 75, systemd waited five
+seconds, and the replacement authenticated and became ready. The latest
+observed cycle changed PID `3924884` to `3930134` and loaded the intended
+`d7fc34d` checkpoint. Three immediately preceding user-triggered cycles also
+exited and returned ready. The restart mechanism therefore worked and no
+overlapping development writer existed.
+
+The presentation was misleading: Discord did not visibly remove the bot from
+the online member list during the roughly ten-second gateway absence, and the
+ephemeral confirmation belongs to the exiting process so it cannot report the
+replacement's readiness. The accepted panel now warns that Discord may keep
+showing the bot online, states that the panel cannot update after shutdown,
+and advises allowing 10–20 seconds before using the bot again. It adds no bot
+status command, presence manipulation, durable interaction token, completion
+DM, public message, or lifecycle change.
+
+Focused restart coverage passes **19/19**. Complete offline discovery runs
+**1,597 tests: 1,524 pass, 70 intentionally skip, and only the three documented
+missing-`duckdb` environment cases fail**. Compilation and `git diff --check`
+pass. Complete-diff review finds no authorization, shutdown, command-shape, or
+interaction-state regression. The unit has no database path, schema change,
+fixture, command registration change, or production effect.
+
 ### P9.14 — H3 global command-tree apply guard
 
 Status: **Complete in the accumulation branch; development-inspected**
@@ -14392,6 +14426,30 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-10 — P9.13a restart handoff feedback investigated and corrected
+
+- Investigated the reported no-op before changing code. Application logs
+  recorded accepted restart requests and the systemd journal proved every
+  observed process exited with status 75 and returned ready. The latest cycle
+  loaded exact accumulation checkpoint `d7fc34d`; no second writer overlapped.
+- Identified the actual UX gap: Discord may retain the online-list presence
+  across a brief gateway disconnect, while the exiting process's ephemeral
+  panel has no safe post-restart update path.
+- Created isolated branch/worktree `codex/p9-13a-restart-panel-copy` from exact
+  clean local/tracking/GitHub base `d7fc34d` and passed the development profile
+  setup gate.
+- Updated only the terminal panel copy and its regression assertions. The
+  panel now describes the possible retained online presence, its inability to
+  update after shutdown, and the expected 10–20-second wait. Per user decision,
+  no `/operator bot status` command was added.
+- Focused restart coverage passed 19 tests. Complete discovery ran 1,597 tests
+  with 70 skips and only the three known missing-`duckdb` environment failures.
+  Compilation and diff checks passed. Implementation is checkpointed at
+  `29a01ab`; Tier-2 review found no remaining blocker.
+- Next action: commit this evidence, integrate and push the reviewed copy-only
+  unit, restart the guarded beta once to load it, verify health, and proceed to
+  B1 without a command-tree apply or tester announcement.
 
 ### 2026-08-10 — P9.14/H3 global command-tree guard reviewed
 
