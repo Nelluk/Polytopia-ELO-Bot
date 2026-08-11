@@ -63,6 +63,62 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('create_directories=False', script)
         self.assertIn('psql_db = polytopia2', example_config)
 
+    def test_modernization_cutover_is_separate_ordered_and_fail_closed(self):
+        historical = (
+            self.root / 'docs/PRODUCTION_CUTOVER.md'
+        ).read_text(encoding='utf-8')
+        runbook = (
+            self.root / 'docs/MODERNIZATION_PRODUCTION_CUTOVER.md'
+        ).read_text(encoding='utf-8')
+        canary = (
+            self.root / 'deploy/systemd/polytopia-modernization-canary.conf'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn(
+            'historical completed dependency-upgrade record only', historical
+        )
+        self.assertIn('MODERNIZATION_PRODUCTION_CUTOVER.md', historical)
+        self.assertIn('not standing production authorization', runbook)
+        self.assertIn('POLYBOT_RELEASE_SHA', runbook)
+        self.assertIn('POLYBOT_ROLLBACK_SHA', runbook)
+        self.assertIn('unresolved adversarial-review items', runbook)
+        self.assertIn('exact production support/privacy route', runbook)
+        self.assertIn('pg_stat_activity', runbook)
+        self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
+        self.assertIn('--skip_tasks', runbook)
+        self.assertIn('Restart=no', runbook)
+        self.assertIn('--confirm-no-global-sync', runbook)
+        self.assertIn('Never use `DROP COLUMN`', runbook)
+        self.assertIn(
+            'Announcement delivery\nis the terminal deployment action',
+            runbook,
+        )
+        self.assertNotIn('There is no application schema migration', runbook)
+
+        ordered_markers = (
+            '### 1. Capture start state and fresh backup',
+            '### 2. Stop the production writer and prove it is absent',
+            '### 3. Move only to the exact reviewed release',
+            '### 4. Apply and verify the additive schema',
+            '### 5. Run the reviewed task-disabled process canary',
+            '### 6. Cleanly stop the canary and start the canonical service',
+            '### 7. Inspect and apply only the PolyChampions command canary',
+            '### 8. Finish and announce',
+        )
+        positions = [runbook.index(marker) for marker in ordered_markers]
+        self.assertEqual(positions, sorted(positions))
+
+        self.assertIn('[Service]', canary)
+        self.assertIn('POLYBOT_ENV=production', (
+            self.root / 'deploy/systemd/polytopia.service'
+        ).read_text(encoding='utf-8'))
+        self.assertIn(
+            'ExecStart=/home/nelluk/PolyBot39/.venv/bin/python '
+            '/home/nelluk/PolyBot39/bot.py --skip_tasks',
+            canary,
+        )
+        self.assertIn('Restart=no', canary)
+
     def test_backup_script_is_syntactically_valid_and_atomic(self):
         script = self.root / 'scripts/backup_db.sh'
         result = subprocess.run(
