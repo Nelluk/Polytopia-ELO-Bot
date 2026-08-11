@@ -636,6 +636,26 @@ tester checklist or announcement was warranted for this owner-only surface.
 Next selectable work is P10.6b's separately reviewed draft/activation/rollback
 mutation boundary.**
 
+Nelluk subsequently exercised all four P10.6a owner commands and reported that
+they appeared to work correctly. That closes the bounded manual acceptance
+check with no defect reported.
+
+P10.6b1 inactive owner guild-configuration drafts are implemented and offline
+reviewed on `codex/p10-6b1-guild-config-drafts` from exact clean pushed
+accumulation base `930aa5cb13decc67ac76882057a03b22e07ad551`. The unit adds
+one separately versioned 24-hour draft row per already enrolled guild and one
+private `/operator guild draft` Components v2 workspace. Reset copies the
+exact active revision/generation; typed edits replace a complete canonical
+document using version/digest/base/actor optimistic evidence; validation uses
+the current member-free Discord role/channel snapshot; discard only expires
+the inactive row. No operation activates a revision, changes runtime state,
+writes registry/revision/audit history, enrolls a guild, or synchronizes
+commands. The additive one-table development migration plan is connection-free
+and digest-bound; live apply and the transactional PostgreSQL lifecycle gate
+remain separately approval-gated, so the beta and command tree are unchanged.
+Activation/reconciliation and rollback-to-revision remain separate later
+units. Implementation checkpoint is `ec3922b`.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14956,6 +14976,65 @@ rejection, transactional audit, explicit restart/reconciliation truth, and a
 reviewed replacement for P10.5's transitional static-equality startup gate;
 keep onboarding, delegation, and production authority separate.
 
+### P10.6b1 — Inactive owner draft and preview boundary
+
+Status: **Implemented and offline reviewed; development schema apply,
+real-schema gate, integration, and deployment pending.**
+
+Branch/base: `codex/p10-6b1-guild-config-drafts`, exact clean pushed
+accumulation checkpoint `930aa5cb13decc67ac76882057a03b22e07ad551`.
+Implementation checkpoint: `ec3922b`.
+
+Risk tier: **Tier 3 configuration mutation boundary.** Drafts are deliberately
+non-authoritative, but the unit establishes the write/concurrency contract
+that later activation must consume without weakening.
+
+The unit adds exactly one `guild_configuration_draft` table beside, but not
+inside, P10.3's frozen three-table authoritative inventory. One row holds a
+complete schema-versioned document, SHA-256 digest, owner actor, exact active
+revision/generation base, monotonic draft version, and 24-hour expiry. The
+additive plan is connection-free and produces exact confirmation
+`P10.6B1 APPLY <statement-digest>`. Apply checks the unchanged development
+target, existing P10 schema, live database identity, read-write state, and a
+transaction-scoped advisory lock; partial/drifted state fails closed and
+failure rolls back. There is no destructive down migration.
+
+`/operator guild draft` is current-guild, development/database-authority, and
+configured-owner only. It publishes one ephemeral requester-bound Components
+v2 workspace with six sections and typed role, channel, category, boolean,
+integer, string, optional, nullable-list, and capability controls. Every edit
+revalidates the complete document and replaces it only when draft version,
+digest, base revision/generation, owner actor, and expiry still match. Reset
+copies active; Validate checks current Discord references; Refresh reconciles
+the view after a lost publication; Discard increments version and expires the
+row. Display includes names as well as IDs and suppresses mentions.
+
+Workers repeat owner, exact target, allowlist, schema, live identity, active
+revision/generation/digest, and transaction-mode checks on one bounded owned
+connection. Reads are repeatable-read/read-only; draft mutation uses a
+repeatable-read transaction and commits only the draft row. Cancellation
+drains connection ownership. Results and publishers contain frozen documents
+and primitives, never ORM models. A committed write followed by Discord edit
+failure remains truthfully recoverable through Refresh; failed pre-commit
+validation/CAS rolls back.
+
+Affected focused validation passes 60 tests with one intentionally gated
+real-schema case. Complete offline discovery passes all 1,868 tests with 81
+intentional gated skips. Tier-3 complete-diff review found and corrected
+allowlist tamper handling, exact-timestamp expiry, and improper edit-only
+evidence forwarding from the Refresh/Validate/Reset controls; no remaining
+actionable finding is known. The exact connection-free schema plan digest is
+`4c97d1502519480f0a2f31ac0fb4f4c297770ee5bfd9ed0cacd7a74f3c323dc6`.
+The operational contract is
+`docs/DEVELOPMENT_GUILD_CONFIGURATION_DRAFTS.md`.
+
+Next action: commit and integrate the inactive draft unit, then request
+separate approval for a stopped-beta
+development-only one-table apply and rolled-back lifecycle gate. Do not
+register or deploy `/operator guild draft` until that gate passes. P10.6b2 may
+then separately design exact activation and post-commit runtime reconciliation;
+rollback remains separately bounded.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16059,7 +16138,7 @@ separate units.
 
 ### D-055 — Prove the owner read boundary before configuration mutation
 
-Status: **Accepted; implemented by P10.6a pending integration**
+Status: **Accepted; implemented by P10.6a**
 
 The first owner control-plane unit is current-guild and read-only. It uses four
 private commands for registry, sectioned active settings, live validation, and
@@ -16075,6 +16154,26 @@ reuse the reviewed read boundary, but mutation requires digest-bound previews,
 transactional audit, stale-confirmation rejection, and a separately approved
 replacement for P10.5's static-equality promotion condition.
 
+### D-056 — Stage complete inactive drafts before activation
+
+Status: **Accepted; implemented by P10.6b1 pending gated schema apply**
+
+Use one 24-hour configured-owner-bound draft per already enrolled guild. A
+draft is always a complete canonical schema-versioned document copied from an
+exact active revision and generation, never a partial patch or live model
+graph. Reset is explicit; every subsequent replacement is optimistic on the
+observed draft version/digest, active base, owner actor, and unexpired row.
+Discard expires and version-bumps rather than hard-deleting. This keeps stale
+Discord controls unable to reuse a later draft generation.
+
+The Discord editor is one private current-guild Components v2 workspace with
+six setting sections and native role/channel/category selectors. Preview and
+validation are useful without granting activation authority. Draft writes do
+not create authoritative revision/audit events, reload runtime state, change
+the application-command tree, or relax P10.5 startup equality. Activation,
+post-commit runtime reconciliation, rollback-to-revision, enrollment, and
+delegation each remain separately reviewed boundaries.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16082,7 +16181,8 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6a complete in development.** The
+Design status: **P10.1 through P10.6a complete in development; P10.6b1 inactive
+draft tooling is implemented pending its gated development apply.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16095,8 +16195,9 @@ identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration.
 P10.6a establishes the read-only owner surface for already enrolled guilds.
-P10.6b will separately own draft/activation/rollback mutation. Later units own
-quarantined onboarding, delegation, production canary, and static retirement.
+P10.6b1 isolates draft editing and preview from authority. Later units own
+activation/reconciliation, rollback, quarantined onboarding, delegation,
+production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16230,6 +16331,49 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.6b1 inactive owner drafts implemented offline
+
+- Nelluk briefly exercised all four P10.6a owner commands and reported that
+  they appeared to work correctly; no defect was reported from that bounded
+  manual acceptance pass.
+- Created `codex/p10-6b1-guild-config-drafts` from exact clean local/tracking/
+  GitHub accumulation checkpoint
+  `930aa5cb13decc67ac76882057a03b22e07ad551` and ran the required development
+  worktree setup without dependency, database, Discord, or beta effects.
+- Implementation/tests/runbook checkpoint is `ec3922b`.
+- Added one independently versioned additive draft-table contract and
+  connection-free digest-confirmed plan. The row stores a complete immutable
+  document, active revision/generation base, monotonic draft version, owner
+  actor, digest, and 24-hour expiry. Partial/drifted schema, wrong target,
+  read-only apply, and stale/expired optimistic writes fail closed. Discard
+  expires and version-bumps; it never deletes authoritative history.
+- Added private `/operator guild draft` preview/edit tooling for the current
+  already enrolled guild. The six-section Components v2 workspace uses typed
+  role/channel/category selectors, complete-document validation, names plus
+  IDs, Reset, Refresh, Validate, and Discard. It has no Activate control and
+  cannot reload runtime state, write registry/revision/audit history, enroll a
+  guild, or synchronize commands.
+- Added offline coverage for deterministic/additive schema planning, exact
+  inventory, transactional rollback, complete canonical rows, optimistic CAS,
+  owner and allowlist checks, active/runtime snapshot binding, live Discord
+  references, model-free private views, cancellation drain, event-loop
+  responsiveness, pre-commit failure, and post-commit publication recovery.
+  The separately gated real-schema case runs a complete draft lifecycle inside
+  an always-rolled-back transaction.
+- Affected focused validation passes 60 tests with one intentionally gated
+  real-schema case; complete offline discovery passes all 1,868 tests with 81
+  intentional gated skips. Tier-3 review tightened tamper resistance for
+  boolean/nonpositive allowlist IDs, made exact-timestamp discard compatible
+  with the schema while preserving immediate expiry, and stopped Refresh,
+  Validate, and Reset from forwarding edit-only optimistic evidence. No
+  remaining actionable finding is known.
+- Connection-free plan digest is
+  `4c97d1502519480f0a2f31ac0fb4f4c297770ee5bfd9ed0cacd7a74f3c323dc6`.
+  No live schema apply, PostgreSQL integration case, command plan/apply, beta
+  lifecycle action, tester checklist edit, or announcement has occurred.
+  Next: complete offline discovery/review and integrate the code, then request
+  the separately required stopped-beta development schema/lifecycle gate.
 
 ### 2026-08-11 — P10.6a owner configuration reads implemented
 

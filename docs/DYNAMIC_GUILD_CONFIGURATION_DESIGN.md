@@ -375,11 +375,13 @@ Each step is a separate bounded unit with its own review and evidence.
    snapshot is published, uses stable role IDs for authorization/effects, and
    stops startup without fallback on every non-match. Static rollback is an
    explicit selector change plus restart; production cannot select database.
-6. **Owner control plane.** P10.6a first adds bounded private list, sectioned
-   active-settings, live validation, and revision/audit history reads for the
-   current already enrolled guild. A later P10.6b adds digest-confirmed draft,
-   activation, and rollback mutations. Keep enrollment, runtime reload, and
-   command deployment separate.
+6. **Owner control plane.** P10.6a adds bounded private list, sectioned active
+   settings, live validation, and revision/audit history reads for the current
+   already enrolled guild. P10.6b1 adds the separately versioned 24-hour
+   inactive draft row and private typed preview/editor, with complete-document
+   optimistic replacement and no activation. Later units add digest-confirmed
+   activation and rollback. Keep enrollment, runtime reload, and command
+   deployment separate.
 7. **Quarantined onboarding.** Only after the control plane is proven, replace
    automatic leave with inert pending visibility and owner-only enrollment.
 8. **Delegated local editing.** Add opt-in same-guild ordinary-setting
