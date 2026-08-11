@@ -41,6 +41,28 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('polyapi.service` remains inactive', runbook)
         self.assertNotIn('git switch master', runbook)
 
+    def test_production_timezone_migration_is_additive_and_separately_gated(self):
+        runbook = (
+            self.root / 'docs/PRODUCTION_TIMEZONE_MIGRATION.md'
+        ).read_text(encoding='utf-8')
+        script = (
+            self.root / 'scripts/migrate_player_timezone_production.py'
+        ).read_text(encoding='utf-8')
+        example_config = (
+            self.root / 'config.ini-EXAMPLE'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('not standing\nauthorization', runbook)
+        self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
+        self.assertIn('SET\nTRANSACTION READ ONLY', runbook)
+        self.assertIn('leave both harmless additive columns in place', runbook)
+        self.assertIn('Do not improvise `DROP COLUMN`', runbook)
+        self.assertIn("mode.add_argument('--verify'", script)
+        self.assertIn("mode.add_argument('--apply'", script)
+        self.assertNotIn("add_argument('--rollback'", script)
+        self.assertIn('create_directories=False', script)
+        self.assertIn('psql_db = polytopia2', example_config)
+
     def test_backup_script_is_syntactically_valid_and_atomic(self):
         script = self.root / 'scripts/backup_db.sh'
         result = subprocess.run(

@@ -5,7 +5,7 @@ expected_bot_id = 484067640302764042
 # Discord application/bot ID expected after login
 psql_user = nelluk
 # username for postgres database
-psql_db = polytopia
+psql_db = polytopia2
 # database name
 psql_password = CHANGEME
 psql_host =

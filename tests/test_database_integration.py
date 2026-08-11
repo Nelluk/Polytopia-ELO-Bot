@@ -135,6 +135,58 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
+    def test_production_timezone_tooling_is_idempotent_on_development_schema(self):
+        """Exercise B1 transaction logic only after proving no DDL is needed."""
+
+        import psycopg2
+        from modules import player_timezone_production_migration as migration
+
+        policy = migration.MigrationPolicy(
+            environment='development',
+            database_name='polytopia_dev',
+            apply_confirmation='P9-B1-DEVELOPMENT-IDEMPOTENCY-TEST',
+        )
+        target = migration.MigrationTarget(
+            environment=self.profile.environment,
+            database_name=self.profile.database_name,
+            database_user=self.profile.database_user,
+        )
+        self.models.db.close()
+        connection = psycopg2.connect(
+            dbname=self.profile.database_name,
+            user=self.profile.database_user,
+            password=self.profile.database_password,
+            host=self.profile.database_host,
+            port=self.profile.database_port,
+        )
+        try:
+            before = migration.verify_migration(
+                connection,
+                target=target,
+                policy=policy,
+            )
+            self.assertTrue(
+                before.already_applied,
+                'Development schema is missing a reviewed timezone column; '
+                'refusing to let this test enter the apply path.',
+            )
+            applied = migration.apply_migration(
+                connection,
+                target=target,
+                policy=policy,
+                confirmation=policy.apply_confirmation,
+            )
+            self.assertTrue(applied.already_applied)
+            after = migration.verify_migration(
+                connection,
+                target=target,
+                policy=policy,
+            )
+            self.assertTrue(after.already_applied)
+        finally:
+            connection.close()
+            self.models.db.connect(reuse_if_open=True)
+
     def test_registration_check_reads_real_schema_without_writes(self):
         from modules import registration_checks
 
