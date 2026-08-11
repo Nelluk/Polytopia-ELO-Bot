@@ -13,14 +13,12 @@ database, service, Discord, or schema action.
 
 The modernization architecture is suitable for a production canary, but the
 current accumulation branch is not yet a releasable production checkpoint.
-Four bounded preparation stages remain:
+Three bounded preparation stages remain:
 
-1. finish review/integration of the implemented modernization-specific cutover
-   and rollback runbook;
-2. close the still-valid M1–M6 and L1 adversarial findings;
-3. validate one reconciled release candidate offline and through the stopped-
+1. close the still-valid M1–M6 and L1 adversarial findings;
+2. validate one reconciled release candidate offline and through the stopped-
    writer development PostgreSQL gate; and
-4. after separate approval, deploy one production process and enable a
+3. after separate approval, deploy one production process and enable a
    guild-scoped native-command canary only in PolyChampions.
 
 The dependency/PostgreSQL upgrade completed before this project is not an
@@ -116,8 +114,9 @@ first proved the columns already existed, so the apply path executed no DDL.
 
 ### R-004 — Replace the historical cutover procedure
 
-Status: Implemented by P9.16 checkpoint `d754beb`; Tier-3 complete-diff and
-offline validation are green, and accumulation integration is pending.
+Status: Complete through P9.16 implementation checkpoint `d754beb`, evidence
+checkpoint `8ddad6a`, and accumulation merge `d4a37d0`; production execution
+remains separately gated.
 
 `docs/PRODUCTION_CUTOVER.md` accurately records the completed Python 3.12 and
 PostgreSQL dependency cutover. Its Python 3.9 rollback is explicitly retired.
@@ -231,7 +230,7 @@ for every retained operation.
 2. Operator cleanup decisions that affect the final code checkpoint.
 3. R-003 production migration implementation and offline review.
 4. R-004 modernization cutover/rollback runbook and production config plan
-   (implemented by P9.16; integration pending).
+   (complete through P9.16 merge `d4a37d0`).
 5. Close the still-valid M1–M6 and L1 adversarial findings.
 6. R-002 release-candidate review, complete offline tests, stopped-beta full
    development PostgreSQL gate, and a bounded beta release matrix.
@@ -271,6 +270,6 @@ boundaries.
 
 ## Next action
 
-Finish P9.16/B2 review and integration, then close M1–M6 and the remaining L1
-consistency debt before R-002 freezes and validates one exact release
-candidate. Production execution remains separately approval-gated.
+Close M1–M6 and the remaining L1 consistency debt before R-002 freezes and
+validates one exact release candidate. Production execution remains separately
+approval-gated.

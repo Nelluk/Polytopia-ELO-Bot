@@ -25,7 +25,7 @@ severity is Medium or Low.
 | Finding | State | Durable evidence / next owner |
 |---|---|---|
 | B1 | Resolved | P9.15 production-only migration tooling |
-| B2 | Implemented; integration pending | P9.16 checkpoint `d754beb` |
+| B2 | Resolved | P9.16 checkpoints `d754beb`, `8ddad6a`; merge `d4a37d0` |
 | B3 | Resolved | P9.7a transaction truthfulness and P9.7b immutable publication |
 | H1–H2 | Resolved | P9.12 explicit environment and native-start ban parity |
 | H3 | Resolved | P9.14 global-tree inspect/apply guard |
@@ -76,8 +76,10 @@ connection or DDL was attempted.**
 
 ### B2 — There is no modernization cutover and rollback runbook
 
-Status: **Implemented by P9.16 checkpoint `d754beb`; Tier-3 complete-diff and
-offline validation are green, and accumulation integration is pending.**
+Status: **Resolved by P9.16 implementation checkpoint `d754beb`, evidence
+checkpoint `8ddad6a`, and accumulation merge `d4a37d0`; Tier-3 complete-diff
+and offline validation are green. Production execution remains separately
+gated.**
 
 - **Location:** `docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md:105`,
   `docs/PRODUCTION_CUTOVER.md:1`, and `docs/PRODUCTION_CUTOVER.md:44`.

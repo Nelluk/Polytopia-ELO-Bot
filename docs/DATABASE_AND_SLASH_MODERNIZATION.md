@@ -491,9 +491,10 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.16/B2 modernization production cutover and rollback
-is implemented on isolated branch `codex/p9-16-b2-modernization-cutover` at
-checkpoint `d754beb`, based on exact clean accumulation `178f8e8`. The new
-runbook is explicitly separate from the historical Python upgrade, pins exact
+is Complete in accumulation at merge checkpoint `d4a37d0`. Implementation
+checkpoint `d754beb` and evidence checkpoint `8ddad6a` were reviewed from
+exact clean base `178f8e8`. The new runbook is explicitly separate from the
+historical Python upgrade, pins exact
 release/rollback commits, requires backup and host/PostgreSQL single-writer
 proof, applies/verifies additive schema before model code, supplies a tracked
 task-disabled `Restart=no` canary, separates canonical service activation from
@@ -501,11 +502,14 @@ the PolyChampions-only command canary, and defines independent rollback and
 uncertain-effect handling. Focused cutover/migration/command/runtime coverage
 passes 67/67. Complete discovery runs 1,612 tests: 1,538 pass, 71 intentionally
 skip, and only the three known missing-`duckdb` environment cases fail. Tier-3
-complete-diff review found no remaining B2 blocker. No production,
-database, Discord, service, dependency, or beta operation has occurred. The
+complete-diff review found no remaining B2 blocker. No production, database,
+Discord, service, dependency, or beta mutation occurred; beta inspection was
+read-only. The
 adversarial matrix now states candidly that B1/B3 and H1–H8 are resolved, B2
-awaits integration, and M1–M6, M7, and part of L1 remain open before a release
-candidate.**
+is resolved, and M1–M6, M7, and part of L1 remain open before a release
+candidate. The healthy beta remains on runtime checkpoint `8b9ede1`; B2 changes
+no bot runtime or command tree, so no restart/apply/announcement was
+warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13475,11 +13479,13 @@ checklist update, or tester announcement was warranted.
 
 ### P9.16 — B2 modernization production cutover and rollback
 
-Status: **Implemented and Tier-3 validated; accumulation integration pending**
+Status: **Complete in accumulation; production execution remains separately
+gated**
 
 Branch/base: `codex/p9-16-b2-modernization-cutover`, exact clean accumulation
 base `178f8e840b7628625c506b764764f6fbd38112b6`.
 Implementation/tests checkpoint: `d754beb`.
+Roadmap/review evidence checkpoint: `8ddad6a`; accumulation merge: `d4a37d0`.
 
 `docs/MODERNIZATION_PRODUCTION_CUTOVER.md` is now the explicit modernization
 operations authority. The completed Python 3.12 runbook is labelled historical
@@ -13522,6 +13528,12 @@ no B2 blocker remains. B2 has no development-database path or Discord command
 shape; no PostgreSQL gate,
 development-guild apply, beta restart, checklist change, or announcement is
 warranted for this documentation/operations unit.
+
+The reviewed unit was merged at `d4a37d0`. The durable beta remained healthy
+on runtime checkpoint `8b9ede1`; because B2 changes only documentation, tests,
+and an uninstalled production canary asset, restarting it would create
+unnecessary tester interruption and would not exercise B2. No command plan or
+apply, checklist update, or announcement was warranted.
 
 ## Standard work-unit template
 
@@ -14559,6 +14571,12 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   canary lifecycle commands executable and fail-closed; no B2 blocker remains.
   No production checkout, configuration, service, database, Discord,
   dependency, or beta mutation occurred.
+- Committed evidence at `8ddad6a`, accepted the complete Tier-3 diff, and
+  merged B2 into accumulation at `d4a37d0`. The healthy development beta
+  remained on runtime checkpoint `8b9ede1` because the unit changes no loaded
+  bot code or command tree; no restart, command apply, checklist update, or
+  announcement was warranted. Next recommended: close M1's retained-prefix
+  event-loop ORM boundaries as the first remaining source finding.
 
 ### 2026-08-10 — P9.15/B1 production timezone migration tooling validated
 
