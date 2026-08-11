@@ -36,11 +36,12 @@ in the roadmap and must later bind to the exact candidate.
 ## Recommendation
 
 The reviewed source blockers are resolved. B1–B3, H1–H8, M1–M6, L1, and the
-later N1–N2 findings are complete through P9.21. The recommended bounded
-pre-M7 beta-testability unit was selected as P9.22; its source and stopped-
-writer validation are complete and integrated at `d58a2c7`, with beta
-deployment pending.
-After P9.22 closes, M7 is the final exact-HEAD release-candidate evidence gate.
+later N1–N2 findings are complete through P9.21. P9.22's bounded pre-M7 beta-
+testability source and stopped-writer validation are complete, integrated at
+`d58a2c7`, pushed through `a6b8d40`, and deployed to the development beta with
+the exact guild tree converged and the tester release posted. Wider human
+acceptance remains part of the bounded beta evidence. M7 is now the final
+exact-HEAD release-candidate evidence gate.
 
 ## Current resolution matrix
 

@@ -490,8 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.22 pre-M7 beta testability/readiness is integrated
-and pending development-guild apply/beta acceptance. It was built on
+Current active unit: **P9.22 pre-M7 beta testability/readiness is complete in
+accumulation and deployed to the development beta; wider human acceptance is
+pending. It was built on
 `codex/p9-22-beta-testability`, from exact clean local/tracking/GitHub
 accumulation checkpoint `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
 This Tier-3 unit keeps `/whattotest` public and read-only while adding a live
@@ -506,11 +507,19 @@ offline discovery runs 1,686 tests with 1,610 passes, 73 intentional skips,
 and only the three known missing-DuckDB environment cases. The stopped-writer
 development gate passes 71 of 72 tests with the retained owned-fixture round
 trip intentionally skipped; the new real-schema readiness test is read-only.
-The offline desired tree is valid and remote inspection proposes only an
-`operator` root update in guild `478571892832206869`. Implementation checkpoint
+The offline desired tree was valid and guild-only apply updated only the
+`operator` root in guild `478571892832206869`; post-apply inspection proves all
+eleven roots unchanged and zero global commands. Implementation checkpoint
 `47dbd0a` and evidence checkpoint `3a8c444` merged without conflict at
-`d58a2c72c68d93edeea2d2bd659ea7615c164008`. Guild-scoped apply, beta start,
-smoke, and tester release remain pending.**
+`d58a2c72c68d93edeea2d2bd659ea7615c164008`; integration evidence checkpoint
+`a6b8d404ba44353931c590abf27f962ebbadcde5` was pushed. The guarded beta now
+runs that exact checkpoint as PID `79000`, authenticated as application
+`479029527553638401`, with zero restarts and one host-wide development writer.
+Live read-only readiness reports the exercised exact bundle at games
+`149`–`151` as needing reset. Release `2026-08-11-p9-22-beta-testability` was
+posted once to the configured tester channel as message `1536733270350495907`
+and mirrored privately after all downtime ended. No owned fixture mutation
+occurred. Next recommended action is M7/R-002 exact-candidate freeze.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13911,16 +13920,16 @@ announcement, or reporter mention is warranted. The deployment uses the
 documented no-announcement route because the affected behavior is internal
 startup safety and has already been exercised by the guarded service start.
 
-Next recommended action: P9.22, the bounded pre-M7 beta-testability/readiness
-pack already recorded in the roadmap: scenario-oriented `/whattotest`, fixture
-readiness, and safe staff preparation/reset through the existing owned-fixture
-framework without exposing general tester-triggered database seeding. Also
-ready: proceed directly to M7/R-002 exact-candidate freeze if no additional
-beta convenience tooling is desired.
+Next recommended action: M7/R-002, freezing one exact release-candidate HEAD
+and binding complete offline, stopped-writer development PostgreSQL, cutover-
+critical review, and bounded beta evidence to it. Also ready: collect focused
+P9.22 human acceptance and feedback against the announced checklist while M7's
+repository-only evidence tooling and candidate inventory are prepared; do not
+add another convenience feature before the freeze without a concrete blocker.
 
 ### P9.22 — Pre-M7 beta testability and owned-scenario readiness
 
-Status: **Integrated; development-guild apply and beta acceptance pending**
+Status: **Complete in accumulation and deployed; wider human acceptance pending**
 
 Branch/base: `codex/p9-22-beta-testability`, exact clean accumulation base
 `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
@@ -13983,9 +13992,9 @@ global Discord operation occurred.
 
 The model-free offline desired-tree plan contains the expected eleven roots.
 Remote read-only inspection found zero global commands and the same eleven
-development-guild roots; the only proposed guild change is an update of the
-existing `operator` root. Apply remains pending at the clean integrated
-accumulation checkpoint.
+development-guild roots; guild-only apply changed only the existing `operator`
+root in guild `478571892832206869`. The convergence inspection then found all
+eleven roots unchanged and zero global commands.
 
 Tier-3 complete-diff review found and corrected two boundary defects before
 commit: the first draft loaded its terminal fixture snapshot just after the
@@ -13999,9 +14008,19 @@ participants and applies a per-user cooldown to the newly database-backed
 
 Implementation/tests checkpoint `47dbd0a`; roadmap evidence checkpoint
 `3a8c444`. Both were accepted and merged into accumulation without conflict at
-`d58a2c72c68d93edeea2d2bd659ea7615c164008`. The remaining sequence is the
-clean integration-evidence commit/push, exact development-guild apply, durable
-beta start and health/readiness smoke, then the terminal tester announcement.
+`d58a2c72c68d93edeea2d2bd659ea7615c164008`. Integration evidence checkpoint
+`a6b8d404ba44353931c590abf27f962ebbadcde5` is pushed. The guarded beta runs
+that exact checkpoint as PID `79000`, authenticated as the expected beta
+application with zero restart churn; the host-wide audit finds only that one
+development writer. A live read-only readiness probe reports the existing
+exact games `149`–`151` as safely resettable and currently needing reset; it
+changed no rows. The reviewed `WHAT TO TEST` release
+`2026-08-11-p9-22-beta-testability` was posted once as message
+`1536733270350495907` and mirrored privately after the beta was healthy and all
+downtime finished. No fixture mutation, production action, or global Discord
+operation occurred. Human invocation of the new panels and wider tester
+acceptance remain evidence for the M7 bounded beta matrix, not unfinished
+source implementation.
 
 ## Standard work-unit template
 
@@ -15177,6 +15196,20 @@ deferred into this post-modernization backlog.
   passes 69 tests. Next: commit/push integration evidence, apply only the
   configured development guild, start/smoke the exact clean checkpoint, and
   finish with the reviewed tester announcement.
+- Integration evidence `a6b8d404ba44353931c590abf27f962ebbadcde5`
+  was pushed. The explicit guild-only apply updated only `operator`; a second
+  remote inspection proved all eleven development roots converged and the
+  global tree remained empty. The guarded beta started at that exact checkpoint
+  as PID `79000`, authenticated as application `479029527553638401`, has zero
+  restarts, and is the sole host-wide development writer.
+- The live worker-owned readiness read reported the exact exercised bundle at
+  games `149`–`151` as needing reset, with no row mutation. After all downtime
+  and command work ended, reviewed release
+  `2026-08-11-p9-22-beta-testability` pinged testers once in the configured
+  public channel as message `1536733270350495907` and mirrored to the private
+  staff channel. No fixture, production, schema, dependency, or global Discord
+  mutation occurred. P9.22 is deployed; wider human acceptance belongs to
+  M7's bounded beta matrix. Next recommended: M7/R-002 exact-candidate freeze.
 
 ### 2026-08-11 — P9.21 final-review startup blockers corrected and reviewed
 
