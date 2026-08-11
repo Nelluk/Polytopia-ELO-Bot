@@ -282,6 +282,58 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             len(result['houses']), beta_readiness.MAX_DATABASE_HOUSES
         )
 
+    def test_whattotest_fixture_readiness_reads_owned_bundle_without_writes(self):
+        from modules import operator_beta_fixtures_workers as workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        before = tuple(
+            self.models.Game.select(
+                self.models.Game.id,
+                self.models.Game.is_completed,
+                self.models.Game.is_confirmed,
+                self.models.Game.is_pending,
+            )
+            .where(
+                (self.models.Game.guild_id == guild_id)
+                & (
+                    self.models.Game.notes
+                    == workers.dev_fixtures.FIXTURE_NOTES_MARKER
+                )
+            )
+            .order_by(self.models.Game.id)
+            .tuples()
+        )
+        snapshot = asyncio.run(workers.run_readiness(
+            workers.BetaFixtureReadRequest(guild_id=guild_id)
+        ))
+        after = tuple(
+            self.models.Game.select(
+                self.models.Game.id,
+                self.models.Game.is_completed,
+                self.models.Game.is_confirmed,
+                self.models.Game.is_pending,
+            )
+            .where(
+                (self.models.Game.guild_id == guild_id)
+                & (
+                    self.models.Game.notes
+                    == workers.dev_fixtures.FIXTURE_NOTES_MARKER
+                )
+            )
+            .order_by(self.models.Game.id)
+            .tuples()
+        )
+        self.assertEqual(after, before)
+        self.assertEqual(snapshot.game_ids, tuple(row[0] for row in before))
+        self.assertIn(
+            snapshot.readiness,
+            {'ready', 'needs reset', 'needs preparation'},
+        )
+        self.assertTrue(all(
+            isinstance(item, workers.BetaFixtureScenario)
+            for item in snapshot.scenarios
+        ))
+
     def test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures(self):
         """Exercise the real schema through the existing strict gate only."""
 

@@ -508,9 +508,12 @@ one-shot state rules to obtain shorter output.
 
 Read `/staffhelp` reports with the WB1.1 read-only utility. Treat the
 development feedback root as sensitive; retention/redaction and fixture
-cleanup remain separately approved filesystem/database actions. Do not seed
-or clean `polytopia_dev` fixtures while the beta writer is running. Use
-`docs/DEVELOPMENT_BETA_FIXTURES.md` and its existing exact identity gates.
+cleanup remain separately approved filesystem/database actions. Do not run
+the out-of-process fixture CLI while the beta writer is running. The only
+running-beta exception is the owner-only, ELO-coordinated `/operator beta
+prepare` or `/operator beta reset` workflow documented in
+`docs/DEVELOPMENT_BETA_FIXTURES.md`; it retains the same exact identity and
+ownership gates.
 
 If the service fails its preflight, inspect the journal and profile output;
 do not weaken a guard. If a release is blocked by a wrong identity, channel,

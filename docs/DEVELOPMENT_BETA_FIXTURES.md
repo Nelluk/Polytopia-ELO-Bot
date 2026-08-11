@@ -16,8 +16,16 @@ live PostgreSQL session identify:
 - API disabled
 - a guild allowed by the development profile
 
-Run seed and cleanup only while the beta bot is stopped. The in-process ELO
-coordinator cannot coordinate with a separate fixture-management process.
+Run the command-line seed and cleanup operations only while the beta bot is
+stopped. A separate fixture-management process cannot coordinate with the
+running bot's ELO mutations.
+
+The running development beta additionally exposes owner-only
+`/operator beta prepare` and `/operator beta reset`. Those two commands are
+the only reviewed in-process write path: they use the bot's ELO coordinator,
+worker-local database connections, exact development identity gates, private
+previews, stale-state revalidation, one transaction, and immutable results.
+They do not authorize command-line fixture writes while the beta is running.
 
 The selected user IDs must already have `DiscordMember` and `Player` records
 in the development guild. The harness does not create or modify users.
@@ -49,6 +57,37 @@ POLYBOT_ENV=development .venv/bin/python \
 
 Seed is idempotent for the same user set. To change users, clean the existing
 set first.
+
+### In-process operator workflow
+
+Use `/whattotest` first. It reads the marked result bundle without changing it
+and reports one of:
+
+- **Ready**: all three exact scenarios are in their canonical state;
+- **Needs preparation**: no owned result bundle exists;
+- **Needs reset**: the exact bundle is incomplete or has been exercised; or
+- **Manual review required**: ownership, scenario names, participant shape, or
+  row count is ambiguous and neither Discord mutation is offered.
+
+When no bundle exists, the configured bot owner may run
+`/operator beta prepare` and select exactly two distinct members. Both must
+already have Player records in the development guild. The private preview
+creates nothing until **Prepare fixtures** is pressed.
+
+After tests have changed an existing exact bundle, the owner may run
+`/operator beta reset`. It takes no participant options: the preview freezes
+the two participants and every currently owned game ID. Confirmation
+revalidates the complete snapshot, deletes only exact marker/name/guild-owned
+games, reverses and reconciles their ELO effects, and creates fresh Ready,
+Unconfirmed, and Completed games atomically. A changed, duplicated, unknown,
+oversized, wrong-guild, wrong-database, or participant-ambiguous bundle fails
+closed. Ordinary unmarked games are never adopted or deleted.
+
+Both commands are private owner tooling and write a GameLog audit record in
+the same transaction. Cancellation is drained until the worker transaction
+has a known result. If Discord cannot publish the terminal panel, use
+`/whattotest` to reconcile live state before retrying. Neither command writes
+the ignored CLI manifest; database ownership markers remain authoritative.
 
 ## Created scenarios
 

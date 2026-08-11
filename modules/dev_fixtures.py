@@ -9,6 +9,8 @@ from pathlib import Path
 import tempfile
 from typing import Any, Iterable, Sequence
 
+import peewee
+
 
 EXPECTED_ENVIRONMENT = 'development'
 EXPECTED_DATABASE = 'polytopia_dev'
@@ -46,6 +48,8 @@ class FixtureGame:
     expiration: str | None
     league_season: int | None = None
     league_tier: int | None = None
+    participant_ids: tuple[int, ...] = ()
+    winner_position: int | None = None
 
 
 @dataclass(frozen=True)
@@ -225,13 +229,22 @@ def _scenario_name(scenario: str) -> str:
     return f'{FIXTURE_NAME_PREFIX} {scenario.title()}'
 
 
-def _find_fixture_games(models_module: Any, guild_id: int) -> tuple[Any, ...]:
-    return tuple(
-        models_module.Game.select().where(
-            (models_module.Game.guild_id == guild_id)
-            & (models_module.Game.notes == FIXTURE_NOTES_MARKER)
-        ).order_by(models_module.Game.id)
-    )
+def _find_fixture_games(
+    models_module: Any,
+    guild_id: int,
+    *,
+    for_update: bool = False,
+    limit: int | None = None,
+) -> tuple[Any, ...]:
+    query = models_module.Game.select().where(
+        (models_module.Game.guild_id == guild_id)
+        & (models_module.Game.notes == FIXTURE_NOTES_MARKER)
+    ).order_by(models_module.Game.id)
+    if for_update and isinstance(models_module.db, peewee.PostgresqlDatabase):
+        query = query.for_update()
+    if limit is not None:
+        query = query.limit(int(limit))
+    return tuple(query)
 
 
 def _find_leaderboard_players(
@@ -484,6 +497,10 @@ def _game_view(game: Any) -> FixtureGame:
             if game.league_tier is not None
             else None
         ),
+        participant_ids=_user_ids_for_games((game,)),
+        winner_position=(
+            int(game.winner.position) if game.winner is not None else None
+        ),
     )
 
 
@@ -499,8 +516,12 @@ def _user_ids_for_games(games: Sequence[Any]) -> tuple[int, ...]:
 def _state_from_open_connection(
     models_module: Any,
     guild_id: int,
+    *,
+    games: Sequence[Any] | None = None,
 ) -> FixtureState:
-    games = _find_fixture_games(models_module, guild_id)
+    if games is None:
+        games = _find_fixture_games(models_module, guild_id)
+    games = tuple(games)
     return FixtureState(
         guild_id=guild_id,
         user_ids=_user_ids_for_games(games),
@@ -545,12 +566,22 @@ def fixture_status(
     profile: Any,
     models_module: Any,
     guild_id: int,
+    maximum_games: int | None = None,
 ) -> FixtureState:
     validate_profile(profile)
     guild_id = validate_guild_id(profile, guild_id)
     with models_module.db.connection_context():
         validate_live_identity(*_live_identity(models_module))
-        return _state_from_open_connection(models_module, guild_id)
+        games = _find_fixture_games(
+            models_module,
+            guild_id,
+            limit=maximum_games,
+        )
+        return _state_from_open_connection(
+            models_module,
+            guild_id,
+            games=games,
+        )
 
 
 def seed_fixtures(
@@ -622,6 +653,134 @@ def seed_fixtures(
         state = _state_from_open_connection(models_module, guild_id)
     _write_manifest(manifest_path, state)
     return state
+
+
+def prepare_fixtures_in_process(
+    *,
+    profile: Any,
+    models_module: Any,
+    guild_id: int,
+    user_ids: Iterable[int],
+    audit_message: str,
+) -> FixtureState:
+    """Create one new owned bundle for the running development beta.
+
+    Unlike the retained command-line seed path, this deliberately refuses an
+    existing bundle.  The Discord operator workflow previews current state
+    first and uses reset for every replacement, which keeps its confirmation
+    truthful and prevents an accidental partial repair.
+    """
+
+    validate_profile(profile)
+    guild_id = validate_guild_id(profile, guild_id)
+    normalized_user_ids = validate_user_ids(user_ids)
+    with models_module.db.connection_context():
+        validate_live_identity(*_live_identity(models_module))
+        with models_module.db.atomic():
+            if _find_fixture_games(models_module, guild_id, limit=1):
+                raise FixtureValidationError(
+                    'An owned fixture bundle already exists. Inspect it and '
+                    'use the reset command instead.'
+                )
+            players = _load_players(
+                models_module, guild_id, normalized_user_ids
+            )
+            for scenario in SCENARIOS:
+                _create_scenario(
+                    models_module,
+                    guild_id,
+                    players,
+                    scenario,
+                )
+            models_module.GameLog.write(
+                game_id=0,
+                guild_id=guild_id,
+                message=audit_message,
+            )
+            state = _state_from_open_connection(models_module, guild_id)
+        return state
+
+
+def reset_fixtures_in_process(
+    *,
+    profile: Any,
+    models_module: Any,
+    guild_id: int,
+    user_ids: Iterable[int],
+    expected_state: FixtureState,
+    audit_message: str,
+) -> FixtureState:
+    """Atomically replace one exactly owned bundle for the running beta."""
+
+    validate_profile(profile)
+    guild_id = validate_guild_id(profile, guild_id)
+    normalized_user_ids = validate_user_ids(user_ids)
+    with models_module.db.connection_context():
+        validate_live_identity(*_live_identity(models_module))
+        with models_module.db.atomic():
+            games = _find_fixture_games(
+                models_module,
+                guild_id,
+                for_update=True,
+                limit=len(SCENARIOS) + 1,
+            )
+            if not games:
+                raise FixtureValidationError(
+                    'No owned fixture bundle exists to reset.'
+                )
+            live_state = _state_from_open_connection(
+                models_module,
+                guild_id,
+                games=games,
+            )
+            if live_state != expected_state:
+                raise FixtureValidationError(
+                    'The owned fixture bundle changed after preview. Run the '
+                    'command again.'
+                )
+            if len(games) > len(SCENARIOS):
+                raise FixtureValidationError(
+                    'The owned fixture bundle is oversized and requires '
+                    'manual review.'
+                )
+            scenarios = tuple(_scenario_from_name(game.name) for game in games)
+            if (
+                any(scenario is None for scenario in scenarios)
+                or len(scenarios) != len(set(scenarios))
+                or any(not is_owned_game(game, guild_id) for game in games)
+            ):
+                raise FixtureValidationError(
+                    'The owned fixture bundle is ambiguous and requires '
+                    'manual review.'
+                )
+            expected_users = tuple(sorted(normalized_user_ids))
+            for game in games:
+                if _user_ids_for_games((game,)) != expected_users:
+                    raise FixtureValidationError(
+                        'Fixture participants changed after preview. Run the '
+                        'command again or inspect the bundle manually.'
+                    )
+            players = _load_players(models_module, guild_id, normalized_user_ids)
+            for game in sorted(
+                games,
+                key=lambda item: item.completed_ts or datetime.datetime.min,
+                reverse=True,
+            ):
+                game.delete_game()
+            for scenario in SCENARIOS:
+                _create_scenario(
+                    models_module,
+                    guild_id,
+                    players,
+                    scenario,
+                )
+            models_module.GameLog.write(
+                game_id=0,
+                guild_id=guild_id,
+                message=audit_message,
+            )
+            state = _state_from_open_connection(models_module, guild_id)
+        return state
 
 
 def cleanup_fixtures(
