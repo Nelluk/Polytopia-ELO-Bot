@@ -6,7 +6,7 @@ import os
 import sys
 import traceback
 from timeit import default_timer as timer
-from typing import List
+from typing import Awaitable, Callable, List
 
 import discord
 from discord.ext import commands
@@ -14,7 +14,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import beta_operations, image_storage
+from modules import beta_operations, image_storage, operator_restart
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -65,6 +65,20 @@ def main(args: List[str] = None):
         utilities.export_game_data()
         print(f'Recalculation complete - took {timer() - start} seconds.')
         exit(0)
+
+
+class PolyBotCommandTree(discord.app_commands.CommandTree):
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not settings.maintenance_mode:
+            return True
+        message = 'The bot is restarting. Try the command again in a moment.'
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+        return False
+
+
 class MyBot(commands.Bot):
     intents = discord.Intents.default()
     intents.members = True
@@ -76,14 +90,18 @@ class MyBot(commands.Bot):
                          owner_id=settings.owner_id,
                          allowed_mentions=discord.AllowedMentions(everyone=False),
                          intents=self.intents,
+                         tree_cls=PolyBotCommandTree,
                          activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
         settings.bot = self
-        self.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
+        # Auto-deleting task messages cleaned up before a planned restart.
+        # Each item is a (guild_id, channel_id, message_id) tuple.
+        self.purgable_messages = []
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
         self.beta_release_control = None
         self._startup_identity_validated = False
         self._startup_bans_reconciled = False
         self._startup_ban_lock = asyncio.Lock()
+        self._restart_exit_status = None
         # Guild commands are deployed out-of-process.  Keep runtime dispatch
         # failures observable and always acknowledge a delivered interaction
         # instead of leaving Discord's "Sending command..." state unresolved.
@@ -243,6 +261,66 @@ class MyBot(commands.Bot):
             self.beta_release_control = None
         await super().close()
 
+    @property
+    def restart_exit_status(self) -> int | None:
+        return self._restart_exit_status
+
+    async def _cleanup_restart_messages(self) -> None:
+        """Remove task-owned temporary notices before a planned restart."""
+
+        if not settings.run_tasks or not self.purgable_messages:
+            return
+        logger.debug('Purging restart message list %s', self.purgable_messages)
+        for guild_id, channel_id, message_id in reversed(self.purgable_messages):
+            guild = self.get_guild(guild_id)
+            channel = guild.get_channel(channel_id) if guild is not None else None
+            if channel is None:
+                continue
+            try:
+                message = await channel.fetch_message(message_id)
+                await message.delete()
+            except discord.DiscordException:
+                logger.warning(
+                    'Could not remove temporary restart message guild=%s '
+                    'channel=%s message=%s',
+                    guild_id,
+                    channel_id,
+                    message_id,
+                )
+        await asyncio.sleep(3)
+
+    async def request_supervised_restart(
+        self,
+        requester_id: int,
+        force: bool,
+        *,
+        before_close: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
+        """Close cleanly, then let ``init_bot`` return a restart exit status."""
+
+        operator_restart.assert_supervised()
+        if self._restart_exit_status is not None:
+            raise operator_restart.RestartConflictError(
+                'Another accepted restart is already shutting down the bot.'
+            )
+        self._restart_exit_status = operator_restart.RESTART_EXIT_STATUS
+        settings.maintenance_mode = True
+        logger.warning(
+            'Supervised restart accepted requester=%s force=%s exit_status=%s',
+            int(requester_id),
+            bool(force),
+            self._restart_exit_status,
+        )
+        try:
+            if before_close is not None:
+                await before_close()
+            await self._cleanup_restart_messages()
+            await self.close()
+        except BaseException:
+            self._restart_exit_status = None
+            settings.maintenance_mode = False
+            raise
+
 
 def get_prefix(bot, message):
     # Guild-specific command prefixes
@@ -384,6 +462,9 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         loop.create_task(bot.start(settings.runtime_profile.discord_token))
     else:
         bot.run(settings.runtime_profile.discord_token)
+        if bot.restart_exit_status is not None:
+            raise SystemExit(bot.restart_exit_status)
+    return bot
 
 
 if __name__ == '__main__':

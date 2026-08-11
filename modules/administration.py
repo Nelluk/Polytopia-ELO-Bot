@@ -12,6 +12,7 @@ import asyncio
 import discord
 import re
 import functools
+from pathlib import Path
 from modules.games import PolyGame
 from modules import auto_confirmation_workers
 from modules import confirmation_publication, confirmation_publication_workers
@@ -44,9 +45,13 @@ from modules import operator_backup_views
 from modules import operator_channel_purge as operator_channel_purge_service
 from modules import operator_channel_purge_views
 from modules import operator_channel_purge_workers
+from modules import operator_restart as operator_restart_service
+from modules import operator_restart_views
+from modules import game_open_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfirmedWinPublicationError(RuntimeError):
@@ -120,6 +125,32 @@ def format_elo_job_status(active_job, now=None):
     )
 
 
+def current_restart_activity() -> operator_restart_service.RestartActivitySnapshot:
+    """Capture primitive in-process work that a normal restart must respect."""
+
+    descriptions = []
+    active_elo = settings.elo_job_coordinator.active_job
+    if active_elo is not None:
+        target = (
+            f'game {active_elo.game_id}'
+            if active_elo.game_id is not None else 'all games'
+        )
+        descriptions.append(f'ELO job `{active_elo.operation}` for {target}')
+    pending_count = game_open_workers.pending_game_coordinator.active_count
+    if pending_count:
+        descriptions.append(f'{pending_count} pending-game worker(s)')
+    if operator_backup.backup_coordinator.active is not None:
+        descriptions.append('manual database backup')
+    purge_count = len(
+        operator_channel_purge_service.manual_purge_coordinator.active_guilds
+    )
+    if purge_count:
+        descriptions.append(
+            f'manual channel purge in {purge_count} guild(s)'
+        )
+    return operator_restart_service.RestartActivitySnapshot(tuple(descriptions))
+
+
 class administration(commands.Cog):
     elo_group = discord.app_commands.Group(
         name='elo',
@@ -158,6 +189,12 @@ class administration(commands.Cog):
     operator_channels_group = discord.app_commands.Group(
         name='channels',
         description='Review restricted channel-maintenance operations.',
+        parent=operator_group,
+        guild_only=True,
+    )
+    operator_bot_group = discord.app_commands.Group(
+        name='bot',
+        description='Run restricted bot lifecycle operations.',
         parent=operator_group,
         guild_only=True,
     )
@@ -503,47 +540,6 @@ class administration(commands.Cog):
             return message
         finally:
             utilities.unlock_game(game_id)
-
-    @settings.is_superuser_check()
-    @commands.command(aliases=['quit', 'restart_force'])
-    async def restart(self, ctx):
-        """ *Owner*: Close database connection and quit bot gracefully """
-
-        if settings.elo_job_coordinator.is_active and ctx.invoked_with != 'restart_force':
-            logger.info('Skipping command due to active ELO job')
-            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. A restart seems like a bad idea. Force restart with `{ctx.prefix}restart_force`')
-
-        settings.maintenance_mode = True
-        logger.debug(f'Purging message list {self.bot.purgable_messages}')
-        try:
-            if models.db.close():
-                close_message = 'db connection closing normally'
-            else:
-                close_message = 'db connection was already closed'
-
-        except peewee.PeeweeException as e:
-            message = f'Error during post_invoke_cleanup db.close(): {e}'
-        finally:
-            logger.info(close_message)
-
-        if settings.run_tasks and self.bot.purgable_messages:
-            async with ctx.typing():
-                for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
-                    # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
-                    guild = self.bot.get_guild(guild_id)
-                    channel = guild.get_channel(channel_id)
-                    try:
-                        logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
-                        message = await channel.fetch_message(message_id)
-                        await message.delete()
-                    except discord.DiscordException:
-                        pass
-
-            await ctx.send('Cleaning up temporary announcement messages...')
-            await asyncio.sleep(3)  # to make sure message deletes go through
-
-        await ctx.send('Shutting down')
-        await self.bot.close()
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
@@ -1288,6 +1284,108 @@ class administration(commands.Cog):
             requester_id=int(interaction.user.id),
             preview=preview,
             confirmer=confirm,
+        )
+        await interaction.edit_original_response(content=None, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
+
+    @operator_bot_group.command(
+        name='restart',
+        description='Restart the bot through its reviewed process supervisor.',
+    )
+    @discord.app_commands.describe(
+        force=(
+            'Owner only: bypass known active-work checks after exact '
+            'confirmation.'
+        ),
+    )
+    async def operator_bot_restart_slash(
+        self,
+        interaction: discord.Interaction,
+        force: bool = False,
+    ):
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.', ephemeral=True
+            )
+        requester_id = int(interaction.user.id)
+        requester_name = str(
+            getattr(interaction.user, 'display_name', None)
+            or getattr(interaction.user, 'name', None)
+            or f'user-{requester_id}'
+        )
+
+        def restart_request(
+            confirmation_text: str | None = None,
+        ) -> operator_restart_service.RestartRequest:
+            return operator_restart_service.RestartRequest(
+                requester_id=requester_id,
+                requester_name=requester_name,
+                is_superuser=bool(settings.is_superuser(interaction.user)),
+                is_owner=requester_id == int(settings.owner_id),
+                force=bool(force),
+                confirmation_text=confirmation_text,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preview = await operator_restart_service.restart_coordinator.preview(
+                restart_request(),
+                project_root=PROJECT_ROOT,
+                activity_loader=current_restart_activity,
+            )
+        except operator_restart_service.RestartError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected supervised restart preflight failure')
+            return await interaction.followup.send(
+                'Restart preflight failed without stopping the bot. Inspect '
+                'the bot logs before retrying.',
+                ephemeral=True,
+            )
+
+        async def run_restart(component_interaction, confirmation_text):
+            component_user_id = int(component_interaction.user.id)
+            request = operator_restart_service.RestartRequest(
+                requester_id=component_user_id,
+                requester_name=str(
+                    getattr(component_interaction.user, 'display_name', None)
+                    or getattr(component_interaction.user, 'name', None)
+                    or f'user-{component_user_id}'
+                ),
+                is_superuser=bool(
+                    settings.is_superuser(component_interaction.user)
+                ),
+                is_owner=component_user_id == int(settings.owner_id),
+                force=bool(force),
+                confirmation_text=confirmation_text,
+            )
+
+            async def shutdown(requester_id, force_restart):
+                async def acknowledge():
+                    view.mark_accepted()
+                    await component_interaction.edit_original_response(
+                        view=view,
+                    )
+
+                await self.bot.request_supervised_restart(
+                    requester_id,
+                    force_restart,
+                    before_close=acknowledge,
+                )
+
+            return await operator_restart_service.restart_coordinator.run(
+                request,
+                project_root=PROJECT_ROOT,
+                activity_loader=current_restart_activity,
+                shutdown=shutdown,
+            )
+
+        view = operator_restart_views.RestartConfirmationView(
+            preview=preview,
+            runner=run_restart,
         )
         await interaction.edit_original_response(content=None, view=view)
         try:
