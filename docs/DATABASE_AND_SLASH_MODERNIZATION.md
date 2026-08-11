@@ -584,6 +584,24 @@ Lab status remains fully ready. No command apply, tester-checklist change, or
 announcement is warranted because P10.4 changes no command or tester-facing
 workflow. The final accumulation close-out push follows this evidence.**
 
+P10.5 explicit development database guild-configuration authority is
+implemented and development-database gated on
+`codex/p10-5-guild-config-authority` from exact clean pushed accumulation base
+`edf1ba75aa356257e7ce24a08723e0f3c13fb9d2`. Implementation checkpoint
+`16cbc50` adds the exact pre-start `static`/`database` selector, command/event
+fail-closed startup gate, one immutable legacy-compatible snapshot, stable-ID
+role authorization/effect resolution, no-fallback startup failure, and the
+static restart rollback. Read-only gate checkpoint `13460ad` adds an exact
+real-graph publication regression. Focused P10 validation passes 47 tests,
+affected role/configuration validation passes 267 tests, complete offline
+discovery passes all 1,813 tests with 78 intentional skips, and the complete
+stopped-writer development PostgreSQL gate passes 78 tests with one
+intentional retained-fixture skip. Tier-3 complete-diff review found and
+corrected one startup race: database-selected processes now expose neither a
+static guild allowlist nor static command capabilities before publication.
+Integration and a guarded beta restart with the ignored development selector
+set to `database` are the remaining P10.5 close-out actions.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14762,6 +14780,73 @@ tester-visible behavior are unchanged, so no command registration,
 older frozen release candidate for runtime evidence; a future production-ready
 claim must refresh the exact candidate/gates rather than inheriting them.
 
+### P10.5 — Explicit development database authority
+
+Status: **Implemented, Tier-3 reviewed, and development-database gated;
+integration and beta validation pending.**
+
+Branch/base: `codex/p10-5-guild-config-authority`, exact clean pushed
+accumulation checkpoint `edf1ba75aa356257e7ce24a08723e0f3c13fb9d2`.
+
+Implementation checkpoint: `16cbc50`. Gated authority-verification checkpoint:
+`13460ad`.
+
+Risk tier: **Tier 3 runtime permission/configuration authority boundary.** It
+changes which complete guild policy the development bot serves, but writes no
+schema/data, changes no command tree, and cannot select database authority in
+production.
+
+P10.5 adds one exact `guild_configuration_source = static|database` bootstrap
+choice. Development requires a value; production rejects `database` and keeps
+the transitional missing-key static compatibility until a separately approved
+production unit. The source is fixed for the process lifetime. Database mode
+exposes no static allowlist, setting, or capability assignment while startup
+is pending, and prefix/slash dispatch is gated. On the first ready cycle it
+reuses P10.4's bounded current Discord snapshot and read-only worker to prove
+that the active stored documents exactly match the effective static rollback
+copy, then publishes one immutable snapshot. Missing/unavailable/malformed/
+mismatched state or publication failure closes startup; there is no automatic
+fallback. Rollback is an explicit selector change to `static` plus restart.
+
+The runtime facade covers every legacy guild-setting consumer. It preserves
+existing scalar/channel shapes and live role-name presentation while keeping
+the stored IDs available for authorization and live effects. Staff, Mod,
+permission-level, registration revalidation, staff-help routing, inactive-role
+listeners/actions, and league protection paths now resolve database roles by
+ID, so a rename does not silently grant/revoke authority or target the wrong
+role. One source audit permits direct `settings.config` only for allowlist
+membership in `bot.py` and anti-scam; under database selection that mapping is
+empty before publication and becomes the immutable database guild inventory.
+Ordinary commands perform no configuration query, await, or model access.
+
+Focused runtime/profile/shadow validation passes 47 tests and the broader
+affected role/configuration set passes 267 tests. Complete offline discovery
+passes all 1,813 tests with 78 intentional database skips. `py_compile`,
+`git diff --check`, immutable/frozen checks, missing/deleted role failure,
+unknown/incomplete inventory denial, static rollback selection, production
+database-source refusal, prefix/slash pre-publication denial, worker ownership,
+cancellation drain, malformed/unavailable state, event-loop responsiveness,
+and direct-source audit pass.
+
+After stopping only durable beta PID `144958` at exact running checkpoint
+`9c169c0b6f403a2021a4f595b2f3562159fb608c`, the host-wide writer audit was
+clear. The unchanged combined development gate confirmed exact
+`development` / `polytopia_dev` / `polybot_dev`, ran 78 tests, passed 77, and
+intentionally skipped only the operator-managed fixture round trip. P10.3 and
+P10.4 read-only verifiers pass, and the new P10.5 case builds the exact
+database runtime snapshot and capability policy from the stored active graph.
+
+The operational contract is
+`docs/DEVELOPMENT_GUILD_CONFIGURATION_AUTHORITY.md`. P10.5 does not implement
+reload, revision writes, drafts, editing, activation, onboarding, delegation,
+or production import/canary. While the static comparison is the promotion
+gate, stored edits cannot intentionally diverge; the owner-control-plane unit
+must replace that transitional condition before database-only changes. No
+application-command apply, tester-checklist edit, or announcement is required.
+Next action: integrate the reviewed unit, set only the ignored development
+selector to `database`, restart the durable beta, and verify exact source,
+generation, identity, checkpoint, single-writer health, and Beta Lab status.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15842,6 +15927,27 @@ semantic configuration field: equal complete documents remain an exact match.
 P10.5 must consume a successful current-process result and prove its own
 explicit source/rollback behavior; P10.4 grants no authority switch.
 
+### D-054 — Select one development authority before startup and never fallback
+
+Status: **Accepted; implemented by P10.5**
+
+The ignored development profile must select exact `static` or `database`
+before process start. Database mode publishes only after the same process has
+captured current Discord identity, loaded the exact active stored graph on a
+bounded read-only worker connection, and obtained P10.4's complete semantic
+match. Until then, the process exposes no static guild allowlist, settings, or
+command capabilities and rejects prefix/slash dispatch. Every non-match or
+publication failure stops startup; static settings are never an automatic
+fallback.
+
+One frozen process snapshot serves every ordinary setting read without
+PostgreSQL access. Database role IDs remain authoritative for permission and
+live role effects while compatible role names are presentation inputs. The
+transitional rollback is selected explicitly as `static` and requires a
+restart. Production cannot select database under P10.5, and runtime reload,
+editing, onboarding, command deployment, and static retirement remain later
+separate units.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15849,20 +15955,21 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.4 complete after integration.** The
+Design status: **P10.1 through P10.5 complete after integration.** The
 inventory, architecture, offline typed contract, additive development import,
-and first-ready shadow comparison are recorded in
+first-ready shadow comparison, and explicit development authority switch are
+recorded in
 `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` and decisions D-050 through
-D-053. The design
+D-054. The design
 selects a PostgreSQL revision service, immutable runtime snapshots, owner-only
 initial enrollment, Discord-first control plane, opt-in local delegation, and
 separate explicit command synchronization. It excludes secrets, process
 identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration. The
-next selectable unit is P10.5's explicit development per-profile authority
-switch with a static pre-start rollback choice. Later units own owner editing,
-quarantined onboarding, delegation, production canary, and static retirement.
+next selectable unit is the owner control plane for already enrolled guilds.
+Later units own quarantined onboarding, delegation, production canary, and
+static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -15996,6 +16103,39 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.5 database authority implemented and database-gated
+
+- Created `codex/p10-5-guild-config-authority` from exact clean pushed
+  accumulation checkpoint `edf1ba75aa356257e7ce24a08723e0f3c13fb9d2`.
+  Implementation checkpoint is `16cbc50`; the explicit read-only real-graph
+  authority gate is `13460ad`.
+- Added exact development static/database pre-start selection, no-fallback
+  startup failure, prefix/slash and allowlist gating until publication, one
+  immutable hot-path snapshot, stable-ID role permissions/effects, complete
+  compatibility mapping, production database-source refusal, and explicit
+  static-on-restart rollback.
+- Tier-3 review found one startup race in which callbacks loaded before first
+  ready could still see the static mapping. Database-selected processes now
+  expose an empty allowlist/default-deny capability policy until the exact
+  matched database snapshot is published. No remaining actionable finding is
+  known.
+- Focused P10 validation passes 47 tests; affected configuration/role
+  validation passes 267 tests; complete offline discovery passes all 1,813
+  tests with 78 intentional skips. Compilation, diff, frozen snapshot,
+  source-bypass, malformed/unavailable, cancellation, connection ownership,
+  event-loop, prefix/slash gate, role-ID rename, and production refusal checks
+  pass.
+- Stopped only durable development beta PID `144958` at checkpoint `9c169c0`
+  and required the host-wide writer audit to be clear. The unchanged combined
+  PostgreSQL gate ran 78 tests: 77 passed and one operator-managed fixture
+  round trip intentionally skipped. The P10.3/P10.4 verifiers and new P10.5
+  real runtime-snapshot publication case all pass against exact
+  `development` / `polytopia_dev` / `polybot_dev`.
+- No schema/data, Discord command, production, dependency, fixture cleanup,
+  or announcement operation occurred. Next: integrate, select database only
+  in the ignored development profile, restart the guarded beta, and verify
+  source/generation/checkpoint/identity/single-writer/Beta Lab health.
 
 ### 2026-08-11 — P10.4 development shadow read database-gated
 
