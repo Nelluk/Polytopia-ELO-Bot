@@ -490,31 +490,23 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.24 M7/R-002 has frozen exact source candidate
-`acf706fed8d51a061383e7caba2a4c210ec61981` and integrated it into
-accumulation from exact clean pushed
-accumulation base `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`. This Tier-3
-evidence unit adds a strict non-secret candidate record and validator, binds
-the cutover-critical source digests and every required gate to one full SHA,
-and prepares a short tester instruction draft without sending it. Initial
-cutover review caught and corrects the production runbook's mistaken use of
-development guild `478571892832206869` as PolyChampions; the tracked runtime
-authority identifies production PolyChampions as `447883341463814144`.
-Evidence checkpoint `e1749528f592fe6bd8fbfdee0787ea557ae071ca` and close-out
-checkpoint `ccbc9c8a62b1d5fd4d37e40c1c96487ac5e9447a` are pushed on the
-accumulation branch. Complete-diff/cutover review passes. After Nelluk's
-separate dependency-sync approval, exact-candidate offline discovery passes
-all 1,754 tests with 76 intentional skips; the prior missing-DuckDB environment
-limitation is resolved. The stopped-writer 75-test development-PostgreSQL gate
-was rerun after synchronization and passes with one intentional retained-
-fixture skip. The bounded beta matrix is now entering its approved human test
-pass, while actual redacted production-configuration verification remains
-separately approval-gated. The candidate record is structurally/repository
-valid, but `require-ready` must continue to fail on those two open gates. No
-command apply or production action occurred. Nelluk subsequently clarified
-that the candidate is an evidence baseline, not a prohibition on sensible
-development while tester feedback accumulates. A later runtime change may
-supersede it after proportionate review and refreshed affected gates.**
+Current active unit: **P10.6b2 owner activation and runtime reconciliation is
+implemented on `codex/p10-6b2-guild-config-activation` from exact clean pushed
+accumulation base `02d88287ead146e289652340aa757fc627cd76e0`.
+Implementation checkpoint `203b7bf` adds digest-confirmed activation, one
+atomic immutable revision/registry-generation/protected-audit/draft-expiry
+transaction, complete post-commit worker reload, and a guarded event-loop
+snapshot replacement. Database-authority startup now loads the validated
+active database graph directly; explicit static source remains the rollback.
+Command-capability changes and no-op drafts cannot activate, command
+synchronization remains separate, and rollback-to-revision remains P10.6b3.
+Focused validation passes 111 tests with two explicit database gates skipped;
+complete offline discovery passes all 1,879 tests with 82 intentional gated
+skips. Tier-3 review is green after tightening allowlist typing, exact
+generation/inventory reconciliation, no-op rejection, full-digest usability,
+and unchanged capability policy. The rolled-back development-PostgreSQL gate,
+integration/evidence checkpoint, accumulation push, command plan/apply, and
+beta restart are next. No production action is authorized.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15055,6 +15047,71 @@ Next action: P10.6b2 should separately design exact draft activation and
 truthful post-commit runtime reconciliation. Rollback-to-revision remains a
 separately bounded following unit.
 
+### P10.6b2 — Owner activation and runtime reconciliation
+
+Status: **Implemented and Tier-3 offline reviewed; integration and the
+stopped-writer development gate remain pending.**
+
+Branch/base: `codex/p10-6b2-guild-config-activation`, exact clean pushed
+accumulation checkpoint `02d88287ead146e289652340aa757fc627cd76e0`.
+Implementation checkpoint: `203b7bf`.
+
+Risk tier: **Tier 3 authoritative configuration mutation and runtime
+publication boundary.**
+
+The private `/operator guild edit` workspace now enables Activate only for a
+nonempty current draft after its latest live validation. Confirmation requires
+`ACTIVATE <full-current-draft-digest>` exactly; the full digest is visible in
+the panel. The worker rechecks configured-owner identity, development target,
+complete allowlist, live database/schema/transaction identity, optimistic
+draft version/digest, exact active revision/generation/digest, expiry, complete
+document validity, and current same-guild Discord references. No-op drafts are
+rejected. Drafts that alter application-command capabilities are also rejected
+because activation must not silently desynchronize Discord's registered tree;
+editing remains possible, but command-policy activation belongs to a later
+coordinated plan/apply unit.
+
+One repeatable-read worker transaction locks the active registry/draft state,
+appends one complete immutable revision, advances the registry generation
+exactly once, appends one protected activation audit with prior digest and
+changed paths, and version-bumps/expires the consumed draft. Any pre-commit
+failure rolls the whole graph back. After commit, the worker opens a separate
+owned read-only connection and loads the exact complete active graph, validates
+all current Discord references, and builds a model-free immutable runtime
+snapshot. The event-loop adapter replaces the published settings snapshot only
+when the activated revision/generation/digest match the committed result,
+every unrelated guild is unchanged, and the command policy is identical.
+
+If reload or publication fails after commit, output says the revision and
+generation committed and requires reconciliation through
+`/operator bot restart`; it never reports rollback or invites a duplicate
+activation. Database-authority startup now directly loads and validates the
+active stored graph without requiring equality to legacy static settings, so
+that restart is a real reconciliation route. Selecting explicit `static`
+before restart remains the transitional rollback; automatic fallback is still
+forbidden.
+
+Focused validation passes 111 tests with the P10.6b1/P10.6b2 PostgreSQL cases
+explicitly skipped. Complete offline discovery passes all 1,879 tests with 82
+intentional gated skips. Tier-3 complete-diff review corrected permissive
+profile allowlist normalization, required an exact single-generation advance
+with unchanged unrelated guilds and command policy, rejected no-op revisions,
+and exposed the complete confirmation digest. No remaining actionable offline
+finding is known. The new real-schema case performs activation and verifies
+revision, generation, audit, and draft consumption inside one outer
+transaction that is always rolled back; it requires the unchanged stopped-
+writer development gate.
+
+This unit adds no schema, global command sync, enrollment, delegation,
+rollback-to-revision, production authority, or production operation. The
+existing command description changes, so a development-guild-only command
+plan/apply and guarded beta restart are appropriate after integration.
+
+Next action: run the P10.6b2 rolled-back stopped-writer database proof and the
+complete database gate, integrate and push the reviewed unit, then apply only
+the development-guild command description and restart the guarded beta.
+P10.6b3 rollback-to-revision is the next separately bounded implementation.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16199,6 +16256,30 @@ the inactive persistence state shown inside the editor. No temporary
 `/operator guild draft` alias is retained because the command had not yet been
 registered when Nelluk selected the clearer action-oriented name.
 
+### D-057 — Activate ordinary settings atomically; keep command deployment separate
+
+Status: **Accepted; implemented by P10.6b2**
+
+Activation stays inside `/operator guild edit` and requires the full current
+draft digest after current live validation. It creates one immutable revision,
+one exact generation advance, one protected audit, and consumes the draft in
+the same transaction. Discord is never awaited while the transaction is open.
+No-op drafts fail closed.
+
+After commit, a worker-owned read-only connection loads and validates the
+complete active database graph. The event loop publishes it only against the
+exact previously observed runtime inventory and committed activation evidence.
+Post-commit failure is reported as committed/reconciliation-required, and
+database-authority startup directly reloads the active graph so a guarded bot
+restart reconciles it. Explicit static selection remains the rollback source;
+there is no automatic fallback.
+
+Application-command capability changes cannot activate in this unit. Remote
+Discord registration is a separately inspected, digest-reviewed,
+development-guild-only operation and must never become a hidden effect of a
+settings activation. Rollback-to-revision, enrollment, and delegation remain
+separate units.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16206,7 +16287,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6b1 complete in development.** The
+Design status: **P10.1 through P10.6b2 implemented in development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16219,9 +16300,10 @@ identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration.
 P10.6a establishes the read-only owner surface for already enrolled guilds.
-P10.6b1 isolates draft editing and preview from authority. Later units own
-activation/reconciliation, rollback, quarantined onboarding, delegation,
-production canary, and static retirement.
+P10.6b1 isolates draft editing and preview from authority; P10.6b2 adds
+ordinary-settings activation and exact runtime reconciliation while keeping
+command deployment separate. Later units own rollback, quarantined onboarding,
+delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16355,6 +16437,44 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.6b2 activation implemented and offline reviewed
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `02d88287ead146e289652340aa757fc627cd76e0`, created isolated branch/worktree
+  `codex/p10-6b2-guild-config-activation`, and ran the required development
+  setup with exact development/database/role and disabled task/API evidence.
+- Implementation checkpoint `203b7bf` adds full-digest owner activation inside
+  `/operator guild edit`. The transaction appends one immutable revision,
+  advances generation once, records one protected audit with prior digest and
+  changed paths, and expires/version-bumps the draft. No-op drafts and command-
+  capability changes fail before write; command synchronization is never an
+  activation side effect.
+- Post-commit code loads the complete active graph through a separately owned
+  read-only connection and builds a frozen model-free runtime snapshot. The
+  event-loop adapter swaps only against exact prior runtime evidence, exact
+  committed activation evidence, unchanged unrelated guilds, and unchanged
+  command policy. Any post-commit failure reports the committed revision and
+  directs the owner to `/operator bot restart` without suggesting retry.
+- Database-selected startup now loads the strictly validated active database
+  graph directly instead of requiring legacy-static equality. Explicit static
+  source remains the restart rollback; automatic fallback is still forbidden.
+- Added pre-commit rollback/CAS, post-commit reload and publication failure,
+  exact confirmation, current Discord-reference, permission, no-op/capability,
+  connection ownership, cancellation/event-loop, startup, and settings-swap
+  coverage. Focused validation passes 111 tests with two gated database cases
+  skipped. Complete offline discovery passes all 1,879 tests with 82 intentional
+  gated skips.
+- Tier-3 review tightened raw allowlist type validation, exact one-generation
+  and unchanged-inventory reconciliation, full-digest panel visibility, no-op
+  rejection at worker/storage boundaries, and unchanged command policy. No
+  remaining actionable offline finding is known.
+- No schema, database, Discord, beta, dependency, or production effect occurred
+  during implementation/review. Next: commit this evidence, run the new always-
+  rolled-back activation proof and complete stopped-writer development gate,
+  integrate/push accumulation, then perform the development-guild-only command
+  description apply and guarded beta restart. P10.6b3 rollback-to-revision is
+  the next bounded unit.
 
 ### 2026-08-11 — P10.6b1 inactive owner drafts implemented and deployed
 

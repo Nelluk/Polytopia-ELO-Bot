@@ -1,8 +1,9 @@
-# Development guild-configuration drafts
+# Development guild-configuration drafts and activation
 
 P10.6b1 adds one private owner-managed inactive configuration draft for each
-already enrolled development guild. It does not activate a revision, reload
-the bot, enroll a guild, synchronize commands, or authorize production work.
+already enrolled development guild. P10.6b2 activates reviewed ordinary
+settings and publishes a new immutable runtime snapshot. Neither unit enrolls
+a guild, synchronizes commands, or authorizes production work.
 
 ## Fixed safety contract
 
@@ -15,15 +16,34 @@ the bot, enroll a guild, synchronize commands, or authorize production work.
 - Every edit replaces the complete validated document using the observed
   draft version, document digest, base revision, base generation, and actor.
   Stale or expired controls fail closed.
-- Draft writes touch only `guild_configuration_draft`. They never write the
+- Draft edit writes touch only `guild_configuration_draft`. They never write the
   active registry, immutable revisions, protected audit history, runtime
   snapshot, Discord objects, or application-command tree.
+- Activation requires the full current draft digest, rejects no-op and command-
+  capability changes, and writes the revision, registry generation, protected
+  audit, and draft expiry atomically.
+- After commit, a separate read-only connection reloads the complete active
+  graph. Publication requires exact committed evidence and unchanged unrelated
+  guilds. A failure is committed/reconciliation-required, never rolled back.
 
 The private `/operator guild edit` workspace exposes Create/Reset, Refresh,
-six section selectors, typed role/channel/category selectors, Validate, and
-Discard. Validation checks the complete document and current same-guild
-Discord role/channel identity. There is deliberately no Activate control in
-P10.6b1.
+six section selectors, typed role/channel/category selectors, Validate,
+Activate, and Discard. Validation checks the complete document and current
+same-guild Discord role/channel identity. Activate is disabled until the
+current nonempty draft has validated and then requires typing
+`ACTIVATE <full-digest>` exactly.
+
+Activation does not synchronize application commands. A draft that changes
+command capabilities may be edited but cannot activate in P10.6b2. Use the
+separate reviewed command plan/apply lifecycle when a later unit coordinates
+stored capability activation with Discord registration.
+
+If the panel reports that `rN/gN` committed but runtime publication could not
+be verified, do not activate again. The authoritative database has already
+advanced. Run `/operator bot restart`; database-mode startup directly loads
+and validates the active graph. If the process cannot start from that graph,
+selecting the explicit static profile source before a guarded restart is the
+transitional rollback. There is no automatic fallback.
 
 ## Additive development schema gate
 
@@ -76,7 +96,22 @@ POLYBOT_P10_6B1_DRAFT_INTEGRATION=1 \
   tests.test_guild_configuration_draft_storage_database
 ```
 
-The database test creates, reads, replaces, and expires one draft inside one
+The P10.6b1 database test creates, reads, replaces, and expires one draft inside one
 outer transaction and always rolls that transaction back. It leaves no draft
-fixture. Activation, rollback-to-revision, runtime reconciliation, and any
-production schema/import remain later separately reviewed units.
+fixture.
+
+P10.6b2 adds a second gated real-schema proof, also only in a stopped-writer
+window:
+
+```bash
+POLYBOT_ENV=development \
+POLYBOT_P10_6B2_ACTIVATION_INTEGRATION=1 \
+  .venv/bin/python -m unittest \
+  tests.test_guild_configuration_activation_database
+```
+
+It creates an edited draft, appends and selects the active revision, verifies
+the exact generation/audit and consumed draft, and then rolls the outer
+transaction back. It leaves no revision, audit, generation, or draft fixture.
+Rollback-to-revision and any production schema/import remain later separately
+reviewed units.

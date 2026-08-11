@@ -2,8 +2,10 @@
 
 Status: architecture accepted; migration steps 2 through 5's offline typed
 contract, additive development storage/import, shadow comparison, and explicit
-development authority switch are implemented. Operator-control-plane work
-remains separately bounded.
+development authority switch are implemented. Owner inspection, inactive
+draft editing, ordinary-settings activation, and exact runtime reconciliation
+are also implemented in development. Rollback, onboarding, delegation, and
+production authority remain separately bounded.
 
 This document defines a safe replacement for PolyBot's hand-edited
 `server_settings.py` / `server_settings_dev.py` guild dictionaries. It is an
