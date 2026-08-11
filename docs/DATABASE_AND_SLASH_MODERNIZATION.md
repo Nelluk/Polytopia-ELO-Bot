@@ -656,8 +656,7 @@ and digest-bound; live apply and the transactional PostgreSQL lifecycle gate
 remain separately approval-gated, so the beta and command tree are unchanged.
 Activation/reconciliation and rollback-to-revision remain separate later
 units. Implementation checkpoint is `ec3922b`, evidence checkpoint is
-`2f29667`, and the accumulation branch is at that exact fast-forward pending
-the close-out push.**
+`2f29667`, and pushed accumulation close-out checkpoint is `17871ea`.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -15032,9 +15031,8 @@ actionable finding is known. The exact connection-free schema plan digest is
 The operational contract is
 `docs/DEVELOPMENT_GUILD_CONFIGURATION_DRAFTS.md`.
 
-Next action: push the accumulation close-out, then request separate approval
-for a stopped-beta development-only one-table apply and rolled-back lifecycle
-gate. Do not
+Next action: request separate approval for a stopped-beta development-only
+one-table apply and rolled-back lifecycle gate. Do not
 register or deploy `/operator guild draft` until that gate passes. P10.6b2 may
 then separately design exact activation and post-commit runtime reconciliation;
 rollback remains separately bounded.
@@ -16384,6 +16382,9 @@ deferred into this post-modernization backlog.
   exactly the expected host-wide development writer. It was not restarted:
   exposing the new draft command before the separately gated table apply would
   be incoherent. No command plan/apply or announcement occurred.
+- Accumulation close-out checkpoint `17871ea` was pushed and independently
+  verified on GitHub. Local, tracking, and GitHub accumulation state reconciled
+  exactly before requesting the separate live development schema gate.
 
 ### 2026-08-11 — P10.6a owner configuration reads implemented
 
