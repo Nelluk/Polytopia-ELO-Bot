@@ -611,6 +611,21 @@ change, or announcement was warranted. Next selectable work is P10.6's owner
 control plane for the already enrolled development guild; enrollment remains
 separate.**
 
+P10.6a owner guild-configuration inspection is implemented on
+`codex/p10-6a-guild-config-read` from exact clean pushed accumulation base
+`d870df6ab11979b653e966dfbcb2d19e97cfa588`; Tier-3 review, complete offline
+validation, the read-only development-database gate, integration, and beta
+deployment remain pending. It adds four private owner-only commands beneath
+`/operator guild`: a bounded registry list, compact sectioned active settings,
+exact live validation, and bounded revision/audit history for the current
+already enrolled guild. Every read uses one worker-owned read-only connection,
+returns immutable model-free results, and drains cancellation. Validation binds
+the database schema/identity, active document digest, current Discord role and
+channel references, and running immutable revision/generation/digest. P10.6a
+creates no revision or audit, changes no enrollment or authority, and does not
+implement drafts, activation, rollback, onboarding, delegation, reload, or
+production operation.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14868,6 +14883,48 @@ development guild. Prefer a first bounded read/preview/validate/history surface
 before separately enabling digest-confirmed revision activation and rollback;
 keep new-guild enrollment and command deployment out of P10.6.
 
+### P10.6a — Owner guild-configuration inspection
+
+Status: **Implemented; Tier-3 review and validation pending.**
+
+Branch/base: `codex/p10-6a-guild-config-read`, exact clean pushed accumulation
+checkpoint `d870df6ab11979b653e966dfbcb2d19e97cfa588`.
+
+Risk tier: **Tier 3 permission/configuration control-plane boundary.** The unit
+is read-only but exposes security-sensitive configuration and establishes the
+adapter/worker contract that later mutation controls will reuse.
+
+P10.6a adds `/operator guild list`, `/operator guild settings`,
+`/operator guild validate`, and `/operator guild history` under the existing
+administrator-default `operator` root. Every callback is guild-only, denies a
+non-owner before deferral, requires exact development database authority and a
+published current-guild snapshot, and repeats owner/target validation in the
+worker. Results are ephemeral and suppress mentions.
+
+The worker validates the exact development database/application target and
+P10 storage schema, uses one dedicated bounded read-only repeatable-read
+transaction, and returns only frozen documents and primitive summaries. It
+rolls back and closes that connection on success or failure and drains
+cancellation. Settings output defaults to a
+one-screen overview and exposes only one of six explicit sections at a time;
+registry and history output are bounded. Live validation reuses P10.4's
+member-free Discord identity and checks every configured role/channel/category
+reference plus the active revision, generation, and digest already published
+in the running process.
+
+There are no revision, audit, registry, configuration, Discord-object, schema,
+or production writes. P10.5's static-equality startup promotion remains in
+force. Drafts, editing, activation, rollback, enrollment, suspension,
+delegation, runtime reload, and production authority remain out of scope.
+Operations and deployment gates are recorded in
+`docs/DEVELOPMENT_GUILD_CONFIGURATION_CONTROL.md`.
+
+Next action: complete Tier-3 review, full offline discovery, and the explicitly
+gated read-only development-database case. If accepted, integrate, perform the
+development-guild-only command plan/apply while the beta is stopped, restart
+the guarded beta, and privately verify all four commands before deciding the
+announcement disposition.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15969,6 +16026,24 @@ restart. Production cannot select database under P10.5, and runtime reload,
 editing, onboarding, command deployment, and static retirement remain later
 separate units.
 
+### D-055 — Prove the owner read boundary before configuration mutation
+
+Status: **Accepted; implemented by P10.6a pending integration**
+
+The first owner control-plane unit is current-guild and read-only. It uses four
+private commands for registry, sectioned active settings, live validation, and
+revision/audit history. A non-owner is denied before deferral and again at the
+worker boundary. PostgreSQL reads are bounded, time-limited, worker-owned,
+read-only, and model-free at publication; validation must compare the stored
+active record with both current Discord identity and the running immutable
+snapshot.
+
+Do not combine this proof unit with draft storage, activation, rollback,
+onboarding, delegation, runtime reload, or command synchronization. P10.6b may
+reuse the reviewed read boundary, but mutation requires digest-bound previews,
+transactional audit, stale-confirmation rejection, and a separately approved
+replacement for P10.5's static-equality promotion condition.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15976,7 +16051,8 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.5 complete.** The
+Design status: **P10.1 through P10.5 complete; P10.6a implemented pending
+integration.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -15987,10 +16063,10 @@ initial enrollment, Discord-first control plane, opt-in local delegation, and
 separate explicit command synchronization. It excludes secrets, process
 identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
-Implementation is intentionally staged rather than one large migration. The
-next selectable unit is the owner control plane for already enrolled guilds.
-Later units own quarantined onboarding, delegation, production canary, and
-static retirement.
+Implementation is intentionally staged rather than one large migration.
+P10.6a establishes the read-only owner surface for already enrolled guilds.
+P10.6b will separately own draft/activation/rollback mutation. Later units own
+quarantined onboarding, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16124,6 +16200,27 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.6a owner configuration reads implemented
+
+- Created `codex/p10-6a-guild-config-read` from exact clean local/tracking/
+  GitHub accumulation checkpoint
+  `d870df6ab11979b653e966dfbcb2d19e97cfa588` and ran the required development
+  worktree setup without dependency or database effects.
+- Added four private current-guild owner reads under `/operator guild`:
+  registry list, six-section active settings, exact live validation, and
+  bounded revision/audit history. The surface is development/database-only,
+  creates no revision or audit, and never synchronizes commands itself.
+- Added a worker-owned read-only connection boundary with exact target/schema,
+  document/digest, live role/channel, running-snapshot, bounded-result,
+  cancellation-drain, event-loop responsiveness, model-free publication, and
+  prefix-retirement coverage. Focused validation passes 58 tests. Complete
+  offline discovery passes all 1,836 tests with 80 intentional gated skips;
+  the affected legacy tests now declare their intended static configuration
+  dependency explicitly, so results no longer depend on the ignored local
+  development authority selector.
+- Next: complete Tier-3 diff review and the explicitly gated read-only
+  real-graph case before integration or beta deployment.
 
 ### 2026-08-11 — P10.5 database authority implemented and database-gated
 

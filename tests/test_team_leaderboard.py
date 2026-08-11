@@ -209,7 +209,11 @@ class PrefixMatrixTests(unittest.IsolatedAsyncioTestCase):
                 games.team_leaderboard_service,
                 'publish_prefix',
                 new=mock.AsyncMock(),
-            ) as publish:
+            ) as publish, mock.patch.object(
+                games.team_leaderboard_service.settings,
+                'resolve_configured_role',
+                return_value=None,
+            ):
                 await command.callback(cog, ctx, arg=arg)
 
             request = run.await_args.args[0]
@@ -428,7 +432,18 @@ class TeamLeaderboardWorkerTests(unittest.IsolatedAsyncioTestCase):
             ):
                 return workers.load_team_leaderboard(request_value)
 
-        missing_prefix, missing_native = make_requests(())
+        with mock.patch.object(
+            service.settings,
+            'resolve_configured_role',
+            return_value=None,
+        ), mock.patch.object(
+            service,
+            '_setting',
+            side_effect=lambda _guild_id, name, default=None: (
+                True if name == 'allow_teams' else default
+            ),
+        ):
+            missing_prefix, missing_native = make_requests(())
         self.assertTrue(missing_prefix.require_role_match)
         self.assertTrue(missing_native.require_role_match)
         with mock.patch.object(worker_impl.logger, 'warning') as warning:
@@ -447,7 +462,18 @@ class TeamLeaderboardWorkerTests(unittest.IsolatedAsyncioTestCase):
             color=SimpleNamespace(value=0xABCDEF),
             members=[],
         )
-        present_prefix, present_native = make_requests((zero_member_role,))
+        with mock.patch.object(
+            service.settings,
+            'resolve_configured_role',
+            return_value=None,
+        ), mock.patch.object(
+            service,
+            '_setting',
+            side_effect=lambda _guild_id, name, default=None: (
+                True if name == 'allow_teams' else default
+            ),
+        ):
+            present_prefix, present_native = make_requests((zero_member_role,))
         present_results = tuple(
             load(request_value)
             for request_value in (present_prefix, present_native)

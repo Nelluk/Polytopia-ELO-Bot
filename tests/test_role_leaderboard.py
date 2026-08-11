@@ -273,6 +273,10 @@ class RoleBoundaryTests(unittest.TestCase):
             side_effect=lambda _guild_id, name, default=None: (
                 'Inactive' if name == 'inactive_role' else default
             ),
+        ), mock.patch.object(
+            service.settings,
+            'resolve_configured_role',
+            return_value=roles['inactive'],
         ):
             role_data, member_data, inactive_id = service.capture_guild_snapshot(
                 guild,
@@ -325,6 +329,10 @@ class RoleBoundaryTests(unittest.TestCase):
             side_effect=lambda _guild_id, name, default=None: (
                 'Inactive' if name == 'inactive_role' else default
             ),
+        ), mock.patch.object(
+            service.settings,
+            'resolve_configured_role',
+            return_value=_roles['inactive'],
         ), mock.patch.object(
             service.settings,
             'servers_included_in_global_lb',

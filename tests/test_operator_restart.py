@@ -487,6 +487,10 @@ class BotRestartExitTests(unittest.IsolatedAsyncioTestCase):
                 bot_module.settings,
                 'maintenance_mode',
                 True,
+            ), mock.patch.object(
+                bot_module.settings,
+                'guild_configuration_ready',
+                return_value=True,
             ):
                 allowed = await instance.tree.interaction_check(interaction)
             self.assertFalse(allowed)

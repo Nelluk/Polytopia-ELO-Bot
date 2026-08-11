@@ -531,6 +531,23 @@ def _validate_document_references(
         )
 
 
+def validate_document_references(
+    document: GuildConfigurationDocument,
+    snapshot: Mapping[str, Any],
+) -> None:
+    """Validate one stored document against one exact live guild snapshot."""
+
+    if not isinstance(document, GuildConfigurationDocument):
+        raise GuildConfigurationStorageError(
+            'A validated guild configuration document is required.'
+        )
+    if not isinstance(snapshot, Mapping):
+        raise GuildConfigurationStorageError(
+            'A validated guild Discord snapshot is required.'
+        )
+    _validate_document_references(document, snapshot)
+
+
 def build_import_bundle(
     *,
     target: StorageTarget,
@@ -981,6 +998,7 @@ __all__ = [
     'bundle_to_mapping',
     'inspect_schema_inventory',
     'validate_discord_snapshot',
+    'validate_document_references',
     'validate_live_identity',
     'validate_schema_inventory',
     'validate_target',

@@ -177,10 +177,16 @@ class SettingsAuthorityTests(unittest.TestCase):
         settings.guild_configuration_source = 'database'
         settings._database_guild_configuration = None
         self.assertFalse(settings.guild_configuration_ready())
+        self.assertIsNone(settings.database_guild_configuration(GUILD_ID))
 
         value = snapshot()
         settings.activate_database_guild_configuration(value)
         self.assertTrue(settings.guild_configuration_ready())
+        self.assertIs(
+            settings.database_guild_configuration(GUILD_ID),
+            value.guilds[GUILD_ID],
+        )
+        self.assertIsNone(settings.database_guild_configuration(GUILD_ID + 1))
         self.assertIs(settings.config, value.legacy_config)
         self.assertEqual(
             settings.guild_setting(GUILD_ID, 'command_prefix'),

@@ -237,6 +237,21 @@ def guild_configuration_ready() -> bool:
     )
 
 
+def database_guild_configuration(guild_id: int):
+    """Return one immutable published database record, or ``None``."""
+
+    if (
+            guild_configuration_source != 'database'
+            or _database_guild_configuration is None
+    ):
+        return None
+    try:
+        normalized = int(guild_id)
+    except (TypeError, ValueError):
+        return None
+    return _database_guild_configuration.guilds.get(normalized)
+
+
 def activate_database_guild_configuration(snapshot) -> None:
     """Atomically expose one already validated immutable database snapshot."""
 

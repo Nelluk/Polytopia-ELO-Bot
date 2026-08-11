@@ -148,6 +148,25 @@ class TargetAndSnapshotTests(unittest.TestCase):
                 target(), actual_database='polytopia2', actual_user='polybot_dev'
             )
 
+    def test_public_reference_validator_accepts_exact_snapshot_and_rejects_drift(self):
+        document = bundle().imports[0].document
+        exact = storage.validate_discord_snapshot(
+            snapshot(),
+            target=target(),
+            allowed_guild_ids=(GUILD_ID,),
+        )[GUILD_ID]
+        storage.validate_document_references(document, exact)
+
+        changed = copy.deepcopy(exact)
+        changed['roles'] = tuple(
+            role for role in changed['roles'] if role['id'] != 201
+        )
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'absent from the exact guild',
+        ):
+            storage.validate_document_references(document, changed)
+
     def test_snapshot_requires_exact_shape_guild_and_default_role(self):
         result = storage.validate_discord_snapshot(
             snapshot(), target=target(), allowed_guild_ids=(GUILD_ID,)

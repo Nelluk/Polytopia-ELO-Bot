@@ -50,6 +50,8 @@ from modules import operator_restart_views
 from modules import operator_beta_fixtures as operator_beta_fixtures_service
 from modules import operator_beta_fixtures_views
 from modules import operator_beta_fixtures_workers
+from modules import operator_guild_configuration as operator_guild_configuration_service
+from modules import operator_guild_configuration_workers
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -205,6 +207,12 @@ class administration(commands.Cog):
     operator_beta_group = discord.app_commands.Group(
         name='beta',
         description='Prepare restricted development-beta test scenarios.',
+        parent=operator_group,
+        guild_only=True,
+    )
+    operator_guild_group = discord.app_commands.Group(
+        name='guild',
+        description='Inspect development guild configuration.',
         parent=operator_group,
         guild_only=True,
     )
@@ -1074,6 +1082,111 @@ class administration(commands.Cog):
             f'Game {result.game_id}\'s deadline has been extended to '
             f'**{result.new_expiration}**. Previous expiration was '
             f'**{result.old_expiration}**.'
+        )
+
+    async def _operator_guild_configuration_read(
+        self,
+        interaction: discord.Interaction,
+        *,
+        operation: str,
+        section: str = operator_guild_configuration_service.OVERVIEW,
+    ):
+        access_error = operator_guild_configuration_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            request = operator_guild_configuration_service.build_request(
+                bot=self.bot,
+                interaction=interaction,
+                operation=operation,
+            )
+            result = await operator_guild_configuration_workers.run_read(request)
+            await operator_guild_configuration_service.publish_private(
+                interaction,
+                result,
+                section=section,
+            )
+            return result
+        except operator_guild_configuration_workers.OperatorGuildConfigurationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator guild-configuration read failure')
+            return await interaction.followup.send(
+                'Could not inspect guild configuration. No configuration was changed.',
+                ephemeral=True,
+            )
+
+    @operator_guild_group.command(
+        name='list',
+        description='Privately list enrolled development guilds.',
+    )
+    async def operator_guild_list_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        return await self._operator_guild_configuration_read(
+            interaction,
+            operation=operator_guild_configuration_workers.LIST,
+        )
+
+    @operator_guild_group.command(
+        name='settings',
+        description='Privately inspect active settings for this guild.',
+    )
+    @discord.app_commands.choices(section=[
+        discord.app_commands.Choice(name='Overview', value='overview'),
+        discord.app_commands.Choice(name='Permissions', value='permissions'),
+        discord.app_commands.Choice(name='Teams', value='teams'),
+        discord.app_commands.Choice(name='Channels', value='channels'),
+        discord.app_commands.Choice(name='Destinations', value='destinations'),
+        discord.app_commands.Choice(name='Command capabilities', value='capabilities'),
+    ])
+    @discord.app_commands.describe(
+        section='One compact settings section; defaults to Overview.',
+    )
+    async def operator_guild_settings_slash(
+        self,
+        interaction: discord.Interaction,
+        section: discord.app_commands.Choice[str] | None = None,
+    ):
+        selected = (
+            operator_guild_configuration_service.OVERVIEW
+            if section is None else str(section.value)
+        )
+        return await self._operator_guild_configuration_read(
+            interaction,
+            operation=operator_guild_configuration_workers.SETTINGS,
+            section=selected,
+        )
+
+    @operator_guild_group.command(
+        name='validate',
+        description='Validate this active guild configuration read-only.',
+    )
+    async def operator_guild_validate_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        return await self._operator_guild_configuration_read(
+            interaction,
+            operation=operator_guild_configuration_workers.VALIDATE,
+        )
+
+    @operator_guild_group.command(
+        name='history',
+        description='Privately inspect revision and audit history.',
+    )
+    async def operator_guild_history_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        return await self._operator_guild_configuration_read(
+            interaction,
+            operation=operator_guild_configuration_workers.HISTORY,
         )
 
     @operator_channels_group.command(

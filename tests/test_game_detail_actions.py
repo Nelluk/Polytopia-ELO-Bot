@@ -1174,14 +1174,19 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
                     edit_original_response=mock.AsyncMock(return_value=message),
                 )
                 cog._load_game_detail = mock.AsyncMock(return_value=snapshot)
-                self.assertTrue(await cog._send_game_detail(
-                    target,
-                    guild=guild,
-                    requester_id=900,
-                    channel_id=500,
-                    game_id=77,
-                    slash=True,
-                ))
+                with mock.patch.object(
+                    games.settings,
+                    'guild_setting',
+                    return_value='!',
+                ):
+                    self.assertTrue(await cog._send_game_detail(
+                        target,
+                        guild=guild,
+                        requester_id=900,
+                        channel_id=500,
+                        game_id=77,
+                        slash=True,
+                    ))
                 self.assertEqual(message.reactions, [])
 
     async def test_reaction_failure_keeps_native_card_successful(self):
@@ -1207,7 +1212,12 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         cog._load_game_detail = mock.AsyncMock(return_value=card_snapshot())
 
-        with self.assertLogs(games.logger.name, level='ERROR') as logs:
+        with self.assertLogs(games.logger.name, level='ERROR') as logs, \
+                mock.patch.object(
+                    games.settings,
+                    'guild_setting',
+                    return_value='!',
+                ):
             self.assertTrue(await cog._send_game_detail(
                 target,
                 guild=guild,
