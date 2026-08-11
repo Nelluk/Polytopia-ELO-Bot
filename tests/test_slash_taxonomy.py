@@ -1,5 +1,6 @@
 """Offline coverage for the approved native command taxonomy."""
 
+import asyncio
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -52,6 +53,63 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertNotIn('staffhelp', {command.name for command in prefix_commands})
         self.assertFalse(
             any('helpstaff' in command.aliases for command in prefix_commands)
+        )
+
+    def test_staffhelp_preflights_production_route_before_opening_modal(self):
+        command = app_group(misc.misc, 'staffhelp')
+
+        class Response:
+            def __init__(self):
+                self.messages = []
+                self.modals = []
+
+            async def send_message(self, content, **kwargs):
+                self.messages.append((content, kwargs))
+
+            async def send_modal(self, modal):
+                self.modals.append(modal)
+
+        interaction = SimpleNamespace(
+            guild_id=10,
+            channel_id=20,
+            user=SimpleNamespace(id=30),
+            response=Response(),
+        )
+        cog = SimpleNamespace(bot=object())
+        with mock.patch.object(
+                misc.staff_help,
+                'availability_error',
+                return_value='Staff help is not configured for this server.',
+        ) as availability:
+            asyncio.run(command.callback(cog, interaction))
+        availability.assert_called_once_with(
+            cog.bot,
+            10,
+            profile=misc.settings.runtime_profile,
+        )
+        self.assertEqual(interaction.response.modals, [])
+        self.assertTrue(interaction.response.messages[0][1]['ephemeral'])
+
+        modal = object()
+        interaction.response = Response()
+        with mock.patch.object(
+                misc.staff_help,
+                'availability_error',
+                return_value=None,
+        ), mock.patch.object(
+                misc.beta_feedback_views,
+                'StaffHelpModal',
+                return_value=modal,
+        ) as modal_factory:
+            asyncio.run(command.callback(cog, interaction))
+        self.assertEqual(interaction.response.messages, [])
+        self.assertEqual(interaction.response.modals, [modal])
+        modal_factory.assert_called_once_with(
+            cog.bot,
+            requester_id=30,
+            guild_id=10,
+            channel_id=20,
+            profile=misc.settings.runtime_profile,
         )
 
     def test_current_native_surface_uses_domain_roots(self):

@@ -115,8 +115,8 @@ The detailed operational schedule is available in
 Requests are handled manually; users do not need a special privacy command or
 external email account.
 
-For the current wider-beta path, invoke `/staffhelp` with no options. In the
-modal, enter the suggested request across the appropriate fields:
+Invoke `/staffhelp` with no options. In the modal, enter the suggested request
+across the appropriate fields:
 
 ```text
 Short summary: Privacy request
@@ -124,13 +124,12 @@ Detailed description: Please contact me about my PolyELO data.
 Optional context: Any relevant account or request context
 ```
 
-The native JSONL record for this intake is development-only, and the wider-beta
-`/staffhelp` flow is not yet a production-ready replacement. Before P9, the
-project must separately approve a production-safe authoritative intake and
-retention path (or another production relay design). Until that decision and
-rollout, production communities should use their currently deployed
-support/moderator route; do not assume the beta command is available there.
-Do not include credentials or unrelated sensitive information in the request.
+In production, the bot relays the request directly to that server's configured
+staff-only channel and pings its configured Helper role; it does not keep a
+local JSONL copy. The development beta additionally writes its restricted
+JSONL feedback record before mirroring it to beta staff. Staff may move the
+discussion to another private Discord conversation. Do not include credentials
+or unrelated sensitive information in the request.
 
 We will verify a request using the affected Discord account. We will not ask
 for a password, token, government identification, or payment. We aim to

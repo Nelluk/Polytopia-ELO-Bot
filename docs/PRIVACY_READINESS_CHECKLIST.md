@@ -11,11 +11,11 @@ Developer Portal or making claims in a privileged-intent review.
   fingerprints.
 - [ ] Confirm operational logs record command names and metadata, not complete
   command text and arguments.
-- [ ] Before P9, approve and verify a production-safe authoritative privacy
-  intake/retention path (or another production relay design) for every
-  production community; until then, document the currently deployed
-  support/moderator route and treat `/staffhelp` as a wider-beta,
-  post-rollout target only.
+- [ ] Before production command apply, verify every configured production
+  guild has a valid `staff_help_channel` and first `helper_roles` entry. The
+  reviewed `/staffhelp` production backend relays there immediately with only
+  that Helper role mention allowed and writes no local JSONL copy; development
+  retains its restricted JSONL-plus-mirror beta backend.
 - [ ] Test the manual privacy-request runbook against a non-production or test
   account without destroying shared competitive history.
 

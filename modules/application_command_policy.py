@@ -95,8 +95,10 @@ DEFAULT_CAPABILITY_FAMILIES = (
         # the other taxonomy names reserved rather than making a capability
         # assignment fail because it refers to roots that are not loaded.
         roots=TOOLS_SUPPORT_IMPLEMENTED_ROOTS,
-        visibility="staff",
-        description="Structured staff-help support.",
+        visibility="public",
+        description=(
+            "Public staff-help intake with an environment-explicit delivery backend."
+        ),
     ),
     CapabilityFamily(
         name="beta_testing",

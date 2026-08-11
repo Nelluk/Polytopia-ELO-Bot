@@ -15,6 +15,7 @@ from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
 from modules import beta_testing_guide
+from modules import staff_help
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -282,11 +283,21 @@ class misc(commands.Cog):
         key=lambda interaction: interaction.user.id,
     )
     async def staffhelp_slash(self, interaction: discord.Interaction):
-        """Open the requester-bound structured beta feedback form."""
+        """Open the shared requester-bound staff-help form."""
 
         if interaction.guild_id is None or interaction.channel_id is None:
             return await interaction.response.send_message(
                 'Staff help is available in a server channel only.',
+                ephemeral=True,
+            )
+        availability_error = staff_help.availability_error(
+            self.bot,
+            interaction.guild_id,
+            profile=settings.runtime_profile,
+        )
+        if availability_error is not None:
+            return await interaction.response.send_message(
+                availability_error,
                 ephemeral=True,
             )
         await interaction.response.send_modal(
@@ -295,6 +306,7 @@ class misc(commands.Cog):
                 requester_id=interaction.user.id,
                 guild_id=interaction.guild_id,
                 channel_id=interaction.channel_id,
+                profile=settings.runtime_profile,
             )
         )
 

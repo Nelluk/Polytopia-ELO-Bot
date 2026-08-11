@@ -14,10 +14,10 @@ dependency, sudo, or filesystem mutation was performed during the review.
 ## Recommendation
 
 The accumulation branch is **not ready to become a release candidate**. B1–B3,
-every High finding, M1–M5, and L1 are resolved by reviewed modernization units
-through P9.19. M6 still requires the production communities' exact support/
-privacy route, owner, monitoring cadence, and verification evidence. M7 is the
-later exact-HEAD release-candidate gate. A valid unresolved finding remains a
+every High finding, M1–M6, and L1 are resolved by reviewed modernization units
+through P9.20. M6's environment-explicit `/staffhelp` delivery policy includes
+the production configuration gate. M7 is the remaining
+exact-HEAD release-candidate gate. A valid unresolved finding remains a
 release blocker even when its severity is Medium.
 
 ## Current resolution matrix
@@ -35,7 +35,7 @@ release blocker even when its severity is Medium.
 | H7 | Resolved | P9.10 repeated-cancellation-safe backup cleanup |
 | H8 | Resolved | P9.11 identity-before-startup-effects ordering |
 | M1–M5 | Resolved | P9.17 interaction boundaries and P9.18 backup lifecycle/provenance |
-| M6 | Open; decision/evidence required | Exact production support/privacy route |
+| M6 | Resolved | P9.20 direct per-guild production relay and all-guild capability policy |
 | M7 | Open by design | R-002 final-HEAD release-candidate evidence |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
 
@@ -488,8 +488,7 @@ Status: **Resolved by P9.17.**
 
 ### M6 — The production support/privacy fallback is still unspecified
 
-Status: **Open; P9.16 makes the exact route/owner/cadence a release-record stop
-condition but cannot invent the production community's operational choice.**
+Status: **Resolved by P9.20.**
 
 - **Location:** `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11709`,
   `docs/PRIVACY_READINESS_CHECKLIST.md:14`, and `PRIVACY.md:127`.
@@ -502,8 +501,17 @@ condition but cannot invent the production community's operational choice.**
   route for each production community, or retain an existing intake until that
   evidence exists.
 - **Focused regression:** release-readiness validation must fail if
-  `tools_support` is unassigned and no reviewed support-route record is
-  supplied.
+  `tools_support` is unassigned or any production guild lacks a valid
+  `staff_help_channel` and first helper role.
+- **Resolution:** one public `/staffhelp` form now selects exactly one backend
+  from the explicit runtime profile. Production makes one direct Discord relay
+  to the invoking guild's configured staff-help channel, permits a ping only
+  for its first configured helper role, writes no JSONL record, and reports
+  success only after the send completes. Development retains its durable JSONL
+  record-first flow and best-effort fixed beta mirror. The configured helper
+  role is the production recipient; no separate Nelluk-owned inbox, owner, or
+  polling cadence exists. Production preflight and submit-time resolution fail
+  closed when the route is incomplete.
 
 ### M7 — No final-HEAD release-candidate evidence exists
 

@@ -8,6 +8,8 @@ from typing import Any
 import discord
 
 from modules import beta_feedback
+from modules import staff_help
+from runtime_config import get_runtime_profile
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -26,7 +28,7 @@ async def _send_private(interaction: discord.Interaction, content: str) -> None:
         await interaction.response.send_message(content, ephemeral=True)
 
 
-class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
+class StaffHelpModal(discord.ui.Modal):
     """Requester-bound modal with bounded native Components v2 fields."""
 
     category = discord.ui.Label(
@@ -82,8 +84,21 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
         ),
     )
 
-    def __init__(self, bot: Any, *, requester_id: int, guild_id: int, channel_id: int):
-        super().__init__(timeout=300)
+    def __init__(
+            self,
+            bot: Any,
+            *,
+            requester_id: int,
+            guild_id: int,
+            channel_id: int,
+            profile: Any | None = None):
+        self.profile = profile or get_runtime_profile()
+        title = (
+            'Staff help / beta feedback'
+            if self.profile.environment == 'development'
+            else 'Staff help'
+        )
+        super().__init__(title=title, timeout=300)
         self.bot = bot
         self.requester_id = int(requester_id)
         self.guild_id = int(guild_id)
@@ -152,16 +167,37 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
                 game_id=game_id,
                 command_reference=command_reference,
             )
-            result = await beta_feedback.submit_native_report(self.bot, draft)
+            result = await staff_help.submit(
+                self.bot,
+                draft,
+                profile=self.profile,
+            )
         except beta_feedback.FeedbackValidationError as exc:
+            noun = 'report was not stored' if (
+                self.profile.environment == 'development'
+            ) else 'message was not accepted'
             await interaction.followup.send(
-                f'Your report was not stored: {exc}',
+                f'Your {noun}: {exc}',
                 ephemeral=True,
             )
             return
         except beta_feedback.FeedbackStorageError:
             await interaction.followup.send(
                 'Your report could not be recorded. No report ID was issued; please try again later.',
+                ephemeral=True,
+            )
+            return
+        except staff_help.StaffHelpConfigurationError:
+            await interaction.followup.send(
+                'Your message could not be sent because staff help is not '
+                'configured for this server. Please ping a server staff member directly.',
+                ephemeral=True,
+            )
+            return
+        except staff_help.StaffHelpDeliveryError:
+            await interaction.followup.send(
+                'Your message could not be sent to server staff. '
+                'Please try again later or ping a server staff member directly.',
                 ephemeral=True,
             )
             return
@@ -178,12 +214,19 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
             )
             return
 
-        report_id = result.report.report_id
-        if result.relay_ok:
-            message = f'Your report was recorded as `{report_id}`. Staff will review it.'
+        if result.environment == 'production':
+            message = (
+                'Your message has been sent to server staff. '
+                'Please wait patiently or submit another report with additional information.'
+            )
+        elif result.delivered:
+            message = (
+                f'Your report was recorded as `{result.report_id}`. '
+                'Staff will review it.'
+            )
         else:
             message = (
-                f'Your report was recorded as `{report_id}`, '
+                f'Your report was recorded as `{result.report_id}`, '
                 'but the staff relay is temporarily unavailable. Staff can reconcile it from the beta store.'
             )
         try:
@@ -192,11 +235,23 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
             # The authoritative append and any relay attempt already
             # completed.  Do not replace the real report ID with a false
             # "not stored" acknowledgement if Discord rejects the followup.
-            logger.exception(
-                'Structured staffhelp acknowledgement failed after report commit '
-                '(report_id=%s requester=%s guild=%s channel=%s); reconcile from the beta store.',
-                report_id,
-                self.requester_id,
-                self.guild_id,
-                self.channel_id,
-            )
+            if result.stored:
+                logger.exception(
+                    'Structured staffhelp acknowledgement failed after report commit '
+                    '(report_id=%s requester=%s guild=%s channel=%s); '
+                    'reconcile from the beta store.',
+                    result.report_id,
+                    self.requester_id,
+                    self.guild_id,
+                    self.channel_id,
+                )
+            else:
+                logger.exception(
+                    'Production staffhelp acknowledgement failed after Discord relay '
+                    '(message=%s requester=%s guild=%s channel=%s); do not infer '
+                    'that delivery failed.',
+                    result.relay_message_id,
+                    self.requester_id,
+                    self.guild_id,
+                    self.channel_id,
+                )
