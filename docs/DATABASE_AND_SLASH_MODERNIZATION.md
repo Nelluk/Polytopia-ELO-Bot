@@ -14791,7 +14791,7 @@ not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
 These are non-blocking design interests, not authorization or prerequisites
 for the current rollout.
 
-### Dynamic guild configuration and onboarding control plane
+### 1. Dynamic guild configuration and onboarding control plane
 
 Replace the current hand-edited `server_settings.py` guild dictionaries with a
 validated, auditable configuration service and an operator-facing setup/edit
@@ -14812,6 +14812,134 @@ deleted or inaccessible. Storage authority and those failure semantics should
 be settled before choosing Discord versus web as the editing frontend. This is
 especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
+
+### 2. Evidence-based prefix-command lifecycle
+
+After the production canary has accumulated representative usage and parity
+evidence, decide which retained prefix commands remain useful indefinitely and
+which can be deprecated or retired. Do not perform a blanket prefix removal.
+Review each retained command against its compatibility-ledger contract,
+message-content-intent dependence, native replacement, operator fallback
+value, and actual canary use.
+
+Any usage instrumentation should record only bounded command identity and
+outcome metadata, never complete message content or arguments. Each retirement
+still requires its own compatibility decision, tester communication, rollback
+path, and confirmation that the native command is deployed wherever the
+prefix was relied upon.
+
+### 3. Legacy identity and timezone-field cleanup
+
+After stable production operation, perform the separately approved aggregate-
+only production inventory required before changing `name_steam`,
+`polytopia_id`, or the old whole-hour timezone field. Use that evidence to
+decide whether values need a bounded backfill, indefinite compatibility
+retention, or eventual column/field retirement.
+
+This is not routine cleanup. Any backfill needs conflict rules, idempotent
+plan/apply/verify tooling, exact production identity gates, backup/rollback
+disposition, and explicit treatment of clients or legacy modules that still
+read the old fields. Destructive field retirement belongs in a later schema
+unit only after the compatibility readers are gone.
+
+### 4. Peewee and database-worker architecture verdict
+
+Record an explicit post-operation decision on whether the modernized bounded
+synchronous Peewee workers remain the right architecture. Review observed
+event-loop latency, connection ownership and pressure, transaction clarity,
+coordinator contention, cancellation complexity, operational failures, and
+maintenance cost.
+
+The default recommendation is to keep Peewee if production evidence shows the
+current worker/immutable-snapshot boundaries are reliable. A full async ORM
+migration should begin only if measured problems justify its schema,
+transaction, testing, and rollout cost; modernization completion alone is not
+a reason to rewrite the data layer.
+
+### 5. Development feedback retention and redaction lifecycle
+
+Design an owned lifecycle for the development-only `/staffhelp` JSONL and
+attachment store. Define a retention window, legal/incident hold behavior,
+bounded inventory, report-and-attachment consistency, manual redaction or
+purge semantics, audit evidence, symlink/path safety, and recovery from partial
+filesystem failure.
+
+This must not create a production feedback archive or change production's
+direct per-guild Discord relay. The current read-only development utility
+should remain incapable of mutation until a separately reviewed lifecycle
+tool has exact targets, preview, confirmation, and recoverability rules.
+
+### 6. Legacy API, Bullet, and anti-scam disposition
+
+Review the legacy API cog, Bullet tournament integration, and anti-scam
+listener as three separate products after modernization. For each, inventory
+real use, owners, credentials/external dependencies, database access,
+permissions, failure behavior, and replacement cost before choosing to retain,
+modernize, isolate, or retire it.
+
+Their exclusion from the current modernization is not an implicit retirement
+decision. Avoid combining all three into one implementation unit merely
+because they share legacy status; their risks and operational owners differ.
+
+### 7. Containerized deployment feasibility
+
+Explore whether PolyBot should be built and deployed as an immutable Docker
+Compose stack. Begin with a design and development proof rather than replacing
+the reviewed production service. The primary goal is a genuinely easy,
+reproducible deployment that removes host PostgreSQL installation, role,
+database, and version setup as a barrier for development and makes a future
+host move more portable.
+
+Recommendation: ship separate `bot` and pinned-version `postgres` containers
+in one supported Compose deployment. PostgreSQL must not run inside the bot
+container, but it should be available as part of the same normal stack rather
+than requiring an externally administered host database. Preserve an optional
+external-database configuration for operators who already have managed
+PostgreSQL. Use a named persistent database volume and separate persistent
+bot paths for images, logs, and operation state so bot replacement or restart
+does not replace database data.
+
+The development target should aim for a small documented command sequence that
+creates the correct network, PostgreSQL version, database, role, development
+profile, and bot service without manual system PostgreSQL administration.
+Development fixture plan/seed/status/cleanup should remain explicit guarded
+jobs. Production initialization, migrations, backup/export, restore
+verification, and Discord command management should likewise be explicit
+one-shot jobs or operator commands, never hidden bot- or database-container
+startup effects. Normal startup must not migrate schema, seed data, restore a
+backup, or synchronize Discord commands.
+
+The evaluation should cover reproducible bot images from `uv.lock`, CPython
+and system-library dependencies, non-root execution, image provenance/digests,
+secrets and ignored configuration, database and bot volume ownership,
+graceful Discord and PostgreSQL shutdown, health checks, dependency readiness,
+resource limits, signal handling, checkpoint reporting, and rollback. Pin the
+reviewed PostgreSQL major version; do not use an unbounded `latest` tag or
+silently perform a major-version upgrade against an existing volume.
+
+For host moves, prefer a stopped-writer, verified logical PostgreSQL backup and
+restore into the same pinned major version over copying a live/raw Docker
+volume. The design must include off-volume backup destinations, restore drills,
+disk-exhaustion visibility, and a separately reviewed PostgreSQL major-upgrade
+procedure. Containers reduce installation and version drift, but they do not
+remove backup, recovery, corruption, or storage administration.
+
+The feasibility review must also reconcile current systemd assumptions:
+single-writer enforcement, the durable beta, automatic restart policy,
+`/operator bot restart` and exit status 75, filesystem ownership/modes,
+production backup access, development/production profile separation, and
+observability through container logs. A bot exit intended for supervised
+restart must map deliberately to the selected Compose/container supervisor
+policy rather than assuming the current systemd semantics transfer unchanged.
+Production adoption requires a separately reviewed migration from the existing
+host database, volume/secret layout, health and rollback plan, and evidence
+that the Compose deployment improves operation rather than only relocating
+complexity.
+
+The beta testability improvements discussed for scenario-oriented
+`/whattotest`, fixture readiness, and safe staff preparation/reset belong
+before M7/R-002 so they can improve final-candidate evidence. They are not
+deferred into this post-modernization backlog.
 
 ## Progress log
 
