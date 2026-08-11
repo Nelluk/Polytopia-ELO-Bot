@@ -237,7 +237,8 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         for module_name in (
                 'logging_config', 'modules.image_storage',
                 'modules.initialize_data', 'modules.models',
-                'modules.startup_ban_workers', 'modules.utilities'):
+                'modules.startup_ban_workers',
+                'modules.startup_schema_preflight', 'modules.utilities'):
             stubs[module_name] = ModuleType(module_name)
         stubs['modules.initialize_data'].initialize_data = lambda: None
         stubs['modules.image_storage'].ensure_image_directories = lambda: None
@@ -252,9 +253,25 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                 polytopia_rows=0,
             ))
         )
+        stubs['modules.startup_schema_preflight'].StartupSchemaPreflightRequest = (
+            lambda **kwargs: SimpleNamespace(**kwargs)
+        )
+        stubs['modules.startup_schema_preflight'].run_startup_schema_preflight = (
+            mock.AsyncMock(return_value=SimpleNamespace(
+                database_name='polytopia_dev',
+                database_user='polybot_dev',
+                verified_tables=('game',),
+                winner_foreign_key_verified=True,
+            ))
+        )
         runtime_profile = SimpleNamespace(
             background_tasks_enabled=False,
             bullet_enabled=False,
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
+            database_password='offline-secret',
+            database_host='localhost',
+            database_port=5432,
             discord_token='offline-test-token',
             environment='development',
             validate_logged_in_bot=lambda _bot_id: None,

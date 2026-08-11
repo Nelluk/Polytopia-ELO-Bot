@@ -490,21 +490,24 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.20/M6 environment-explicit staff-help delivery is
-Complete in accumulation at merge checkpoint
-`9b248d335353b0b8c394f0be5a33bb08ae1db2e9`. It was built on
-`codex/p9-20-m6-production-staffhelp`, from exact clean accumulation
-checkpoint `2d5639d117e4e711df5290deed080a82e9aee278`. This Tier-3 unit keeps one
-public `/staffhelp` form while selecting exactly one backend from the explicit
-runtime profile. Development retains its durable JSONL record-first and fixed-
-channel mirror behavior. Production performs one direct per-guild Discord
-relay, permits only the first configured helper role mention, writes no JSONL
-record, and fails closed when routing is incomplete. The legacy prefix remains
-retired. Implementation/tests checkpoint `54aae6d` passes 65 focused tests;
-complete offline discovery runs 1,651 tests with 1,577 passes, 71 intentional
-skips, and only the same three missing-`duckdb` environment failures. No
-database or schema path is introduced. M7/R-002 remains the next release-
-candidate gate after this unit.**
+Current active unit: **P9.21 final-adversarial-review release blockers is
+Tier-3 reviewed and accepted on `codex/p9-21-final-review-blockers`, from exact
+clean accumulation checkpoint
+`92702262de60b7e7a73e6ec9d5286ba9d5b54419`. The external GitHub-only
+review inspected exact checkpoint
+`55eeb84951085ff55bdbe2eeca4a33519b942c4b`; the only subsequent branch delta
+before this unit was the documentation-only post-modernization backlog. It
+found N1 High import/startup schema DDL and N2 Medium production-profile
+literal fallbacks. Both findings reproduce at the current base and block
+M7/R-002. This combined Tier-3 startup authority unit removes model-import
+DDL, adds a model-free worker-owned read-only schema preflight before ban
+reconciliation, moves initial development schema creation behind an explicit
+plan/apply/confirmation tool, and requires explicit nonempty production
+`expected_bot_id` and `psql_password`. No production operation or schema apply
+is authorized. Implementation/tests checkpoint `e532ce4` passes 50 focused
+tests, final complete offline discovery has only the three known DuckDB
+environment failures, and the stopped-writer development gate is green.
+Accumulation integration, beta restart, and close-out remain in progress.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13805,6 +13808,91 @@ dynamic guild-configuration control-plane design remains a useful alternative
 planning unit, but the recommendation is to defer it until M7 and the canary
 gates close.
 
+### P9.21 — Final adversarial-review startup authority blockers
+
+Status: **Tier-3 reviewed and accepted; accumulation integration pending**
+
+Branch/base: `codex/p9-21-final-review-blockers`, exact clean accumulation base
+`92702262de60b7e7a73e6ec9d5286ba9d5b54419`.
+
+The final GitHub-only adversarial review was pinned to exact checkpoint
+`55eeb84951085ff55bdbe2eeca4a33519b942c4b`. Current HEAD differed only by the
+two documentation-only post-modernization-roadmap commits, so both newly
+reported defects remained applicable:
+
+- N1 High: importing `modules.models` still opened PostgreSQL and attempted
+  `create_tables()` plus the deferred `Game.winner` foreign key outside the
+  reviewed migration authority; and
+- N2 Medium: an explicitly selected but incomplete production profile received
+  built-in `expected_bot_id` and `psql_password` literals instead of failing
+  before effects.
+
+This Tier-3 combined unit owns one boundary: startup may authenticate, verify
+schema read-only, and then reconcile state, but it may not infer critical
+production configuration or mutate schema. `modules.models` now defines the
+database and ORM graph without connecting or issuing DDL. A separate model-free
+schema contract lists the 17 tables formerly owned by import and the deferred
+`game.winner_id -> gameside.id` foreign key. After Discord identity validation,
+one bounded worker opens its own PostgreSQL connection, sets it read-only,
+verifies the live database/role, required tables, and foreign key, closes the
+connection, and only then permits startup-ban reconciliation. Missing schema
+aborts startup without mutation. Repeated invocation is idempotently guarded,
+and cancellation drains the worker before ownership is released.
+
+Initial schema creation is retained only for new development installations in
+`scripts/bootstrap_development_database.py`. Its default plan is connection-
+free. Apply requires the exact development profile and exact printed
+database/role confirmation, verifies live identity, creates only missing model
+tables and the deferred winner foreign key in one transaction, and then uses a
+fresh read-only preflight to verify the result. The tool was not applied during
+this unit; the existing development schema was inspected only through the
+unchanged gated test profile. Normal startup, `--add_default_data`, and model
+import do not own schema creation.
+
+The production runtime loader no longer substitutes either legacy literal.
+Missing, blank, and whitespace-only `expected_bot_id` or `psql_password` now
+fail before server-settings loading, directory creation, model import, or any
+connection. Explicit password authentication remains the supported current
+contract; introducing a named passwordless mode would be a separate reviewed
+configuration decision.
+
+Focused coverage verifies zero model-import connection/DDL calls, contract-to-
+model inventory parity, read-only SQL and live identity, missing-table and
+missing-FK refusal, immutable/redacted requests, cancellation draining,
+identity/schema/ban ordering, exactly-once guards, connection-free bootstrap
+planning, confirmation-before-import, and all production omission forms. The
+focused startup/runtime/deployment/documentation set passes **50/50**.
+Complete offline discovery runs **1,666 tests: 1,591 passed, 72 intentionally
+skipped, and only the three documented missing-`duckdb` environment cases
+failed**: runtime import, dependency inventory, and reporting-export import.
+Compilation and `git diff --check` pass.
+
+The documented stopped-writer window found exactly one authorized development
+beta (PID `57757`, active/running, zero automatic restarts), stopped only that
+user service, and required a host-wide clear writer audit. The unchanged gate
+proved `POLYBOT_ENV=development`, `polytopia_dev`, `polybot_dev`, disabled
+background tasks/API, and then ran **71 real-schema tests: 70 passed and one
+owned-fixture round trip was intentionally skipped**. The new verifier proved
+the 17-table and winner-FK contract through a PostgreSQL read-only session. No
+schema bootstrap, migration, production connection, Discord command operation,
+or owned beta-fixture operation was performed. Implementation and regression
+checkpoint: `e532ce4`.
+
+Tier-3 complete-diff review corrected the actual underscored
+`team_server_broadcast_message` table name in the model-free contract before
+commit, updated the current-authority consistency regression, and verified
+that the only remaining DDL calls are inside the explicit development
+bootstrap apply function. It found no remaining blocker: all connection and
+cursor paths close on failure, the preflight marks success only after the
+complete read-only contract, repeated cancellation drains the owned worker,
+password values are excluded from dataclass representations and redacted
+output, and production remains unreachable from the bootstrap gate.
+
+Next action: commit this evidence, integrate and push the accumulation branch,
+then start the durable development beta once at the accepted clean checkpoint
+and verify the new startup preflight. M7/R-002 remains blocked until this unit
+is fully accumulated and runtime-verified.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14942,6 +15030,34 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.21 final-review startup blockers corrected and reviewed
+
+- Reconciled clean local, tracking, and GitHub accumulation at exact checkpoint
+  `92702262de60b7e7a73e6ec9d5286ba9d5b54419`, proved the external review's
+  only post-review delta was documentation, and reproduced both N1 High and N2
+  Medium at that base.
+- Removed all model-import DDL, added the model-free worker-owned read-only
+  startup schema preflight before ban reconciliation, and added an explicit
+  development-only connection-free-plan/exact-confirmation schema bootstrap.
+  No bootstrap or migration was applied.
+- Removed the production `expected_bot_id` and `psql_password` fallbacks; all
+  missing, blank, and whitespace-only cases now fail before server-settings or
+  later effects. Updated the production examples and cutover assertions.
+- Implementation/tests checkpoint `e532ce4`. Focused coverage passes **50/50**;
+  complete offline discovery runs **1,666 tests: 1,591 pass, 72 intentional
+  skips, and only the same three missing-`duckdb` environment failures**.
+- Inspected the one authorized beta at PID `57757`, stopped only its user
+  service, and required a clear host-wide writer audit. The unchanged
+  `development` / `polytopia_dev` / `polybot_dev` gate ran **71 tests: 70 pass
+  and one owned-fixture round trip intentionally skips**; the new real-schema
+  case verified all 17 tables and the winner foreign key through a read-only
+  session.
+- Tier-3 review corrected one table-name contract mismatch before commit and
+  found no remaining blocker. No production, global Discord, command apply,
+  schema apply, dependency, owned beta-fixture, or sudo operation occurred. Next:
+  evidence commit, accumulation integration/push, and one clean beta start at
+  the accepted integrated checkpoint before M7/R-002.
 
 ### 2026-08-11 — Final pre-M7 adversarial-review package prepared
 

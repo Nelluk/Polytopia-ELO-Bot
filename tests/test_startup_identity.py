@@ -263,7 +263,28 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         events = []
         profile = SimpleNamespace(
             bullet_enabled=False,
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
+            database_password='secret',
+            database_host='localhost',
+            database_port=5432,
             validate_logged_in_bot=lambda _bot_id: events.append('identity'),
+        )
+        schema_result = SimpleNamespace(
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
+            verified_tables=('game',),
+            winner_foreign_key_verified=True,
+        )
+        schema = SimpleNamespace(
+            StartupSchemaPreflightRequest=lambda **kwargs: SimpleNamespace(
+                **kwargs
+            ),
+            run_startup_schema_preflight=mock.AsyncMock(
+                side_effect=lambda _request: (
+                    events.append('schema') or schema_result
+                )
+            ),
         )
         result = SimpleNamespace(
             reset_rows=3,
@@ -307,6 +328,7 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
             ), mock.patch.dict(
                 sys.modules,
                 {
+                    'modules.startup_schema_preflight': schema,
                     'modules.startup_ban_workers': worker,
                     'modules.utilities': utilities,
                 },
@@ -316,8 +338,13 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await instance.close()
 
-        self.assertEqual(events[:4], ['identity', 'bans', 'connect', 'images'])
+        self.assertEqual(
+            events[:5],
+            ['identity', 'schema', 'bans', 'connect', 'images'],
+        )
+        self.assertEqual(events.count('schema'), 1)
         self.assertEqual(events.count('bans'), 1)
+        self.assertTrue(instance._startup_schema_preflight_complete)
         self.assertEqual(worker.run_startup_ban_reconciliation.await_count, 1)
         sent_request = worker.run_startup_ban_reconciliation.await_args.args[0]
         self.assertEqual(sent_request.discord_ids, (1, 2))
@@ -325,12 +352,53 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(instance._startup_identity_validated)
         self.assertTrue(instance._startup_bans_reconciled)
 
+    async def test_incomplete_schema_aborts_before_ban_reconciliation(self):
+        instance = self.make_bot()
+        profile = SimpleNamespace(
+            bullet_enabled=False,
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
+            database_password='secret',
+            database_host='localhost',
+            database_port=5432,
+            validate_logged_in_bot=lambda _bot_id: None,
+        )
+        schema = SimpleNamespace(
+            StartupSchemaPreflightRequest=lambda **kwargs: SimpleNamespace(
+                **kwargs
+            ),
+            run_startup_schema_preflight=mock.AsyncMock(
+                side_effect=RuntimeError('missing required tables')
+            ),
+        )
+        reconcile = mock.AsyncMock()
+        try:
+            with mock.patch.object(
+                bot_module.settings, 'runtime_profile', profile,
+            ), mock.patch.object(
+                instance, '_reconcile_startup_bans', reconcile,
+            ), mock.patch.dict(
+                sys.modules, {'modules.startup_schema_preflight': schema},
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, 'missing required tables'
+                ):
+                    await instance.setup_hook()
+        finally:
+            await instance.close()
+
+        reconcile.assert_not_awaited()
+        self.assertTrue(instance._startup_identity_validated)
+        self.assertFalse(instance._startup_schema_preflight_complete)
+        self.assertFalse(instance._startup_bans_reconciled)
+
     def test_ordinary_init_has_no_pre_identity_database_import_or_connect(self):
         source = inspect.getsource(bot_module)
         init_source = inspect.getsource(bot_module.init_bot)
         imports_before_main = source[:source.index('def main')]
         self.assertNotIn('modules.models', imports_before_main)
         self.assertNotIn('modules.utilities', imports_before_main)
+        self.assertNotIn('modules.startup_schema_preflight', imports_before_main)
         self.assertNotIn('\n    utilities.connect()', init_source)
 
 

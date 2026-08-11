@@ -2,12 +2,13 @@
 discord_key = YOURAPIKEYHERE
 # private token from discord developer porter
 expected_bot_id = 484067640302764042
-# Discord application/bot ID expected after login
+# required explicit Discord application/bot ID expected after login; no fallback
 psql_user = nelluk
 # username for postgres database
 psql_db = polytopia2
 # database name
 psql_password = CHANGEME
+# required explicit database authentication value; no fallback
 psql_host =
 # leave host blank to use PostgreSQL's default local socket
 psql_port =

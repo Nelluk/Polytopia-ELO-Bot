@@ -243,6 +243,46 @@ class RuntimeProfileTests(unittest.TestCase):
                 RuntimeConfigurationError, 'psql_password'):
             self.load_development()
 
+    def test_missing_blank_and_whitespace_production_identity_fail_early(self):
+        for value in (None, '', '   '):
+            with self.subTest(value=value):
+                self.write_config('production', expected_bot_id=value)
+                with mock.patch.object(
+                    runtime_config, '_load_server_settings'
+                ) as load_server_settings, mock.patch.object(
+                    runtime_config, '_create_development_directories'
+                ) as create_directories:
+                    with self.assertRaisesRegex(
+                        RuntimeConfigurationError, 'expected_bot_id'
+                    ):
+                        load_runtime_profile(
+                            project_root=self.root,
+                            environ={'POLYBOT_ENV': 'production'},
+                            create_directories=True,
+                        )
+                load_server_settings.assert_not_called()
+                create_directories.assert_not_called()
+
+    def test_missing_blank_and_whitespace_production_password_fail_early(self):
+        for value in (None, '', '   '):
+            with self.subTest(value=value):
+                self.write_config('production', psql_password=value)
+                with mock.patch.object(
+                    runtime_config, '_load_server_settings'
+                ) as load_server_settings, mock.patch.object(
+                    runtime_config, '_create_development_directories'
+                ) as create_directories:
+                    with self.assertRaisesRegex(
+                        RuntimeConfigurationError, 'psql_password'
+                    ):
+                        load_runtime_profile(
+                            project_root=self.root,
+                            environ={'POLYBOT_ENV': 'production'},
+                            create_directories=True,
+                        )
+                load_server_settings.assert_not_called()
+                create_directories.assert_not_called()
+
     def test_missing_production_resource_denylist_is_rejected(self):
         self.write_config('development', production_guild_ids=None)
         self.write_server_settings('development')

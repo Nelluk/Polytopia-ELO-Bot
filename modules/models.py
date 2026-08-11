@@ -12,7 +12,6 @@ import discord
 from discord.ext import commands
 from peewee import *
 from playhouse.postgres_ext import *
-from psycopg2.errors import DuplicateObject
 
 import settings
 from modules import channels, exceptions, image_storage, player_timezone_values
@@ -3685,21 +3684,3 @@ class PlayerHousePreference(BaseModel):
             cls.player == player_id,
             cls.house == house_id
         ).exists()
-
-
-with db.connection_context():
-    db.create_tables([
-        Configuration, House, Team, DiscordMember, Game, Player, Tribe, Squad,
-        GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage,
-        ApiApplication, Auction, Bid, PlayerHousePreference
-    ])
-    # Only creates missing tables so should be safe to run each time
-
-    try:
-        # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
-        Game._schema.create_foreign_key(Game.winner)
-    except (ProgrammingError, DuplicateObject):
-        pass
-        # Will throw one of above exceptions if foreign key already exists - exception depends on which version of psycopg2 is running
-        # if exception is caught inside a transaction then the transaction will be rolled back (create_tables reverted),
-        # so using the connection_context() and this section is not run using any transactions

@@ -496,8 +496,6 @@ def load_runtime_profile(
     expected_bot_id_value = parser['DEFAULT'].get(
         'expected_bot_id', ''
     ).strip()
-    if not expected_bot_id_value and environment == 'production':
-        expected_bot_id_value = str(LEGACY_PRODUCTION_BOT_ID)
     if not expected_bot_id_value:
         raise RuntimeConfigurationError(
             f'Missing required setting {"expected_bot_id"!r} in '
@@ -505,8 +503,6 @@ def load_runtime_profile(
         )
 
     database_password = parser['DEFAULT'].get('psql_password', '').strip()
-    if not database_password and environment == 'production':
-        database_password = 'password'
     if not database_password:
         raise RuntimeConfigurationError(
             f'Missing required setting {"psql_password"!r} in '

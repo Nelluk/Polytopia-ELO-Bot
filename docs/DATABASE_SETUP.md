@@ -121,15 +121,40 @@ database. Check that it reports the development environment,
 
 ## 5. Create the tables and seed tribes
 
-With the configuration check passing, initialize the empty database:
+Normal bot startup and model import are schema-read-only. With the
+configuration check passing, first print the explicit development bootstrap
+plan (this does not connect):
+
+```bash
+POLYBOT_ENV=development .venv/bin/python scripts/bootstrap_development_database.py
+```
+
+Review the database, role, bounded DDL description, and exact confirmation
+token printed by that plan. Then explicitly apply it, substituting the exact
+token the plan printed:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python scripts/bootstrap_development_database.py \
+  --apply \
+  --confirm 'BOOTSTRAP DEVELOPMENT DATABASE polytopia_dev AS polybot_dev'
+```
+
+The apply path is development-only, verifies the live database and role before
+DDL, creates only missing model tables and the deferred
+`game.winner_id -> gameside.id` foreign key in one transaction, then verifies
+the startup schema through a new read-only connection. It is safe to rerun
+with a fresh exact confirmation when the schema is already complete.
+
+After the schema bootstrap succeeds, seed the permanent tribe reference data:
 
 ```bash
 POLYBOT_ENV=development .venv/bin/python bot.py --add_default_data --skip_tasks
 ```
 
-Importing `modules.models` creates any missing tables. The
-`--add_default_data` option then adds the Polytopia tribes; it is safe to run
-again because existing tribes are skipped.
+The `--add_default_data` option adds the Polytopia tribes; it is safe to run
+again because existing tribes are skipped. It does not own schema creation.
+An ordinary bot start first performs a model-free read-only schema preflight
+and fails closed if the required tables or winner foreign key are missing.
 
 Verify that tables now exist:
 
