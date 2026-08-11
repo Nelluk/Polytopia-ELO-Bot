@@ -511,7 +511,21 @@ fixture skip. The bounded beta matrix is now entering its approved human test
 pass, while actual redacted production-configuration verification remains
 separately approval-gated. The candidate record is structurally/repository
 valid, but `require-ready` must continue to fail on those two open gates. No
-command apply or production action occurred.**
+command apply or production action occurred. Nelluk subsequently clarified
+that the candidate is an evidence baseline, not a prohibition on sensible
+development while tester feedback accumulates. A later runtime change may
+supersede it after proportionate review and refreshed affected gates.**
+
+P10.1 dynamic guild configuration architecture is complete as a parallel
+documentation/design unit from exact clean accumulation base
+`a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb`. It inventories all 27 legacy
+guild keys plus adjacent capability, topology, lobby, ban, and product-catalog
+state; separates process bootstrap/security from mutable guild policy; and
+specifies a PostgreSQL-backed revision service, immutable runtime snapshots,
+owner-approved enrollment, Discord-first editing, permission classes,
+validation, recovery, migration stages, and required tests. It performs no
+schema, runtime, database, Discord, beta, dependency, or production change.
+Implementation remains separately selectable.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14421,14 +14435,73 @@ development beta was stopped, and the post-sync exact `development` /
 `polytopia_dev` / `polybot_dev` suite again passes **75 tests: 74 passed and
 one operator-fixture round trip skipped**.
 
-The approved next lifecycle action is to launch the clean accumulation
-evidence checkpoint with candidate runtime code unchanged, verify the expected
-development identity, five packs, three lanes, and unchanged guild-only
-command tree, then deliver the concise approved `WHAT TO TEST` release as the
-terminal deployment action. The candidate validator reports cutover review,
-offline, and database gates `pass`; bounded beta and production configuration
-remain `pending`, so `require-ready` still exits nonzero. No command apply or
-production operation is planned.
+The durable development beta now runs clean pushed evidence checkpoint
+`a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb` with candidate runtime code
+unchanged as PID `129519`, authenticated as application
+`479029527553638401`, with zero restart churn. All five packs, three lanes,
+both persona roles, and the owned House/Team fixture are ready. The eleven
+development-guild command roots remain unchanged and the global tree is
+empty, so no apply occurred. Reviewed release
+`2026-08-11-m7-beta-lab-candidate` pinged testers once in
+`todo-and-changelog` as message `1536788273966485611`; the independently fixed
+`admin-spam` channel remains the private `/staffhelp` mirror rather than a
+duplicate release destination. The candidate validator reports cutover
+review, offline, and database gates `pass`; bounded beta and production
+configuration remain `pending`, so `require-ready` still exits nonzero.
+
+Nelluk does not require development to stop at this evidence checkpoint while
+feedback accumulates. A sensible later runtime change can proceed as a normal
+bounded unit. Before production use, update the candidate pointer/digests as
+needed and rerun the gates affected by that change; do not represent an older
+candidate's evidence as covering new runtime code.
+
+### P10.1 — Dynamic guild configuration architecture
+
+Status: **Design and current-state inventory complete; implementation
+deferred to separately selected bounded units.**
+
+Branch/base: `codex/p10-1-dynamic-guild-config-design`, exact clean pushed
+accumulation checkpoint `a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb`.
+
+Risk tier: **Tier 1 documentation/architecture**. The design changes no
+runtime behavior and authorizes no schema or production operation.
+
+The authoritative design is `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md`.
+Inventory found 27 default guild keys: 26 have live behavior and singular
+`match_challenge_channel` has no source consumer. It also identifies adjacent
+state that must not be swept into ordinary guild settings: runtime secrets and
+identity, server topology aliases, command deployment policy, lobby presets,
+ban lists, product catalogs, and the unrelated existing `Configuration`
+draft-state table.
+
+Recommended architecture:
+
+- keep environment, token, database identity, bot identity, owner/superusers,
+  filesystem, tasks/API/Bullet flags, and migration source mode in immutable
+  process bootstrap;
+- store a complete strictly validated, schema-versioned guild document inside
+  a relational PostgreSQL enrollment/revision/draft/audit envelope;
+- publish frozen in-memory snapshots so ordinary permission/prefix/channel
+  reads never query PostgreSQL or block the Discord event loop;
+- make version-one enrollment owner-only with pending, active, suspended, and
+  retired states, and quarantine unknown guilds rather than granting defaults;
+- provide a Discord-first private Components v2 operator editor, then add
+  opt-in same-guild delegation and a web frontend only through the same
+  service;
+- store exact role/channel/category IDs with live same-guild validation;
+- keep application-command capability activation owner-controlled and remote
+  guild synchronization separately planned/applied, never automatic; and
+- migrate through typed offline service, additive development schema/import,
+  shadow comparison, explicit authority switch, owner control plane,
+  quarantined onboarding, delegation, separately approved production canary,
+  and eventual static retirement.
+
+Implementation must preserve atomic revision+audit commits, optimistic
+concurrency, immutable worker results, connection ownership, truthful
+post-commit cache reconciliation, cross-guild denial, deleted-reference drift
+handling, and an explicit static-source rollback during transition. No schema
+migration, database access, beta restart, command plan/apply, dependency
+change, or production access occurred in P10.1.
 
 ## Standard work-unit template
 
@@ -15411,6 +15484,40 @@ and returns deliberate exit status 75 so the existing reviewed service policy
 performs the restart. Force bypasses only the known active-work refusal; it does
 not bypass identity, clean-checkout, supervision, or exact-confirmation gates.
 
+### D-049 — Treat a release candidate as an evidence baseline, not a work embargo
+
+Status: **Accepted**
+
+The exact candidate SHA remains the authority for evidence already collected,
+but active tester feedback does not prohibit useful development on later
+bounded units. A later code change may supersede the candidate. Before that
+code is represented as production-ready, update the candidate pointer and
+digests and rerun the review/test/beta gates proportionate to the changed
+surface. Never apply an older exact-SHA gate result to unreviewed newer runtime
+code merely because the bot is small.
+
+Documentation-only planning may proceed without disturbing the running beta.
+Runtime changes may also proceed when useful, with normal review, integration,
+deployment, and tester communication rather than an artificial freeze.
+
+### D-050 — Use one revisioned service for dynamic guild configuration
+
+Status: **Accepted for design; implementation remains separately bounded**
+
+P10.1 recommends a strictly typed, schema-versioned guild document within a
+relational PostgreSQL enrollment/revision/draft/audit envelope. Runtime reads
+come from immutable in-memory snapshots; the database is never queried by
+ordinary event-loop permission, prefix, or presentation paths. Secrets,
+process/database/application identity, product catalogs, bans, and executable
+behavior remain outside the guild document.
+
+Version-one enrollment is owner-only and unknown guilds are quarantined
+without defaults. Discord is the first control plane; optional same-guild
+delegation and a web frontend come later through the same service. Application-
+command capabilities remain owner-controlled and Discord tree synchronization
+remains a separate explicit operation. The full contract and staged migration
+are recorded in `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md`.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15418,25 +15525,21 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Replace the current hand-edited `server_settings.py` guild dictionaries with a
-validated, auditable configuration service and an operator-facing setup/edit
-workflow. The eventual interface could be native Discord setup commands, a web
-admin surface, or both; that UX choice remains open.
+Design status: **P10.1 complete.** The inventory and architecture are recorded
+in `docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` and decision D-050. The design
+selects a PostgreSQL revision service, immutable runtime snapshots, owner-only
+initial enrollment, Discord-first control plane, opt-in local delegation, and
+separate explicit command synchronization. It excludes secrets, process
+identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
-Recommendation: defer implementation until the modernization and production
-canary gates close. First inventory every current setting and separate mutable
-guild policy (roles, channels, feature/capability assignments, display rules)
-from process bootstrap and security material (tokens, database identity,
-expected application identity, and the authority allowed to enroll a guild).
-Do not place secrets or arbitrary executable Python in the dynamic store.
-
-The first bounded design unit should specify an approval-based new-guild
-enrollment state, typed validation and defaults, revision/audit history,
-atomic updates, cache invalidation, rollback, and recovery when Discord IDs are
-deleted or inaccessible. Storage authority and those failure semantics should
-be settled before choosing Discord versus web as the editing frontend. This is
-especially important because the bot currently leaves guilds absent from the
-static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
+Implementation is intentionally staged rather than one large migration. The
+next selectable unit is the offline typed schema/value-object and validation
+service with no runtime authority switch. Later units own additive development
+schema/import, shadow reads, an explicit authority switch, owner editing,
+quarantined onboarding, delegation, production canary, and static retirement.
+Nelluk has clarified that useful implementation may proceed while current beta
+feedback accumulates; any runtime change simply requires proportionate
+candidate evidence refresh before production.
 
 ### 2. Evidence-based prefix-command lifecycle
 
@@ -15592,11 +15695,16 @@ deferred into this post-modernization backlog.
   database gates `pass`. The bounded human beta matrix and separately approved
   redacted production-configuration verification remain pending, so the
   candidate is not yet release-ready.
-- Nelluk approved the concise tester instructions and `@testers` delivery. The
-  remaining development sequence is a clean accumulation push, beta launch and
-  health/readiness/command-tree verification, then public plus private-mirror
-  delivery as the terminal deployment action. No command apply or production
-  action is warranted.
+- Pushed evidence correction `a7ffd6b`, launched the durable beta as PID
+  `129519` at that clean checkpoint, and verified application
+  `479029527553638401`, zero restart churn, five ready packs, three free lanes,
+  both persona roles, the owned House/Team fixture, eleven unchanged guild
+  command roots, and an empty global tree. No command apply occurred.
+- Reviewed release `2026-08-11-m7-beta-lab-candidate` pinged `@testers` once in
+  `todo-and-changelog` as message `1536788273966485611`. The established
+  `admin-spam` route remains the private `/staffhelp` mirror, not a duplicate
+  release-announcement destination. Delivery was the terminal deployment
+  action; no production action occurred.
 
 ### 2026-08-11 — M7/R-002 source candidate frozen with explicit blockers
 
