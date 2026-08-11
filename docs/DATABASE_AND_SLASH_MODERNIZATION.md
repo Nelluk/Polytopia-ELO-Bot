@@ -490,8 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6b3 monotonic rollback-to-revision is implemented
-and in Tier-3 validation on `codex/p10-6b3-guild-config-rollback`, based on
+Current active unit: **P10.6b3 monotonic rollback-to-revision is Tier-3
+reviewed and accepted for integration on
+`codex/p10-6b3-guild-config-rollback`, based on
 exact clean pushed accumulation checkpoint
 `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`. The new private owner-only
 `/operator guild rollback revision:<number>` preview binds an earlier
@@ -503,11 +504,16 @@ consuming a draft. No-op and command-capability-drift targets fail closed.
 After commit, the existing complete worker reload and exact event-loop
 publication boundary reconcile runtime state; cancellation and presentation
 failures preserve truthful committed-state reporting. Focused validation
-currently passes 101 tests. Complete offline discovery, the stopped-writer
-PostgreSQL rollback proof, complete-diff review, integration/push, guild-only
-command registration, and beta verification remain before close-out. No
-schema, enrollment, delegation, global sync, production authority, or
-production operation is in scope.**
+passes 103 tests; complete offline discovery passes all 1,897 tests with 83
+intentional gated skips. Complete-diff review corrected stale-active preview
+binding, cancellation-after-commit truth, and committed panel-failure
+fallback. The stopped-writer PostgreSQL gate runs 83 tests: 82 pass and only
+the established operator-managed fixture round trip skips; the rollback graph
+is fully outer-transaction rolled back. Implementation/evidence checkpoint is
+`f506883`. Integration/push, guild-only command registration, and beta
+verification remain before close-out; the beta is intentionally stopped after
+the database gate. No schema, enrollment, delegation, global sync, production
+authority, or production operation is in scope.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15128,7 +15134,7 @@ activation remains a useful alternative.
 
 ### P10.6b3 — Monotonic rollback-to-revision
 
-Status: **Implemented and in Tier-3 validation.**
+Status: **Tier-3 reviewed and accepted for integration.**
 
 Branch/base: `codex/p10-6b3-guild-config-rollback`, exact clean pushed
 accumulation checkpoint `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`.
@@ -15162,7 +15168,7 @@ or response-edit failures retain truthful committed revision/generation
 evidence and direct reconciliation through `/operator bot restart` when
 runtime publication cannot be verified.
 
-Focused validation currently passes 101 tests. Dedicated coverage includes
+Focused validation passes 103 tests. Dedicated coverage includes
 the monotonic storage graph and protected audit, exact confirmation and stale-
 preview rejection, current live references, no-op and command-policy blockers,
 model-free publishers, transaction rollback, post-commit reload/publication
@@ -15171,6 +15177,22 @@ event-loop responsiveness, owner/access denial, and final-panel failure. A
 separately gated stopped-writer PostgreSQL case activates a temporary ordinary-
 settings revision, clones the original into a newer rollback revision, verifies
 the graph/audit, and always rolls the outer transaction back.
+
+Complete offline discovery passes all 1,897 tests with 83 intentional gated
+skips. The stopped-writer development PostgreSQL gate runs 83 tests: 82 pass
+and only the established operator-managed fixture round trip skips. Its new
+rollback case exercises temporary activation, monotonic restore, parent/source
+metadata, registry generation, and protected audit in one outer transaction
+that is always rolled back. No revision, audit, generation, draft, or fixture
+change is retained.
+
+Tier-3 complete-diff review corrected three committed-truth boundaries: commit
+now binds the exact previewed active revision/generation/digest as well as the
+source digest; cancellation that drains a completed activation/rollback can no
+longer discard the authoritative committed result; and a failed terminal panel
+edit cannot suppress the committed-state fallback. No remaining actionable
+offline or real-schema finding is known. Implementation and evidence
+checkpoint: `f506883`.
 
 This unit adds no schema, enrollment, delegation, draft consumption, global
 command synchronization, production authority, or production operation. The
@@ -16523,6 +16545,42 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.6b3 rollback implemented, reviewed, and database-gated
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `174bbb7424d9594e7cb7ff64ce3dda3d696389ef`, created isolated branch/worktree
+  `codex/p10-6b3-guild-config-rollback`, and ran the required development setup
+  with exact development/database/role and disabled task/API evidence.
+- Implementation/evidence checkpoint `f506883` adds private owner-only
+  `/operator guild rollback revision:<number>`, exact source/full-digest plus
+  active revision/generation/digest confirmation, and a monotonic immutable
+  rollback graph with source/prior/changed-path protected audit evidence. It
+  changes no schema and never deletes history, consumes a draft, or synchronizes
+  commands as a hidden side effect.
+- The worker validates the complete historical document and current same-guild
+  Discord references, blocks no-op and command-capability drift, owns one
+  repeatable-read transaction, and reloads the complete graph on a separate
+  read-only connection after commit. The event loop publishes only exact
+  committed evidence with unchanged unrelated guilds and command policy.
+- Focused validation passes 103 tests. Complete offline discovery passes all
+  1,897 tests with 83 intentional gated skips; compilation and diff checks pass.
+- Tier-3 review corrected stale-active preview binding, preserved authoritative
+  commit truth when cancellation drains the worker, and made both successful
+  and reconciliation-required committed outcomes resilient to a failed final
+  panel edit. No remaining actionable review finding is known.
+- Stopped only `polybot-development-beta@main.service`; host-level inspection
+  identified PID `227875` as the sole development candidate, shutdown completed
+  cleanly, and the host-wide writer audit then reported clear. The complete
+  gated `development` / `polytopia_dev` / `polybot_dev` suite ran 83 tests: 82
+  passed and only the established operator-managed fixture round trip skipped.
+  The new rollback case and all temporary graph changes were outer-transaction
+  rolled back; no retained database state changed.
+- The beta remains intentionally stopped. Next: commit this gate evidence,
+  fast-forward the accepted unit into accumulation, push the clean checkpoint,
+  plan/apply only the development-guild `operator` root update, and start and
+  verify the durable beta. No tester checklist or announcement is warranted for
+  this owner-only control-plane addition.
 
 ### 2026-08-11 — P10.6b2 activation implemented and offline reviewed
 
