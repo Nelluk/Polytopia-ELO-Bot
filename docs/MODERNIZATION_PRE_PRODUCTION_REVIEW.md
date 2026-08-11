@@ -13,12 +13,12 @@ dependency, sudo, or filesystem mutation was performed during the review.
 
 ## Recommendation
 
-The accumulation branch is **not ready to become a release candidate**. B1,
-B3, and every High finding are resolved by reviewed modernization units. B2 is
-implemented on the P9.16 unit branch and awaits integration. M1–M6 remain open;
-M7 is the later exact-HEAD release-candidate gate; and L1 is only partially
-reconciled. A valid unresolved finding remains a release blocker even when its
-severity is Medium or Low.
+The accumulation branch is **not ready to become a release candidate**. B1–B3,
+every High finding, M1–M5, and L1 are resolved by reviewed modernization units
+through P9.19. M6 still requires the production communities' exact support/
+privacy route, owner, monitoring cadence, and verification evidence. M7 is the
+later exact-HEAD release-candidate gate. A valid unresolved finding remains a
+release blocker even when its severity is Medium.
 
 ## Current resolution matrix
 
@@ -34,10 +34,10 @@ severity is Medium or Low.
 | H6 | Resolved | P9.8, P9.9, and P9.13 retirements/replacements |
 | H7 | Resolved | P9.10 repeated-cancellation-safe backup cleanup |
 | H8 | Resolved | P9.11 identity-before-startup-effects ordering |
-| M1–M5 | Open | Separate bounded source corrections before R-002 |
+| M1–M5 | Resolved | P9.17 interaction boundaries and P9.18 backup lifecycle/provenance |
 | M6 | Open; decision/evidence required | Exact production support/privacy route |
 | M7 | Open by design | R-002 final-HEAD release-candidate evidence |
-| L1 | Partially resolved | Separate consistency reconciliation before R-002 |
+| L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
 
 ## Blocker
 
@@ -527,12 +527,9 @@ Status: **Open by design and owned by R-002 after all preceding corrections.**
 
 ### L1 — Roadmap and evidence records are internally stale
 
-Status: **Partially resolved. The date, example production database, diff
-cleanliness, and recent execution pointer are current; the phase summary,
-selected compatibility rows, taxonomy implementation inventory, and some
-historical next-action text still require one bounded consistency pass.**
+Status: **Resolved by P9.19.**
 
-- **Exact records:**
+- **Original records at review checkpoint `8cb47aa`:**
   - "Last updated" remains 2026-08-09 at
     `docs/DATABASE_AND_SLASH_MODERNIZATION.md:3`, despite later 2026-08-10 work.
   - P9 is `Planned` at `docs/DATABASE_AND_SLASH_MODERNIZATION.md:949`, but
@@ -561,6 +558,14 @@ historical next-action text still require one bounded consistency pass.**
   whitespace claim.
 - **Focused regression:** one model-free command/compatibility/status
   consistency check plus `git diff --check`.
+- **Resolution:** the already-correct date, phase table, example database, and
+  whitespace state remain intact. P9.19 reconciles C-012/C-013/C-025, replaces
+  the taxonomy's stale current inventory with the exact eleven source roots,
+  distinguishes the readiness audit's ten-root historical snapshot from its
+  current eleven-root state, corrects P9.6's chronological next action without
+  deleting its production carry-forward gate, and updates the active review/
+  rollout pointers. A fresh-process model-free loader regression ties those
+  current records to source and the selected compatibility/status facts.
 
 ## Areas reviewed with no defect found
 

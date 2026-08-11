@@ -1330,14 +1330,30 @@ dozens of capabilities harder to scan and organize.
 
 ## Current implementation alignment
 
-After P4.5, the current modernization stack registers:
+P9.19's model-free source inventory loads these exact current roots (11):
+`elo`, `game`, `house`, `leaderboard`, `league`, `operator`, `player`, `squad`,
+`staffhelp`, `team`, and `whattotest`.
 
-- direct `/game record|open|join|leave|search|show|logs|ping|start|win|ranked|map|side|notes|name|tribe`;
-- `/game result undo|confirm`;
-- `/game manage kick|delete|extend|unstart`;
+Their current first-level structure is:
+
 - `/elo recalculate|status`;
-- `/leaderboard players|activity|squads` with temporary `/lb2` removed;
-- `/player show|register|timezone`.
+- `/game join|leave|logs|manage|map|name|notes|open|ping|ranked|record|result|search|show|side|start|tribe|win`;
+- `/house create|image|list|name|show`;
+- `/leaderboard activity|players|roles|squads|teams`;
+- `/league free-agents|guide|join-novas|maintenance|mark-active|roster|season|tokens`;
+- `/operator bot|channels|database|player|tribe`;
+- `/player register|show|timezone`;
+- `/squad name|show`;
+- `/staffhelp` with no direct options;
+- `/team archive|create|emoji|house|image|name|server|show|tier`; and
+- development-only `/whattotest` with no direct options.
+
+This is source inventory, not a claim that every root is assigned in every
+guild. Capability policy remains default-deny, `/whattotest` remains
+development-only, and the initial production canary recommendation omits both
+`/operator` and the development-only support/testing capabilities.
+
+### Historical implementation notes
 
 P6.1 implements `/player register member:[optional]` on the accepted
 P6.0 identity contract. It opens exactly one modal field for the account-wide

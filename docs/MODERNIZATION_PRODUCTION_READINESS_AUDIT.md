@@ -13,9 +13,10 @@ database, service, Discord, or schema action.
 
 The modernization architecture is suitable for a production canary, but the
 current accumulation branch is not yet a releasable production checkpoint.
-Three bounded preparation stages remain:
+P9.17–P9.19 resolve M1–M5 and L1. Three bounded preparation stages remain:
 
-1. close the still-valid M1–M6 and L1 adversarial findings;
+1. resolve M6 by recording and verifying each production community's exact
+   support/privacy route, owner, and monitoring cadence;
 2. validate one reconciled release candidate offline and through the stopped-
    writer development PostgreSQL gate; and
 3. after separate approval, deploy one production process and enable a
@@ -25,7 +26,7 @@ The dependency/PostgreSQL upgrade completed before this project is not an
 outstanding modernization dependency. Its historical rollback instructions
 are also not a valid rollback for this release.
 
-## Verified repository state
+## Verified repository state at the audit base
 
 - Audit base: `3947298` on `codex/database-slash-modernization`.
 - `origin/master` is seven commits ahead of the audit base. The accumulation
@@ -49,7 +50,7 @@ are also not a valid rollback for this release.
   separate production-only plan/apply/verify tool; it has been validated
   offline and against the already-migrated development schema, but has not
   connected to production or run production DDL.
-- The model-free command source loads ten roots: `elo`, `game`, `house`,
+- At the audit base, the model-free command source loaded ten roots: `elo`, `game`, `house`,
   `leaderboard`, `league`, `player`, `squad`, `staffhelp`, `team`, and the
   development-only `whattotest`.
 - The explicit command manager is default-plan, guild-only, has no global-sync
@@ -59,6 +60,17 @@ are also not a valid rollback for this release.
   tester checklist deliberately contains many workflows without wide human
   acceptance. That checklist is useful feedback inventory, but it is not yet
   a bounded release-candidate acceptance gate.
+
+## Current reconciliation
+
+P9.19 reconciles active readiness guidance without replacing the audit's
+historical evidence. The current model-free source roots (11) are: `elo`,
+`game`, `house`, `leaderboard`, `league`, `operator`, `player`, `squad`,
+`staffhelp`, `team`, and `whattotest`. P9.2 added `/operator` after the audit;
+the initial production canary policy still omits it. R-001, R-003, and R-004
+are complete; M1–M5 and L1 are resolved. M6 remains the final product/
+operations decision before M7/R-002 freezes and validates one exact release
+candidate.
 
 ## Canary blockers
 
@@ -231,7 +243,8 @@ for every retained operation.
 3. R-003 production migration implementation and offline review.
 4. R-004 modernization cutover/rollback runbook and production config plan
    (complete through P9.16 merge `d4a37d0`).
-5. Close the still-valid M1–M6 and L1 adversarial findings.
+5. Record and verify M6's exact production support/privacy route; M1–M5 and
+   L1 are complete through P9.17–P9.19.
 6. R-002 release-candidate review, complete offline tests, stopped-beta full
    development PostgreSQL gate, and a bounded beta release matrix.
 7. Push/open the final accumulation-to-`master` integration review; merge only
@@ -270,6 +283,6 @@ boundaries.
 
 ## Next action
 
-Close M1–M6 and the remaining L1 consistency debt before R-002 freezes and
-validates one exact release candidate. Production execution remains separately
-approval-gated.
+Resolve M6's exact production support/privacy route, owner, monitoring cadence,
+and verification evidence. Then perform M7/R-002 against one exact release
+candidate. Production execution remains separately approval-gated.

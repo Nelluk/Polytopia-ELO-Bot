@@ -362,8 +362,8 @@ would become unavailable if a prefix is retired.
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
 | C-011 `/team create` / `$team_add` / `$team_add_junior` | Native `/team create name:<required>` creates one visible guild-scoped Team plus an actual-guild actor-attributed GameLog in one worker transaction. It validates a trimmed 1–100-character exact-role-compatible name, reports duplicate/racing inserts privately, and directs staff to the focused team-attribute commands. It intentionally creates no Discord role or other team attributes. | Legacy recommendation: **retire** — explicit approval removes both prefix registrations. `$team_add_junior` had no distinct junior behavior, so native creation has no `junior` option. The former one-line message-command workflow is unavailable, but ordinary staff team creation and follow-up configuration are covered natively; the existing exact Discord-role membership convention is explained publicly after commit. | Revisit only through a separately approved prefix lifecycle decision; do not restore a compatibility adapter or add junior behavior without a distinct product and data contract. | Intentional P8.5 prefix retirement; Tier-3 reviewed, real-schema validated, and integrated; beta sync/smoke pending |
-| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; integrated and deployed; wider-beta acceptance blocked by the discovered unbounded discovery-query/publish stall pending correction |
-| C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
+| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; integrated and deployed; the shared discovery/publication stall was corrected before P7 close-out; wider-beta acceptance pending |
+| C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; the shared `/squad show` discovery/publication correction was validated before P7 close-out; wider-beta acceptance pending |
 
 | C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
 | C-015 `/house name` / `/house image` / `$house_rename` / `$house_image` | Native `/house name` reads publicly and accepts one optional replacement from Mods; `/house image` reads the effective local/URL image publicly and accepts one typed attachment replacement or explicit clear from Mods. Both support explicit House autocomplete or exact requester-role inference and publish actor-attributed committed changes. | Legacy recommendation: **retire** — explicitly approved. `$house_rename` and `$house_image` are removed from the overloaded `$house_add` handler; `$house_add` remains temporarily for the separate House-create unit. Direct image-URL replacement becomes unavailable because the native image path deliberately accepts a validated Discord attachment rather than free-form remote input. Existing stored URLs remain readable and clearable. House names remain required and cannot be cleared. | Add a native URL option only if staff demonstrate a real need; do not download remote image content without a separate validation/security review. Rename the exact Discord House role manually after a database rename until a separately designed role-reconciliation workflow exists. | Intentional P8.8 prefix retirement and image-URL parity boundary; implemented at `c86d604`, integrated/deployed at `6380b19` |
@@ -376,7 +376,7 @@ would become unavailable if a prefix is retired.
 | C-022 `/league maintenance mark-inactive` / `$deactivate_players` / `$deactivate` | Native Mod-only maintenance preserves the 60-day current-guild activity and incomplete-game rules, but adds a private paginated preview, refreshed candidate confirmation, explicit bot/owner/protected-role exclusions, a 100-member action bound, per-member failure continuation, and one public actor-attributed aggregate. | Legacy recommendation: **retire** — explicitly approved. The immediate, unconfirmed prefix mutation is removed because retaining it would bypass every new safety property. `$kick_inactive` remained unchanged through P8.18 and was subsequently retired by the separately governed P8.19/C-023 workflow. | Restore no prefix adapter. If candidate-policy changes become necessary, revise the centralized policy and preview together; never add an unpreviewed bulk role path. | P8.18 implemented at `e61162d`, integrated and development-guild deployed through `bf403af`; Mod acceptance pending |
 | C-023 `/league maintenance kick-inactive` / `$kick_inactive` | Native Mod-only removal privately evaluates every member carrying Inactive, displays an eligible/protected reason for each, refreshes the complete candidate set, requires exact typed `KICK <count>`, and removes at most 25 members per run. Current Team roles and a small starter set are eligible; unknown, managed, staff, leadership, bot, and owner roles/accounts fail closed. | Legacy recommendation: **retire** — explicitly approved. The immediate prefix batch had no preview, used a stale hard-coded Team-role list, aborted on individual failures, and mixed Discord awaits with event-loop database work. Native preserves the effective 7/30/60 thresholds while accurately describing “tracked games,” blocks pending/incomplete league games, treats DM failure as nonfatal, continues kick failures, and records audits only after Discord effects. | Restore no immediate prefix adapter. If thresholds or role policy change, revise the centralized worker, all-reasons preview, refreshed execution, and tests together. Never add scheduled removal without a separate policy and operations review. | P8.19 implemented, real-schema validated, integrated, and development-guild deployed through `958ae90`; bounded Mod acceptance pending |
 | C-024 `/game side` / `$gameside` / `$matchside` / `$sidename` | Native `/game side` reads or edits one typed game side, including its name and role restriction, through the authoritative worker-backed service. | Legacy recommendation: **retire** — explicitly approved. The three hidden, low-use prefix names and their synchronous live-model converter are removed. Their free-form role-mention/name/`none` grammar is unavailable, while the native command provides typed role/name inputs and explicit clear. `$join GAME SIDE_NAME` remains supported with its exact side/member precedence through one bounded routing read. | Restore no prefix adapter unless concrete usage evidence identifies a native parity gap. Continue to improve `/game side` over the same worker rather than returning a live Peewee object to an event-loop converter. | Intentional P5.20 prefix retirement; integrated, pushed, and loaded by the guarded beta through `e78601b` |
-| C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` will require explicit confirmation, atomically validate and archive one House-free Team with no incomplete games, and publish the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. Remove the `$team_edit` registration and its archive grammar rather than building a shared prefix adapter; do not add a legacy alias. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Accepted P8.26 design; implementation pending |
+| C-025 `/team archive` / `$team_edit TEAM ARCHIVE` | Native Mod-only `/team archive team confirm` requires explicit confirmation, atomically validates and archives one House-free Team with no incomplete games, and publishes the archival warning only after commit. `$team_tier` remains a separate retained prefix workflow. | Legacy recommendation: **retire** — explicitly approved because team archival is virtually never used. `$team_edit` registration and its archive grammar were removed rather than retained through an adapter; no legacy alias exists. | Do not add native unarchive without a separate recovery design. If archival needs richer review later, add a requester-bound confirmation workspace over the same worker rather than restoring `$team_edit`. | Intentional P8.26 prefix retirement; implemented at `5848c88`, integrated/deployed at `41da49e`; destructive live smoke deliberately omitted |
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
 | C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `a13d440`; owner acceptance/first real use optional |
@@ -490,21 +490,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.18/M2+M3 operator-backup lifecycle and provenance is
-Complete in accumulation at merge checkpoint `981d41e`. It was reviewed from
-exact clean base `3290d80a536874ab6434d4bbb967458b83b6e139`. Implementation checkpoint
-`c1e1c8d` and review corrections `ac665f1` / `31edd75` cap execution at 12
-minutes,
-stop preview expiry while busy, publish exactly one terminal private panel,
-and require an atomic private manifest binding the clean checkout, shell,
-exporter, and running interpreter before spawn. Focused affected coverage
-passes 78/78. Complete discovery runs 1,640 tests: 1,566 pass, 71 intentionally
-skip, and only the same three missing-`duckdb` environment cases fail. The
-unit changes no database or command shape, so neither a development-database
-gate nor guild command apply is warranted. M2 and M3 are resolved; M6, M7, and
-part of L1 remain open. The guarded beta remains healthy on runtime checkpoint
-`e34e007`; this production-only path is unavailable in development, so a beta
-restart would not exercise it and was not warranted.**
+Current active unit: **P9.19/L1 repository consistency is in progress from
+exact clean accumulation checkpoint
+`3560a2f7919150c474ecdeba5bc432894acd57b7`. This Tier-1 repository-only unit
+reconciles current roadmap, compatibility, taxonomy, readiness-audit, and
+adversarial-review authority while preserving explicitly labelled historical
+evidence. It adds a model-free source-root/document consistency regression and
+changes no runtime, schema, database graph, command shape, or Discord behavior.
+M6 remains the only product/operations decision before M7/R-002 freezes an
+exact release candidate.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -12615,10 +12609,13 @@ inspect database row data, mutate either checkout, inspect or change
 Discord/application commands, touch the guarded beta, alter cron/services,
 install dependencies, or use sudo.
 
-Next action: a later explicit production deployment may install the updated
-script/command and perform the first native run only after confirming cron is
-idle; validate every artifact and the existing upload afterward. A
-development-guild sync is optional and can prove only fail-closed refusal.
+Production carry-forward gate: a later explicit production deployment may
+install the updated script/command and perform the first native run only after
+confirming cron is idle; validate every artifact and the existing upload
+afterward. A development-guild sync can prove only fail-closed refusal and is
+not required. The immediate modernization action at this historical checkpoint
+was P9.7a's confirmation commit/publication truthfulness correction; later
+units completed R-003 and R-004 before any production execution.
 
 ### P9.7a — Confirmation commit/publication truthfulness
 
@@ -13657,6 +13654,51 @@ Next recommended action after integration: complete L1's repository-only
 consistency pass so stale active wording and duplicated historical authority
 cannot mislead R-002. Also selectable after a product decision: M6's exact
 production support/privacy route. M7 remains the final exact-candidate freeze.
+
+### P9.19 — L1 repository consistency reconciliation
+
+Status: **In progress on the isolated unit branch**
+
+Branch/base: `codex/p9-19-l1-repository-consistency`, exact clean accumulation
+base `3560a2f7919150c474ecdeba5bc432894acd57b7`.
+
+This Tier-1 repository-only unit closes adversarial finding L1 without
+rewriting chronological evidence. It distinguishes historical audit-time facts
+from current authority and reconciles:
+
+- C-012/C-013 with the completed squad discovery/publication correction and
+  C-025 with the completed/deployed P8.26 archive implementation;
+- the taxonomy's current implementation snapshot with the eleven roots loaded
+  by the model-free command source, including the later `/operator` root and
+  development-only `/whattotest` root;
+- the production-readiness audit's current executive result, rollout sequence,
+  and next action while retaining its original ten-root audit evidence;
+- the adversarial review recommendation, resolution matrix, and L1 status with
+  P9.17/P9.18 evidence; and
+- P9.6's chronological next action while retaining its separately gated future
+  production-activation note.
+
+The phase table, roadmap date, `polytopia2` example configuration, and prior
+whitespace correction were already current at the P9.19 base and require no
+new source edit. A focused regression invokes the actual command-source loader
+in a fresh subprocess so the check remains model-free, then compares the exact
+root inventory with both current documentation records and checks the selected
+phase, compatibility, review, and example-configuration facts.
+
+No product or architecture choice is introduced. Historical checkpoint counts
+and statements remain evidence of their own time and are labelled accordingly;
+current operational guidance is authoritative only in the reconciled current
+sections. There is no database path, command-tree change, runtime behavior, or
+Discord effect, so a development PostgreSQL gate, guild apply, beta restart,
+checklist edit, or tester announcement is not warranted.
+
+Implementation evidence and integration checkpoint: pending focused and
+complete offline validation, Tier-1 complete-diff review, accumulation merge,
+and push.
+
+Next action: finish L1 validation and integration. Then resolve M6 by recording
+the exact production support/privacy route, owner, monitoring cadence, and
+verification evidence; M7/R-002 remains the final exact-candidate freeze.
 
 ## Standard work-unit template
 
