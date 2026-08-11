@@ -1721,13 +1721,6 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             async def __aexit__(self, exc_type, exc_value, traceback):
                 return False
 
-        winning_side = SimpleNamespace(name=lambda: 'Alpha')
-        winning_game = SimpleNamespace(
-            id=99,
-            is_completed=True,
-            is_confirmed=False,
-            winner=winning_side,
-        )
         messages = []
         context = SimpleNamespace(
             author=SimpleNamespace(
@@ -1759,7 +1752,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             self.administration.PolyGame,
             'convert',
-            new=mock.AsyncMock(return_value=winning_game),
+            new=mock.AsyncMock(return_value=99),
         ), mock.patch.object(
             self.administration.confirmation_publication,
             'publish_confirmed_game',
@@ -1770,6 +1763,13 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             await command.callback(cog, context, arg='99')
 
         post_effects.assert_not_awaited()
+        cog._confirm_game_and_post.assert_awaited_once_with(
+            game_id=99,
+            guild=context.guild,
+            prefix='$',
+            channel=context.channel,
+            requester=context.author,
+        )
         self.assertTrue(
             any('No Discord channel updates were made' in message
                 for message in messages)
@@ -1909,12 +1909,6 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             winner_name='Alpha',
             publication=object(),
         )
-        winning_game = SimpleNamespace(
-            id=99,
-            is_completed=True,
-            is_confirmed=False,
-            winner=SimpleNamespace(name=lambda: 'Alpha'),
-        )
         messages = []
         context = SimpleNamespace(
             author=SimpleNamespace(
@@ -1946,7 +1940,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             self.administration.PolyGame,
             'convert',
-            new=mock.AsyncMock(return_value=winning_game),
+            new=mock.AsyncMock(return_value=99),
         ):
             await command.callback(cog, context, arg='99')
 

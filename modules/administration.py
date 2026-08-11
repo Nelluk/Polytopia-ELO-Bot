@@ -48,6 +48,7 @@ from modules import operator_channel_purge_workers
 from modules import operator_restart as operator_restart_service
 from modules import operator_restart_views
 from modules import game_open_workers
+from modules import interaction_lifecycle
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -574,17 +575,12 @@ class administration(commands.Cog):
 
         # else confirming a specific game ie. $confirm 1234
         game_converter = PolyGame()
-        winning_game = await game_converter.convert(ctx, arg)
-
-        if not winning_game.is_completed:
-            return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
-        if winning_game.is_confirmed:
-            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
+        winning_game_id = await game_converter.convert(ctx, arg)
 
         try:
             async with ctx.typing():
                 result = await self._confirm_game_and_post(
-                    game_id=winning_game.id,
+                    game_id=winning_game_id,
                     guild=ctx.guild,
                     prefix=ctx.prefix,
                     channel=ctx.channel,
@@ -606,7 +602,7 @@ class administration(commands.Cog):
             )
         except peewee.PeeweeException:
             logger.exception(
-                'Database failure confirming game %s', winning_game.id
+                'Database failure confirming game %s', winning_game_id
             )
             return await ctx.send(
                 'Game confirmation failed and rolled back. No Discord '
@@ -890,7 +886,7 @@ class administration(commands.Cog):
 
         try:
             message = await self._set_ranked_state_and_post(
-                game_id=game.id,
+                game_id=game,
                 guild=ctx.guild,
                 is_ranked=True,
                 requester=ctx.author,
@@ -911,7 +907,7 @@ class administration(commands.Cog):
 
         try:
             message = await self._set_ranked_state_and_post(
-                game_id=game.id,
+                game_id=game,
                 guild=ctx.guild,
                 is_ranked=False,
                 requester=ctx.author,
@@ -964,12 +960,9 @@ class administration(commands.Cog):
         if game is None:
             return await ctx.send('No matching game was found.')
 
-        if game.uses_channel_id(ctx.channel.id):
-            return await ctx.send(':warning: This command must be used from a channel that is not related to the game.')
-
         try:
             message = await self._unstart_game_and_post(
-                game_id=game.id,
+                game_id=game,
                 guild=ctx.guild,
                 prefix=ctx.prefix,
                 requester=ctx.author,
@@ -1024,12 +1017,12 @@ class administration(commands.Cog):
         `[p]extend 1234`
         """
 
-        if not game:
+        if game is None:
             return await ctx.send('No game ID provided.')
 
         try:
             result = await self._extend_pending_game(
-                game_id=game.id,
+                game_id=game,
                 guild_id=ctx.guild.id,
                 requester=ctx.author,
             )
@@ -1774,6 +1767,16 @@ class administration(commands.Cog):
             return await interaction.followup.send(str(exc), ephemeral=True)
         except team_show_workers.TeamShowPermissionError as exc:
             return await interaction.followup.send(str(exc), ephemeral=True)
+        except interaction_lifecycle.PublicInteractionDestinationError:
+            logger.exception(
+                'No public destination for native team show in guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'The team card was not published publicly because its '
+                'channel could not be resolved. Please try again.',
+                ephemeral=True,
+            )
         except peewee.PeeweeException:
             logger.exception(
                 'Database failure in native team show command for guild %s',

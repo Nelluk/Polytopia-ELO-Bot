@@ -26,12 +26,14 @@ from modules import player_timezone
 from modules import player_timezone_workers
 from modules import player_timezone_values
 from modules import league_inactivity_workers
+from modules import legacy_name_workers
 from modules import channel_reference_workers
 from modules import member_identity_workers
 from modules import member_join_workers
 from modules import member_removal_workers
 from modules import elo_workers
 from modules import game_result_publication
+from modules import interaction_lifecycle
 from modules import interaction_bans
 from modules import game_unwin
 from modules import game_win
@@ -118,39 +120,18 @@ GAME_MAP_TYPE_CHOICES = [
 
 
 class PolyGame(commands.Converter):
-    async def convert(self, ctx, game_id, allow_cross_guild=False):
+    """Parse a retained prefix game ID without touching the ORM."""
 
-        utilities.connect()
+    async def convert(self, ctx, game_id):
         try:
-            game = Game.get(id=int(game_id))
-        except (ValueError, peewee.DataError):
+            parsed_game_id = int(game_id)
+        except (TypeError, ValueError):
             await ctx.send(f'Invalid game ID "{game_id}".')
             raise commands.UserInputError()
-        except peewee.DoesNotExist:
-            await ctx.send(f'Game with ID {game_id} cannot be found.')
+        if not -(2 ** 31) <= parsed_game_id < 2 ** 31:
+            await ctx.send(f'Invalid game ID "{game_id}".')
             raise commands.UserInputError()
-        else:
-            logger.debug(f'Game with ID {game_id} found.')
-            if game.guild_id != ctx.guild.id and not allow_cross_guild:
-                logger.warning('Game does not belong to same guild')
-                try:
-                    server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
-                except exceptions.CheckFailedError:
-                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
-                    # config['default'][setting_name]
-                if game.is_pending:
-                    game_summary_str = ''
-                else:
-                    game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
-                    game_summary_str = f'\n`{(str(game.date))}` - {game.size_string()} - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}'
-
-                if not game.is_pending:
-                    embed, _ = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-                    await image_storage.send_game_embed(ctx, game, embed=embed)
-
-                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
-                raise commands.UserInputError()
-            return game
+        return parsed_game_id
 
 
 class NewGameRosterError(ValueError):
@@ -1064,24 +1045,21 @@ class polygames(commands.Cog):
             timeout=team_leaderboard_service.TEAM_LEADERBOARD_CONTROL_TIMEOUT,
         )
         try:
+            channel = await (
+                interaction_lifecycle.resolve_public_interaction_channel(
+                    interaction
+                )
+            )
             await interaction.delete_original_response()
-            channel = getattr(interaction, 'channel', None)
-            if channel is not None:
-                view.message = await channel.send(
-                    view=view,
-                    files=view.graph_files(),
-                )
-            else:
-                view.message = await interaction.followup.send(
-                    view=view,
-                    files=view.graph_files(),
-                    ephemeral=False,
-                    wait=True,
-                )
+            view.message = await channel.send(
+                view=view,
+                files=view.graph_files(),
+            )
         except Exception:
             logger.exception('Could not publish slash team leaderboard')
             return await interaction.followup.send(
-                'Could not publish the team leaderboard. Please try again.',
+                'The team leaderboard was not published publicly. Please '
+                'try again.',
                 ephemeral=True,
             )
 
@@ -2850,16 +2828,17 @@ class polygames(commands.Cog):
             return await ctx.send(f'Could not find any server member matching *{player_string_safe}*. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
 
         elif len(guild_matches) > 1:
-            player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
-            if len(player_matches) == 1:
-                account_name = (
-                    player_matches[0].discord_member.polytopia_name
-                    or player_matches[0].discord_member.name_steam
-                )
+            player_match = await legacy_name_workers.run_registered_name_match(
+                player_string,
+                ctx.guild.id,
+            )
+            if player_match.match_count == 1:
+                player = player_match.player
+                account_name = player.account_name
                 await ctx.send(
                     f'Found {len(guild_matches)} server members matching '
                     f'*{player_string_safe}*, but only '
-                    f'**{player_matches[0].name}** is registered.'
+                    f'**{player.display_name}** is registered.'
                 )
                 return await ctx.send(
                     player_registration.safe_public_name(account_name)
@@ -2869,15 +2848,17 @@ class polygames(commands.Cog):
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention or more characters.')
         target_discord_member = guild_matches[0]
 
-        discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
+        discord_member = await legacy_name_workers.run_account_name(
+            target_discord_member.id
+        )
 
         if discord_member:
             account_name = (
-                discord_member.polytopia_name
-                or discord_member.name_steam
+                discord_member.account_name
             )
             await ctx.send(
-                f'Account-wide Polytopia name for **{discord_member.name}**:'
+                f'Account-wide Polytopia name for '
+                f'**{discord_member.display_name}**:'
             )
             return await ctx.send(
                 player_registration.safe_public_name(account_name)
@@ -2908,39 +2889,34 @@ class polygames(commands.Cog):
         else:
             game_id = None
 
-        inferred_game = None
-        if not game_id:
-            try:
-                inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
-            except exceptions.NoSingleMatch as e:
-                logger.error(f'Could not infer game from channel: {e}')
-                return await ctx.send(f'Game ID not provided and cannot detect a game channel. Usage: __`{ctx.prefix}{ctx.invoked_with} GAME_ID`__')
-            logger.debug(f'Inferring game {inferred_game.id} from getnames command used in channel {ctx.message.channel.id}')
-        
-        if inferred_game:
-            game = inferred_game
-        else:
-            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
-
         try:
-            ordered_player_list = game.draft_order()
-        except exceptions.MyBaseException as e:
-            return await ctx.send(f'**Error:** {e}')
+            snapshot = await legacy_name_workers.run_game_names(
+                game_id=game_id if game_id else None,
+                channel_id=ctx.message.channel.id,
+            )
+        except legacy_name_workers.GameNamesLookupError as exc:
+            if exc.code == 'channel_lookup':
+                logger.error('Could not infer game from channel: %s', exc)
+                return await ctx.send(
+                    'Game ID not provided and cannot detect a game channel. '
+                    f'Usage: __`{ctx.prefix}{ctx.invoked_with} GAME_ID`__'
+                )
+            if exc.code == 'not_found':
+                return await ctx.send(str(exc))
+            if exc.code == 'invalid_id':
+                return await ctx.send(f'Invalid game ID "{game_id}".')
+            return await ctx.send(f'**Error:** {exc}')
 
-        warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(ordered_player_list) > 2 else ''
+        warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(snapshot.rows) > 2 else ''
         header_str = (
-            f'Polytopia account names for **game {game.id}**, in draft order:'
+            f'Polytopia account names for **game {snapshot.game_id}**, in draft order:'
             f'{warn_str}'
         )
 
         first_loop = True
         async with ctx.typing():
-            for p in ordered_player_list:
-                dm_obj = p['player'].discord_member
-                account_name = (
-                    dm_obj.polytopia_name
-                    or dm_obj.name_steam
-                )
+            for row in snapshot.rows:
+                account_name = row.account_name
                 account_name_display = (
                     f'**{player_registration.safe_public_name(account_name)}**'
                     if account_name else '*No account-wide name set*'
@@ -2952,18 +2928,16 @@ class polygames(commands.Cog):
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
                     # More than 3-4 and they will drip out due to API rate limits
-                    await ctx.send(f'{header_str}\n**{p["player"].name}**{in_game_name_str} -- *Creates the game and invites everyone else*')
+                    await ctx.send(f'{header_str}\n**{row.player_name}**{in_game_name_str} -- *Creates the game and invites everyone else*')
                     first_loop = False
                 else:
-                    effective_timezone = (
-                        player_timezone_values.effective_timezone_offset(dm_obj)
-                    )
+                    effective_timezone = row.timezone
                     tz_str = (
                         f'`{effective_timezone}`'
                         if effective_timezone
                         else ''
                     )
-                    await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
+                    await ctx.send(f'**{row.player_name}**{in_game_name_str} {tz_str}')
                 await ctx.send(
                     player_registration.safe_public_name(account_name)
                     if account_name else 'No account-wide name set'

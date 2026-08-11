@@ -11,6 +11,51 @@ import discord
 logger = logging.getLogger('polybot.' + __name__)
 
 
+class PublicInteractionDestinationError(RuntimeError):
+    """No exact public Discord channel can receive committed output."""
+
+
+async def resolve_public_interaction_channel(interaction):
+    """Resolve a real public channel without using an inherited webhook."""
+
+    channel = getattr(interaction, 'channel', None)
+    if callable(getattr(channel, 'send', None)):
+        return channel
+
+    channel_id = getattr(interaction, 'channel_id', None)
+    try:
+        channel_id = int(channel_id)
+    except (TypeError, ValueError):
+        channel_id = 0
+    if channel_id <= 0:
+        raise PublicInteractionDestinationError(
+            'The interaction did not identify a public channel.'
+        )
+
+    client = getattr(interaction, 'client', None)
+    if client is not None:
+        get_channel = getattr(client, 'get_channel', None)
+        if callable(get_channel):
+            channel = get_channel(channel_id)
+            if callable(getattr(channel, 'send', None)):
+                return channel
+
+        fetch_channel = getattr(client, 'fetch_channel', None)
+        if callable(fetch_channel):
+            try:
+                channel = await fetch_channel(channel_id)
+            except Exception as exc:
+                raise PublicInteractionDestinationError(
+                    f'Could not fetch public channel {channel_id}.'
+                ) from exc
+            if callable(getattr(channel, 'send', None)):
+                return channel
+
+    raise PublicInteractionDestinationError(
+        f'Could not resolve public channel {channel_id}.'
+    )
+
+
 def _is_already_cleared(error: BaseException) -> bool:
     """Return whether Discord says the private placeholder is already gone."""
 

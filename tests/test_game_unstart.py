@@ -509,29 +509,33 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Game 42 is now an open game', message)
         self.assertNotIn(':warning:', message)
 
-    async def test_invocation_from_game_channel_stops_before_worker(self):
+    async def test_invocation_channel_validation_is_worker_authoritative(self):
         cog = administration.administration.__new__(
             administration.administration
         )
-        game = SimpleNamespace(
-            id=42,
-            uses_channel_id=lambda channel_id: channel_id == 900,
-        )
         ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
             channel=SimpleNamespace(id=900),
+            prefix='$',
+            author=SimpleNamespace(id=1),
             send=mock.AsyncMock(),
         )
         with mock.patch.object(
             cog,
             '_unstart_game_and_post',
-            new=mock.AsyncMock(),
+            new=mock.AsyncMock(
+                side_effect=game_workers.GameUnstartValidationError(
+                    'This command must be used from a channel that is not '
+                    'related to the game.'
+                )
+            ),
         ) as run_unstart:
             await administration.administration.unstart.callback(
-                cog, ctx, game
+                cog, ctx, 42
             )
 
-        run_unstart.assert_not_awaited()
-        ctx.send.assert_awaited_once()
+        run_unstart.assert_awaited_once()
+        self.assertIn('not related to the game', ctx.send.await_args.args[0])
 
     async def test_slow_unstart_worker_does_not_block_event_loop(self):
         started = threading.Event()

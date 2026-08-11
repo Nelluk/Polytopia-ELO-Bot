@@ -3,8 +3,8 @@ import asyncio
 import importlib
 import logging
 import os
+import secrets
 import sys
-import traceback
 from timeit import default_timer as timer
 from typing import Awaitable, Callable, List
 
@@ -18,6 +18,65 @@ from modules import beta_operations, image_storage, operator_restart
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
+
+
+def prefix_error_reference() -> str:
+    """Return a short, non-secret reference for one unexpected failure."""
+
+    return secrets.token_hex(4).upper()
+
+
+async def handle_prefix_command_error(ctx, exc) -> None:
+    """Handle retained-prefix failures without exposing exception details."""
+
+    if hasattr(ctx.command, 'on_error'):
+        return
+    ignored = (
+        commands.CommandNotFound,
+        commands.UserInputError,
+        commands.CheckFailure,
+    )
+
+    if (
+        isinstance(exc, commands.CommandNotFound)
+        and str(ctx.invoked_with or '')[:4] == 'join'
+    ):
+        await ctx.send(
+            'Cannot understand command. Make sure to include a space and a '
+            f'numeric game ID.\n*Example:* `{ctx.prefix}join 11234`'
+        )
+
+    if isinstance(exc, ignored):
+        logger.warning(
+            'Exception on ignored list raised in %s: %s',
+            ctx.command,
+            exc,
+        )
+        return
+    if isinstance(exc, commands.CommandOnCooldown):
+        logger.info('Cooldown triggered: %s', exc)
+        await ctx.send(
+            'This command is on a cooldown period. Try again in '
+            f'{exc.retry_after:.0f} seconds.'
+        )
+        return
+    if isinstance(exc, exceptions.RecordLocked):
+        await ctx.send(f':warning: {exc}')
+        return
+
+    error = getattr(exc, 'original', exc)
+    reference = prefix_error_reference()
+    logger.critical(
+        'Unexpected prefix command failure reference=%s command=%s',
+        reference,
+        ctx.command,
+        exc_info=(type(error), error, error.__traceback__),
+    )
+    await ctx.send(
+        'Something went wrong while running that command. '
+        f'Error reference: `{reference}`. Please give this reference to a '
+        'bot administrator.'
+    )
 
 
 def configure_runtime_arguments(args: List[str] = None):
@@ -379,30 +438,7 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
 
     @bot.event
     async def on_command_error(ctx, exc):
-        # This prevents any commands with local handlers being handled here in on_command_error.
-        if hasattr(ctx.command, 'on_error'):
-            return
-        print(type(exc))
-        error = getattr(exc, "original", exc)
-        print(error, type(error))
-        ignored = (commands.CommandNotFound, commands.UserInputError, commands.CheckFailure)
-
-        if isinstance(exc, commands.CommandNotFound) and ctx.invoked_with[:4] == 'join':
-            await ctx.send(f'Cannot understand command. Make sure to include a space and a numeric game ID.\n*Example:* `{ctx.prefix}join 11234`')
-
-        # Anything in ignored will return and prevent anything happening.
-        if isinstance(exc, ignored):
-            logger.warning(f'Exception on ignored list raised in {ctx.command}. {exc}')
-            return
-        if isinstance(exc, commands.CommandOnCooldown):
-            logger.info(f'Cooldown triggered: {exc}')
-            await ctx.send(f'This command is on a cooldown period. Try again in {exc.retry_after:.0f} seconds.')
-        elif isinstance(exc, exceptions.RecordLocked):
-            return await ctx.send(f':warning: {exc}')
-        else:
-            exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
-            logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-            await ctx.send(f'Unhandled error (notifying <@{settings.owner_id}> and <@608290258978865174>): {exc}')  #added legorooj to notification
+        await handle_prefix_command_error(ctx, exc)
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
