@@ -490,8 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23b human self-service Beta Lab lanes is accepted in
-accumulation at `a210d0c0ad4806a875c00e2c2456cfbb757f0b4a`, from exact clean base
+Current active unit: **P9.23b human self-service Beta Lab lanes is
+complete in accumulation and deployed from `a284713e108c80b34e32fb436c879b28e9501e7c`,
+from exact clean base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`. Read-only guild inventory found
 that the existing beta server already has the reviewed PolyChamps-shaped
 House/Team resources and that all human testers hold the pinned `testers` role,
@@ -506,10 +507,14 @@ implementation checkpoint `b7a4adf`; evidence is recorded at `a210d0c` and the
 accepted branch was integrated by fast-forward. The integrated 101-test
 regression set passes. Offline planning and read-only remote inspection prove
 the same eleven development-guild roots are unchanged, with an empty global
-tree, so no command apply is warranted. Push and beta acceptance remain. The
-guarded beta was stopped cleanly after verifying
-its prior checkpoint `b3b97614d34c6ca2df1c54eb3f1c67d4adcfb389` and remains
-intentionally down only for this deployment window.**
+tree, so no command apply was warranted. The guarded beta now runs exact clean,
+pushed checkpoint `a284713` as PID `110946`, authenticated as application
+`479029527553638401`, with zero restart churn and one authorized development
+writer. Protected live status reports all four packs ready and all three lanes
+available. Reviewed release `2026-08-11-p9-23b-self-service-beta-lab` pinged
+testers once as message `1536760790084755506` after all downtime and checks.
+Next recommended action is M7/R-002 exact-candidate freeze while human Beta Lab
+feedback is collected.**
 
 P9.22 pre-M7 beta testability/readiness is complete in accumulation and
 deployed to the development beta; wider human acceptance is pending. It was built on
@@ -14117,8 +14122,8 @@ numbering, and tracked Components-v2 body bounds. No blocking finding remains.
 
 ### P9.23b — Human self-service Beta Lab lanes
 
-Status: **Tier-3 reviewed, database-gated, and accepted in accumulation; push
-and beta acceptance pending.**
+Status: **Complete in accumulation, pushed, and deployed to the development
+beta; wider human acceptance pending.**
 
 Branch/base: `codex/p9-23b-self-service-lanes`, exact clean accumulation base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`.
@@ -14209,14 +14214,24 @@ on observed tester friction rather than attempting a static full-production
 clone.
 
 Implementation checkpoint: `b7a4adf`; evidence/integration checkpoint:
-`a210d0c`. The accepted branch fast-forwarded cleanly onto accumulation and the
-expanded integrated regression set passes 101 tests. The offline desired plan
+`a210d0c`; accumulation close-out/running checkpoint: `a284713`. The accepted
+branch fast-forwarded cleanly onto accumulation and the expanded integrated
+regression set passes 101 tests. The offline desired plan
 contains the same eleven approved development-guild roots; read-only remote
 inspection reports all eleven unchanged, no creates/updates/removals, and an
-empty global tree. No development-guild command apply is warranted. Remaining
-before acceptance: accumulation close-out commit and push, beta restart and
-authenticated health/invocation checks, and one reviewed `WHAT TO TEST`
-announcement only after all planned downtime is complete.
+empty global tree. No development-guild command apply was warranted.
+
+The guarded beta started from exact clean, pushed checkpoint `a284713` as PID
+`110946`, authenticated as expected application `479029527553638401`, with
+zero automatic restarts and exactly one host-wide development writer. Its
+protected status reports all four packs ready, including three of three
+self-service lanes available and zero expired lanes. Wider-tester acceptance
+was selected: release `2026-08-11-p9-23b-self-service-beta-lab` posted once to
+the configured tester channel as message `1536760790084755506`, with a compact
+five-item `WHAT TO TEST` flow, after all planned downtime and checks. That
+successful delivery was the terminal deployment action. No command apply,
+global synchronization, schema migration, dependency change, production
+operation, or post-announcement lifecycle action occurred.
 
 ## Standard work-unit template
 
@@ -15398,6 +15413,22 @@ deferred into this post-modernization backlog.
   apply is warranted. Next: commit/push this accumulation close-out, start and
   verify the exact clean checkpoint, and post the reviewed tester announcement
   last.
+- Committed accumulation close-out `a284713`, pushed it, and refreshed the
+  tracking ref so local, tracking, and GitHub values matched. Started only the
+  durable development beta from that exact checkpoint. PID `110946`
+  authenticated as application `479029527553638401`, remained active/running
+  with zero automatic restarts, and was the sole host-wide development writer.
+  Protected live status reported four ready packs, three of three available
+  self-service lanes, and zero expired lanes.
+- Chose wider-tester acceptance. The reviewed, tester-pinged release
+  `2026-08-11-p9-23b-self-service-beta-lab` posted once to the configured
+  `todo-and-changelog` channel as message `1536760790084755506` after all
+  downtime and health checks. Its compact WHAT TO TEST flow asks for rotating
+  five-minute assignments, one personal three-game lane, at least one shown
+  game interaction, exact cleanup, and direct in-panel problem reporting.
+  Delivery was the terminal deployment action; no post-announcement lifecycle
+  operation occurred. Next recommended: M7/R-002 exact-candidate freeze while
+  human acceptance evidence is collected through the new Beta Lab.
 
 ### 2026-08-11 — P9.23a Beta Lab foundation reviewed and database-gated
 
