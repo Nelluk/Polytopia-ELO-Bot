@@ -500,7 +500,9 @@ and prepares a short tester instruction draft without sending it. Initial
 cutover review caught and corrects the production runbook's mistaken use of
 development guild `478571892832206869` as PolyChampions; the tracked runtime
 authority identifies production PolyChampions as `447883341463814144`.
-Complete-diff/cutover review and the stopped-writer 75-test development-
+Evidence checkpoint `e1749528f592fe6bd8fbfdee0787ea557ae071ca` is pushed on
+the accumulation branch. Complete-diff/cutover review and the stopped-writer
+75-test development-
 PostgreSQL gate pass. Complete offline discovery runs 1,750 tests with 1,671
 passes, 76 intentional skips, and the same three missing-DuckDB cases, so the
 offline gate is correctly blocked. The bounded beta matrix is pending the
@@ -15593,7 +15595,9 @@ deferred into this post-modernization backlog.
 - The candidate record validates but is not ready: cutover review and database
   gates pass; offline is blocked on DuckDB; bounded beta awaits the reviewed
   tester pass; redacted production configuration remains separately approval-
-  gated. No production access or tester announcement occurred.
+  gated. Evidence checkpoint `e1749528f592fe6bd8fbfdee0787ea557ae071ca`
+  was pushed to the configured accumulation branch. No production access or
+  tester announcement occurred.
 
 ### 2026-08-11 — P9.23c integrated and staged for Nelluk acceptance
 
