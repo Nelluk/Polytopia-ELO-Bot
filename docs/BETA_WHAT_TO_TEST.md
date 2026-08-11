@@ -23,6 +23,10 @@ This is the running wider-beta checklist—not just the newest release. Please u
   invite a duplicate undo.
 - Compare `/game win` with retained `$win` for the same permission, pending vs.
   confirmed result, channel-routing, card, announcement, and role behavior.
+- Retained staff `$confirm`, `$rankset`, `$rankunset`, `$unstart`, and `$extend`
+  should still accept numeric game IDs and match their native worker-backed
+  validation and successful output. Use only safe development games, and do
+  not retry a command that reports a committed reconciliation failure.
 - Staff corrections other than result confirm/undo remain on the general
   checklist; rank and unstart publication snapshots are not part of this
   release.
@@ -57,6 +61,9 @@ This is the running wider-beta checklist—not just the newest release. Please u
   requester-versus-player local ranked 1v1 record. Revisit both eras to check
   cached controls remain responsive without replacing the public workspace.
 - `/player register` and `/player timezone` read/edit/clear behavior
+- Retained `$getname`/`$getcode` should return the account-wide canonical name;
+  `$getnames`/`$codes` should preserve draft order, account names, and timezone
+  hints without stalling other bot activity.
 - `/leaderboard players`: pagination, common filters, advanced filters, active/all toggle, jump-to-page, desktop/mobile layout
 - `/leaderboard teams`: active/all-tier default, tier and archived-team filters, pagination/page jump, current-page ELO graph, desktop/mobile layout, and sensible behavior for teams with missing or empty Discord roles
 - `/leaderboard roles`: Free Agents default for ordinary users; staff/House

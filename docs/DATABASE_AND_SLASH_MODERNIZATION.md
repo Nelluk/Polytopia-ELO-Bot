@@ -491,7 +491,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.17/M1+M4+M5 retained interaction boundaries is
-Tier-3 reviewed on isolated implementation checkpoint `88ad772`, based on
+Complete in accumulation at merge checkpoint `e34e007`. Implementation
+checkpoint `88ad772` and evidence checkpoint `cd55eea` were reviewed from
 exact clean accumulation checkpoint `4d94743`. `PolyGame` now parses only a
 bounded primitive integer and leaves authoritative game/guild/state lookup to
 the existing workers. `$getname` and `$getnames` use one bounded immutable read
@@ -505,7 +506,8 @@ discovery runs 1,627 tests: 1,553 pass, 71 intentionally skip, and only the
 same three missing-`duckdb` environment cases fail. No new schema boundary was
 introduced, so the documented cadence does not warrant a development database
 gate. M1, M4, and M5 are resolved; M2, M3, M6, M7, and part of L1 remain open.
-Evidence/integration and accumulation push are the next actions.**
+The guarded beta is healthy on exact runtime checkpoint `e34e007`; no command
+apply or tester announcement was warranted.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13533,11 +13535,12 @@ apply, checklist update, or announcement was warranted.
 
 ### P9.17 — M1/M4/M5 retained interaction boundaries
 
-Status: **Tier-3 reviewed and accepted for accumulation integration**
+Status: **Complete in accumulation and loaded by the guarded beta**
 
 Branch/base: `codex/p9-17-m1-m4-m5-interaction-boundaries`, exact clean
 accumulation base `4d94743cebb66ac1c22ef004ecff3612da0e1260`.
 Implementation/tests checkpoint: `88ad772`.
+Roadmap/review evidence checkpoint: `cd55eea`; accumulation merge: `e34e007`.
 
 This combined unit closes three remaining medium adversarial findings whose
 changes share the Discord/event-loop boundary:
@@ -13574,16 +13577,23 @@ The unit adds no schema or new query relationship, so the documented cadence
 does not warrant a stopped-writer development-database gate. It changes no
 application-command shape, so no development-guild command apply is needed.
 
-The durable beta inspection found service PID `3952018` active and running,
-expected application identity `479029527553638401` authenticated in the
-journal, zero restart churn, and a responsive development-only control socket.
-It remains on previously verified runtime checkpoint `8b9ede1` while this unit
-awaits integration. Beta restart/announcement disposition is decided after
-the clean accumulation push.
+The accepted unit merged at `e34e007`. Only
+`polybot-development-beta@main.service` was restarted from that exact clean
+checkpoint. Its prestart writer audit passed, PID `3982635` authenticated as
+expected application `479029527553638401`, startup completed with background
+tasks disabled, systemd reports zero restart churn, and the development-only
+release-control status request succeeded. No application-command shape
+changed, so no plan/apply/sync was run. The running checklist now includes
+safe retained-command parity checks. No tester announcement was sent because
+the visible success behavior is deliberately unchanged and the corrected
+failure/fallback paths have no safe broad-pool reproduction step.
 
-Next action: commit this evidence, merge the accepted unit into accumulation,
-record the exact close-out checkpoint, push it, then deploy the runtime-only
-change without command synchronization if the final beta gate remains clean.
+Next recommended action: combine M2 and M3 into one bounded Tier-3 operator
+backup lifecycle/provenance unit because both findings share the same command,
+preflight, subprocess, and terminal-delivery boundary. Also ready: L1's
+repository-only consistency pass. M6 waits on the production communities'
+exact support/privacy-route decision; M7 remains the final R-002 candidate
+freeze after the preceding corrections.
 
 ## Standard work-unit template
 
@@ -14617,8 +14627,12 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 - Read-only beta inspection found service PID `3952018` healthy, expected
   application `479029527553638401` authenticated, zero restart churn, and the
   development control socket responsive. No production resource was touched.
-  Next: evidence commit, accumulation merge/close-out/push, then final beta
-  lifecycle disposition.
+  The reviewed evidence checkpoint is `cd55eea`; accumulation merge
+  `e34e007` loaded successfully in the guarded beta as PID `3982635` with zero
+  restart churn and a healthy release-control status response. No command
+  synchronization or tester announcement was warranted. The running checklist
+  gained safe retained-command parity checks. Next recommended: combine M2 and
+  M3 as one bounded backup lifecycle/provenance correction; L1 is also ready.
 
 ### 2026-08-10 — P9.16/B2 modernization cutover procedure implemented
 
