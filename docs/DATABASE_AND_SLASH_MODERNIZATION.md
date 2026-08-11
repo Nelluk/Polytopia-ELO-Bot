@@ -490,19 +490,20 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.13a restart handoff copy is Complete in accumulation
-at merge checkpoint `821367d`. User feedback initially suggested restart
-failure, but service and application logs proved four accepted beta restarts
-each exited with status 75 and returned ready under systemd. Discord's member
-presence did not visibly drop during the roughly ten-second gateway absence,
-and the ephemeral panel cannot update after its owning process exits.
-Implementation checkpoint `29a01ab` now states both facts and gives a
-10–20-second wait without adding a status command, presence manipulation, or
-lifecycle change. Focused restart coverage passes 19 tests; complete discovery
-reaches only the three known missing-`duckdb` environment failures. The clean
-close-out is pushed and the guarded beta runs exact checkpoint `1add0f1` as
-the sole healthy development writer. No command apply or announcement was
-warranted. B1 is next.**
+Current active unit: **P9.15/B1 production timezone migration tooling is
+implemented and Tier-3 validated on isolated branch
+`codex/p9-15-b1-production-timezone-migration` at checkpoint `1c8ffa5`, based
+on exact clean accumulation checkpoint `7f30721`. The production-only tool is
+connection-free by default, fail-closed on environment/configured/live
+database and role identity, schema-qualified, transactional, idempotent, and
+has read-only verify with no destructive rollback. Focused coverage passes
+48/48. Complete discovery runs 1,611 tests: 1,537 pass, 71 intentionally skip,
+and only the three known missing-`duckdb` environment cases fail. With only the
+development beta stopped and the host-wide writer audit clear, the complete
+gated `polytopia_dev` suite passed 69 tests with one retained-fixture skip; the
+B1 path first proved the schema complete and therefore executed no DDL. No
+production connection or DDL occurred. Complete-diff review and accumulation
+integration are next.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -13418,6 +13419,51 @@ as PID `3924884`, authenticated as application `479029527553638401`, has zero
 service restarts, and is the sole development writer. H3 requires no command
 apply, checklist change, tester announcement, or runtime deployment.
 
+### P9.15 — B1 production timezone migration tooling
+
+Status: **Implemented and Tier-3 validated; accumulation integration pending**
+
+Branch/base: `codex/p9-15-b1-production-timezone-migration`, exact clean
+accumulation base `7f3072186e287bf61266441002aef6f3dd97cc94`.
+Implementation/tests checkpoint: `1c8ffa5`.
+
+The new production-only migration surface is deliberately separate from the
+P6.2 development tool, whose production refusal remains unchanged. Running
+the production script without a mode prints the exact, schema-qualified two-
+column plan without loading runtime configuration, opening a connection, or
+running DDL. `--verify` opens one read-only transaction only after exact
+production environment/configured-target checks and verifies live
+`current_database()` / `current_user` plus table and column shape. `--apply`
+also requires the exact acknowledgement, inspects first, adds only missing
+reviewed columns in one transaction, uses a five-second local lock timeout,
+re-verifies before commit, rolls back every fault, and is idempotent.
+
+There is no rollback mode or DROP statement. Rollback retains the harmless
+additive columns while code/configuration return to the reviewed prior
+checkpoint. The legacy whole-hour `timezone_offset` remains untouched and no
+backfill is part of B1.
+
+Validation/evidence:
+
+- focused production/development migration, deployment-asset, and runtime-
+  configuration coverage passes **48/48**;
+- complete offline discovery runs **1,611 tests: 1,537 pass, 71 intentionally
+  skip, and only the three documented missing-`duckdb` environment cases
+  fail**;
+- compilation, connection-free plan output, and diff checks pass;
+- Tier-3 review corrected search-path ambiguity with explicit `public`
+  qualification, added the bounded lock timeout, and removed reliance on a
+  private development-migration converter; no blocker remains; and
+- with only the development beta stopped and the host-wide writer audit clear,
+  the complete gated development-database suite passed **69 tests with one
+  preserved-fixture skip**. Its B1 case first verified both columns already
+  existed, so its idempotent apply executed no DDL.
+
+No production configuration was loaded, no production connection or DDL was
+attempted, and no schema, fixture, Discord, command-tree, or dependency change
+occurred. Production execution remains a separate B2/maintenance-window
+approval boundary.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -14427,6 +14473,31 @@ especially important because the bot currently leaves guilds absent from the
 static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
 
 ## Progress log
+
+### 2026-08-10 — P9.15/B1 production timezone migration tooling validated
+
+- Reconciled exact clean local, tracking, and GitHub accumulation checkpoint
+  `7f30721`, then created isolated branch/worktree
+  `codex/p9-15-b1-production-timezone-migration` and passed the development
+  profile setup gate.
+- Added a separate production-only connection-free plan/apply/verify tool and
+  runbook at implementation checkpoint `1c8ffa5`. It fail-closes on the exact
+  environment and configured/live database and role, requires the exact apply
+  acknowledgement, executes only schema-qualified reviewed additions in one
+  transaction with a bounded lock timeout, and provides no destructive
+  rollback.
+- Tier-3 review corrected search-path ambiguity, bounded lock acquisition, and
+  a private-helper dependency. Focused coverage passed 48 tests; complete
+  discovery ran 1,611 tests with 71 skips and only the three known missing-
+  `duckdb` environment failures. Compilation, plan, and diff checks passed.
+- Stopped only the durable development beta and proved the host-wide writer
+  audit clear. The complete gated `polytopia_dev` suite passed 69 tests with
+  one preserved-fixture skip. The B1 integration case verified the two columns
+  before invoking the idempotent apply path, proving that no DDL was needed or
+  executed.
+- No production profile was loaded, no production connection or DDL occurred,
+  and no Discord or dependency operation ran. Complete-diff acceptance and
+  accumulation integration are next; B2 remains the next recommended unit.
 
 ### 2026-08-10 — P9.13a restart handoff feedback investigated and corrected
 

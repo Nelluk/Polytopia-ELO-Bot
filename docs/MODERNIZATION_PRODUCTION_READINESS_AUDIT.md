@@ -13,16 +13,12 @@ database, service, Discord, or schema action.
 
 The modernization architecture is suitable for a production canary, but the
 current accumulation branch is not yet a releasable production checkpoint.
-Five bounded preparation units remain:
+Three bounded preparation stages remain:
 
-1. merge the current `origin/master` into the accumulation branch and resolve
-   the known image-storage conflicts;
-2. provide a production-only, additive migration for the two canonical
-   timezone columns;
-3. write and review a modernization-specific cutover and rollback runbook;
-4. validate one reconciled release candidate offline and through the stopped-
+1. write and review a modernization-specific cutover and rollback runbook;
+2. validate one reconciled release candidate offline and through the stopped-
    writer development PostgreSQL gate; and
-5. after separate approval, deploy one production process and enable a
+3. after separate approval, deploy one production process and enable a
    guild-scoped native-command canary only in PolyChampions.
 
 The dependency/PostgreSQL upgrade completed before this project is not an
@@ -49,8 +45,10 @@ are also not a valid rollback for this release.
 - The only added model columns are
   `DiscordMember.timezone_offset_minutes SMALLINT NULL` and
   `DiscordMember.timezone_offset_cleared BOOLEAN NOT NULL DEFAULT FALSE`.
-  The checked-in P6.2 migration tool deliberately refuses production, so a
-  production migration does not yet exist.
+  The P6.2 development tool continues to refuse production. P9.15 adds a
+  separate production-only plan/apply/verify tool; it has been validated
+  offline and against the already-migrated development schema, but has not
+  connected to production or run production DDL.
 - The model-free command source loads ten roots: `elo`, `game`, `house`,
   `leaderboard`, `league`, `player`, `squad`, `staffhelp`, `team`, and the
   development-only `whattotest`.
@@ -87,6 +85,9 @@ single superficial pass over 277 changed files is sufficient.
 
 ### R-003 — Add the production timezone migration
 
+Status: Complete in P9.15 implementation checkpoint `1c8ffa5`; integration
+and production use remain separately gated.
+
 Create a separate production-operations unit. It must:
 
 - default to a connection-free plan;
@@ -101,6 +102,14 @@ Create a separate production-operations unit. It must:
 The normal rollback is code/config rollback while leaving these harmless
 additive columns in place. Dropping populated columns is not an emergency
 rollback.
+
+P9.15 implements the required connection-free plan, fixed `polytopia2`
+database target, configured/live role checks, exact acknowledgement,
+schema-qualified metadata inspection and additive DDL, single-transaction
+idempotency, five-second local lock timeout, post-DDL verification, read-only
+verify mode, and no destructive rollback command. The complete stopped-writer
+development suite passed 69 tests with one preserved-fixture skip; its B1 case
+first proved the columns already existed, so the apply path executed no DDL.
 
 ### R-004 — Replace the historical cutover procedure
 
