@@ -15570,19 +15570,24 @@ deferred into this post-modernization backlog.
 
 ### 2026-08-11 — M7 exact-candidate environment blockers cleared
 
-- Reverified clean, equal local/upstream accumulation checkpoint `ccbc9c8` and
-  found the development beta already stopped before touching the shared
-  environment.
+- Reverified clean, equal local/upstream accumulation checkpoint `ccbc9c8`.
+  An initial lifecycle check used the obsolete-looking
+  `polybot-beta.service` name and incorrectly reported no process; the actual
+  durable `polybot-development-beta@main.service` remained live at PID
+  `125782` while the shared environment synchronized. No source or database
+  mutation occurred during synchronization, but this invalidated the first
+  attempted stopped-writer database evidence.
 - Under Nelluk's separate dependency-sync approval, ran `uv sync --locked` in
   the development checkout. It installed locked DuckDB 1.4.3 and reconciled
   cryptography from 49.0.0 to 50.0.0; no source or lock change resulted.
 - Created a temporary detached validation worktree at exact source candidate
   `acf706fed8d51a061383e7caba2a4c210ec61981`. Full offline discovery passed
   1,754 tests with 1,678 passes and 76 intentional skips; no failures remain.
-- While the beta remained stopped, reran the unchanged gated development-
-  PostgreSQL suite at the same candidate. All 75 cases completed with 74 passes
-  and the one intentional operator-managed-fixture skip. The temporary
-  worktree was cleanly removed.
+- Cleanly stopped the actual durable development-beta unit, then required the
+  host-wide beta-writer audit to report clear. The unchanged gated development-
+  PostgreSQL suite was rerun at the same candidate; this valid stopped-writer
+  run completed all 75 cases with 74 passes and the one intentional operator-
+  managed-fixture skip. The temporary worktree was cleanly removed.
 - The candidate record now marks cutover review, offline, and development-
   database gates `pass`. The bounded human beta matrix and separately approved
   redacted production-configuration verification remain pending, so the
