@@ -59,6 +59,15 @@ class ShadowReadRequest:
 
 
 @dataclass(frozen=True)
+class ActiveConfigurationReadRequest:
+    target: storage.StorageTarget
+    allowed_guild_ids: tuple[int, ...]
+    database_password: str = field(repr=False)
+    database_host: str | None = None
+    database_port: int | None = None
+
+
+@dataclass(frozen=True)
 class StoredGuildConfiguration:
     guild_id: int
     storage_schema_version: int
@@ -314,6 +323,60 @@ def request_from_profile(
     return _validate_request(request)
 
 
+def active_request_from_profile(profile: Any) -> ActiveConfigurationReadRequest:
+    """Freeze a direct active-graph read for selected database authority."""
+
+    raw_allowed = tuple(profile.allowed_guild_ids)
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value <= 0
+        for value in raw_allowed
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'allowed_guild_inventory_invalid'
+        )
+    request = ActiveConfigurationReadRequest(
+        target=target_from_profile(profile),
+        allowed_guild_ids=tuple(sorted(raw_allowed)),
+        database_password=profile.database_password,
+        database_host=profile.database_host,
+        database_port=profile.database_port,
+    )
+    return _validate_active_request(request)
+
+
+def _validate_active_request(
+    request: ActiveConfigurationReadRequest,
+) -> ActiveConfigurationReadRequest:
+    if not isinstance(request, ActiveConfigurationReadRequest):
+        raise GuildConfigurationShadowMalformed('active_request_invalid')
+    try:
+        storage.validate_target(request.target)
+    except storage.GuildConfigurationStorageError as exc:
+        raise GuildConfigurationShadowMalformed('runtime_target_invalid') from exc
+    allowed = request.allowed_guild_ids
+    if (
+            not allowed
+            or len(allowed) > MAX_SHADOW_GUILDS
+            or allowed != tuple(sorted(set(allowed)))
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value <= 0
+                for value in allowed
+            )
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'allowed_guild_inventory_invalid'
+        )
+    if not request.database_password:
+        raise GuildConfigurationShadowMalformed(
+            'database_authentication_missing'
+        )
+    return request
+
+
 def _validate_request(request: ShadowReadRequest) -> ShadowReadRequest:
     if not isinstance(request, ShadowReadRequest):
         raise GuildConfigurationShadowMalformed('request_invalid')
@@ -349,6 +412,78 @@ def _connect(request: ShadowReadRequest):
             f'-c lock_timeout={LOCK_TIMEOUT_MILLISECONDS}'
         ),
     )
+
+
+def inspect_active_configuration(
+    request: ActiveConfigurationReadRequest,
+) -> tuple[StoredGuildConfiguration, ...]:
+    """Load the complete active graph without comparing legacy static input."""
+
+    request = _validate_active_request(request)
+    try:
+        connection = _connect(request)
+    except psycopg2.Error as exc:
+        raise GuildConfigurationShadowUnavailable(
+            'database_connection_unavailable'
+        ) from exc
+    try:
+        connection.set_session(readonly=True, autocommit=True)
+        with connection.cursor() as cursor:
+            cursor.execute('SHOW transaction_read_only')
+            if str(cursor.fetchone()[0]).casefold() != 'on':
+                raise GuildConfigurationShadowMalformed(
+                    'connection_not_read_only'
+                )
+            cursor.execute('SELECT current_database(), current_user')
+            live_database, live_user = cursor.fetchone()
+            try:
+                storage.validate_live_identity(
+                    request.target,
+                    actual_database=live_database,
+                    actual_user=live_user,
+                )
+                if not storage.validate_schema_inventory(
+                    storage.inspect_schema_inventory(cursor)
+                ):
+                    raise GuildConfigurationShadowMalformed(
+                        'storage_schema_missing'
+                    )
+            except storage.GuildConfigurationStorageError as exc:
+                raise GuildConfigurationShadowMalformed(
+                    'storage_or_identity_invalid'
+                ) from exc
+            stored = _stored_values(_load_rows(cursor))
+        if tuple(value.guild_id for value in stored) != request.allowed_guild_ids:
+            raise GuildConfigurationShadowMalformed(
+                'stored_guild_inventory_incomplete'
+            )
+        if any(
+            value.enrollment_state != 'active'
+            or value.active_revision is None
+            or value.document is None
+            or value.document_digest is None
+            for value in stored
+        ):
+            raise GuildConfigurationShadowMalformed(
+                'stored_active_graph_invalid'
+            )
+        return stored
+    except psycopg2.OperationalError as exc:
+        raise GuildConfigurationShadowUnavailable(
+            'database_read_unavailable'
+        ) from exc
+    except psycopg2.Error as exc:
+        raise GuildConfigurationShadowMalformed(
+            'database_read_invalid'
+        ) from exc
+    except GuildConfigurationShadowError:
+        raise
+    except Exception as exc:
+        raise GuildConfigurationShadowMalformed(
+            'active_read_invalid'
+        ) from exc
+    finally:
+        connection.close()
 
 
 def _load_rows(cursor: Any) -> tuple[tuple[Any, ...], ...]:
@@ -581,6 +716,16 @@ async def run_shadow_comparison(
     return await _drain_future(future)
 
 
+async def run_active_configuration(
+    request: ActiveConfigurationReadRequest,
+) -> tuple[StoredGuildConfiguration, ...]:
+    """Load direct database authority off-loop and drain worker ownership."""
+
+    request = _validate_active_request(request)
+    future = _executor.submit(inspect_active_configuration, request)
+    return await _drain_future(future)
+
+
 def failure_result(status: str, safe_reason: str) -> GuildConfigurationShadowResult:
     if status not in {STATUS_UNAVAILABLE, STATUS_MALFORMED}:
         raise ValueError('Unsupported guild configuration shadow failure status.')
@@ -588,6 +733,7 @@ def failure_result(status: str, safe_reason: str) -> GuildConfigurationShadowRes
 
 
 __all__ = [
+    'ActiveConfigurationReadRequest',
     'GuildConfigurationMismatch',
     'GuildConfigurationShadowError',
     'GuildConfigurationShadowMalformed',
@@ -604,11 +750,14 @@ __all__ = [
     'ShadowReadRequest',
     'StoredGuildConfiguration',
     'capture_discord_snapshot',
+    'active_request_from_profile',
     'expected_bundle_from_runtime',
     'expected_bundle_from_snapshot',
     'failure_result',
     'inspect_shadow_configuration',
+    'inspect_active_configuration',
     'request_from_profile',
     'run_shadow_comparison',
+    'run_active_configuration',
     'target_from_profile',
 ]

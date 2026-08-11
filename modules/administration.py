@@ -12,6 +12,7 @@ import asyncio
 import discord
 import re
 import functools
+from dataclasses import replace
 from pathlib import Path
 from modules.games import PolyGame
 from modules import auto_confirmation_workers
@@ -1201,6 +1202,16 @@ class administration(commands.Cog):
         expected_draft_digest: str | None = None,
         replacement_document=None,
     ):
+        current_snapshot = {
+            int(guild_id): (
+                record.revision,
+                record.generation,
+                record.document_digest,
+            )
+            for guild_id in settings.runtime_profile.allowed_guild_ids
+            if (record := settings.database_guild_configuration(guild_id))
+            is not None
+        }
         request = operator_guild_draft_service.build_request(
             bot=self.bot,
             interaction=interaction,
@@ -1209,13 +1220,31 @@ class administration(commands.Cog):
             expected_draft_digest=expected_draft_digest,
             replacement_document=replacement_document,
         )
-        return await operator_guild_configuration_draft_workers.run_draft_operation(
+        result = await operator_guild_configuration_draft_workers.run_draft_operation(
             request
         )
+        if result.activation is not None:
+            try:
+                settings.reconcile_database_guild_configuration(
+                    result.runtime_snapshot,
+                    expected_current=current_snapshot,
+                    activated_guild_id=result.activation.guild_id,
+                    expected_activation=(
+                        result.activation.revision,
+                        result.activation.generation,
+                        result.activation.document_digest,
+                    ),
+                )
+            except Exception as exc:
+                raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationActivationCommitted(
+                    result.activation
+                ) from exc
+            result = replace(result, runtime_published=True)
+        return result
 
     @operator_guild_group.command(
         name='edit',
-        description='Privately create, edit, and validate an inactive draft.',
+        description='Privately edit, validate, and activate guild settings.',
     )
     async def operator_guild_draft_slash(
         self,

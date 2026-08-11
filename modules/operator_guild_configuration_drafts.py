@@ -224,7 +224,7 @@ def build_request(
 ) -> workers.GuildConfigurationDraftRequest:
     guild_id = int(interaction.guild_id)
     snapshot = None
-    if operation == workers.VALIDATE:
+    if operation in {workers.VALIDATE, workers.ACTIVATE}:
         snapshot = shadow.capture_discord_snapshot(
             profile=settings.runtime_profile,
             guilds=tuple(bot.guilds),

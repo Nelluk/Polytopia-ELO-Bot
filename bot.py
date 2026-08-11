@@ -347,20 +347,37 @@ class MyBot(commands.Bot):
             shadow = importlib.import_module(
                 'modules.guild_configuration_shadow'
             )
+            database_selected = (
+                getattr(profile, 'guild_configuration_source', 'static')
+                == 'database'
+            )
             try:
                 discord_snapshot = shadow.capture_discord_snapshot(
                     profile=profile,
                     guilds=tuple(self.guilds),
                 )
-                bundle = shadow.expected_bundle_from_snapshot(
-                    profile=profile,
-                    discord_snapshot=discord_snapshot,
-                )
-                request = shadow.request_from_profile(
-                    profile=profile,
-                    expected_bundle=bundle,
-                )
-                result = await shadow.run_shadow_comparison(request)
+                if database_selected:
+                    stored = await shadow.run_active_configuration(
+                        shadow.active_request_from_profile(profile)
+                    )
+                    guild_ids = tuple(value.guild_id for value in stored)
+                    result = shadow.GuildConfigurationShadowResult(
+                        status=shadow.STATUS_MATCHED,
+                        expected_guild_ids=tuple(profile.allowed_guild_ids),
+                        stored_guild_ids=guild_ids,
+                        matched_guild_ids=guild_ids,
+                        stored_configurations=stored,
+                    )
+                else:
+                    bundle = shadow.expected_bundle_from_snapshot(
+                        profile=profile,
+                        discord_snapshot=discord_snapshot,
+                    )
+                    request = shadow.request_from_profile(
+                        profile=profile,
+                        expected_bundle=bundle,
+                    )
+                    result = await shadow.run_shadow_comparison(request)
             except shadow.GuildConfigurationShadowUnavailable as exc:
                 result = shadow.failure_result(
                     shadow.STATUS_UNAVAILABLE,
@@ -381,17 +398,13 @@ class MyBot(commands.Bot):
                     'shadow_runtime_failure',
                 )
             self.guild_configuration_shadow_result = result
-            database_selected = (
-                getattr(profile, 'guild_configuration_source', 'static')
-                == 'database'
-            )
             if database_selected and result.promotion_ready:
                 runtime = importlib.import_module(
                     'modules.guild_configuration_runtime'
                 )
                 try:
-                    runtime_snapshot = runtime.build_runtime_snapshot(
-                        result=result,
+                    runtime_snapshot = runtime.build_runtime_snapshot_from_stored(
+                        stored_configurations=result.stored_configurations,
                         discord_snapshot=discord_snapshot,
                         allowed_guild_ids=profile.allowed_guild_ids,
                     )
@@ -408,7 +421,7 @@ class MyBot(commands.Bot):
                         'Database guild configuration publication failed.'
                     ) from exc
                 logger.info(
-                    'Guild configuration source=database status=matched '
+                    'Guild configuration source=database status=active-loaded '
                     'guilds=%s generations=%s; immutable runtime snapshot '
                     'published.',
                     result.matched_guild_ids,

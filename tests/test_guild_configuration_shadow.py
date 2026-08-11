@@ -174,6 +174,26 @@ class ShadowWorkerTests(unittest.IsolatedAsyncioTestCase):
         ))
         self.assertEqual(result.status, shadow.STATUS_MATCHED)
 
+    async def test_direct_active_loader_requires_exact_inventory_without_static_compare(self):
+        selected = profile()
+        selected.guild_configuration_source = 'database'
+        connection = FakeConnection((stored_row(),))
+        with mock.patch.object(
+            shadow, '_connect', return_value=connection,
+        ), mock.patch.object(
+            storage, 'inspect_schema_inventory', return_value=exact_inventory(),
+        ):
+            result = await shadow.run_active_configuration(
+                shadow.active_request_from_profile(selected)
+            )
+        self.assertEqual(tuple(value.guild_id for value in result), (GUILD_ID,))
+        self.assertEqual(result[0].document, fixtures.bundle().imports[0].document)
+        self.assertEqual(
+            connection.sessions,
+            [{'readonly': True, 'autocommit': True}],
+        )
+        self.assertTrue(connection.closed)
+
     async def test_document_state_and_inventory_mismatches_block_promotion(self):
         mapping = copy.deepcopy(
             document_to_mapping(fixtures.bundle().imports[0].document)
@@ -443,8 +463,7 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
         selected = profile()
         selected.guild_configuration_source = 'database'
         stored = shadow._stored_values((stored_row(),))
-        result = shadow._compare(fixtures.bundle().imports, stored)
-        run = mock.AsyncMock(return_value=result)
+        run = mock.AsyncMock(return_value=stored)
         activate = mock.Mock()
         try:
             with mock.patch.object(
@@ -456,19 +475,15 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ), mock.patch.object(
                 shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
             ), mock.patch.object(
-                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
+                shadow, 'active_request_from_profile', return_value=mock.sentinel.request,
             ), mock.patch.object(
-                shadow, 'request_from_profile', return_value=request(),
-            ), mock.patch.object(
-                shadow, 'run_shadow_comparison', run,
+                shadow, 'run_active_configuration', run,
             ):
-                self.assertIs(
-                    await instance._run_development_guild_configuration_shadow(),
-                    result,
-                )
+                result = await instance._run_development_guild_configuration_shadow()
         finally:
             await instance.close()
         activate.assert_called_once()
+        self.assertEqual(result.stored_configurations, stored)
 
     async def test_database_source_never_falls_back_after_unavailable_read(self):
         instance = self.make_bot()
@@ -485,11 +500,7 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ), mock.patch.object(
                 shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
             ), mock.patch.object(
-                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
-            ), mock.patch.object(
-                shadow, 'request_from_profile', return_value=request(),
-            ), mock.patch.object(
-                shadow, 'run_shadow_comparison', run,
+                shadow, 'run_active_configuration', run,
             ), self.assertRaisesRegex(
                 RuntimeError,
                 'database guild configuration is unavailable',

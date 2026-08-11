@@ -11,6 +11,7 @@ from modules.application_command_policy import (
     build_capability_policy,
 )
 from modules.guild_configuration_schema import GuildConfigurationDocument
+from modules import guild_configuration_storage as storage
 from modules.guild_configuration_shadow import (
     GuildConfigurationShadowResult,
     STATUS_MATCHED,
@@ -165,7 +166,7 @@ def build_runtime_snapshot(
 ) -> GuildConfigurationRuntimeSnapshot:
     """Convert one exact current-process match to the immutable hot-path view."""
 
-    allowed = tuple(sorted(int(value) for value in allowed_guild_ids))
+    allowed = tuple(allowed_guild_ids)
     if (
             result.status != STATUS_MATCHED
             or not result.promotion_ready
@@ -174,11 +175,62 @@ def build_runtime_snapshot(
             or result.matched_guild_ids != allowed
     ):
         raise GuildConfigurationRuntimeError('shadow_result_not_promotion_ready')
+    return build_runtime_snapshot_from_stored(
+        stored_configurations=result.stored_configurations,
+        discord_snapshot=discord_snapshot,
+        allowed_guild_ids=allowed,
+    )
+
+
+def build_runtime_snapshot_from_stored(
+    *,
+    stored_configurations: Sequence[StoredGuildConfiguration],
+    discord_snapshot: Mapping[str, Any],
+    allowed_guild_ids: Sequence[int],
+) -> GuildConfigurationRuntimeSnapshot:
+    """Build runtime authority directly from a validated active DB graph."""
+
+    raw_allowed = tuple(allowed_guild_ids)
+    if (
+            not raw_allowed
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value <= 0
+                for value in raw_allowed
+            )
+    ):
+        raise GuildConfigurationRuntimeError('allowed_inventory_invalid')
+    allowed = tuple(sorted(raw_allowed))
+    if allowed != tuple(sorted(set(allowed))):
+        raise GuildConfigurationRuntimeError('allowed_inventory_invalid')
     stored_by_id = {
-        value.guild_id: value for value in result.stored_configurations
+        value.guild_id: value for value in stored_configurations
+        if isinstance(value, StoredGuildConfiguration)
     }
-    if tuple(sorted(stored_by_id)) != allowed:
+    if (
+            len(stored_by_id) != len(tuple(stored_configurations))
+            or tuple(sorted(stored_by_id)) != allowed
+    ):
         raise GuildConfigurationRuntimeError('stored_inventory_incomplete')
+    try:
+        validated_discord = storage.validate_discord_snapshot(
+            discord_snapshot,
+            target=storage.StorageTarget(
+                environment=storage.DEVELOPMENT_ENVIRONMENT,
+                database_name=storage.DEVELOPMENT_DATABASE,
+                database_user=storage.DEVELOPMENT_ROLE,
+                expected_application_id=storage.DEVELOPMENT_BETA_APPLICATION_ID,
+                background_tasks_enabled=False,
+                api_enabled=False,
+                bullet_enabled=False,
+            ),
+            allowed_guild_ids=allowed,
+        )
+    except storage.GuildConfigurationStorageError as exc:
+        raise GuildConfigurationRuntimeError(
+            'discord_inventory_invalid'
+        ) from exc
     role_identity = _role_identity_by_guild(discord_snapshot)
     if tuple(sorted(role_identity)) != allowed:
         raise GuildConfigurationRuntimeError('discord_inventory_incomplete')
@@ -196,6 +248,15 @@ def build_runtime_snapshot(
                 or stored.document_digest is None
         ):
             raise GuildConfigurationRuntimeError('stored_active_graph_invalid')
+        try:
+            storage.validate_document_references(
+                stored.document,
+                validated_discord[guild_id],
+            )
+        except storage.GuildConfigurationStorageError as exc:
+            raise GuildConfigurationRuntimeError(
+                'configured_reference_unavailable'
+            ) from exc
         role_ids, role_names = _role_values(
             stored.document,
             role_identity[guild_id],
@@ -229,4 +290,5 @@ __all__ = [
     'ROLE_SETTING_FIELDS',
     'RuntimeGuildConfiguration',
     'build_runtime_snapshot',
+    'build_runtime_snapshot_from_stored',
 ]

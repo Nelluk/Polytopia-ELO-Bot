@@ -115,6 +115,39 @@ class DraftConfirmationModal(discord.ui.Modal):
         await self.workspace.run_operation(interaction, self.operation)
 
 
+class DraftActivationModal(discord.ui.Modal):
+    def __init__(self, workspace: 'GuildConfigurationDraftWorkspace'):
+        self.workspace = workspace
+        draft = workspace.result.draft
+        assert draft is not None
+        self.expected = f'ACTIVATE {draft.document_digest}'
+        super().__init__(title='Activate guild configuration', timeout=180.0)
+        self.confirmation = discord.ui.TextInput(
+            placeholder=self.expected,
+            required=True,
+            min_length=len(self.expected),
+            max_length=len(self.expected),
+        )
+        self.add_item(discord.ui.Label(
+            text='Type ACTIVATE and the full draft digest',
+            description=(
+                'Commits one immutable revision and immediately replaces the '
+                'running settings snapshot.'
+            ),
+            component=self.confirmation,
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if str(self.confirmation.value) != self.expected:
+            return await _private(
+                interaction,
+                f'Type `{self.expected}` exactly.',
+            )
+        if not await self.workspace.ready(interaction):
+            return
+        await self.workspace.run_operation(interaction, workers.ACTIVATE)
+
+
 class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This guild-configuration draft workspace expired. Run '
@@ -142,7 +175,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.field_key = service.fields_for_section(self.section)[0].key
         self.list_mode = 'add'
         self.busy = False
-        self.status = 'Drafts are inactive until a later reviewed activation flow.'
+        self.status = 'Create or edit a draft, validate it, then activate it.'
         self.rebuild()
 
     @property
@@ -177,7 +210,11 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         await interaction.response.defer()
         await interaction.edit_original_response(view=self)
         draft = self.result.draft
-        uses_optimistic_evidence = operation in {workers.REPLACE, workers.DISCARD}
+        uses_optimistic_evidence = operation in {
+            workers.REPLACE,
+            workers.DISCARD,
+            workers.ACTIVATE,
+        }
         try:
             result = await self.runner(
                 interaction,
@@ -210,6 +247,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             await interaction.followup.send(self.status, ephemeral=True)
             return None
         self.result = result
+        if result.activation is not None:
+            self.active_document = result.activation.document
         self.busy = False
         return result
 
@@ -221,6 +260,10 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             workers.RESET: 'Fresh draft copied from the running active revision.',
             workers.DISCARD: 'Draft discarded. Active configuration was unchanged.',
             workers.VALIDATE: 'Draft validation passed against current Discord state.',
+            workers.ACTIVATE: (
+                f'Activated revision {result.active_revision}, generation '
+                f'{result.active_generation}; running settings were published.'
+            ),
             workers.SHOW: 'Draft refreshed.',
         }
         self.status = messages.get(operation, 'Draft operation complete.')
@@ -394,6 +437,18 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             operation=workers.DISCARD,
         ))
 
+    async def _activate(self, interaction: Any) -> None:
+        if not await self.ready(interaction):
+            return
+        if self.result.draft is None:
+            return await _private(interaction, 'There is no current draft to activate.')
+        if self.result.validation is None:
+            return await _private(
+                interaction,
+                'Validate the current draft immediately before activation.',
+            )
+        await interaction.response.send_modal(DraftActivationModal(self))
+
     async def _refresh(self, interaction: Any) -> None:
         if not await self.ready(interaction):
             return
@@ -448,7 +503,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             f'**Draft:** version `{draft.draft_version}` · base '
             f'`r{draft.base_revision}/g{draft.base_generation}` · expires '
             f'`{_escape(draft.expires_at)}`\n'
-            f'**Digest:** `{draft.document_digest[:12]}` · '
+            f'**Digest:** `{draft.document_digest}`\n'
             f'**Changed fields:** `{len(changes)}`\n'
             f'{lines or "*No changes from active configuration.*"}'
         )
@@ -505,8 +560,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Status:** {_escape(self.status)}\n'
-                '-# Draft writes never activate settings, reload runtime state, '
-                'or synchronize commands.'
+                '-# Activation publishes ordinary settings immediately. Command '
+                'capability changes remain blocked and commands are never synchronized here.'
             ),
         ))
         controls = []
@@ -524,6 +579,18 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         )
         validate.callback = self._validate
         controls.append(validate)
+        activate = discord.ui.Button(
+            label='Activate',
+            style=discord.ButtonStyle.danger,
+            disabled=(
+                self.busy
+                or draft is None
+                or self.result.validation is None
+                or not service.changed_paths(self.active_document, draft.document)
+            ),
+        )
+        activate.callback = self._activate
+        controls.append(activate)
         refresh = discord.ui.Button(label='Refresh', disabled=self.busy)
         refresh.callback = self._refresh
         controls.append(refresh)
@@ -534,13 +601,6 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         )
         discard.callback = self._discard
         controls.append(discard)
-        if draft is not None and self.field.kind in {
-            service.OPTIONAL_ROLE,
-            service.OPTIONAL_CHANNEL,
-        }:
-            clear = discord.ui.Button(label='Clear field', disabled=self.busy)
-            clear.callback = self._clear_optional
-            controls.append(clear)
         children.append(discord.ui.ActionRow(*controls))
         self.add_item(discord.ui.Container(
             *children,
@@ -549,6 +609,10 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
 
     def _add_value_controls(self, children: list[Any], current: Any) -> None:
         field = self.field
+        if field.kind in {service.OPTIONAL_ROLE, service.OPTIONAL_CHANNEL}:
+            clear = discord.ui.Button(label='Clear field', disabled=self.busy)
+            clear.callback = self._clear_optional
+            children.append(discord.ui.ActionRow(clear))
         if field.kind in {service.TEXT, service.INTEGER}:
             edit = discord.ui.Button(
                 label=f'Edit {field.label}'[:80],
@@ -655,6 +719,7 @@ def identity_maps(guild: Any) -> tuple[dict[int, str], dict[int, str]]:
 
 
 __all__ = [
+    'DraftActivationModal',
     'DraftConfirmationModal',
     'DraftValueModal',
     'GuildConfigurationDraftWorkspace',

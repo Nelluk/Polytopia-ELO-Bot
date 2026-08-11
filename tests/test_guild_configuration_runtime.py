@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 import re
 from types import MappingProxyType, SimpleNamespace
@@ -125,7 +125,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(
             runtime.GuildConfigurationRuntimeError,
-            'configured_role_unavailable',
+            'configured_reference_unavailable',
         ):
             runtime.build_runtime_snapshot(
                 result=value,
@@ -237,6 +237,41 @@ class SettingsAuthorityTests(unittest.TestCase):
         self.assertTrue(settings.guild_configuration_ready())
         with self.assertRaisesRegex(RuntimeError, 'not selected'):
             settings.activate_database_guild_configuration(snapshot())
+
+    def test_reconciliation_requires_one_exact_generation_advance(self):
+        settings.guild_configuration_source = 'database'
+        settings._database_guild_configuration = None
+        current = snapshot()
+        settings.activate_database_guild_configuration(current)
+        old = current.guilds[GUILD_ID]
+        advanced_record = replace(old, revision=2, generation=2)
+        advanced = runtime.GuildConfigurationRuntimeSnapshot(
+            source='database',
+            guilds=MappingProxyType({GUILD_ID: advanced_record}),
+            legacy_config=current.legacy_config,
+            command_policy=current.command_policy,
+        )
+        expected_current = {GUILD_ID: (
+            old.revision, old.generation, old.document_digest,
+        )}
+        settings.reconcile_database_guild_configuration(
+            advanced,
+            expected_current=expected_current,
+            activated_guild_id=GUILD_ID,
+            expected_activation=(2, 2, old.document_digest),
+        )
+        self.assertIs(settings.database_guild_configuration(GUILD_ID), advanced_record)
+
+        settings._database_guild_configuration = current
+        with self.assertRaisesRegex(RuntimeError, 'exactly once'):
+            settings.reconcile_database_guild_configuration(
+                replace(advanced, guilds=MappingProxyType({
+                    GUILD_ID: replace(advanced_record, generation=3),
+                })),
+                expected_current=expected_current,
+                activated_guild_id=GUILD_ID,
+                expected_activation=(2, 3, old.document_digest),
+            )
 
 
 if __name__ == '__main__':

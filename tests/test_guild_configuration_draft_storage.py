@@ -64,6 +64,10 @@ class Cursor:
             self.rows = list(self.inventory.constraints)
         elif 'RETURNING guild_id' in statement:
             self.row = draft_row(version=2 if statement.startswith('UPDATE') else 1)
+        elif 'MAX(revision_number)' in statement:
+            self.row = (1,)
+        elif 'MAX(event_number)' in statement:
+            self.row = (1,)
 
     def fetchone(self):
         return self.row
@@ -219,6 +223,64 @@ class DraftPersistenceTests(unittest.TestCase):
                 cursor, guild_id=fixtures.GUILD_ID, expected_version=1,
                 expected_digest=document_digest(document), actor='discord:1',
             )
+
+    def test_activation_appends_revision_audit_advances_generation_and_expires(self):
+        cursor = Cursor()
+        value = drafts.draft_from_row(draft_row())
+        result = drafts.activate_draft(
+            cursor,
+            draft=value,
+            active_revision=1,
+            active_generation=1,
+            active_document_digest=value.document_digest,
+            actor='discord:1',
+            changed_paths=('identity.display_name',),
+        )
+        self.assertEqual((result.revision, result.generation), (2, 2))
+        self.assertEqual(result.event_number, 2)
+        statements = tuple(value[0] for value in cursor.statements)
+        self.assertTrue(any(
+            statement.startswith(f'INSERT INTO "{drafts.storage.REVISION_TABLE}"')
+            for statement in statements
+        ))
+        self.assertTrue(any(
+            statement.startswith(f'UPDATE "{drafts.storage.REGISTRY_TABLE}"')
+            for statement in statements
+        ))
+        self.assertTrue(any(
+            statement.startswith(f'INSERT INTO "{drafts.storage.AUDIT_TABLE}"')
+            for statement in statements
+        ))
+        self.assertIn('expires_at = CURRENT_TIMESTAMP', statements[-1])
+        self.assertNotIn('DELETE FROM', '\n'.join(statements))
+
+    def test_activation_registry_cas_failure_stops_before_audit_and_expiry(self):
+        cursor = Cursor()
+        value = drafts.draft_from_row(draft_row())
+        original_execute = cursor.execute
+
+        def fail_registry(statement, parameters=None):
+            original_execute(statement, parameters)
+            if statement.startswith(f'UPDATE "{drafts.storage.REGISTRY_TABLE}"'):
+                cursor.rowcount = 0
+
+        cursor.execute = fail_registry
+        with self.assertRaisesRegex(
+            drafts.GuildConfigurationDraftStorageError,
+            'changed during activation',
+        ):
+            drafts.activate_draft(
+                cursor,
+                draft=value,
+                active_revision=1,
+                active_generation=1,
+                active_document_digest=value.document_digest,
+                actor='discord:1',
+                changed_paths=('identity.display_name',),
+            )
+        statements = '\n'.join(value[0] for value in cursor.statements)
+        self.assertNotIn(f'INSERT INTO "{drafts.storage.AUDIT_TABLE}"', statements)
+        self.assertNotIn('expires_at = CURRENT_TIMESTAMP', statements)
 
 
 class ScriptTests(unittest.TestCase):

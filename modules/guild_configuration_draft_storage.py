@@ -29,6 +29,8 @@ DRAFT_TABLE = 'guild_configuration_draft'
 DRAFT_SCHEMA_VERSION = 1
 DRAFT_TTL_HOURS = 24
 DRAFT_ADVISORY_LOCK_KEY = 0x50313036
+ACTIVATION_SOURCE_KIND = 'owner_activation'
+ACTIVATION_EVENT_TYPE = 'activation'
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -76,6 +78,20 @@ class StoredGuildConfigurationDraft:
     created_at: str
     updated_at: str
     expires_at: str
+    document: GuildConfigurationDocument = field(repr=False)
+
+
+@dataclass(frozen=True)
+class GuildConfigurationActivation:
+    guild_id: int
+    previous_revision: int
+    previous_generation: int
+    revision: int
+    generation: int
+    event_number: int
+    document_digest: str
+    source_digest: str
+    actor: str
     document: GuildConfigurationDocument = field(repr=False)
 
 
@@ -569,7 +585,176 @@ def expire_draft(
         )
 
 
+def activation_source_digest(
+    *,
+    draft: StoredGuildConfigurationDraft,
+    actor: str,
+) -> str:
+    if not isinstance(draft, StoredGuildConfigurationDraft):
+        raise GuildConfigurationDraftStorageError(
+            'A validated stored draft is required for activation.'
+        )
+    if not isinstance(actor, str) or not actor or len(actor) > 200:
+        raise GuildConfigurationDraftStorageError('Activation actor is invalid.')
+    return _canonical_digest({
+        'source_kind': ACTIVATION_SOURCE_KIND,
+        'guild_id': draft.guild_id,
+        'draft_version': draft.draft_version,
+        'base_revision': draft.base_revision,
+        'base_generation': draft.base_generation,
+        'document_digest': draft.document_digest,
+        'actor': actor,
+    })
+
+
+def activate_draft(
+    cursor: Any,
+    *,
+    draft: StoredGuildConfigurationDraft,
+    active_revision: int,
+    active_generation: int,
+    active_document_digest: str,
+    actor: str,
+    changed_paths: tuple[str, ...],
+) -> GuildConfigurationActivation:
+    """Create one immutable active revision/audit and consume its draft."""
+
+    if not isinstance(draft, StoredGuildConfigurationDraft):
+        raise GuildConfigurationDraftStorageError(
+            'A validated stored draft is required for activation.'
+        )
+    active_revision = _strict_positive(active_revision, 'Active revision')
+    active_generation = _strict_positive(active_generation, 'Active generation')
+    if (
+            draft.base_revision != active_revision
+            or draft.base_generation != active_generation
+            or not isinstance(active_document_digest, str)
+            or not _HEX_DIGEST.fullmatch(active_document_digest)
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'The draft active base changed before activation.'
+        )
+    if (
+            not isinstance(changed_paths, tuple)
+            or not changed_paths
+            or len(changed_paths) > 100
+            or any(
+                not isinstance(value, str)
+                or not value
+                or len(value) > 200
+                for value in changed_paths
+            )
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'Activation changed-path evidence is invalid.'
+        )
+    source_digest = activation_source_digest(draft=draft, actor=actor)
+    payload = json.dumps(
+        document_to_mapping(draft.document),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(',', ':'),
+    )
+    cursor.execute(
+        f'SELECT COALESCE(MAX(revision_number), 0) '
+        f'FROM "{storage.REVISION_TABLE}" WHERE guild_id = %s',
+        (draft.guild_id,),
+    )
+    revision = _strict_positive(cursor.fetchone()[0] + 1, 'Next revision')
+    generation = active_generation + 1
+    cursor.execute(
+        f'SELECT COALESCE(MAX(event_number), 0) '
+        f'FROM "{storage.AUDIT_TABLE}" WHERE guild_id = %s',
+        (draft.guild_id,),
+    )
+    event_number = _strict_positive(
+        cursor.fetchone()[0] + 1,
+        'Next audit event',
+    )
+    cursor.execute(
+        f'INSERT INTO "{storage.REVISION_TABLE}" '
+        '(guild_id, revision_number, schema_version, document, '
+        'document_digest, source_digest, parent_revision, source_kind, actor, '
+        'created_at) VALUES (%s, %s, %s, CAST(%s AS JSONB), %s, %s, %s, %s, '
+        '%s, CURRENT_TIMESTAMP)',
+        (
+            draft.guild_id,
+            revision,
+            draft.document.schema_version,
+            payload,
+            draft.document_digest,
+            source_digest,
+            active_revision,
+            ACTIVATION_SOURCE_KIND,
+            actor,
+        ),
+    )
+    cursor.execute(
+        f'UPDATE "{storage.REGISTRY_TABLE}" SET active_revision = %s, '
+        'generation = %s, updated_at = CURRENT_TIMESTAMP '
+        'WHERE guild_id = %s AND enrollment_state = %s '
+        'AND active_revision = %s AND generation = %s',
+        (
+            revision,
+            generation,
+            draft.guild_id,
+            'active',
+            active_revision,
+            active_generation,
+        ),
+    )
+    if cursor.rowcount != 1:
+        raise GuildConfigurationDraftStorageError(
+            'The active configuration changed during activation.'
+        )
+    details = json.dumps({
+        'draft_version': draft.draft_version,
+        'base_revision': active_revision,
+        'base_generation': active_generation,
+        'previous_document_digest': active_document_digest,
+        'source_digest': source_digest,
+        'changed_paths': list(changed_paths),
+    }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    cursor.execute(
+        f'INSERT INTO "{storage.AUDIT_TABLE}" '
+        '(guild_id, event_number, event_type, revision_number, generation, '
+        'document_digest, actor, details, created_at) VALUES '
+        '(%s, %s, %s, %s, %s, %s, %s, CAST(%s AS JSONB), CURRENT_TIMESTAMP)',
+        (
+            draft.guild_id,
+            event_number,
+            ACTIVATION_EVENT_TYPE,
+            revision,
+            generation,
+            draft.document_digest,
+            actor,
+            details,
+        ),
+    )
+    expire_draft(
+        cursor,
+        guild_id=draft.guild_id,
+        expected_version=draft.draft_version,
+        expected_digest=draft.document_digest,
+        actor=actor,
+    )
+    return GuildConfigurationActivation(
+        guild_id=draft.guild_id,
+        previous_revision=active_revision,
+        previous_generation=active_generation,
+        revision=revision,
+        generation=generation,
+        event_number=event_number,
+        document_digest=draft.document_digest,
+        source_digest=source_digest,
+        actor=actor,
+        document=draft.document,
+    )
+
+
 __all__ = [
+    'ACTIVATION_EVENT_TYPE',
+    'ACTIVATION_SOURCE_KIND',
     'CREATE_DRAFT_SCHEMA_STATEMENTS',
     'DRAFT_ADVISORY_LOCK_KEY',
     'DRAFT_SCHEMA_VERSION',
@@ -581,8 +766,11 @@ __all__ = [
     'EXPECTED_COLUMNS',
     'EXPECTED_CONSTRAINTS',
     'GuildConfigurationDraftStorageError',
+    'GuildConfigurationActivation',
     'StoredGuildConfigurationDraft',
     'apply_draft_schema',
+    'activate_draft',
+    'activation_source_digest',
     'draft_from_row',
     'draft_schema_plan',
     'expire_draft',

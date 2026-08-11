@@ -13,12 +13,14 @@ import psycopg2
 
 import settings
 from modules import guild_configuration_draft_storage as drafts
+from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
 from modules.guild_configuration_schema import (
     GuildConfigurationDocument,
     GuildConfigurationError,
     document_digest,
+    document_to_mapping,
     validate_document,
 )
 
@@ -28,8 +30,9 @@ RESET = 'reset'
 REPLACE = 'replace'
 DISCARD = 'discard'
 VALIDATE = 'validate'
-OPERATIONS = frozenset({SHOW, RESET, REPLACE, DISCARD, VALIDATE})
-WRITE_OPERATIONS = frozenset({RESET, REPLACE, DISCARD})
+ACTIVATE = 'activate'
+OPERATIONS = frozenset({SHOW, RESET, REPLACE, DISCARD, VALIDATE, ACTIVATE})
+WRITE_OPERATIONS = frozenset({RESET, REPLACE, DISCARD, ACTIVATE})
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -59,6 +62,20 @@ class OperatorGuildConfigurationDraftValidationError(
     OperatorGuildConfigurationDraftError,
 ):
     """A request, document, schema, or live reference is invalid."""
+
+
+class OperatorGuildConfigurationActivationCommitted(
+    OperatorGuildConfigurationDraftError,
+):
+    """Activation committed, but the running immutable snapshot was not replaced."""
+
+    def __init__(self, activation: drafts.GuildConfigurationActivation):
+        self.activation = activation
+        super().__init__(
+            f'Configuration r{activation.revision}/g{activation.generation} '
+            'committed, but runtime publication could not be verified. The '
+            'database is authoritative; use `/operator bot restart` to reconcile.'
+        )
 
 
 @dataclass(frozen=True)
@@ -97,6 +114,12 @@ class GuildConfigurationDraftResult:
     active_document_digest: str
     draft: drafts.StoredGuildConfigurationDraft | None
     validation: GuildConfigurationDraftValidation | None = None
+    activation: drafts.GuildConfigurationActivation | None = None
+    runtime_snapshot: runtime.GuildConfigurationRuntimeSnapshot | None = field(
+        default=None,
+        repr=False,
+    )
+    runtime_published: bool = False
     committed: bool = False
 
 
@@ -176,7 +199,7 @@ def _validate_request(
             raise OperatorGuildConfigurationDraftValidationError(
                 'A complete replacement draft document is required.'
             )
-    elif request.operation == DISCARD:
+    elif request.operation in {DISCARD, ACTIVATE}:
         _strict_positive(request.expected_draft_version, 'Expected draft version')
         if not isinstance(request.expected_draft_digest, str) or not _HEX_DIGEST.fullmatch(
                 request.expected_draft_digest):
@@ -193,16 +216,17 @@ def _validate_request(
         request.replacement_document_json,
     )):
         raise OperatorGuildConfigurationDraftValidationError(
-            'Optimistic draft evidence is accepted only by edit or discard.'
+            'Optimistic draft evidence is accepted only by edit, discard, or '
+            'activation.'
         )
-    if request.operation == VALIDATE:
+    if request.operation in {VALIDATE, ACTIVATE}:
         if not request.discord_snapshot_json:
             raise OperatorGuildConfigurationDraftValidationError(
                 'Live Discord identity is required for draft validation.'
             )
     elif request.discord_snapshot_json is not None:
         raise OperatorGuildConfigurationDraftValidationError(
-            'Live Discord identity is accepted only by draft validation.'
+            'Live Discord identity is accepted only by validation or activation.'
         )
     return request
 
@@ -378,6 +402,57 @@ def _live_validate(
         ) from exc
 
 
+def _changed_paths(
+    active: GuildConfigurationDocument,
+    candidate: GuildConfigurationDocument,
+) -> tuple[str, ...]:
+    def difference(expected: Any, observed: Any, prefix: str = '') -> list[str]:
+        if isinstance(expected, Mapping) and isinstance(observed, Mapping):
+            paths: list[str] = []
+            for key in sorted(set(expected) | set(observed), key=str):
+                path = f'{prefix}.{key}' if prefix else str(key)
+                if key not in expected or key not in observed:
+                    paths.append(path)
+                else:
+                    paths.extend(difference(expected[key], observed[key], path))
+            return paths
+        return [prefix] if expected != observed else []
+
+    return tuple(difference(
+        document_to_mapping(active),
+        document_to_mapping(candidate),
+    ))
+
+
+def _post_commit_runtime_snapshot(
+    request: GuildConfigurationDraftRequest,
+) -> runtime.GuildConfigurationRuntimeSnapshot:
+    try:
+        discord_snapshot = json.loads(request.discord_snapshot_json or '')
+        active = shadow.inspect_active_configuration(
+            shadow.ActiveConfigurationReadRequest(
+                target=request.target,
+                allowed_guild_ids=request.allowed_guild_ids,
+                database_password=request.database_password,
+                database_host=request.database_host,
+                database_port=request.database_port,
+            )
+        )
+        return runtime.build_runtime_snapshot_from_stored(
+            stored_configurations=active,
+            discord_snapshot=discord_snapshot,
+            allowed_guild_ids=request.allowed_guild_ids,
+        )
+    except (
+        json.JSONDecodeError,
+        shadow.GuildConfigurationShadowError,
+        runtime.GuildConfigurationRuntimeError,
+    ) as exc:
+        raise OperatorGuildConfigurationDraftValidationError(
+            'The committed active graph could not be loaded for publication.'
+        ) from exc
+
+
 def execute_draft_operation(
     request: GuildConfigurationDraftRequest,
 ) -> GuildConfigurationDraftResult:
@@ -390,6 +465,7 @@ def execute_draft_operation(
             'The development guild-configuration database is unavailable.'
         ) from exc
     committed = False
+    activation = None
     try:
         readonly = request.operation not in WRITE_OPERATIONS
         connection.set_session(
@@ -443,7 +519,7 @@ def execute_draft_operation(
                     raise OperatorGuildConfigurationDraftValidationError(
                         'The stored guild-configuration draft is invalid.'
                     ) from exc
-                if request.operation in {REPLACE, DISCARD, VALIDATE} and draft is None:
+                if request.operation in {REPLACE, DISCARD, VALIDATE, ACTIVATE} and draft is None:
                     raise OperatorGuildConfigurationDraftConflict(
                         'No current draft exists; create a fresh draft first.'
                     )
@@ -491,17 +567,71 @@ def execute_draft_operation(
                         live_references_valid=True,
                         runtime_snapshot_current=True,
                     )
+                elif request.operation == ACTIVATE:
+                    assert draft is not None
+                    _live_validate(request, draft)
+                    if (
+                        draft.document.command_capabilities
+                        != active_document.command_capabilities
+                    ):
+                        raise OperatorGuildConfigurationDraftValidationError(
+                            'Command-capability changes cannot be activated yet; '
+                            'restore the active capability set before activation.'
+                        )
+                    changed_paths = _changed_paths(
+                        active_document,
+                        draft.document,
+                    )
+                    if not changed_paths:
+                        raise OperatorGuildConfigurationDraftValidationError(
+                            'The draft is identical to the active configuration; '
+                            'there is nothing to activate.'
+                        )
+                    try:
+                        activation = drafts.activate_draft(
+                            cursor,
+                            draft=draft,
+                            active_revision=active_revision,
+                            active_generation=active_generation,
+                            active_document_digest=active_digest,
+                            actor=actor,
+                            changed_paths=changed_paths,
+                        )
+                    except drafts.GuildConfigurationDraftStorageError as exc:
+                        raise OperatorGuildConfigurationDraftConflict(str(exc)) from exc
+                    draft = None
             if request.operation in WRITE_OPERATIONS:
                 connection.commit()
                 committed = True
+            runtime_snapshot = None
+            if activation is not None:
+                try:
+                    runtime_snapshot = _post_commit_runtime_snapshot(request)
+                    published = runtime_snapshot.guilds[request.guild_id]
+                    if (
+                            published.revision != activation.revision
+                            or published.generation != activation.generation
+                            or published.document_digest != activation.document_digest
+                    ):
+                        raise OperatorGuildConfigurationDraftValidationError(
+                            'The committed revision was not present in the reloaded graph.'
+                        )
+                except Exception as exc:
+                    raise OperatorGuildConfigurationActivationCommitted(
+                        activation
+                    ) from exc
             return GuildConfigurationDraftResult(
                 operation=request.operation,
                 guild_id=request.guild_id,
-                active_revision=active_revision,
-                active_generation=active_generation,
-                active_document_digest=active_digest,
+                active_revision=(activation.revision if activation else active_revision),
+                active_generation=(activation.generation if activation else active_generation),
+                active_document_digest=(
+                    activation.document_digest if activation else active_digest
+                ),
                 draft=draft,
                 validation=validation,
+                activation=activation,
+                runtime_snapshot=runtime_snapshot,
                 committed=committed,
             )
     except psycopg2.OperationalError as exc:
@@ -544,6 +674,7 @@ async def run_draft_operation(
 
 
 __all__ = [
+    'ACTIVATE',
     'DISCARD',
     'GuildConfigurationDraftRequest',
     'GuildConfigurationDraftResult',
@@ -554,6 +685,7 @@ __all__ = [
     'OperatorGuildConfigurationDraftPermissionError',
     'OperatorGuildConfigurationDraftUnavailable',
     'OperatorGuildConfigurationDraftValidationError',
+    'OperatorGuildConfigurationActivationCommitted',
     'REPLACE',
     'RESET',
     'SHOW',

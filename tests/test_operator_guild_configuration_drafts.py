@@ -61,6 +61,16 @@ def stored(document=None, *, version=1, base_revision=1, base_generation=1):
     )
 
 
+def activation(document=None):
+    document = document or fixtures.bundle().imports[0].document
+    return drafts.GuildConfigurationActivation(
+        guild_id=GUILD_ID, previous_revision=1, previous_generation=1,
+        revision=2, generation=2, event_number=2,
+        document_digest=document_digest(document), source_digest='a' * 64,
+        actor=f'discord:{OWNER_ID}', document=document,
+    )
+
+
 class Cursor:
     def __init__(self, *, readonly=True):
         self.readonly = readonly
@@ -262,6 +272,111 @@ class RequestAndWorkerTests(unittest.TestCase):
         self.assertFalse(result.committed)
         self.assertEqual(connection.commits, 0)
 
+    def test_activation_commits_then_reloads_complete_runtime_snapshot(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Activated Guild',
+        )
+        old = stored(edited)
+        value = request(
+            workers.ACTIVATE,
+            expected_draft_version=old.draft_version,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        committed = activation(edited)
+        reloaded = runtime_fixtures.snapshot()
+        advanced_record = replace(
+            reloaded.guilds[GUILD_ID], revision=2, generation=2,
+            document=edited, document_digest=document_digest(edited),
+        )
+        reloaded = replace(
+            reloaded,
+            guilds={GUILD_ID: advanced_record},
+        )
+        with mock.patch.object(
+            workers.drafts, 'activate_draft', return_value=committed,
+        ) as activate_write, mock.patch.object(
+            workers, '_post_commit_runtime_snapshot', return_value=reloaded,
+        ) as reload_active:
+            result = run_with(connection, value, selected=old)
+        self.assertEqual(connection.commits, 1)
+        self.assertIs(result.activation, committed)
+        self.assertIs(result.runtime_snapshot, reloaded)
+        self.assertIsNone(result.draft)
+        activate_write.assert_called_once()
+        reload_active.assert_called_once_with(value)
+
+    def test_activation_reload_failure_reports_committed_reconciliation(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Activated Guild',
+        )
+        old = stored(edited)
+        value = request(
+            workers.ACTIVATE,
+            expected_draft_version=1,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        committed = activation(edited)
+        with mock.patch.object(
+            workers.drafts, 'activate_draft', return_value=committed,
+        ), mock.patch.object(
+            workers, '_post_commit_runtime_snapshot', side_effect=RuntimeError('down'),
+        ):
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationActivationCommitted,
+                'committed.*restart',
+            ) as raised:
+                run_with(connection, value, selected=old)
+        self.assertIs(raised.exception.activation, committed)
+        self.assertEqual(connection.commits, 1)
+
+    def test_activation_blocks_command_capability_changes_before_write(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active,
+            service.FIELD_BY_KEY['command_capabilities'],
+            active.command_capabilities[:-1],
+        )
+        old = stored(edited)
+        value = request(
+            workers.ACTIVATE,
+            expected_draft_version=1,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        with mock.patch.object(workers.drafts, 'activate_draft') as write:
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftValidationError,
+                'cannot be activated yet',
+            ):
+                run_with(connection, value, selected=old)
+        write.assert_not_called()
+        self.assertEqual(connection.commits, 0)
+
+    def test_activation_blocks_unchanged_draft_before_write(self):
+        old = stored()
+        value = request(
+            workers.ACTIVATE,
+            expected_draft_version=1,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        with mock.patch.object(workers.drafts, 'activate_draft') as write:
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftValidationError,
+                'nothing to activate',
+            ):
+                run_with(connection, value, selected=old)
+        write.assert_not_called()
+        self.assertEqual(connection.commits, 0)
+
     def test_unavailable_connection_has_no_fallback(self):
         with mock.patch.object(workers.settings, 'owner_id', OWNER_ID), \
                 mock.patch.object(
@@ -392,7 +507,7 @@ class EditServiceAndViewTests(unittest.TestCase):
                 workspace.field_key = field.key
                 workspace.rebuild()
                 self.assertEqual(len(workspace.children), 1)
-        self.assertIn('inactive', workspace.status.lower())
+        self.assertIn('activate', workspace.status.lower())
 
     def test_identity_maps_show_names_not_only_ids(self):
         guild = SimpleNamespace(
@@ -400,6 +515,32 @@ class EditServiceAndViewTests(unittest.TestCase):
             channels=(SimpleNamespace(id=2, name='staff-help'),),
         )
         self.assertEqual(views.identity_maps(guild), ({1: 'Helpers'}, {2: 'staff-help'}))
+
+    def test_activation_modal_binds_full_current_digest(self):
+        active = fixtures.bundle().imports[0].document
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.VALIDATE, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(),
+            validation=workers.GuildConfigurationDraftValidation(
+                True, True, True, True,
+            ),
+        )
+
+        async def runner(*_args, **_kwargs):
+            return result
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID, active_document=active, result=result,
+            runner=runner, role_names={}, channel_names={},
+        )
+        modal = views.DraftActivationModal(workspace)
+        self.assertEqual(
+            modal.expected,
+            f'ACTIVATE {result.draft.document_digest}',
+        )
+        self.assertEqual(modal.confirmation.min_length, len(modal.expected))
+        self.assertEqual(modal.confirmation.max_length, len(modal.expected))
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
@@ -483,6 +624,84 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             kwargs = calls[-1][1]
             self.assertIsNone(kwargs['expected_draft_version'])
             self.assertIsNone(kwargs['expected_draft_digest'])
+
+    async def test_activation_reconciles_once_on_event_loop_after_worker(self):
+        active = fixtures.bundle().imports[0].document
+        current = runtime_record()
+        activated = activation()
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.ACTIVATE, guild_id=GUILD_ID,
+            active_revision=2, active_generation=2,
+            active_document_digest=activated.document_digest, draft=None,
+            activation=activated,
+            runtime_snapshot=runtime_fixtures.snapshot(),
+            committed=True,
+        )
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID,
+            user=SimpleNamespace(id=OWNER_ID),
+        )
+        selected_profile = profile()
+        with mock.patch.object(
+            administration.settings, 'runtime_profile', selected_profile,
+        ), mock.patch.object(
+            administration.settings,
+            'database_guild_configuration',
+            return_value=current,
+        ), mock.patch.object(
+            service, 'build_request', return_value=mock.sentinel.request,
+        ), mock.patch.object(
+            workers, 'run_draft_operation', mock.AsyncMock(return_value=result),
+        ), mock.patch.object(
+            administration.settings, 'reconcile_database_guild_configuration',
+        ) as reconcile:
+            returned = await self.cog._operator_guild_draft_operation(
+                interaction,
+                workers.ACTIVATE,
+                expected_draft_version=1,
+                expected_draft_digest=document_digest(active),
+            )
+        self.assertTrue(returned.runtime_published)
+        reconcile.assert_called_once()
+        self.assertEqual(
+            reconcile.call_args.kwargs['expected_current'],
+            {GUILD_ID: (1, 1, document_digest(active))},
+        )
+
+    async def test_activation_publication_failure_stays_truthfully_committed(self):
+        current = runtime_record()
+        activated = activation()
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.ACTIVATE, guild_id=GUILD_ID,
+            active_revision=2, active_generation=2,
+            active_document_digest=activated.document_digest, draft=None,
+            activation=activated,
+            runtime_snapshot=runtime_fixtures.snapshot(), committed=True,
+        )
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID, user=SimpleNamespace(id=OWNER_ID),
+        )
+        with mock.patch.object(
+            administration.settings, 'runtime_profile', profile(),
+        ), mock.patch.object(
+            administration.settings, 'database_guild_configuration',
+            return_value=current,
+        ), mock.patch.object(
+            service, 'build_request', return_value=mock.sentinel.request,
+        ), mock.patch.object(
+            workers, 'run_draft_operation', mock.AsyncMock(return_value=result),
+        ), mock.patch.object(
+            administration.settings,
+            'reconcile_database_guild_configuration',
+            side_effect=RuntimeError('stale runtime'),
+        ):
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationActivationCommitted,
+                'committed.*restart',
+            ):
+                await self.cog._operator_guild_draft_operation(
+                    interaction, workers.ACTIVATE,
+                )
 
 
 if __name__ == '__main__':

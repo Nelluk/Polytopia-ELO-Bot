@@ -279,6 +279,69 @@ def activate_database_guild_configuration(snapshot) -> None:
     application_command_policy = snapshot.command_policy
 
 
+def reconcile_database_guild_configuration(
+    snapshot,
+    *,
+    expected_current: dict[int, tuple[int, int, str]],
+    activated_guild_id: int,
+    expected_activation: tuple[int, int, str],
+) -> None:
+    """Atomically replace one published DB snapshot after a committed write."""
+
+    global _database_guild_configuration, config, application_command_policy
+    if guild_configuration_source != 'database':
+        raise RuntimeError(
+            'Database guild configuration was not selected before startup.'
+        )
+    current = _database_guild_configuration
+    if current is None:
+        raise RuntimeError('Database guild configuration is not published.')
+    if not isinstance(
+            snapshot,
+            guild_configuration_runtime.GuildConfigurationRuntimeSnapshot,
+    ):
+        raise TypeError('A validated database runtime snapshot is required.')
+    if set(snapshot.guilds) != set(current.guilds):
+        raise RuntimeError('Reconciled guild inventory changed unexpectedly.')
+    if set(expected_current) != set(current.guilds):
+        raise RuntimeError('Expected runtime inventory is incomplete.')
+    if activated_guild_id not in current.guilds:
+        raise RuntimeError('Activated guild is outside the runtime inventory.')
+    if snapshot.command_policy != current.command_policy:
+        raise RuntimeError(
+            'Activation cannot change application-command capabilities.'
+        )
+    for guild_id, value in current.guilds.items():
+        expected = expected_current[guild_id]
+        observed = (value.revision, value.generation, value.document_digest)
+        if observed != expected:
+            raise RuntimeError(
+                'Runtime configuration changed before reconciliation.'
+            )
+        candidate = snapshot.guilds[guild_id]
+        candidate_evidence = (
+            candidate.revision,
+            candidate.generation,
+            candidate.document_digest,
+        )
+        if guild_id == activated_guild_id:
+            if candidate_evidence != expected_activation:
+                raise RuntimeError(
+                    'Reloaded activation evidence differs from the committed write.'
+                )
+            if candidate.generation != value.generation + 1:
+                raise RuntimeError(
+                    'Activated runtime generation did not advance exactly once.'
+                )
+        elif candidate_evidence != observed:
+            raise RuntimeError(
+                'An unrelated guild changed during runtime reconciliation.'
+            )
+    _database_guild_configuration = snapshot
+    config = snapshot.legacy_config
+    application_command_policy = snapshot.command_policy
+
+
 def configured_role_ids(guild_id: int, setting_name: str) -> tuple[int, ...]:
     """Return stable configured IDs when database authority is active."""
 
