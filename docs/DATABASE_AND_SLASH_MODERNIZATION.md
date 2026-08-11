@@ -490,8 +490,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.24 M7/R-002 exact release-candidate freeze is in
-progress on `codex/p9-24-m7-release-candidate`, from exact clean pushed
+Current active unit: **P9.24 M7/R-002 has frozen exact source candidate
+`acf706fed8d51a061383e7caba2a4c210ec61981` and integrated it into
+accumulation from exact clean pushed
 accumulation base `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`. This Tier-3
 evidence unit adds a strict non-secret candidate record and validator, binds
 the cutover-critical source digests and every required gate to one full SHA,
@@ -499,10 +500,16 @@ and prepares a short tester instruction draft without sending it. Initial
 cutover review caught and corrects the production runbook's mistaken use of
 development guild `478571892832206869` as PolyChampions; the tracked runtime
 authority identifies production PolyChampions as `447883341463814144`.
-Candidate readiness must remain blocked for any non-green offline dependency
-case or incomplete bounded human beta matrix. No production configuration,
-checkout, database, service, Discord tree, or announcement is authorized by
-this freeze.**
+Complete-diff/cutover review and the stopped-writer 75-test development-
+PostgreSQL gate pass. Complete offline discovery runs 1,750 tests with 1,671
+passes, 76 intentional skips, and the same three missing-DuckDB cases, so the
+offline gate is correctly blocked. The bounded beta matrix is pending the
+unsent tester pass, and actual redacted production-configuration verification
+remains separately approval-gated. The durable beta runs exact candidate
+`acf706f` as PID `125782`, authenticated as application `479029527553638401`,
+with both persona roles and all five packs ready. No command apply or tester
+announcement occurred. The candidate record is structurally/repository valid,
+but `require-ready` must continue to fail on those three open gates.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14353,8 +14360,8 @@ private flow and separately approve any instructions or ping.
 
 ### P9.24 — M7/R-002 exact release-candidate freeze
 
-Status: **In progress; repository evidence tooling and unsent tester draft
-implemented, exact candidate validation pending.**
+Status: **Exact source candidate frozen, integrated, database-gated, and live
+in the development beta; final readiness remains blocked/pending.**
 
 Branch/base: `codex/p9-24-m7-release-candidate`, exact clean pushed
 accumulation checkpoint `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8`.
@@ -14396,6 +14403,26 @@ The tester draft says `WHAT TO TEST`, asks for only one useful task, leads with
 and points confusing behavior to contextual **Report problem**. It contains no
 live ping and must not be delivered until Nelluk separately approves it after
 the candidate is ready and all planned downtime is complete.
+
+Frozen source candidate: `acf706fed8d51a061383e7caba2a4c210ec61981`
+(`186457d`, initial evidence gate; `980c644`, canary identity correction;
+`acf706f`, complete readiness-gate correction). The tracked evidence record is
+`release-candidate-manifests/modernization-rc1.json`. Focused release/
+deployment/document consistency passes **19/19**. Complete offline discovery
+runs **1,750 tests: 1,671 pass, 76 intentionally skip, and the same three
+missing-DuckDB cases fail**; no dependency was installed or synchronized.
+Only the development beta was stopped, the host-wide writer audit was clear,
+and the exact `development` / `polytopia_dev` / `polybot_dev` suite passes
+**75 tests: 74 passed and one operator-fixture round trip skipped**.
+
+The final beta runs candidate `acf706f` as PID `125782`, expected application
+`479029527553638401`, active/running with zero restart churn. Protected status
+reports both roles, all five packs, and all three lanes ready. Read-only guild
+inspection remains converged at the same eleven roots with an empty global
+tree, so no apply occurred. The candidate validator reports cutover review and
+database gates `pass`, offline `blocked`, and bounded beta plus production
+configuration `pending`; `require-ready` exits nonzero. No tester ping, release
+announcement, staff mirror, production read, or production operation occurred.
 
 ## Standard work-unit template
 
@@ -15534,6 +15561,39 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — M7/R-002 source candidate frozen with explicit blockers
+
+- Created `codex/p9-24-m7-release-candidate` from exact clean pushed
+  accumulation checkpoint `239e441a7bfbfdc9f23faf2784f98c6a5b770eb8` and
+  froze final source candidate `acf706fed8d51a061383e7caba2a4c210ec61981`.
+- Added a strict non-secret release record and validator that bind every gate
+  to the candidate, verify rollback/evidence ancestry and candidate-tree
+  digests, require the full adversarial inventory and exact production plan,
+  reject unsafe paths/secret-like content, and refuse ready status while
+  required human or production-configuration checks are skipped.
+- Cutover-critical review found and corrected the runbook's mistaken use of
+  development guild `478571892832206869` for production PolyChampions. The
+  tracked runtime/server authority confirms production guild
+  `447883341463814144`; regression coverage locks that target.
+- Focused release/deployment/document coverage passes 19 tests. Complete
+  offline discovery runs 1,750 tests with 1,671 passes, 76 intentional skips,
+  and only the three known missing-DuckDB cases, which correctly block the
+  offline candidate gate. No dependency was installed or synchronized.
+- Stopped only the development beta, required the host-wide writer audit to
+  report clear, and passed the complete 75-test development PostgreSQL gate
+  with 74 passes and one intentional retained-fixture skip.
+- The durable beta now runs exact candidate `acf706f` as PID `125782`, expected
+  application `479029527553638401`, with zero restart churn, both persona roles,
+  all five packs, and all three lanes ready. The same eleven guild roots remain
+  converged and the global tree is empty; no command apply occurred.
+- Prepared a concise `WHAT TO TEST` draft that asks each tester for only one
+  short or guided task and explains refresh, cleanup, and contextual reporting.
+  It remains unsent and contains no live ping.
+- The candidate record validates but is not ready: cutover review and database
+  gates pass; offline is blocked on DuckDB; bounded beta awaits the reviewed
+  tester pass; redacted production configuration remains separately approval-
+  gated. No production access or tester announcement occurred.
 
 ### 2026-08-11 — P9.23c integrated and staged for Nelluk acceptance
 

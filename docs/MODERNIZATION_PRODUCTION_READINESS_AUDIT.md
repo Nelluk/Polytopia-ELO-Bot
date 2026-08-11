@@ -88,9 +88,12 @@ offline discovery.
 
 ### R-002 — Build one release candidate
 
-Status: In progress through P9.24. The strict non-secret manifest/validator
-and exact-gate procedure are implemented; exact candidate validation and its
-bounded beta evidence remain to be recorded.
+Status: In progress through P9.24. Exact source candidate
+`acf706fed8d51a061383e7caba2a4c210ec61981` is frozen; its strict non-secret
+record validates, cutover review passes, and the complete stopped-writer
+development PostgreSQL gate passes. Final readiness is correctly blocked by
+the missing-DuckDB offline cases and remains pending for the concise tester
+matrix and separately approved redacted production-configuration proof.
 
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable

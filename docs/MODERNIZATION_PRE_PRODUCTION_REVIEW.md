@@ -555,6 +555,13 @@ Status: **In progress through P9.24/R-002 after all preceding corrections.**
   record exact-SHA evidence for every required gate.
 - **Focused regression:** a readiness validator must reject evidence referring
   to any other checkpoint or omitting a required gate.
+- **P9.24 current evidence:** source candidate
+  `acf706fed8d51a061383e7caba2a4c210ec61981` is frozen and its strict record
+  validates. Cutover review and the stopped-writer development PostgreSQL gate
+  pass. M7 remains open because the complete offline gate has the three known
+  missing-DuckDB failures, the concise tester matrix has not been delivered,
+  and redacted production-configuration verification retains its separate
+  approval boundary. The validator's `require-ready` mode rejects that state.
 
 ## Low / documentation
 

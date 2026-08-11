@@ -79,7 +79,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P9.24 M7/R-002 exact release-candidate',
+            'Current active unit: **P9.24 M7/R-002 has frozen exact',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)
