@@ -149,6 +149,10 @@ writer development-database gate are green.**
 
 ### H3 — Guild-only command management never proves the remote global tree is empty
 
+Status: **Resolved by P9.14 implementation checkpoint `8d5a65f`; Tier-2
+review, complete offline validation, and live development inspection are
+green.**
+
 - **Location:** guild-only inspection at
   `scripts/manage_application_commands.py:278` and remote workflow at
   `scripts/manage_application_commands.py:360`.

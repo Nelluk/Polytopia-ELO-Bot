@@ -490,17 +490,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.14/H3 global command-tree apply guard is implemented
-on isolated branch `codex/p9-14-h3-global-command-guard` from exact clean,
-pushed accumulation base `c21113b`. Implementation/tests checkpoint `8d5a65f`
-makes remote inspect/apply fetch and display Discord's global tree read-only,
-and makes apply refuse before any guild sync when that tree is nonempty. The
-tool still has no global mutation path. Focused and affected validation pass;
-complete discovery reaches only the three known missing-`duckdb` environment
-failures. A stopped-beta live read-only inspection found zero global roots and
-all eleven development-guild roots unchanged. Integration remains pending.
-The guarded beta is restored at prior running-code checkpoint `c21113b`, and
-H3 changes no bot runtime or command shape.**
+Current active unit: **P9.14/H3 global command-tree apply guard is Complete in
+the accumulation branch at merge checkpoint `4a645ed`. Implementation/tests
+checkpoint `8d5a65f` makes remote inspect/apply fetch and display Discord's
+global tree read-only, and makes apply refuse before any guild sync when that
+tree is nonempty. The tool still has no global mutation path. Focused and
+affected validation pass; complete discovery reaches only the three known
+missing-`duckdb` environment failures. A stopped-beta live read-only
+inspection found zero global roots and all eleven development-guild roots
+unchanged. The guarded beta is restored at its prior running-code checkpoint
+`c21113b`; no runtime deployment, command apply, or announcement is warranted.
+The next recommended bounded unit is B1 production timezone migration tooling,
+implemented and tested without applying it to production.**
 
 P9.6 is Complete in the accumulation branch through `d702ed0`. Its accepted
 six-part contract keeps cron
@@ -11702,8 +11703,8 @@ success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
-Status: **In progress; source units through P9.13 are complete; P9.14/H3 is
-reviewed and pending integration; production activation and rollout remain
+Status: **In progress; source safety units through P9.14 are complete;
+production migration/cutover preparation, activation, and rollout remain
 separately gated**
 
 Production rollout is a separate operational phase, not an implied consequence
@@ -13332,11 +13333,13 @@ a user interaction.
 
 ### P9.14 — H3 global command-tree apply guard
 
-Status: **Tier-2 reviewed and development-inspected; integration pending**
+Status: **Complete in the accumulation branch; development-inspected**
 
 Branch/base: `codex/p9-14-h3-global-command-guard`, exact clean accumulation
 base `c21113b8d5a91b7173d7e14c46d85492e2a94a27`.
 Implementation/tests checkpoint: `8d5a65f`.
+Roadmap/runbook evidence checkpoint: `b1cfec6`; accumulation merge:
+`4a645ed`.
 
 Both remote command-management modes now fetch Discord's global application
 commands read-only before fetching the explicitly selected guilds. Their JSON
@@ -14421,8 +14424,11 @@ static allowlist; dynamic onboarding needs an explicit safe bootstrap path.
   auditable guild settings and onboarding. Recommended sequencing is to finish
   modernization first, then inventory and separate mutable guild policy from
   bootstrap/security authority before choosing a Discord or web frontend.
-- Next action: commit the roadmap/runbook evidence, merge the reviewed unit
-  into accumulation, add the clean close-out checkpoint, and push.
+- Integrated the reviewed unit into accumulation at merge checkpoint
+  `4a645ed`. Next recommended: implement B1's fail-closed production timezone
+  migration plan/apply/verify tooling with offline and development-target
+  safety tests, but do not run it against production. Also ready: B2's
+  modernization-specific cutover/rollback runbook and enforcement test.
 
 ### 2026-08-10 — P9.13 supervised native restart implemented and reviewed
 
