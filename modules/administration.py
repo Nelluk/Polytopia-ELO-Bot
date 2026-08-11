@@ -1214,7 +1214,7 @@ class administration(commands.Cog):
         )
 
     @operator_guild_group.command(
-        name='draft',
+        name='edit',
         description='Privately create, edit, and validate an inactive draft.',
     )
     async def operator_guild_draft_slash(

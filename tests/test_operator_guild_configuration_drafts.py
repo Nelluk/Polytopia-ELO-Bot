@@ -410,7 +410,9 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
         )
-        self.command = operator.get_command('guild').get_command('draft')
+        guild = operator.get_command('guild')
+        self.command = guild.get_command('edit')
+        self.assertIsNone(guild.get_command('draft'))
 
     async def test_non_owner_denial_is_private_and_does_not_defer(self):
         interaction = SimpleNamespace(

@@ -118,7 +118,7 @@ class DraftConfirmationModal(discord.ui.Modal):
 class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This guild-configuration draft workspace expired. Run '
-        '`/operator guild draft` again.'
+        '`/operator guild edit` again.'
     )
 
     def __init__(

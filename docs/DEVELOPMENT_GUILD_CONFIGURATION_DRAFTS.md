@@ -19,7 +19,7 @@ the bot, enroll a guild, synchronize commands, or authorize production work.
   active registry, immutable revisions, protected audit history, runtime
   snapshot, Discord objects, or application-command tree.
 
-The private `/operator guild draft` workspace exposes Create/Reset, Refresh,
+The private `/operator guild edit` workspace exposes Create/Reset, Refresh,
 six section selectors, typed role/channel/category selectors, Validate, and
 Discard. Validation checks the complete document and current same-guild
 Discord role/channel identity. There is deliberately no Activate control in

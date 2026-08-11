@@ -645,7 +645,7 @@ reviewed, and integrated on `codex/p10-6b1-guild-config-drafts` from exact
 clean pushed accumulation base
 `930aa5cb13decc67ac76882057a03b22e07ad551`. The unit adds
 one separately versioned 24-hour draft row per already enrolled guild and one
-private `/operator guild draft` Components v2 workspace. Reset copies the
+private `/operator guild edit` Components v2 workspace. Reset copies the
 exact active revision/generation; typed edits replace a complete canonical
 document using version/digest/base/actor optimistic evidence; validation uses
 the current member-free Discord role/channel snapshot; discard only expires
@@ -15002,7 +15002,7 @@ target, existing P10 schema, live database identity, read-write state, and a
 transaction-scoped advisory lock; partial/drifted state fails closed and
 failure rolls back. There is no destructive down migration.
 
-`/operator guild draft` is current-guild, development/database-authority, and
+`/operator guild edit` is current-guild, development/database-authority, and
 configured-owner only. It publishes one ephemeral requester-bound Components
 v2 workspace with six sections and typed role, channel, category, boolean,
 integer, string, optional, nullable-list, and capability controls. Every edit
@@ -15033,7 +15033,7 @@ The operational contract is
 
 Next action: request separate approval for a stopped-beta development-only
 one-table apply and rolled-back lifecycle gate. Do not
-register or deploy `/operator guild draft` until that gate passes. P10.6b2 may
+register or deploy `/operator guild edit` until that gate passes. P10.6b2 may
 then separately design exact activation and post-commit runtime reconciliation;
 rollback remains separately bounded.
 
@@ -16176,6 +16176,11 @@ the application-command tree, or relax P10.5 startup equality. Activation,
 post-commit runtime reconciliation, rollback-to-revision, enrollment, and
 delegation each remain separately reviewed boundaries.
 
+The public command name is `/operator guild edit`; “draft” remains the name of
+the inactive persistence state shown inside the editor. No temporary
+`/operator guild draft` alias is retained because the command had not yet been
+registered when Nelluk selected the clearer action-oriented name.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16339,6 +16344,9 @@ deferred into this post-modernization backlog.
 - Nelluk briefly exercised all four P10.6a owner commands and reported that
   they appeared to work correctly; no defect was reported from that bounded
   manual acceptance pass.
+- Before first P10.6b1 registration, Nelluk selected the clearer public name
+  `/operator guild edit`. The underlying saved state remains an inactive
+  draft, and no temporary `/operator guild draft` alias is retained.
 - Created `codex/p10-6b1-guild-config-drafts` from exact clean local/tracking/
   GitHub accumulation checkpoint
   `930aa5cb13decc67ac76882057a03b22e07ad551` and ran the required development
@@ -16350,7 +16358,7 @@ deferred into this post-modernization backlog.
   actor, digest, and 24-hour expiry. Partial/drifted schema, wrong target,
   read-only apply, and stale/expired optimistic writes fail closed. Discard
   expires and version-bumps; it never deletes authoritative history.
-- Added private `/operator guild draft` preview/edit tooling for the current
+- Added private `/operator guild edit` preview/edit tooling for the current
   already enrolled guild. The six-section Components v2 workspace uses typed
   role/channel/category selectors, complete-document validation, names plus
   IDs, Reset, Refresh, Validate, and Discard. It has no Activate control and
