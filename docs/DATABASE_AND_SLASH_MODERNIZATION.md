@@ -491,8 +491,9 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.21 final-adversarial-review release blockers is
-Tier-3 reviewed and accepted on `codex/p9-21-final-review-blockers`, from exact
-clean accumulation checkpoint
+Complete in accumulation at merge checkpoint
+`3d40851ef9a2f199305d5b6a090a82d98e6f9402`. The accepted unit was built on
+`codex/p9-21-final-review-blockers`, from exact clean accumulation checkpoint
 `92702262de60b7e7a73e6ec9d5286ba9d5b54419`. The external GitHub-only
 review inspected exact checkpoint
 `55eeb84951085ff55bdbe2eeca4a33519b942c4b`; the only subsequent branch delta
@@ -507,7 +508,7 @@ plan/apply/confirmation tool, and requires explicit nonempty production
 is authorized. Implementation/tests checkpoint `e532ce4` passes 50 focused
 tests, final complete offline discovery has only the three known DuckDB
 environment failures, and the stopped-writer development gate is green.
-Accumulation integration, beta restart, and close-out remain in progress.**
+Integration evidence, push, beta restart, and close-out remain in progress.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13810,7 +13811,7 @@ gates close.
 
 ### P9.21 — Final adversarial-review startup authority blockers
 
-Status: **Tier-3 reviewed and accepted; accumulation integration pending**
+Status: **Complete in accumulation; integration evidence and beta startup pending**
 
 Branch/base: `codex/p9-21-final-review-blockers`, exact clean accumulation base
 `92702262de60b7e7a73e6ec9d5286ba9d5b54419`.
@@ -13888,10 +13889,13 @@ complete read-only contract, repeated cancellation drains the owned worker,
 password values are excluded from dataclass representations and redacted
 output, and production remains unreachable from the bootstrap gate.
 
-Next action: commit this evidence, integrate and push the accumulation branch,
-then start the durable development beta once at the accepted clean checkpoint
-and verify the new startup preflight. M7/R-002 remains blocked until this unit
-is fully accumulated and runtime-verified.
+The accepted unit merged into accumulation at
+`3d40851ef9a2f199305d5b6a090a82d98e6f9402` without conflict.
+
+Next action: commit and push the integration checkpoint, then start the durable
+development beta once at that accepted clean checkpoint and verify the new
+startup preflight. M7/R-002 remains blocked until the unit is pushed and
+runtime-verified.
 
 ## Standard work-unit template
 
@@ -15058,6 +15062,10 @@ deferred into this post-modernization backlog.
   schema apply, dependency, owned beta-fixture, or sudo operation occurred. Next:
   evidence commit, accumulation integration/push, and one clean beta start at
   the accepted integrated checkpoint before M7/R-002.
+- The accepted implementation/evidence checkpoints `e532ce4` and `1eaa809`
+  merged into accumulation without conflict at
+  `3d40851ef9a2f199305d5b6a090a82d98e6f9402`. Integration evidence, push, and
+  the clean beta startup remained the next actions at this checkpoint.
 
 ### 2026-08-11 — Final pre-M7 adversarial-review package prepared
 
