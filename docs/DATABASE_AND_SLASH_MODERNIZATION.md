@@ -14464,6 +14464,8 @@ Branch/base: `codex/p10-1-dynamic-guild-config-design`, exact clean pushed
 accumulation checkpoint `a7ffd6be411a5d9ec28940d4426d5e6e2c86fedb`.
 
 Design checkpoint: `46e4eb151ada2f107f35e4b97a833e01216bde47`.
+Evidence and exact fast-forward integration checkpoint:
+`fc348923cbe54ea116d054a0a17be6f29321b381`.
 
 Risk tier: **Tier 1 documentation/architecture**. The design changes no
 runtime behavior and authorizes no schema or production operation.
@@ -15701,6 +15703,11 @@ deferred into this post-modernization backlog.
   production, or production-configuration operation occurred. Recommended
   next implementation is the offline typed value-object/schema validator with
   no runtime authority switch.
+- Accepted the complete two-commit unit by exact fast-forward into
+  `codex/database-slash-modernization` at
+  `fc348923cbe54ea116d054a0a17be6f29321b381`. The running beta remains on the
+  prior runtime-equivalent checkpoint because this unit changes documentation
+  only; no restart or tester follow-up is warranted.
 
 ### 2026-08-11 — M7 exact-candidate environment blockers cleared
 
