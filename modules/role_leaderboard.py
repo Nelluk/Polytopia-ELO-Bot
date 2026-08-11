@@ -201,13 +201,9 @@ def capture_guild_snapshot(
                     role_ids=member_role_ids,
                 )
             )
-    inactive_name = _setting(int(guild.id), 'inactive_role', None)
-    inactive_role_id = next(
-        (
-            role.role_id for role in roles
-            if inactive_name and role.name == str(inactive_name)
-        ),
-        None,
+    inactive_role = settings.resolve_configured_role(guild, 'inactive_role')
+    inactive_role_id = (
+        int(inactive_role.id) if inactive_role is not None else None
     )
     return roles, tuple(members), inactive_role_id
 

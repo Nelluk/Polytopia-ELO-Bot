@@ -59,6 +59,7 @@ class MemberSnapshot:
     discord_nick: str | None
     display_name: str
     role_names: tuple[str, ...]
+    role_ids: tuple[int, ...] = ()
 
     @property
     def description(self) -> str:
@@ -127,6 +128,7 @@ def is_staff_snapshot(
     guild_id: int,
     requester_id: int,
     role_names: tuple[str, ...],
+    role_ids: tuple[int, ...] = (),
 ) -> bool:
     """Apply the shared existing staff rule to primitive role snapshots."""
 
@@ -140,6 +142,15 @@ def is_staff_snapshot(
         # event-loop check remains useful for immediate UX, but the worker
         # fails closed at the authoritative boundary.
         return False
+    role_ids_for = getattr(settings, 'configured_role_ids', lambda *_args: ())
+    configured_role_ids = {
+        *role_ids_for(int(guild_id), 'helper_roles'),
+        *role_ids_for(int(guild_id), 'mod_roles'),
+    }
+    if configured_role_ids:
+        return bool(
+            configured_role_ids.intersection(int(value) for value in role_ids)
+        )
     configured_roles = {str(role) for role in (*helper_roles, *mod_roles)}
     return bool(configured_roles.intersection(role_names))
 
@@ -151,6 +162,7 @@ def _snapshot_staff(request: PlayerRegistrationRequest) -> bool:
         request.guild_id,
         request.requester_id,
         request.actor.role_names,
+        request.actor.role_ids,
     )
 
 

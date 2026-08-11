@@ -97,7 +97,13 @@ def snapshot_member(member) -> game_join_workers.MemberSnapshot:
 
     roles = tuple(getattr(member, 'roles', ()) or ())
     guild_id = member.guild.id
-    inactive_role_name = settings.guild_setting(guild_id, 'inactive_role')
+    inactive_role = settings.resolve_configured_role(
+        member.guild,
+        'inactive_role',
+    )
+    inactive_role_name = (
+        str(inactive_role.name) if inactive_role is not None else None
+    )
     role_names = tuple(role.name for role in roles)
     return game_join_workers.MemberSnapshot(
         guild_id=guild_id,
@@ -113,7 +119,7 @@ def snapshot_member(member) -> game_join_workers.MemberSnapshot:
         description=_member_description(member),
         inactive_role_name=inactive_role_name,
         inactive_role_present=bool(
-            inactive_role_name and inactive_role_name in role_names
+            inactive_role is not None and inactive_role in roles
         ),
     )
 

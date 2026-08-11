@@ -74,8 +74,7 @@ def can_target_mark_active(actor, target) -> bool:
 
 
 def inactive_role(guild):
-    role_name = settings.guild_setting(int(guild.id), 'inactive_role')
-    return discord.utils.get(guild.roles, name=role_name)
+    return settings.resolve_configured_role(guild, 'inactive_role')
 
 
 def build_join_request(member, guild) -> league_user_workers.LeagueJoinRequest:

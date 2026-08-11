@@ -59,6 +59,7 @@ def profile():
         bullet_enabled=False,
         allowed_guild_ids=(GUILD_ID,),
         server_settings=fixtures.server_settings(),
+        guild_configuration_source='static',
     )
 
 
@@ -389,7 +390,9 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             with mock.patch.object(
                 bot_module.settings, 'runtime_profile', profile(),
             ), mock.patch.object(
-                shadow, 'expected_bundle_from_runtime', return_value=fixtures.bundle(),
+                shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
+            ), mock.patch.object(
+                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
             ), mock.patch.object(
                 shadow, 'request_from_profile', return_value=request(),
             ), mock.patch.object(
@@ -420,7 +423,9 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             with mock.patch.object(
                 bot_module.settings, 'runtime_profile', profile(),
             ), mock.patch.object(
-                shadow, 'expected_bundle_from_runtime', return_value=fixtures.bundle(),
+                shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
+            ), mock.patch.object(
+                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
             ), mock.patch.object(
                 shadow, 'request_from_profile', return_value=request(),
             ), mock.patch.object(
@@ -432,6 +437,67 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, shadow.STATUS_UNAVAILABLE)
         self.assertFalse(result.promotion_ready)
         self.assertTrue(instance._guild_configuration_shadow_complete)
+
+    async def test_database_source_publishes_only_a_current_exact_match(self):
+        instance = self.make_bot()
+        selected = profile()
+        selected.guild_configuration_source = 'database'
+        stored = shadow._stored_values((stored_row(),))
+        result = shadow._compare(fixtures.bundle().imports, stored)
+        run = mock.AsyncMock(return_value=result)
+        activate = mock.Mock()
+        try:
+            with mock.patch.object(
+                bot_module.settings, 'runtime_profile', selected,
+            ), mock.patch.object(
+                bot_module.settings,
+                'activate_database_guild_configuration',
+                activate,
+            ), mock.patch.object(
+                shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
+            ), mock.patch.object(
+                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
+            ), mock.patch.object(
+                shadow, 'request_from_profile', return_value=request(),
+            ), mock.patch.object(
+                shadow, 'run_shadow_comparison', run,
+            ):
+                self.assertIs(
+                    await instance._run_development_guild_configuration_shadow(),
+                    result,
+                )
+        finally:
+            await instance.close()
+        activate.assert_called_once()
+
+    async def test_database_source_never_falls_back_after_unavailable_read(self):
+        instance = self.make_bot()
+        selected = profile()
+        selected.guild_configuration_source = 'database'
+        run = mock.AsyncMock(side_effect=(
+            shadow.GuildConfigurationShadowUnavailable(
+                'database_read_unavailable'
+            )
+        ))
+        try:
+            with mock.patch.object(
+                bot_module.settings, 'runtime_profile', selected,
+            ), mock.patch.object(
+                shadow, 'capture_discord_snapshot', return_value=fixtures.snapshot(),
+            ), mock.patch.object(
+                shadow, 'expected_bundle_from_snapshot', return_value=fixtures.bundle(),
+            ), mock.patch.object(
+                shadow, 'request_from_profile', return_value=request(),
+            ), mock.patch.object(
+                shadow, 'run_shadow_comparison', run,
+            ), self.assertRaisesRegex(
+                RuntimeError,
+                'database guild configuration is unavailable',
+            ):
+                await instance._run_development_guild_configuration_shadow()
+        finally:
+            await instance.close()
+        self.assertFalse(instance._guild_configuration_shadow_complete)
 
     async def test_production_skips_shadow_and_ready_source_invokes_it(self):
         instance = self.make_bot()
@@ -452,6 +518,35 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(
             'await bot._run_development_guild_configuration_shadow()',
             source,
+        )
+
+    async def test_unpublished_database_source_blocks_prefix_and_slash_dispatch(self):
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(
+                is_done=lambda: False,
+                send_message=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        message = SimpleNamespace(guild=SimpleNamespace(id=GUILD_ID))
+        with mock.patch.object(
+            bot_module.settings,
+            'guild_configuration_ready',
+            return_value=False,
+        ), mock.patch.object(
+            bot_module.settings,
+            'guild_setting',
+        ) as guild_setting:
+            self.assertEqual(bot_module.get_prefix(None, message), 'fakeprefix')
+            self.assertFalse(await bot_module.PolyBotCommandTree.interaction_check(
+                None,
+                interaction,
+            ))
+        guild_setting.assert_not_called()
+        interaction.response.send_message.assert_awaited_once_with(
+            'The bot is still validating its server configuration. '
+            'Try the command again in a moment.',
+            ephemeral=True,
         )
 
 

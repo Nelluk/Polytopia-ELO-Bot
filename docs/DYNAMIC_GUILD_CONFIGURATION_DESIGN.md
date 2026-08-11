@@ -1,8 +1,9 @@
 # Dynamic Guild Configuration and Onboarding Design
 
-Status: architecture accepted; migration steps 2 and 3's offline typed
-contract and additive development storage/import are implemented. Runtime-
-authority and operator-control-plane work remain separately bounded.
+Status: architecture accepted; migration steps 2 through 5's offline typed
+contract, additive development storage/import, shadow comparison, and explicit
+development authority switch are implemented. Operator-control-plane work
+remains separately bounded.
 
 This document defines a safe replacement for PolyBot's hand-edited
 `server_settings.py` / `server_settings_dev.py` guild dictionaries. It is an
@@ -368,9 +369,12 @@ Each step is a separate bounded unit with its own review and evidence.
    bounded read-only worker-owned connection. Publish one immutable
    matched/mismatch/malformed/unavailable result; static remains authoritative
    and only an exact semantic match permits consideration of promotion.
-5. **Per-profile authority switch.** Explicitly select database authority in
-   development, preserve a static rollback switch, and prove startup,
-   event-loop, connection, cancellation, and malformed-row behavior.
+5. **Per-profile authority switch (complete in P10.5).** Development requires
+   an exact pre-start `static` or `database` selector. Database mode reuses the
+   current-process P10.4 match, gates command dispatch until one immutable
+   snapshot is published, uses stable role IDs for authorization/effects, and
+   stops startup without fallback on every non-match. Static rollback is an
+   explicit selector change plus restart; production cannot select database.
 6. **Owner control plane.** Add preview/validate/activate/history/rollback for
    already enrolled guilds. Keep enrollment and command deployment separate.
 7. **Quarantined onboarding.** Only after the control plane is proven, replace

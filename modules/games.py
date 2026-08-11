@@ -560,13 +560,10 @@ class polygames(commands.Cog):
             result.incomplete_count
             and member.guild.id == settings.server_ids['polychampions']
         ):
-            helper_role_names = (
-                settings.guild_setting(member.guild.id, 'helper_roles') or ()
+            helper_role = settings.resolve_configured_role(
+                member.guild,
+                'helper_roles',
             )
-            helper_role_name = (
-                helper_role_names[0] if helper_role_names else None
-            )
-            helper_role = discord.utils.get(member.guild.roles, name=helper_role_name)
             helper_mention = helper_role.mention if helper_role else 'Staff'
             try:
                 await utilities.send_to_log_channel(
@@ -649,9 +646,9 @@ class polygames(commands.Cog):
                 ban_result.player_id,
             )
 
-        inactive_role = discord.utils.get(
-            before.guild.roles,
-            name=settings.guild_setting(before.guild.id, 'inactive_role'),
+        inactive_role = settings.resolve_configured_role(
+            before.guild,
+            'inactive_role',
         )
         inactive_applied = (
             inactive_role is not None

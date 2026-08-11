@@ -4,8 +4,13 @@ import datetime
 from discord.ext import commands
 import discord
 import re
+from types import MappingProxyType
 from runtime_config import get_runtime_profile
-from modules.application_command_policy import policy_from_server_settings
+from modules.application_command_policy import (
+    build_capability_policy,
+    policy_from_server_settings,
+)
+from modules import guild_configuration_runtime
 from modules.elo_jobs import elo_job_coordinator
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -27,14 +32,26 @@ server_ids = server_settings.server_shortcut_ids
 bot_id_beta = 479029527553638401
 bot_id = runtime_profile.expected_bot_id
 
-config = server_settings.server_list  # list of allowed servers and server-level settings
-application_command_policy = policy_from_server_settings(
-    server_settings,
-    runtime_profile.allowed_guild_ids,
+guild_configuration_source = runtime_profile.guild_configuration_source
+# Database-selected processes expose no static guild allowlist or settings
+# while their exact startup snapshot is still being validated.
+config = (
+    server_settings.server_list
+    if guild_configuration_source == 'static'
+    else MappingProxyType({})
+)
+application_command_policy = (
+    policy_from_server_settings(
+        server_settings,
+        runtime_profile.allowed_guild_ids,
+    )
+    if guild_configuration_source == 'static'
+    else build_capability_policy({}, runtime_profile.allowed_guild_ids)
 )
 bot = None
 run_tasks = runtime_profile.background_tasks_enabled
 maintenance_mode = False  # if set as True bot will ignore all commands (TODO: respond to all commands?)
+_database_guild_configuration = None
 team_elo_reset_date = '1/1/2020'
 
 moonrise_reset_date = datetime.date(2020, 12, 1)
@@ -170,6 +187,10 @@ def tier_lookup(lookup_key):
 
 
 def get_setting(setting_name):
+    if _database_guild_configuration is not None:
+        raise exceptions.CheckFailedError(
+            'A guild ID is required for database-backed configuration.'
+        )
     return config['default'][setting_name]
 
 
@@ -188,10 +209,95 @@ def guild_setting(guild_id: int, setting_name: str):
         try:
             return settings_obj[setting_name]
         except KeyError:
+            if _database_guild_configuration is not None:
+                logger.error(
+                    'Complete database guild configuration %s is missing %s.',
+                    guild_id,
+                    setting_name,
+                )
+                raise exceptions.CheckFailedError(
+                    'The active guild configuration is incomplete.'
+                )
             return config['default'][setting_name]
 
     else:
+        if _database_guild_configuration is not None:
+            raise exceptions.CheckFailedError(
+                'A guild ID is required for database-backed configuration.'
+            )
         return config['default'][setting_name]
+
+
+def guild_configuration_ready() -> bool:
+    """Return whether the explicitly selected source is published for reads."""
+
+    return (
+        guild_configuration_source == 'static'
+        or _database_guild_configuration is not None
+    )
+
+
+def activate_database_guild_configuration(snapshot) -> None:
+    """Atomically expose one already validated immutable database snapshot."""
+
+    global _database_guild_configuration, config, application_command_policy
+    if guild_configuration_source != 'database':
+        raise RuntimeError(
+            'Database guild configuration was not selected before startup.'
+        )
+    if not isinstance(
+            snapshot,
+            guild_configuration_runtime.GuildConfigurationRuntimeSnapshot,
+    ):
+        raise TypeError('A validated database runtime snapshot is required.')
+    if _database_guild_configuration is not None:
+        if _database_guild_configuration != snapshot:
+            raise RuntimeError(
+                'Database guild configuration is already published.'
+            )
+        return
+    # Commands are still startup-gated here. Publish the single source
+    # reference first; the compatibility mapping and command policy are views
+    # contained in that same immutable snapshot.
+    _database_guild_configuration = snapshot
+    config = snapshot.legacy_config
+    application_command_policy = snapshot.command_policy
+
+
+def configured_role_ids(guild_id: int, setting_name: str) -> tuple[int, ...]:
+    """Return stable configured IDs when database authority is active."""
+
+    snapshot = _database_guild_configuration
+    if snapshot is None:
+        return ()
+    try:
+        return snapshot.guilds[int(guild_id)].role_ids[setting_name]
+    except KeyError as exc:
+        raise exceptions.CheckFailedError(
+            'The active guild role configuration is unavailable.'
+        ) from exc
+
+
+def resolve_configured_role(guild, setting_name: str, index: int = 0):
+    """Resolve one configured role by stable ID or the retained static name."""
+
+    role_ids = configured_role_ids(int(guild.id), setting_name)
+    if role_ids:
+        if index < 0 or index >= len(role_ids):
+            return None
+        get_role = getattr(guild, 'get_role', None)
+        if callable(get_role):
+            return get_role(role_ids[index])
+        return discord.utils.get(getattr(guild, 'roles', ()), id=role_ids[index])
+    configured = guild_setting(int(guild.id), setting_name)
+    values = (
+        tuple(configured or ())
+        if setting_name != 'inactive_role'
+        else (() if configured is None else (configured,))
+    )
+    if index < 0 or index >= len(values):
+        return None
+    return discord.utils.get(getattr(guild, 'roles', ()), name=values[index])
 
 
 def servers_included_in_global_lb():
@@ -199,10 +305,27 @@ def servers_included_in_global_lb():
     return [server for server, settings in config.items() if settings.get('include_in_global_lb', False)]
 
 
-def get_matching_roles(discord_member, list_of_role_names):
-    # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
-    member_roles = [x.name for x in discord_member.roles]
-    return set(member_roles).intersection(list_of_role_names)
+def get_matching_roles(discord_member, configured_roles):
+    """Match configured role names/IDs without broadening either source."""
+
+    member_roles = tuple(getattr(discord_member, 'roles', ()) or ())
+    member_names = {str(role.name) for role in member_roles}
+    member_ids = {int(role.id) for role in member_roles}
+    return {
+        configured
+        for configured in configured_roles
+        if (
+            isinstance(configured, int) and not isinstance(configured, bool)
+            and configured in member_ids
+        ) or (
+            isinstance(configured, str) and configured in member_names
+        )
+    }
+
+
+def _permission_roles(guild_id: int, setting_name: str):
+    role_ids = configured_role_ids(guild_id, setting_name)
+    return role_ids or guild_setting(guild_id, setting_name)
 
 
 levels_info = ('***Level 1*** - *Join ranked games up to 3 players, unranked games up to 6 players. Host games up to 3 players.*\n\n'
@@ -218,13 +341,13 @@ def get_user_level(member):
         return 6
     if is_staff(member):
         return 5
-    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_4')):
+    if get_matching_roles(member, _permission_roles(member.guild.id, 'user_roles_level_4')):
         return 4  # advanced matchmaking abilities (leave own match, join others to match). can use settribes in bulk
-    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_3')):
+    if get_matching_roles(member, _permission_roles(member.guild.id, 'user_roles_level_3')):
         return 3  # host/join any
-    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_2')):
+    if get_matching_roles(member, _permission_roles(member.guild.id, 'user_roles_level_2')):
         return 2  # join ranked games up to 6p, unranked up to 12p
-    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_1')):
+    if get_matching_roles(member, _permission_roles(member.guild.id, 'user_roles_level_1')):
         return 1  # join ranked games up to 3p, unranked up to 6p. no hosting
     return 0
 
@@ -254,8 +377,8 @@ def is_staff(member):
 
     if member.id == owner_id:
         return True
-    helper_roles = guild_setting(member.guild.id, 'helper_roles')
-    mod_roles = guild_setting(member.guild.id, 'mod_roles')
+    helper_roles = _permission_roles(member.guild.id, 'helper_roles')
+    mod_roles = _permission_roles(member.guild.id, 'mod_roles')
 
     target_match = get_matching_roles(member, helper_roles + mod_roles)
     return len(target_match) > 0
@@ -265,7 +388,7 @@ def is_mod(member):
 
     if member.id == owner_id:
         return True
-    mod_roles = guild_setting(member.guild.id, 'mod_roles')
+    mod_roles = _permission_roles(member.guild.id, 'mod_roles')
 
     target_match = get_matching_roles(member, mod_roles)
     return len(target_match) > 0

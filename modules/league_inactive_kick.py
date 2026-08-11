@@ -68,12 +68,21 @@ def _role_names(setting_value) -> tuple[str, ...]:
     return tuple(str(name) for name in (setting_value or ()) if str(name))
 
 
-def protected_role_names(guild_id: int) -> tuple[str, ...]:
-    names = (
-        _role_names(settings.guild_setting(guild_id, 'mod_roles'))
-        + _role_names(settings.guild_setting(guild_id, 'helper_roles'))
-        + PROTECTED_LEADERSHIP_ROLE_NAMES
-    )
+def protected_role_names(guild) -> tuple[str, ...]:
+    configured = []
+    for setting_name in ('mod_roles', 'helper_roles'):
+        role_ids = settings.configured_role_ids(int(guild.id), setting_name)
+        if role_ids:
+            configured.extend(
+                str(role.name)
+                for role_id in role_ids
+                if (role := guild.get_role(role_id)) is not None
+            )
+        else:
+            configured.extend(_role_names(
+                settings.guild_setting(int(guild.id), setting_name)
+            ))
+    names = tuple(configured) + PROTECTED_LEADERSHIP_ROLE_NAMES
     return tuple(dict.fromkeys(names))
 
 
@@ -89,11 +98,7 @@ def capture_request(*, member, guild) -> workers.InactiveKickPreviewRequest:
     error = access_error(member, guild.id)
     if error:
         raise workers.InactiveKickPermissionError(error)
-    inactive_name = settings.guild_setting(guild.id, 'inactive_role')
-    inactive_role = discord.utils.get(
-        getattr(guild, 'roles', ()),
-        name=inactive_name,
-    )
+    inactive_role = settings.resolve_configured_role(guild, 'inactive_role')
     if inactive_role is None:
         raise workers.InactiveKickError(
             'The configured Inactive role could not be resolved.'
@@ -141,7 +146,7 @@ def capture_request(*, member, guild) -> workers.InactiveKickPreviewRequest:
         inactive_role_id=int(inactive_role.id),
         inactive_role_name=str(inactive_role.name),
         starter_role_names=STARTER_ROLE_NAMES,
-        protected_role_names=protected_role_names(int(guild.id)),
+        protected_role_names=protected_role_names(guild),
         members=tuple(snapshots),
     )
 

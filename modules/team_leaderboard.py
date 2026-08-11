@@ -172,7 +172,10 @@ def build_request(
     """Capture Discord/config primitives for one bounded team read."""
 
     guild_id = int(guild.id)
-    inactive_role_name = _setting(guild_id, 'inactive_role', None)
+    inactive_role = settings.resolve_configured_role(guild, 'inactive_role')
+    inactive_role_name = (
+        str(inactive_role.name) if inactive_role is not None else None
+    )
     return team_leaderboard_workers.TeamLeaderboardRequest(
         guild_id=guild_id,
         database_guild_id=_database_guild_id(guild_id),

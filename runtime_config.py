@@ -14,6 +14,7 @@ from typing import Mapping, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SUPPORTED_ENVIRONMENTS = ('production', 'development')
+SUPPORTED_GUILD_CONFIGURATION_SOURCES = ('static', 'database')
 LEGACY_PRODUCTION_BOT_ID = 484067640302764042
 DEVELOPMENT_PLACEHOLDER_ID = 123456789012345678
 KNOWN_PRODUCTION_GUILD_IDS = frozenset({
@@ -49,6 +50,7 @@ class RuntimeProfile:
     pastebin_key: Optional[str] = field(repr=False)
     server_settings_module: str
     server_settings: ModuleType
+    guild_configuration_source: str
     allowed_guild_ids: Tuple[int, ...]
     shared_production_guild_ids: Tuple[int, ...]
     background_tasks_enabled: bool
@@ -171,6 +173,35 @@ def _boolean_setting(
         raise RuntimeConfigurationError(
             f'Setting {key!r} in {config_path} must be true or false.'
         ) from exc
+
+
+def _guild_configuration_source(
+        parser: configparser.ConfigParser,
+        environment: str,
+        config_path: Path) -> str:
+    """Select the pre-start guild-policy authority for one process.
+
+    P10.5 permits database authority only in development. Production retains
+    its compatibility-safe static default until a separately approved
+    production import/canary unit makes its own selector explicit.
+    """
+
+    raw = parser['DEFAULT'].get('guild_configuration_source')
+    if environment == 'production' and raw is None:
+        return 'static'
+    value = '' if raw is None else raw
+    if value not in SUPPORTED_GUILD_CONFIGURATION_SOURCES:
+        raise RuntimeConfigurationError(
+            'Setting \'guild_configuration_source\' in '
+            f'{config_path} must be exactly "static" or "database"; '
+            f'received {value!r}.'
+        )
+    if environment != 'development' and value != 'static':
+        raise RuntimeConfigurationError(
+            'Database guild configuration authority is development-only '
+            'until a separately approved production unit.'
+        )
+    return value
 
 
 def _read_config(config_path: Path) -> configparser.ConfigParser:
@@ -568,6 +599,11 @@ def load_runtime_profile(
         pastebin_key=defaults.get('pastebin_key', '').strip() or None,
         server_settings_module=module_name,
         server_settings=server_settings,
+        guild_configuration_source=_guild_configuration_source(
+            parser,
+            environment,
+            config_path,
+        ),
         allowed_guild_ids=allowed_guild_ids,
         shared_production_guild_ids=shared_production_guild_ids,
         background_tasks_enabled=_boolean_setting(
@@ -627,6 +663,7 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
         f'database host: {host}',
         f'database port: {port}',
         f'server-settings module: {profile.server_settings_module}',
+        f'guild configuration source: {profile.guild_configuration_source}',
         f'allowed guild IDs: {guilds}',
         f'acknowledged shared production guild IDs: {shared_guilds}',
         f'background tasks enabled: {profile.background_tasks_enabled}',

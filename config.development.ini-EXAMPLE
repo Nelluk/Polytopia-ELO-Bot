@@ -1,4 +1,5 @@
 [DEFAULT]
+guild_configuration_source = static
 # Copy this file to config.development.ini and replace every placeholder.
 discord_key = YOUR_DEVELOPMENT_BOT_TOKEN
 expected_bot_id = 123456789012345678

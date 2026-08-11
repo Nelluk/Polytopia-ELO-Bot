@@ -100,6 +100,7 @@ class RuntimeProfileTests(unittest.TestCase):
             'background_tasks_enabled': 'false',
             'api_enabled': 'false',
             'bullet_enabled': 'false',
+            'guild_configuration_source': 'static',
         }
         values.update(overrides)
         filename = (
@@ -182,6 +183,7 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertFalse(profile.background_tasks_enabled)
         self.assertFalse(profile.api_enabled)
         self.assertFalse(profile.bullet_enabled)
+        self.assertEqual(profile.guild_configuration_source, 'static')
         self.assertTrue(profile.image_root.is_dir())
         self.assertTrue(profile.log_root.is_dir())
         self.assertEqual(
@@ -306,11 +308,62 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertIn('polytopia_dev', summary)
         self.assertIn(str(DEVELOPMENT_GUILD_ID), summary)
         self.assertIn('authorized superuser identities: 1', summary)
+        self.assertIn('guild configuration source: static', summary)
         self.assertNotIn('development-secret-token', summary)
         self.assertNotIn('development-secret-password', summary)
         self.assertNotIn('database user', summary.lower())
         self.assertNotIn('development-secret-token', repr(profile))
         self.assertNotIn('development-secret-password', repr(profile))
+
+    def test_development_database_source_is_explicit_and_exact(self):
+        self.write_server_settings('development')
+        self.write_config(
+            'development',
+            guild_configuration_source='database',
+        )
+        self.assertEqual(
+            self.load_development().guild_configuration_source,
+            'database',
+        )
+
+        for value in (None, '', 'Database', 'unknown'):
+            with self.subTest(value=value):
+                self.write_config(
+                    'development',
+                    guild_configuration_source=value,
+                )
+                with self.assertRaisesRegex(
+                    RuntimeConfigurationError,
+                    'must be exactly',
+                ):
+                    self.load_development()
+
+    def test_production_database_source_is_refused_and_missing_is_static(self):
+        self.write_server_settings('production', OTHER_GUILD_ID)
+        self.write_config(
+            'production',
+            guild_configuration_source='database',
+        )
+        with self.assertRaisesRegex(
+            RuntimeConfigurationError,
+            'development-only',
+        ):
+            load_runtime_profile(
+                project_root=self.root,
+                environ={'POLYBOT_ENV': 'production'},
+                create_directories=False,
+            )
+
+        self.write_config(
+            'production',
+            guild_configuration_source=None,
+        )
+        profile = load_runtime_profile(
+            project_root=self.root,
+            environ={'POLYBOT_ENV': 'production'},
+            create_directories=False,
+        )
+        self.assertEqual(profile.guild_configuration_source, 'static')
 
     def test_development_database_requires_clear_marker(self):
         self.write_config('development', psql_db='polytopia')

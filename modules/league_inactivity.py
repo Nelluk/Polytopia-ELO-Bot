@@ -43,14 +43,25 @@ def access_error(member, guild_id: int) -> str | None:
     return None
 
 
-def _protected_role_names(guild_id: int) -> tuple[str, ...]:
-    configured_mod_roles = tuple(
-        str(name)
-        for name in (
-            settings.guild_setting(int(guild_id), 'mod_roles') or ()
-        )
-        if str(name)
+def _protected_role_names(guild) -> tuple[str, ...]:
+    configured_ids = settings.configured_role_ids(
+        int(guild.id),
+        'mod_roles',
     )
+    if configured_ids:
+        configured_mod_roles = tuple(
+            str(role.name)
+            for role_id in configured_ids
+            if (role := guild.get_role(role_id)) is not None
+        )
+    else:
+        configured_mod_roles = tuple(
+            str(name)
+            for name in (
+                settings.guild_setting(int(guild.id), 'mod_roles') or ()
+            )
+            if str(name)
+        )
     return tuple(dict.fromkeys(
         configured_mod_roles + PROTECTED_LEADERSHIP_ROLE_NAMES
     ))
@@ -69,17 +80,13 @@ def capture_request(*, member, guild) -> workers.InactivityPreviewRequest:
     if error:
         raise workers.LeagueInactivityPermissionError(error)
 
-    inactive_role_name = settings.guild_setting(guild.id, 'inactive_role')
-    inactive_role = discord.utils.get(
-        getattr(guild, 'roles', ()),
-        name=inactive_role_name,
-    )
+    inactive_role = settings.resolve_configured_role(guild, 'inactive_role')
     if inactive_role is None:
         raise workers.LeagueInactivityError(
             'The configured Inactive role could not be resolved.'
         )
 
-    protected_names = _protected_role_names(guild.id)
+    protected_names = _protected_role_names(guild)
     live_role_names = {
         str(role.name) for role in getattr(guild, 'roles', ())
     }

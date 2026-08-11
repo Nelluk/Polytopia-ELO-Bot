@@ -44,12 +44,20 @@ def capture_member_snapshot(member) -> workers.MemberSnapshot:
             if getattr(role, 'name', None) is not None
         )
     )
+    role_ids = tuple(
+        sorted(
+            int(role.id)
+            for role in (getattr(member, 'roles', None) or ())
+            if getattr(role, 'id', None) is not None
+        )
+    )
     return workers.MemberSnapshot(
         discord_id=discord_id,
         discord_name=discord_name,
         discord_nick=discord_nick,
         display_name=display_name,
         role_names=role_names,
+        role_ids=role_ids,
     )
 
 

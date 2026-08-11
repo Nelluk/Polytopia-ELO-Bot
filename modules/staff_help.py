@@ -99,20 +99,20 @@ def resolve_production_route(bot: Any, guild_id: int) -> ProductionStaffHelpRout
         raise StaffHelpConfigurationError(
             'This server has no configured helper role.'
         )
-    helper_role_name = configured_roles[0]
-    if not isinstance(helper_role_name, str) or not helper_role_name.strip():
-        raise StaffHelpConfigurationError(
-            'This server has no valid configured helper role.'
-        )
-    helper_role_name = helper_role_name.strip()
-    helper_role = discord.utils.get(
-        getattr(guild, 'roles', ()),
-        name=helper_role_name,
+    helper_role = settings.resolve_configured_role(
+        guild,
+        'helper_roles',
     )
     if helper_role is None:
         raise StaffHelpConfigurationError(
             'This server helper role is unavailable.'
         )
+    helper_role_name = getattr(helper_role, 'name', None)
+    if not isinstance(helper_role_name, str) or not helper_role_name.strip():
+        raise StaffHelpConfigurationError(
+            'This server has no valid configured helper role.'
+        )
+    helper_role_name = helper_role_name.strip()
     is_default = getattr(helper_role, 'is_default', None)
     if helper_role_name == '@everyone' or (
             callable(is_default) and is_default()):

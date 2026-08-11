@@ -5,7 +5,9 @@ created by P10.3 and the effective static development settings. It gathers
 the ready Discord cache's bounded role/channel identity, resolves legacy role
 names, loads stored rows on a dedicated worker-owned PostgreSQL connection,
 and publishes only an immutable health result. Static settings remain the
-sole runtime authority.
+sole runtime authority during P10.4. P10.5 reuses this exact comparison as the
+required publication gate when the development profile explicitly selects
+`database`; see `DEVELOPMENT_GUILD_CONFIGURATION_AUTHORITY.md`.
 
 ## Fixed boundary
 
@@ -47,7 +49,10 @@ evidence. Stored documents and their own digests are always revalidated.
 Failure output is bounded and redacted to status/reason codes, guild IDs, and
 changed document paths. Unexpected implementation failures retain a traceback
 only in the host log and publish the safe `shadow_runtime_failure` reason.
-None of these states silently changes `settings.config` or `guild_setting()`.
+Under static authority, none of these states changes `settings.config` or
+`guild_setting()`. Under P10.5's explicit database source, only `matched`
+publishes the immutable database snapshot; every other state stops startup
+without automatic static fallback.
 
 ## Validation and beta operation
 

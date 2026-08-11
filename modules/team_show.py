@@ -172,7 +172,7 @@ def build_request(
 
     guild_id = int(guild.id)
     team_enabled = bool(_setting(guild_id, 'allow_teams', False))
-    inactive_role = _setting(guild_id, 'inactive_role', None)
+    inactive_role = settings.resolve_configured_role(guild, 'inactive_role')
     return team_show_workers.TeamShowRequest(
         guild_id=guild_id,
         requester_id=int(member.id),
@@ -181,7 +181,9 @@ def build_request(
         team_enabled=team_enabled,
         channel_allowed=_channel_allowed(member, guild_id, channel_id),
         leadership_enabled=_leadership_enabled(guild_id),
-        inactive_role_name=str(inactive_role) if inactive_role else None,
+        inactive_role_name=(
+            str(inactive_role.name) if inactive_role is not None else None
+        ),
         guild_snapshot=capture_guild_snapshot(guild),
         team_elo_reset_label=str(getattr(settings, 'team_elo_reset_date', '')),
         requester_description=team_emoji.capture_actor(member).identity,

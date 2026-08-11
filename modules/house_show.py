@@ -107,8 +107,11 @@ def build_request(
         league_scope=_league_scope(guild_id),
         channel_allowed=_channel_allowed(member, guild_id, channel_id),
         inactive_role_name=(
-            str(_setting(guild_id, 'inactive_role'))
-            if _setting(guild_id, 'inactive_role')
+            str(inactive.name)
+            if (inactive := settings.resolve_configured_role(
+                guild,
+                'inactive_role',
+            )) is not None
             else None
         ),
         guild_snapshot=capture_guild_snapshot(guild),

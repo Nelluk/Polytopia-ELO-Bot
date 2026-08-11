@@ -128,6 +128,19 @@ def main(args: List[str] = None):
 
 class PolyBotCommandTree(discord.app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not getattr(settings, 'guild_configuration_ready', lambda: True)():
+            message = (
+                'The bot is still validating its server configuration. '
+                'Try the command again in a moment.'
+            )
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+            return False
         if not settings.maintenance_mode:
             return True
         message = 'The bot is restarting. Try the command again in a moment.'
@@ -316,7 +329,7 @@ class MyBot(commands.Bot):
             return result
 
     async def _run_development_guild_configuration_shadow(self):
-        """Compare stored and static guild settings once without switching authority."""
+        """Compare once and publish only an explicitly selected DB authority."""
 
         profile = settings.runtime_profile
         if profile.environment != 'development':
@@ -335,9 +348,13 @@ class MyBot(commands.Bot):
                 'modules.guild_configuration_shadow'
             )
             try:
-                bundle = shadow.expected_bundle_from_runtime(
+                discord_snapshot = shadow.capture_discord_snapshot(
                     profile=profile,
                     guilds=tuple(self.guilds),
+                )
+                bundle = shadow.expected_bundle_from_snapshot(
+                    profile=profile,
+                    discord_snapshot=discord_snapshot,
                 )
                 request = shadow.request_from_profile(
                     profile=profile,
@@ -364,8 +381,56 @@ class MyBot(commands.Bot):
                     'shadow_runtime_failure',
                 )
             self.guild_configuration_shadow_result = result
-            self._guild_configuration_shadow_complete = True
-            if result.promotion_ready:
+            database_selected = (
+                getattr(profile, 'guild_configuration_source', 'static')
+                == 'database'
+            )
+            if database_selected and result.promotion_ready:
+                runtime = importlib.import_module(
+                    'modules.guild_configuration_runtime'
+                )
+                try:
+                    runtime_snapshot = runtime.build_runtime_snapshot(
+                        result=result,
+                        discord_snapshot=discord_snapshot,
+                        allowed_guild_ids=profile.allowed_guild_ids,
+                    )
+                    settings.activate_database_guild_configuration(
+                        runtime_snapshot
+                    )
+                except Exception as exc:
+                    logger.critical(
+                        'Database guild configuration publication failed; '
+                        'automatic static fallback is disabled.',
+                        exc_info=True,
+                    )
+                    raise RuntimeError(
+                        'Database guild configuration publication failed.'
+                    ) from exc
+                logger.info(
+                    'Guild configuration source=database status=matched '
+                    'guilds=%s generations=%s; immutable runtime snapshot '
+                    'published.',
+                    result.matched_guild_ids,
+                    tuple(
+                        (value.guild_id, value.generation)
+                        for value in result.stored_configurations
+                    ),
+                )
+                self._guild_configuration_shadow_complete = True
+            elif database_selected:
+                logger.critical(
+                    'Guild configuration source=database status=%s '
+                    'promotion_ready=false reason=%s; automatic static '
+                    'fallback is disabled.',
+                    result.status,
+                    result.safe_reason,
+                )
+                raise RuntimeError(
+                    'Selected database guild configuration is unavailable.'
+                )
+            elif result.promotion_ready:
+                self._guild_configuration_shadow_complete = True
                 logger.info(
                     'Guild configuration shadow status=%s promotion_ready=true '
                     'guilds=%s; static settings remain authoritative.',
@@ -373,6 +438,7 @@ class MyBot(commands.Bot):
                     result.matched_guild_ids,
                 )
             else:
+                self._guild_configuration_shadow_complete = True
                 logger.error(
                     'Guild configuration shadow status=%s promotion_ready=false '
                     'expected_guilds=%s stored_guilds=%s mismatches=%s reason=%s; '
@@ -519,6 +585,8 @@ class MyBot(commands.Bot):
 
 def get_prefix(bot, message):
     # Guild-specific command prefixes
+    if not getattr(settings, 'guild_configuration_ready', lambda: True)():
+        return 'fakeprefix'
     if message.guild and message.guild.id in settings.config:
         # Current guild is allowed
         set_prefix = settings.guild_setting(message.guild.id, "command_prefix")
@@ -589,7 +657,11 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
 
     @bot.event
     async def on_message(message):
-        if settings.maintenance_mode:
+        if not getattr(settings, 'guild_configuration_ready', lambda: True)():
+            logger.debug(
+                'Ignoring messages while guild configuration is not ready.'
+            )
+        elif settings.maintenance_mode:
             if message.content and message.content.startswith(tuple(get_prefix(bot, message))):
                 logger.debug('Ignoring messages while settings.maintenance_mode is set to True')
         else:
@@ -614,7 +686,16 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             await bot.close()
             raise
 
-        await bot._run_development_guild_configuration_shadow()
+        try:
+            await bot._run_development_guild_configuration_shadow()
+        except Exception:
+            logger.critical(
+                'Guild configuration startup failed; closing before command '
+                'service.',
+                exc_info=True,
+            )
+            await bot.close()
+            raise
 
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print('Successfully logged in and booted...!')

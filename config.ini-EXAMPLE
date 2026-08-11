@@ -1,4 +1,5 @@
 [DEFAULT]
+guild_configuration_source = static
 discord_key = YOURAPIKEYHERE
 # private token from discord developer porter
 expected_bot_id = 484067640302764042

@@ -1,9 +1,9 @@
-"""Development-only startup shadow comparison for guild configuration.
+"""Development-only startup comparison for guild configuration.
 
-Static settings remain authoritative.  This module captures only primitive
-Discord identity data, materializes the effective static document, and loads
-the stored active document through one read-only worker-owned connection.
-Ordinary settings reads never import or call this service.
+P10.4 uses the result as static-authority shadow health. P10.5 may consume an
+exact matched result to build the database-authority runtime snapshot. This
+module still performs no publication and ordinary setting reads never query
+it.
 """
 
 from __future__ import annotations
@@ -83,6 +83,10 @@ class GuildConfigurationShadowResult:
     stored_guild_ids: tuple[int, ...] = ()
     matched_guild_ids: tuple[int, ...] = ()
     mismatches: tuple[GuildConfigurationMismatch, ...] = ()
+    stored_configurations: tuple[StoredGuildConfiguration, ...] = field(
+        default=(),
+        repr=False,
+    )
     safe_reason: str | None = None
 
     @property
@@ -265,12 +269,26 @@ def expected_bundle_from_runtime(
 
     target = target_from_profile(profile)
     snapshot = capture_discord_snapshot(profile=profile, guilds=guilds)
+    return expected_bundle_from_snapshot(
+        profile=profile,
+        discord_snapshot=snapshot,
+    )
+
+
+def expected_bundle_from_snapshot(
+    *,
+    profile: Any,
+    discord_snapshot: Mapping[str, Any],
+) -> storage.ImportBundle:
+    """Materialize static semantics from one already captured live snapshot."""
+
+    target = target_from_profile(profile)
     try:
         return storage.build_import_bundle(
             target=target,
             server_settings=profile.server_settings,
             allowed_guild_ids=profile.allowed_guild_ids,
-            discord_snapshot=snapshot,
+            discord_snapshot=discord_snapshot,
         )
     except storage.GuildConfigurationStorageError as exc:
         raise GuildConfigurationShadowMalformed(
@@ -485,6 +503,7 @@ def _compare(
         stored_guild_ids=stored_ids,
         matched_guild_ids=tuple(matched),
         mismatches=tuple(mismatches),
+        stored_configurations=tuple(stored_values),
     )
 
 
@@ -586,6 +605,7 @@ __all__ = [
     'StoredGuildConfiguration',
     'capture_discord_snapshot',
     'expected_bundle_from_runtime',
+    'expected_bundle_from_snapshot',
     'failure_result',
     'inspect_shadow_configuration',
     'request_from_profile',
