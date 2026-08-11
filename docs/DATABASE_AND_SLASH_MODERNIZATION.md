@@ -490,9 +490,29 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.23b human self-service Beta Lab lanes is
-complete in accumulation and deployed from `a284713e108c80b34e32fb436c879b28e9501e7c`,
-from exact clean base
+Current active unit: **P9.23c guided Beta Lab scenarios is reviewed and
+database-gated on `codex/p9-23c-guided-scenarios`, from exact clean
+local/tracking/GitHub base
+`2cd2544f561d9723c89a537659d592e2b3934456`. Nelluk's first acceptance pass
+found that P9.23b did not explain what to do after lane creation and did not
+place a tester into a realistic Team/House/role persona. This Tier-3 correction
+will replace the ambiguous lane page with selectable tasks containing exact
+slash fields and expected results, a real refresh, and one finish/cleanup
+action. It will add only dedicated zero-permission, exactly owned Beta Lab Team
+and staff-persona roles plus an owned Beta Lab House/Team fixture; existing
+legacy Team roles will not be adopted, reordered, or reassigned. Persona roles
+must correspond to an active owned session, reconcile fail-closed after partial
+Discord/database effects, and be removed during cleanup. Implementation
+checkpoint `5f5e793` passes 100 focused tests, complete offline discovery with
+only the three known missing-DuckDB cases, and the complete 75-test stopped-
+writer PostgreSQL gate with one intentional fixture skip. Accumulation
+integration and development-only setup/deployment remain pending. The
+deployment route is Nelluk-only acceptance: do not ping testers or send a wider
+release until Nelluk has inspected the live workflow and separately approves
+its instructions.**
+
+P9.23b human self-service Beta Lab lanes is complete in accumulation and
+deployed from `a284713e108c80b34e32fb436c879b28e9501e7c`, from exact clean base
 `728a83ec93d1ee2e4f84783e1acf562ccc6db6a2`. Read-only guild inventory found
 that the existing beta server already has the reviewed PolyChamps-shaped
 House/Team resources and that all human testers hold the pinned `testers` role,
@@ -14233,6 +14253,72 @@ successful delivery was the terminal deployment action. No command apply,
 global synchronization, schema migration, dependency change, production
 operation, or post-announcement lifecycle action occurred.
 
+### P9.23c — Guided human scenarios and owned personas
+
+Status: **Implementation reviewed and stopped-writer gate passed; accumulation
+integration and Nelluk-only deployment pending.**
+
+Branch/base: `codex/p9-23c-guided-scenarios`, exact clean accumulation base
+`2cd2544f561d9723c89a537659d592e2b3934456`.
+
+Accepted product boundary: a tester must be able to start one private session,
+choose one clearly described task or work through several, enter every required
+slash field without guessing, see the expected observable result, refresh real
+progress, report a problem with context, and use one finish action that removes
+all exactly owned games and persona roles. The UI must explicitly say that the
+tasks are independent and that the tester may stop after one.
+
+The unit owns one dedicated Beta Lab House/Team database fixture and two
+dedicated zero-permission Discord roles: the Team role supplies realistic
+roster/House inference, while the staff-persona role supplies only the bot's
+development helper classification. The existing pinned `testers` role remains
+the Beta Lab access role but is removed from the development Helper list.
+Existing legacy Team roles and arbitrary member roles are outside mutation
+authority. Setup and cleanup require exact development profile/guild/database,
+repository manifest, role identity/ownership evidence, bounded state, and
+idempotent reconciliation because Discord and PostgreSQL cannot share a
+transaction.
+
+Risk tier: **Tier 3**. Required coverage includes wrong-profile/guild/role and
+unmanageable-role refusal, partial setup and role-application compensation,
+stale/expired/orphan persona reconciliation, exact-owner cleanup, immutable
+worker DTOs, connection ownership, cancellation drainage, event-loop
+responsiveness, exact task text/required win winner field, real refresh,
+requester-only controls, and model-free Discord publication. Complete offline
+and stopped-writer development-PostgreSQL validation are required. Command
+shape is expected to remain unchanged. Deployment is for Nelluk-only
+acceptance with no tester announcement.
+
+Implementation checkpoint `5f5e793` adds a five-pack lab health model, exact
+repository persona manifest, protected live role setup, staged stopped-writer
+House/Team seed with pending evidence and exact reconciliation, four guided
+task pages, real progress reload, one cleanup action, and startup/reconnect/
+panel-expiry revocation. The pinned `testers` role is access-only; `Beta Lab
+Staff` is the temporary development Helper persona and has zero Discord
+permissions. Existing roles, channels, and legacy House/Team rows are never
+adopted or reordered.
+
+Focused validation passes **100 tests**. Complete offline discovery runs
+**1,737 tests: 1,658 pass, 76 are intentionally gated/skipped, and only the
+three documented missing-DuckDB environment cases fail**. The stopped-writer
+gate verified the old development beta as PID `110946`, stopped only its user
+service, and required the host-wide writer audit to report clear. The new
+isolated case and complete exact `development` / `polytopia_dev` /
+`polybot_dev` suite then pass **75 tests: 74 passed and one retained operator-
+fixture round trip skipped intentionally**.
+
+The first complete database run exposed an older P9.23b integration-test
+isolation defect: its retained fixture opponent began with non-canonical era
+ELO, so lane reversal normalized that row rather than restoring the stale
+captured value. The exact test-caused development values were restored under
+identity/row/stale-value checks. The case now owns and cleans both synthetic
+participants, and the complete gate passes. Tier-3 review also corrected
+commit-safe pending evidence, live role readiness in overall health,
+unassignable-role refusal, fail-closed startup and panel expiry, undelivered-
+panel compensation, cancellation drainage, and role removal before lane
+release. No blocking review finding remains. No command shape changed; no
+guild or global command apply is warranted.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15370,6 +15456,37 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.23c guided personas reviewed and database-gated
+
+- Created `codex/p9-23c-guided-scenarios` from exact clean local/tracking/
+  GitHub accumulation checkpoint `2cd2544f561d9723c89a537659d592e2b3934456`
+  and recorded implementation checkpoint `5f5e793`.
+- Replaced the ambiguous lane page with a session home plus independent Team &
+  House, win, confirm, and undo tasks. Each task gives exact slash fields,
+  names instead of bare user IDs, an expected result, real refresh, direct
+  feedback, and one finish/cleanup action.
+- Added exactly owned `Beta Lab House` / `Beta Lab Team` database resources and
+  zero-permission `Beta Lab Team` / `Beta Lab Staff` Discord roles. The pinned
+  `testers` role remains lab access only; the staff persona is leased only to
+  an active requester. Existing Discord and database structures are untouched.
+- Added strict staged Discord/PostgreSQL setup, private ownership evidence,
+  pending commit reconciliation, role assignability checks, bounded orphan
+  removal, startup/reconnect revocation, panel-expiry revocation, cancellation
+  drainage, and undelivered/partial activation compensation.
+- Focused validation passes 100 tests. Complete offline discovery runs 1,737
+  tests with 1,658 passes, 76 intentional skips, and only the exact three
+  missing-DuckDB cases. No dependency was installed or synchronized.
+- Stopped only expected development-beta PID `110946` and required a clear
+  host-wide writer audit. The complete PostgreSQL gate passes 74 of 75 tests
+  with one intentional operator-fixture skip. Review corrected the older lane
+  integration case to own both synthetic participants after its retained
+  opponent exposed an ELO-isolation defect; exact test-caused development
+  values were restored before the green rerun.
+- Complete-diff Tier-3 review found no remaining blocker. Command shape is
+  unchanged. Next: record roadmap evidence, integrate/push accumulation,
+  prepare the exact development-only resources, restart the durable beta, and
+  hand the live private flow to Nelluk without pinging testers.
 
 ### 2026-08-11 — P9.23b self-service Beta Lab reviewed and database-gated
 
