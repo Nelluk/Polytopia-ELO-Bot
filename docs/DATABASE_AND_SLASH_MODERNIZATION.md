@@ -490,27 +490,25 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.21 final-adversarial-review release blockers is
-Complete in accumulation at merge checkpoint
-`3d40851ef9a2f199305d5b6a090a82d98e6f9402`. The accepted unit was built on
-`codex/p9-21-final-review-blockers`, from exact clean accumulation checkpoint
-`92702262de60b7e7a73e6ec9d5286ba9d5b54419`. The external GitHub-only
-review inspected exact checkpoint
-`55eeb84951085ff55bdbe2eeca4a33519b942c4b`; the only subsequent branch delta
-before this unit was the documentation-only post-modernization backlog. It
-found N1 High import/startup schema DDL and N2 Medium production-profile
-literal fallbacks. Both findings reproduce at the current base and block
-M7/R-002. This combined Tier-3 startup authority unit removes model-import
-DDL, adds a model-free worker-owned read-only schema preflight before ban
-reconciliation, moves initial development schema creation behind an explicit
-plan/apply/confirmation tool, and requires explicit nonempty production
-`expected_bot_id` and `psql_password`. No production operation or schema apply
-is authorized. Implementation/tests checkpoint `e532ce4` passes 50 focused
-tests, final complete offline discovery has only the three known DuckDB
-environment failures, and the stopped-writer development gate is green.
-Integration checkpoint `0b4d954` is pushed and the durable development beta
-is healthy at that exact runtime checkpoint. Final documentation close-out is
-in progress.**
+Current active unit: **P9.22 pre-M7 beta testability/readiness is In progress
+on `codex/p9-22-beta-testability`, from exact clean local/tracking/GitHub
+accumulation checkpoint `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
+This Tier-3 unit keeps `/whattotest` public and read-only while adding a live
+immutable readiness summary for the three exactly owned result scenarios.
+It adds private owner-only `/operator beta prepare` for exactly two selected
+registered development members and `/operator beta reset` for the current
+exact owned bundle. Mutations retain the existing environment/database/role/
+guild gates, serialize through the ELO coordinator, revalidate a frozen
+preview under row locks, commit fixture graph plus audit atomically, and never
+adopt or delete ordinary games. Focused validation passes 69 tests; complete
+offline discovery runs 1,686 tests with 1,610 passes, 73 intentional skips,
+and only the three known missing-DuckDB environment cases. The stopped-writer
+development gate passes 71 of 72 tests with the retained owned-fixture round
+trip intentionally skipped; the new real-schema readiness test is read-only.
+The offline desired tree is valid and remote inspection proposes only an
+`operator` root update in guild `478571892832206869`. Complete-diff review,
+unit commits, accumulation integration, guild-scoped apply, beta start, smoke,
+and tester release remain pending.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13918,6 +13916,92 @@ framework without exposing general tester-triggered database seeding. Also
 ready: proceed directly to M7/R-002 exact-candidate freeze if no additional
 beta convenience tooling is desired.
 
+### P9.22 — Pre-M7 beta testability and owned-scenario readiness
+
+Status: **In progress; implementation and stopped-writer validation complete,
+integration/deployment pending**
+
+Branch/base: `codex/p9-22-beta-testability`, exact clean accumulation base
+`a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
+
+This Tier-3 unit makes final-candidate beta testing easier without giving
+testers database-write authority. `/whattotest` remains a no-option,
+development-only, public read. It now defers before a dedicated read worker,
+loads the three existing exact-marker result fixtures through a worker-local
+connection, and prepends immutable scenario status and current game IDs to the
+tracked checklist. A readiness failure does not hide the checklist: it emits a
+clear warning and continues with repository guidance.
+
+The configured owner receives two commands under the existing restricted
+`/operator` capability:
+
+- `/operator beta prepare participant_one participant_two` accepts exactly two
+  distinct, non-bot Discord members who already have development-guild Player
+  rows, and only when no owned result bundle exists; and
+- `/operator beta reset` has no participant options. Its private preview
+  freezes the exact current participants, game IDs, scenario state, and
+  fingerprint, then replaces that exact bundle with canonical Ready,
+  Unconfirmed, and Completed games after confirmation.
+
+Both commands refuse every non-development profile, a live session other than
+`polytopia_dev` / `polybot_dev`, a guild outside the exact allowlist, a
+non-owner requester, an active conflicting ELO job, stale state, duplicated or
+unknown scenario names, more than three owned rows, participant divergence,
+or missing registered participants. Reset locks the exact owned Game rows,
+revalidates the complete snapshot in the transaction, reverses/reconciles ELO
+through the existing Game deletion behavior, recreates all three fixed games,
+and writes its GameLog audit before commit. Ordinary unmarked games are never
+selected. Discord views and checklist rendering receive frozen primitive DTOs,
+not Peewee models. The separate command-line fixture harness remains stopped-
+writer-only and its ignored manifest remains an operator aid rather than
+deletion authority.
+
+Focused coverage exercises profile/owner ordering, exact two-member shape,
+bot-identity refusal, immutable DTOs, canonical/exercised/ambiguous readiness,
+stale fingerprints and IDs, exact state handoff under row lock, audit and
+snapshot rollback, ELO conflict coordination, read cancellation draining,
+event-loop deferral, model-free completion rendering, post-commit publication
+failure state, requester-only controls, timeout/cancel behavior, slash
+taxonomy, checklist fallback, and CLI-runbook safety. The focused set passes
+**69/69**. Compilation and `git diff --check` pass.
+
+Complete offline discovery runs **1,686 tests: 1,610 passed, 73 intentionally
+skipped, and only the three documented missing-`duckdb` environment cases
+failed**: runtime import, dependency inventory, and reporting-export import.
+No dependency was installed or synchronized.
+
+The stopped-writer window reverified the single authorized development beta
+at PID `68691`, active/running with zero restarts and no unreadable processes,
+then stopped only that user service and required a clear host-wide audit. The
+unchanged gate proved exact `development` / `polytopia_dev` / `polybot_dev`
+identity with tasks/API disabled and ran **72 tests: 71 passed and one retained
+operator-fixture round trip intentionally skipped**. The new P9.22 case read
+the existing owned bundle on its own worker connection and proved the relevant
+Game rows unchanged. No fixture mutation, schema action, production access, or
+global Discord operation occurred.
+
+The model-free offline desired-tree plan contains the expected eleven roots.
+Remote read-only inspection found zero global commands and the same eleven
+development-guild roots; the only proposed guild change is an update of the
+existing `operator` root. Apply remains pending until the reviewed unit is
+integrated at a clean accumulation checkpoint.
+
+Tier-3 complete-diff review found and corrected two boundary defects before
+commit: the first draft loaded its terminal fixture snapshot just after the
+transaction, which could leave a committed bundle without a known result if
+that reload failed; the snapshot now loads inside the transaction so failure
+rolls back. The review also bounded readiness/reset discovery to at most four
+rows (`three expected + one overflow`) so oversized marker state refuses
+without an unbounded query. It additionally excludes bot identities from
+participants and applies a per-user cooldown to the newly database-backed
+`/whattotest` read. Final review found no remaining blocker.
+
+Next: finish Tier-3 complete-diff review, commit implementation and evidence,
+merge into accumulation, push, apply only guild `478571892832206869`, start the
+durable beta at the exact clean integrated checkpoint, verify `/whattotest`
+and both operator command shapes, then deliver the reviewed WHAT TO TEST
+announcement as the terminal deployment action.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15055,6 +15139,37 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.22 beta-testability implementation and gates complete
+
+- Reconciled clean local, tracking, and GitHub accumulation at exact checkpoint
+  `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`, created the isolated
+  `codex/p9-22-beta-testability` worktree, and ran its development setup.
+- Added live read-only result-scenario readiness to `/whattotest`; added
+  private owner-only `/operator beta prepare` for two explicit registered
+  development members and no-option `/operator beta reset` for the exact
+  current owned bundle. The CLI remains stopped-writer-only.
+- Kept all writes behind exact profile/live identity/guild/owner gates, the
+  ELO coordinator, worker-local connections, frozen previews, row locks,
+  complete in-transaction snapshot/audit, and exact ownership checks. Ordinary
+  games remain outside authority.
+- Focused validation passes 69 tests. Complete offline discovery runs 1,686
+  tests with 1,610 passes, 73 skips, and only the same three unavailable
+  DuckDB cases. Compilation and diff checks pass.
+- Stopped only the verified beta PID `68691`, required a clear host-wide
+  writer audit, and ran 72 gated development PostgreSQL tests: 71 passed and
+  one retained-fixture round trip skipped. The new readiness case proved its
+  real-schema read made no fixture changes.
+- The offline command plan is valid. Remote read-only inspection found no
+  global commands and proposes only the expected development-guild `operator`
+  root update. No apply, fixture mutation, production action, dependency
+  operation, or announcement has occurred. Next: Tier-3 diff acceptance,
+  commits, accumulation integration/push, guild-only apply, exact-checkpoint
+  beta start/smoke, and terminal tester announcement.
+- Tier-3 review moved the terminal snapshot inside the mutation transaction,
+  bounded owned-row discovery to `expected + 1`, excluded bot participants,
+  and added the `/whattotest` read cooldown. Focused and complete validation
+  were rerun after correction; no remaining review blocker was found.
 
 ### 2026-08-11 — P9.21 final-review startup blockers corrected and reviewed
 
