@@ -25,8 +25,9 @@ backup, test, or health result. Never improvise around a failed gate.
 - Discord application: `484067640302764042`
 - Initial native canary guild: PolyChampions, `478571892832206869`
 - Initial native capabilities: `core_user`, `team`, `league`, `house`, `squad`
-- Initially omitted capabilities: `operator`, `elo_maintenance`,
-  `tools_support`, and `beta_testing`
+- All configured production guilds: `tools_support` exposing only `/staffhelp`
+- Initially omitted capabilities: `operator`, `elo_maintenance`, and
+  `beta_testing`
 - HTTP API: disabled and inactive
 - Legacy prefixes: retained wherever the compatibility ledger says `retain`
 - Global application-command tree: must be empty; this repository has no
@@ -47,9 +48,11 @@ that contains all of the following exact values and evidence:
 - expected redacted runtime identity, configured database role, allowlisted
   guild IDs, and disabled API state;
 - the exact ignored production capability assignment and a diff showing only
-  the approved PolyChampions canary;
-- the exact production support/privacy route, responsible maintainer, and
-  monitoring cadence while `tools_support` is omitted;
+  `/staffhelp` in every configured guild plus the approved PolyChampions
+  canary roots;
+- proof every configured guild's `staff_help_channel` and first
+  `helper_roles` entry resolve to the reviewed private relay destination and
+  configured helper role;
 - fresh R-002 evidence bound to the release commit: complete offline suite,
   stopped-writer development PostgreSQL suite, cutover-critical review, and
   bounded beta matrix;
@@ -91,9 +94,11 @@ check must prove:
 - only reviewed production guilds are allowlisted;
 - PolyChampions `478571892832206869` receives exactly
   `('core_user', 'team', 'league', 'house', 'squad')` for the initial canary;
-- `application_command_all_guild_capabilities` is empty for the initial canary;
-- `operator`, `elo_maintenance`, `tools_support`, and `beta_testing` are not
-  assigned; and
+- `application_command_all_guild_capabilities` is exactly
+  `('tools_support',)`, exposing only `/staffhelp` in every allowlisted guild;
+- every allowlisted guild has a valid `staff_help_channel` and nonempty first
+  `helper_roles` entry;
+- `operator`, `elo_maintenance`, and `beta_testing` are not assigned; and
 - the configured prefix, image root, and log root remain production values.
 
 Do not enable the inactive API, change database credentials, backfill identity
@@ -119,18 +124,20 @@ Complete these before notifying users of downtime:
    It must print only the two schema-qualified additive statements and state
    that no runtime profile, connection, or DDL was used.
 4. Run the application-command desired-state plan offline with exact
-   production selection and the PolyChampions guild:
+   production selection and the release record's comma-separated list of all
+   allowlisted production guild IDs:
 
    ```bash
    POLYBOT_ENV=production \
    .venv/bin/python scripts/manage_application_commands.py \
      --environment production \
      --mode plan \
-     --guild-ids 478571892832206869
+     --guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS
    ```
 
-   Review exact create/update/unchanged/remove roots. The desired roots must
-   match the approved capability record.
+   Review exact create/update/unchanged/remove roots. Every selected guild must
+   receive only `/staffhelp`, except PolyChampions, which also receives the
+   approved user-canary roots. The desired roots must match the release record.
 5. Verify the approved release and rollback commits, lockfile, unit, canary
    drop-in, migration tool, and command manager are present in the reviewed
    Git history. Do not update the production checkout yet.
@@ -138,8 +145,9 @@ Complete these before notifying users of downtime:
    pre-stop backup. Validate custom-format dumps with `pg_restore --list` and
    image archives with `tar -tzf`; timestamps, sizes, and paths must match the
    release record.
-7. Confirm the production support/privacy route and maintenance contact are
-   staffed for the window. Do not promise `/staffhelp` in production.
+7. Confirm every configured production staff-help channel and first Helper role
+   still resolves exactly. Do not proceed if any guild would accept the command
+   without a working private destination and controlled role mention.
 
 Do not announce completion or invite testing at this stage.
 
@@ -362,15 +370,16 @@ five minutes and through one bounded cycle of each enabled recurring task.
 Contain/reconciliation logging must remain healthy. A failed recurring item
 must not terminate its later cycle.
 
-### 7. Inspect and apply only the PolyChampions command canary
+### 7. Inspect and apply all-guild staff help plus the PolyChampions canary
 
 Do this only after retained-prefix production health is established and under
 separate Discord inspection/apply approvals. Stop the production service so a
 second management client does not overlap the running bot.
 
-Run `--mode inspect` for only guild `478571892832206869`. It must report an
-empty global tree and the exact selected-guild diff. A nonempty global tree is
-a hard stop requiring a separately designed cleanup; never bypass the guard.
+Run `--mode inspect` for the exact approved production guild-ID list. It must
+report an empty global tree and each selected guild's exact diff. A nonempty
+global tree is a hard stop requiring a separately designed cleanup; never
+bypass the guard.
 
 Apply only after the reviewed inspect result, using every exact gate:
 
@@ -379,15 +388,17 @@ POLYBOT_ENV=production \
 .venv/bin/python scripts/manage_application_commands.py \
   --environment production \
   --mode apply \
-  --guild-ids 478571892832206869 \
+  --guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS \
   --confirm-environment production \
-  --confirm-guild-ids 478571892832206869 \
+  --confirm-guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS \
   --confirm-scope guild \
   --confirm-no-global-sync
 ```
 
-Immediately inspect again and require convergence for PolyChampions plus an
-empty global tree. No other guild may change.
+Immediately inspect again and require convergence for every selected guild
+plus an empty global tree. Non-PolyChampions guilds may gain only `/staffhelp`;
+PolyChampions may also gain the reviewed canary roots. No unlisted guild may
+change.
 
 Restart the canonical service and repeat identity, checkpoint, PID/restart,
 retained-prefix, API, task, and log health checks. Exercise only the approved
@@ -427,11 +438,12 @@ not drop columns.
 ### Failure after command apply
 
 First restore service health with the reviewed code/config disposition. For a
-native-surface-only failure, set the reviewed PolyChampions capability
-assignment to the rollback desired state—normally empty—then stop the bot,
-plan, inspect, and explicitly apply that guild-only removal with the same exact
-confirmations. Re-inspect convergence and the empty global tree, then restart
-and verify retained prefixes. Never clear or synchronize globally.
+native-surface-only failure, restore both the reviewed PolyChampions assignment
+and all-guild `tools_support` assignment to the rollback desired state, then
+stop the bot, plan, inspect, and explicitly apply only the exact affected
+guilds with the same confirmations. Re-inspect convergence and the empty global
+tree, then restart and verify the rollback's staff-help surface and retained
+prefixes. Never clear or synchronize globally.
 
 ### Database restore
 
@@ -452,7 +464,7 @@ operation merely because local reporting failed.
 For the approved observation window, record service PID/restarts, gateway
 health, database/schema errors, recurring-task cycle health, retained-prefix
 parity, native permission/visibility results, command-tree convergence, and
-support/privacy route checks. Roll back the narrowest independent layer that is
-unhealthy. Expansion to another guild/capability, prefix retirement,
-production `/staffhelp`, API activation, backfill, or destructive cleanup is a
-new unit with separate approval.
+one safe `/staffhelp` relay check per configured guild. Roll back the narrowest
+independent layer that is unhealthy. Expansion to another user-command
+capability, prefix retirement, API activation, backfill, or destructive cleanup
+is a new unit with separate approval.

@@ -74,6 +74,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
             tools_policy.roots_for_guild(10),
             ('staffhelp',),
         )
+        self.assertEqual(tools_policy.families['tools_support'].visibility, 'public')
 
         beta_policy = build_capability_policy({
             10: ('beta_testing',),
@@ -105,6 +106,16 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         self.assertIn('operator', policy.roots_for_guild(10))
         self.assertEqual(policy.roots_for_guild(20), ('operator',))
         self.assertEqual(policy.assigned_guild_ids(), (10, 20))
+
+    def test_staffhelp_capability_can_apply_to_every_allowed_guild(self):
+        policy = build_capability_policy(
+            {10: ('core_user',)},
+            [10, 20],
+            all_guild_capabilities=('tools_support',),
+        )
+
+        self.assertIn('staffhelp', policy.roots_for_guild(10))
+        self.assertEqual(policy.roots_for_guild(20), ('staffhelp',))
 
     def test_all_guild_capabilities_are_explicit_and_fail_closed(self):
         self.assertEqual(

@@ -82,7 +82,8 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('POLYBOT_RELEASE_SHA', runbook)
         self.assertIn('POLYBOT_ROLLBACK_SHA', runbook)
         self.assertIn('unresolved adversarial-review items', runbook)
-        self.assertIn('exact production support/privacy route', runbook)
+        self.assertIn("application_command_all_guild_capabilities` is exactly\n  `('tools_support',)`", runbook)
+        self.assertIn("every allowlisted guild has a valid `staff_help_channel`", runbook)
         self.assertIn('pg_stat_activity', runbook)
         self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
         self.assertIn(
@@ -112,7 +113,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             '### 4. Apply and verify the additive schema',
             '### 5. Run the reviewed task-disabled process canary',
             '### 6. Cleanly stop the canary and start the canonical service',
-            '### 7. Inspect and apply only the PolyChampions command canary',
+            '### 7. Inspect and apply all-guild staff help plus the PolyChampions canary',
             '### 8. Finish and announce',
         )
         positions = [runbook.index(marker) for marker in ordered_markers]

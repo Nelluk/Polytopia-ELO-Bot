@@ -247,7 +247,8 @@ This table is an interaction contract rather than permission to combine
 unrelated application services. Each bounded implementation unit still owns
 its worker, authorization, transaction, and post-effect review.
 
-WB1.1 implements the `/staffhelp` row locally on the locked discord.py 2.7.1
+The following paragraph records the historical WB1.1 boundary. WB1.1
+implemented the `/staffhelp` row locally on the locked discord.py 2.7.1
 environment: the native command has no options and opens a modal with a
 radio-group category, bounded summary/details/context inputs, and a 10-file
 Components v2 upload field. The legacy `$staffhelp`/`$helpstaff` adapters are
@@ -257,9 +258,12 @@ feedback intake. The native submission uses the development-only append-only
 JSONL authority, and the configured staff-channel message is a post-write
 mirror. It is not a production-ready replacement; before P9, the project must
 separately approve a production-safe authoritative intake/retention path or
-another production relay design. Production communities continue using their
-currently deployed support/moderator route until then. This implementation is
-review-pending and does not authorize command synchronization or beta launch.
+another production relay design. Production communities continued using their
+deployed support/moderator route at that checkpoint. P9.20 later resolves the
+production boundary: the same form directly relays to the invoking guild's
+configured staff-help channel, pings only its first configured helper role,
+and writes no development JSONL record. Development retains WB1.1's record-
+first JSONL and mirror behavior.
 
 ## Proposed game command tree
 
@@ -1263,7 +1267,7 @@ compatibility evidence.
 | `rtribes` | `/tools random-tribes` | Redesign bans, free-tribe count, and duplicates |
 | `credits` | `/about credits` | Strong candidate |
 | `stats` | `/about stats` | Strong candidate after bounded read work |
-| `staffhelp` | `/staffhelp` | Legacy recommendation: **retire** — explicit user-approved retirement of the low-use, redundant prefix adapter; the no-option native modal is the development wider-beta replacement for game reference, long description, and multiple uploads. The native JSONL intake is development-only and not production-ready; a separate approved production-boundary decision is required before P9. |
+| `staffhelp` | `/staffhelp` | Legacy recommendation: **retire** — explicit user-approved retirement of the low-use, redundant prefix adapter. P9.20 keeps one no-option native modal with environment-explicit delivery: development records JSONL then mirrors; production directly relays to the invoking guild's configured channel with only its first helper role mentionable and no JSONL record. |
 
 ### Best modal/component candidates
 
@@ -1278,7 +1282,7 @@ compatibility evidence.
 | Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
 | Team/house image | Focused attribute command; one typed attachment is a direct replacement and `clear` is explicit | Native file upload avoids URL-only workflows; a modal remains optional for a future multi-field house/image workflow |
-| Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Native development-wider-beta replacement after explicit retirement of the redundant prefix adapter; supports structured reports and screenshots. It is not a production-ready intake until a separate P9 production-boundary decision is approved. |
+| Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | One shared form after explicit retirement of the redundant prefix adapter. Development stores then mirrors; production performs one direct per-guild relay and no local feedback-store write. |
 | Game notification | `/game ping` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 
@@ -1349,9 +1353,10 @@ Their current first-level structure is:
 - development-only `/whattotest` with no direct options.
 
 This is source inventory, not a claim that every root is assigned in every
-guild. Capability policy remains default-deny, `/whattotest` remains
-development-only, and the initial production canary recommendation omits both
-`/operator` and the development-only support/testing capabilities.
+guild. Capability policy remains default-deny and `/whattotest` remains
+development-only. P9.20 recommends `tools_support` for every reviewed
+production guild; the initial production canary still omits `/operator` and
+`beta_testing`.
 
 ### Historical implementation notes
 

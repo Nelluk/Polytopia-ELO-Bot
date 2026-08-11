@@ -74,11 +74,11 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
             tuple(re.findall(r'`([^`]+)`', readiness_current))[:11],
             EXPECTED_ROOTS,
         )
-        self.assertIn('M1–M5 and L1 are resolved', readiness_current)
+        self.assertIn('M1–M6 and L1 are resolved', readiness_current)
 
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
-        self.assertIn('Current active unit: **P9.19/L1', roadmap)
+        self.assertIn('Current active unit: **P9.20/M6', roadmap)
         self.assertNotIn('command source currently loads ten roots', roadmap)
         compatibility_rows = {
             row.split(' ', 2)[1]: row
@@ -98,8 +98,21 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
 
         review = _read('docs/MODERNIZATION_PRE_PRODUCTION_REVIEW.md')
         self.assertIn('| M1–M5 | Resolved |', review)
+        self.assertIn('| M6 | Resolved |', review)
         self.assertIn('| L1 | Resolved |', review)
         self.assertIn('Status: **Resolved by P9.19.**', review)
+
+        cutover = _read('docs/MODERNIZATION_PRODUCTION_CUTOVER.md')
+        self.assertIn(
+            "application_command_all_guild_capabilities` is exactly\n"
+            "  `('tools_support',)`",
+            cutover,
+        )
+        self.assertIn(
+            "every allowlisted guild has a valid `staff_help_channel`",
+            cutover,
+        )
+        self.assertIn('Production writes no JSONL', compatibility_rows['C-007'])
 
         example_config = _read('config.ini-EXAMPLE')
         self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polytopia2$')

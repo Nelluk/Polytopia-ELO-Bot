@@ -16,6 +16,7 @@ import unittest
 from unittest import mock
 
 from modules import beta_feedback
+from modules import staff_help
 from modules.beta_feedback_views import StaffHelpModal
 from scripts import manage_beta_feedback
 
@@ -447,8 +448,8 @@ class FeedbackRelayAndModalTests(unittest.TestCase):
                 'capture_attachments',
                 new=mock.AsyncMock(return_value=())), \
                 mock.patch.object(
-                    beta_feedback,
-                    'submit_native_report',
+                    staff_help,
+                    'submit',
                     new=mock.AsyncMock(
                         side_effect=beta_feedback.FeedbackStorageError('disk full')
                     )):
@@ -470,17 +471,19 @@ class FeedbackRelayAndModalTests(unittest.TestCase):
         modal.details.component._value = 'Detailed feature description.'
         modal.context.component._value = ''
         modal.files.component._values = []
-        submission = beta_feedback.NativeSubmission(
-            report=SimpleNamespace(report_id='B' * 24),
-            relay_ok=True,
+        submission = staff_help.StaffHelpSubmission(
+            environment='development',
+            delivered=True,
+            stored=True,
+            report_id='B' * 24,
         )
         with mock.patch.object(
                 beta_feedback,
                 'capture_attachments',
                 new=mock.AsyncMock(return_value=())), \
                 mock.patch.object(
-                    beta_feedback,
-                    'submit_native_report',
+                    staff_help,
+                    'submit',
                     new=mock.AsyncMock(return_value=submission)):
             asyncio.run(modal.on_submit(interaction))
         self.assertIn('`' + ('B' * 24) + '`', interaction.followup.sent[0][0])
@@ -514,17 +517,19 @@ class FeedbackRelayAndModalTests(unittest.TestCase):
         modal.context.component._value = ''
         modal.files.component._values = []
         report_id = 'D' * 24
-        submission = beta_feedback.NativeSubmission(
-            report=SimpleNamespace(report_id=report_id),
-            relay_ok=False,
+        submission = staff_help.StaffHelpSubmission(
+            environment='development',
+            delivered=False,
+            stored=True,
+            report_id=report_id,
         )
         with mock.patch.object(
                 beta_feedback,
                 'capture_attachments',
                 new=mock.AsyncMock(return_value=())), \
                 mock.patch.object(
-                    beta_feedback,
-                    'submit_native_report',
+                    staff_help,
+                    'submit',
                     new=mock.AsyncMock(return_value=submission)), \
                 self.assertLogs(
                     'polybot.modules.beta_feedback_views',

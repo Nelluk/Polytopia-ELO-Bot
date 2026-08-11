@@ -21,8 +21,8 @@ authorization, or credentials. Include:
   data; and
 - any suggested mitigation.
 
-For wider-beta testing when GitHub's private form is unavailable, invoke
-`/staffhelp` with no options. In the modal, enter:
+When GitHub's private form is unavailable, invoke `/staffhelp` with no options.
+In the modal, enter:
 
 ```text
 Short summary: Private security report
@@ -30,13 +30,11 @@ Detailed description: Please contact me privately.
 Optional context: A safe indication of the affected area, if useful
 ```
 
-Do not include vulnerability details in that initial Discord request. The
-native JSONL store is development-only and the wider-beta `/staffhelp` flow is
-not a production-ready security intake. Before P9, the project must separately
-approve a production-safe authoritative intake/retention path (or another
-production relay design); until then, use the currently deployed private
-support/moderator route for production communities. Staff will arrange a
-private follow-up.
+Do not include vulnerability details in that initial Discord request. In
+production, `/staffhelp` relays directly to the server's configured staff-only
+channel and configured Helper role without writing a local JSONL copy. The
+development beta additionally stores its restricted JSONL feedback record.
+Staff will arrange a private follow-up.
 
 For an ordinary privacy access, correction, or deletion request, follow
 [PRIVACY.md](PRIVACY.md) instead of the security-reporting process.

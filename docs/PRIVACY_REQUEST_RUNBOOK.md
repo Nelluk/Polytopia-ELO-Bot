@@ -6,8 +6,8 @@ low request volume does not require a dedicated command or deletion script.
 
 ## 1. Receive and acknowledge
 
-In the current wider-beta flow, invoke `/staffhelp` with no options. The modal
-has no slash arguments; enter the request in the appropriate fields:
+Invoke `/staffhelp` with no options. The modal has no slash arguments; enter
+the request in the appropriate fields:
 
 ```text
 Short summary: Privacy request
@@ -15,11 +15,11 @@ Detailed description: Please contact me about my PolyELO data.
 Optional context: Any relevant account or request context
 ```
 
-The authoritative JSONL record for this flow is development-only, and the
-wider-beta `/staffhelp` intake is not yet a production-ready replacement.
-Before P9, approve a production-safe authoritative intake/retention path (or
-another production relay design) separately. Until then, use the currently
-deployed support/moderator route for production communities.
+In production, the bot relays the request to the invoking server's configured
+staff-only channel and pings the first configured Helper role. Successful
+Discord delivery is the command's terminal effect; no local JSONL copy is
+written. The development beta instead commits its restricted JSONL feedback
+record before the best-effort beta staff mirror.
 
 Move any detailed discussion to an appropriate private Discord conversation.
 Do not ask the user to post personal information in a public GitHub issue or

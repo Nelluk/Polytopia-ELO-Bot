@@ -9,8 +9,9 @@ server_shortcut_ids = {'main': 283436219780825088, 'polychampions': 447883341463
 # guild-scoped deployment tool.
 application_command_capabilities = {}
 # Optional capability names applied to every allowed guild in this runtime
-# profile. Keep this explicit and empty by default. The operator capability is
-# intended for this setting once the /operator root has real subcommands.
+# profile. Keep this explicit and empty by default. The reviewed production
+# rollout may set ('tools_support',) only after every guild's staff-help channel
+# and first helper role are verified. Operator deployment is a separate choice.
 application_command_all_guild_capabilities = ()
 # this is a convenience list of frequently-referred to servers in the code.
 # main and polychampions are the primary game discord servers and should remain as they are

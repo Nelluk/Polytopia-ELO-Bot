@@ -13,14 +13,13 @@ database, service, Discord, or schema action.
 
 The modernization architecture is suitable for a production canary, but the
 current accumulation branch is not yet a releasable production checkpoint.
-P9.17–P9.19 resolve M1–M5 and L1. Three bounded preparation stages remain:
+P9.17–P9.20 resolve M1–M6 and L1. Two bounded preparation stages remain:
 
-1. resolve M6 by recording and verifying each production community's exact
-   support/privacy route, owner, and monitoring cadence;
-2. validate one reconciled release candidate offline and through the stopped-
+1. validate one reconciled release candidate offline and through the stopped-
    writer development PostgreSQL gate; and
-3. after separate approval, deploy one production process and enable a
-   guild-scoped native-command canary only in PolyChampions.
+2. after separate approval, deploy one production process, expose the reviewed
+   all-guild `/staffhelp` relay, and enable the remaining guild-scoped native-
+   command canary only in PolyChampions.
 
 The dependency/PostgreSQL upgrade completed before this project is not an
 outstanding modernization dependency. Its historical rollback instructions
@@ -64,13 +63,13 @@ are also not a valid rollback for this release.
 ## Current reconciliation
 
 P9.19 reconciles active readiness guidance without replacing the audit's
-historical evidence. The current model-free source roots (11) are: `elo`,
+historical evidence, and P9.20 resolves M6. The current model-free source roots
+(11) are: `elo`,
 `game`, `house`, `leaderboard`, `league`, `operator`, `player`, `squad`,
 `staffhelp`, `team`, and `whattotest`. P9.2 added `/operator` after the audit;
 the initial production canary policy still omits it. R-001, R-003, and R-004
-are complete; M1–M5 and L1 are resolved. M6 remains the final product/
-operations decision before M7/R-002 freezes and validates one exact release
-candidate.
+are complete; M1–M6 and L1 are resolved. M7/R-002 remains the final gate to
+freeze and validate one exact release candidate.
 
 ## Canary blockers
 
@@ -169,13 +168,15 @@ The recommended first PolyChampions assignment is:
 ('core_user', 'team', 'league', 'house', 'squad')
 ```
 
-That exposes `game`, `leaderboard`, `player`, `team`, `league`, `house`, and
-`squad` only in the approved guild. Initially omit:
+Assign `tools_support` through the all-allowed-guild capability setting after
+every configured production guild's `staff_help_channel` and first
+`helper_roles` entry has been reviewed. That exposes `/staffhelp` in every
+approved production guild, while the tuple above exposes `game`, `leaderboard`,
+`player`, `team`, `league`, `house`, and `squad` only in PolyChampions.
+Initially omit:
 
 - `elo_maintenance`: owner/staff maintenance is unnecessary for the user
   canary and can be enabled later;
-- `tools_support`: `/staffhelp` still has a development-only authoritative
-  store;
 - `beta_testing`: `/whattotest` is development-only; and
 - `operator`: omit it from the initial user canary. P9.2 supersedes the audit's
   earlier operator-only assumption by reserving a separately reviewed,
@@ -194,9 +195,11 @@ re-inspect for convergence.
   approved aggregate-only production identity inventory is required before a
   future backfill or legacy-field retirement, not before additive code/schema
   deployment.
-- `/staffhelp` does not block other command roots when `tools_support` is
-  omitted. Production users retain the currently deployed human support route
-  until a production-safe intake/retention design is approved.
+- P9.20 gives the one `/staffhelp` command explicit environment backends.
+  Production performs one direct relay to the invoking guild's configured
+  staff-help channel, pings only its first configured helper role, and writes
+  no development JSONL record. Successful Discord delivery is terminal; there
+  is no Nelluk-owned inbox or polling cadence.
 - `elo_maintenance` may remain unregistered during the initial canary.
 - Bullet, anti-scam, and the legacy API remain outside modernization. Do not
   assign a new native capability for them.
@@ -243,8 +246,8 @@ for every retained operation.
 3. R-003 production migration implementation and offline review.
 4. R-004 modernization cutover/rollback runbook and production config plan
    (complete through P9.16 merge `d4a37d0`).
-5. Record and verify M6's exact production support/privacy route; M1–M5 and
-   L1 are complete through P9.17–P9.19.
+5. M6 is complete through P9.20: verify every production guild's configured
+   staff-help channel and first helper role in the release record.
 6. R-002 release-candidate review, complete offline tests, stopped-beta full
    development PostgreSQL gate, and a bounded beta release matrix.
 7. Push/open the final accumulation-to-`master` integration review; merge only
@@ -254,8 +257,9 @@ for every retained operation.
    deploy the exact code/config/locked environment, run a task-disabled
    process canary, then start the canonical production service.
 9. Observe retained prefix behavior before changing the Discord command tree.
-10. Plan, inspect, and explicitly apply the PolyChampions-only capability set;
-   re-inspect convergence and publish the targeted canary announcement.
+10. Plan, inspect, and explicitly apply the reviewed all-guild `tools_support`
+   assignment plus the PolyChampions-only capability set; re-inspect
+   convergence and publish the targeted canary announcement.
 11. If the native surface is unhealthy, clear the canary capability assignment
     and explicitly apply the resulting removal plan while leaving retained
     prefixes and additive columns available.
@@ -283,6 +287,6 @@ boundaries.
 
 ## Next action
 
-Resolve M6's exact production support/privacy route, owner, monitoring cadence,
-and verification evidence. Then perform M7/R-002 against one exact release
-candidate. Production execution remains separately approval-gated.
+Perform M7/R-002 against one exact release candidate. Its release record must
+verify each production guild's `staff_help_channel` and first helper role.
+Production execution remains separately approval-gated.

@@ -25,15 +25,22 @@ reserved; an assignment must not silently invent them. See
 `modules/application_command_policy.py` for the authoritative membership.
 
 An explicitly configured capability may apply to every allowed guild without
-copying the same assignment into each entry:
+copying the same assignment into each entry. The reviewed production use is
+`tools_support`, after every guild's `staff_help_channel` and first
+`helper_roles` entry has been verified; development may use `operator` under
+its separate policy:
 
 ```python
-application_command_all_guild_capabilities = ('operator',)
+application_command_all_guild_capabilities = ('tools_support',)
 ```
 
-This setting is also default-deny when missing or empty. Do not assign
-`operator` until the loaded source contains a reviewed `/operator` root;
-planning must reject an assigned but unloaded root.
+This setting is also default-deny when missing or empty. Production
+`tools_support` exposes only the public `/staffhelp` form: it directly relays
+to the invoking guild's configured channel with only its first helper role
+mentionable and writes no development feedback record. The development backend
+retains the durable JSONL record and fixed beta mirror. Do not assign any
+capability until its loaded root and environment-specific operational policy
+have been reviewed; planning rejects an assigned but unloaded root.
 
 Discord can filter only top-level roots. A capability cannot hide an
 individual staff subcommand inside an otherwise-enabled public root. Use a
