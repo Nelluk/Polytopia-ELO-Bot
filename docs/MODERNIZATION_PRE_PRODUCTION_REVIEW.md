@@ -13,18 +13,18 @@ dependency, sudo, or filesystem mutation was performed during the review.
 
 ## Recommendation
 
-`8cb47aa` is **not ready to become a release candidate**.
-
-The branch is correctly based on current `origin/master`, but it has three
-blockers: the production schema migration is absent, the modernization
-cutover/rollback procedure is absent, and confirmation can commit database
-state yet report a rollback after post-commit publication fails. Several
-active production paths also still violate the branch's async, permission,
-and operator-safety contracts.
+The accumulation branch is **not ready to become a release candidate**. B1 and
+B3 are resolved by reviewed modernization units; B2, the modernization-specific
+cutover and rollback runbook, remains the active blocker before release-
+candidate review.
 
 ## Blocker
 
 ### B1 — The production timezone migration does not exist
+
+Status: **Resolved by P9.15 implementation checkpoint `1c8ffa5`; Tier-3
+offline and stopped-writer development-database validation are green. No
+production connection or DDL was attempted.**
 
 - **Location:** `modules/models.py:365`,
   `modules/player_timezone_migration.py:3`,
@@ -46,6 +46,11 @@ and operator-safety contracts.
 - **Focused regression:** offline identity/schema mismatch and transaction
   fault injection, plus a separately gated non-production
   apply/verify/idempotency test.
+- **Resolution:** the dedicated production tool defaults to a connection-free,
+  schema-qualified plan; requires exact environment, configured and live
+  database/role identity, and typed acknowledgement before apply; inspects and
+  verifies the exact additive shape; uses one transaction with a bounded lock
+  timeout; and provides read-only verification with no destructive rollback.
 
 ### B2 — There is no modernization cutover and rollback runbook
 
@@ -67,6 +72,9 @@ and operator-safety contracts.
   modernization authority.
 
 ### B3 — A committed confirmation can be reported as rolled back
+
+Status: **Resolved by P9.7a/P9.7b transactional audit and immutable
+confirmation-publication work.**
 
 - **Location:** transaction commit at `modules/elo_workers.py:333`;
   post-commit reload/publication at `modules/administration.py:178`; Discord
