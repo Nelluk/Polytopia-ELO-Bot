@@ -73,6 +73,9 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         canary = (
             self.root / 'deploy/systemd/polytopia-modernization-canary.conf'
         ).read_text(encoding='utf-8')
+        example_settings = (
+            self.root / 'server_settings-EXAMPLE.py'
+        ).read_text(encoding='utf-8')
 
         self.assertIn(
             'historical completed dependency-upgrade record only', historical
@@ -88,6 +91,10 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertNotIn(
             'Initial native canary guild: PolyChampions, `478571892832206869`',
             runbook,
+        )
+        self.assertIn(
+            "'polychampions': 447883341463814144",
+            example_settings,
         )
         self.assertIn('unresolved adversarial-review items', runbook)
         self.assertIn("application_command_all_guild_capabilities` is exactly\n  `('tools_support',)`", runbook)

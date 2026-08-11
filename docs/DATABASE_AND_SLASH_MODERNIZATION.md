@@ -13581,7 +13581,7 @@ runbook:
   exact-HEAD R-002 evidence, reviewed lock/unit digests, redacted identity,
   capability diff, support/privacy route, and distinct operation approvals;
 - fixes the production configuration plan at `polytopia2`, application
-  `484067640302764042`, PolyChampions guild `478571892832206869`, and initial
+  `484067640302764042`, PolyChampions guild `447883341463814144`, and initial
   `core_user`/`team`/`league`/`house`/`squad` capabilities while omitting
   operator, maintenance, development support, and beta roots;
 - orders fresh backup, production stop, host-wide process and PostgreSQL
