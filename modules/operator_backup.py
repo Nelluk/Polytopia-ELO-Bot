@@ -470,6 +470,14 @@ def write_release_manifest_sync(
             os.fsync(output.fileno())
         os.replace(temporary_path, path)
         temporary_path = None
+        directory_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0),
+        )
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
     except OSError as exc:
         raise BackupSourceError(
             'The production backup release manifest could not be installed.'
