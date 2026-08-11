@@ -10,14 +10,15 @@ This is the running wider-beta checklist—not just the newest release. Please u
   draft interaction—and the join reaction should still be added.
 - Interactive open-game card: join, leave, refresh, start, and delete controls
 - Interactive game card actions appropriate to the game state
-- `/game win`: use owned ready game 149 for an ordinary claim, then confirm it
+- `/game win`: use the owned **Ready** game listed by `/whattotest` for an ordinary claim, then confirm it
   through the opponent flow. Check the pending/confirmed wording, game card,
   channel notices, announcements, and any ELO/Nova/experience/champion effects;
   a publication warning after a committed result must say not to retry.
-- `/game result confirm`: use owned unconfirmed game 150 as staff and verify the
+- `/game result confirm`: use the owned **Unconfirmed** game listed by
+  `/whattotest` as staff and verify the
   same committed result/card/effects appear without duplicated audit or role
   work. Compare retained `$confirm` behavior where applicable.
-- `/game result undo`: use owned completed game 151, verify its result and ELO
+- `/game result undo`: use the owned **Completed** game listed by `/whattotest`, verify its result and ELO
   reset once, and check the public reset notice plus experience/champion role
   reconciliation. Compare retained `$unwin`; an after-commit warning must not
   invite a duplicate undo.
@@ -218,6 +219,16 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 - `/elo status` and owner-only `/elo recalculate`
 - `/staffhelp` bug, feature, and help forms, including attachments and the staff mirror
-- `/whattotest` should always return this current running checklist
+- `/whattotest` should first show whether the fixed Ready, Unconfirmed, and
+  Completed result scenarios are ready, need preparation/reset, or require
+  manual review, including their current game IDs, and then return this running
+  checklist. The checklist should still appear with a clear warning if the
+  live readiness read is temporarily unavailable.
+- The owner-only `/operator beta prepare` preview should accept exactly two
+  distinct registered development members only when no owned result bundle
+  exists. `/operator beta reset` should show the current exact participants
+  and owned IDs, replace only those marked games, and return three fresh IDs.
+  Cancel and expired previews must make no changes; ordinary unmarked games
+  must never be included.
 
 Items remain listed until they have received sufficiently broad testing; a single successful invocation does not automatically remove them.

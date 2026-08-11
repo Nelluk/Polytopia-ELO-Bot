@@ -289,6 +289,173 @@ class DevelopmentFixtureSafetyTests(unittest.TestCase):
         )
         write_manifest.assert_not_called()
 
+    def test_in_process_prepare_audit_failure_rolls_back_complete_bundle(self):
+        database = RecordingDatabase()
+        game_log = SimpleNamespace(write=mock.Mock(
+            side_effect=RuntimeError('injected audit failure')
+        ))
+        models = SimpleNamespace(db=database, GameLog=game_log)
+        with (
+            mock.patch.object(
+                dev_fixtures,
+                '_live_identity',
+                return_value=('polytopia_dev', 'polybot_dev'),
+            ),
+            mock.patch.object(dev_fixtures, '_find_fixture_games', return_value=()),
+            mock.patch.object(
+                dev_fixtures, '_load_players', return_value=('one', 'two')
+            ),
+            mock.patch.object(dev_fixtures, '_create_scenario') as create,
+        ):
+            with self.assertRaisesRegex(RuntimeError, 'audit failure'):
+                dev_fixtures.prepare_fixtures_in_process(
+                    profile=profile(),
+                    models_module=models,
+                    guild_id=1234,
+                    user_ids=(1, 2),
+                    audit_message='owner prepared fixtures',
+                )
+        self.assertEqual(create.call_count, 3)
+        self.assertEqual(
+            database.events,
+            ['connect', 'begin', 'rollback', 'close'],
+        )
+
+    def test_in_process_prepare_snapshot_failure_rolls_back_before_result(self):
+        database = RecordingDatabase()
+        models = SimpleNamespace(
+            db=database,
+            GameLog=SimpleNamespace(write=mock.Mock()),
+        )
+        with (
+            mock.patch.object(
+                dev_fixtures,
+                '_live_identity',
+                return_value=('polytopia_dev', 'polybot_dev'),
+            ),
+            mock.patch.object(dev_fixtures, '_find_fixture_games', return_value=()),
+            mock.patch.object(
+                dev_fixtures, '_load_players', return_value=('one', 'two')
+            ),
+            mock.patch.object(dev_fixtures, '_create_scenario'),
+            mock.patch.object(
+                dev_fixtures,
+                '_state_from_open_connection',
+                side_effect=RuntimeError('injected snapshot failure'),
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, 'snapshot failure'):
+                dev_fixtures.prepare_fixtures_in_process(
+                    profile=profile(),
+                    models_module=models,
+                    guild_id=1234,
+                    user_ids=(1, 2),
+                    audit_message='owner prepared fixtures',
+                )
+        self.assertEqual(
+            database.events,
+            ['connect', 'begin', 'rollback', 'close'],
+        )
+
+    def test_in_process_reset_refuses_ambiguous_owned_rows_before_delete(self):
+        database = RecordingDatabase()
+        unsafe = SimpleNamespace(
+            id=7,
+            guild_id=1234,
+            notes=dev_fixtures.FIXTURE_NOTES_MARKER,
+            name='Beta Fixture Unknown',
+            completed_ts=None,
+            delete_game=mock.Mock(),
+        )
+        expected = dev_fixtures.FixtureState(1234, (1, 2), ())
+        models = SimpleNamespace(db=database, GameLog=SimpleNamespace(write=mock.Mock()))
+        with (
+            mock.patch.object(
+                dev_fixtures,
+                '_live_identity',
+                return_value=('polytopia_dev', 'polybot_dev'),
+            ),
+            mock.patch.object(
+                dev_fixtures, '_find_fixture_games', return_value=(unsafe,)
+            ),
+            mock.patch.object(
+                dev_fixtures, '_state_from_open_connection', return_value=expected
+            ),
+        ):
+            with self.assertRaises(dev_fixtures.FixtureValidationError):
+                dev_fixtures.reset_fixtures_in_process(
+                    profile=profile(),
+                    models_module=models,
+                    guild_id=1234,
+                    user_ids=(1, 2),
+                    expected_state=expected,
+                    audit_message='owner reset fixtures',
+                )
+        unsafe.delete_game.assert_not_called()
+        self.assertIn('rollback', database.events)
+
+    def test_in_process_reset_rolls_back_when_recreation_fails(self):
+        database = RecordingDatabase()
+        owned = SimpleNamespace(
+            id=7,
+            guild_id=1234,
+            notes=dev_fixtures.FIXTURE_NOTES_MARKER,
+            name='Beta Fixture Ready',
+            completed_ts=None,
+            delete_game=mock.Mock(),
+        )
+        expected_game = dev_fixtures.FixtureGame(
+            scenario='ready',
+            game_id=7,
+            name='Beta Fixture Ready',
+            is_completed=False,
+            is_confirmed=False,
+            is_ranked=True,
+            is_pending=False,
+            expiration=None,
+            participant_ids=(1, 2),
+        )
+        expected = dev_fixtures.FixtureState(1234, (1, 2), (expected_game,))
+        models = SimpleNamespace(db=database, GameLog=SimpleNamespace(write=mock.Mock()))
+        with (
+            mock.patch.object(
+                dev_fixtures,
+                '_live_identity',
+                return_value=('polytopia_dev', 'polybot_dev'),
+            ),
+            mock.patch.object(
+                dev_fixtures, '_find_fixture_games', return_value=(owned,)
+            ),
+            mock.patch.object(
+                dev_fixtures, '_state_from_open_connection', return_value=expected
+            ),
+            mock.patch.object(
+                dev_fixtures, '_user_ids_for_games', return_value=(1, 2)
+            ),
+            mock.patch.object(
+                dev_fixtures, '_load_players', return_value=('one', 'two')
+            ),
+            mock.patch.object(
+                dev_fixtures,
+                '_create_scenario',
+                side_effect=RuntimeError('injected recreation failure'),
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, 'recreation failure'):
+                dev_fixtures.reset_fixtures_in_process(
+                    profile=profile(),
+                    models_module=models,
+                    guild_id=1234,
+                    user_ids=(1, 2),
+                    expected_state=expected,
+                    audit_message='owner reset fixtures',
+                )
+        owned.delete_game.assert_called_once()
+        self.assertEqual(
+            database.events,
+            ['connect', 'begin', 'rollback', 'close'],
+        )
+
     def test_cleanup_refuses_failed_ownership_check_and_rolls_back(self):
         database = RecordingDatabase()
         models = SimpleNamespace(db=database)

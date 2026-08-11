@@ -15,6 +15,8 @@ from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
 from modules import beta_testing_guide
+from modules import operator_beta_fixtures as operator_beta_fixtures_service
+from modules import operator_beta_fixtures_workers
 from modules import staff_help
 # import modules.imgen as imgen
 # import modules.achievements as achievements
@@ -315,25 +317,49 @@ class misc(commands.Cog):
         description='Show the current wider-beta testing checklist.',
     )
     @discord.app_commands.guild_only()
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.user.id,
+    )
     async def whattotest_slash(self, interaction: discord.Interaction):
-        """Publish the repository-maintained development beta checklist."""
+        """Publish scenario readiness and the tracked beta checklist."""
 
         if settings.runtime_profile.environment != 'development':
             return await interaction.response.send_message(
                 'This temporary command is available only on the development bot.',
                 ephemeral=True,
             )
+        await interaction.response.defer()
         try:
-            pages = beta_testing_guide.message_pages(
-                beta_testing_guide.load_checklist()
-            )
+            checklist = beta_testing_guide.load_checklist()
         except OSError:
             logger.exception('Could not load the beta what-to-test checklist.')
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 'The testing checklist is temporarily unavailable.',
                 ephemeral=True,
             )
-        await interaction.response.send_message(pages[0])
+        try:
+            readiness = await operator_beta_fixtures_workers.run_readiness(
+                operator_beta_fixtures_workers.BetaFixtureReadRequest(
+                    guild_id=int(interaction.guild_id),
+                )
+            )
+            readiness_text = operator_beta_fixtures_service.readiness_markdown(
+                readiness
+            )
+        except Exception:
+            logger.exception('Could not load beta fixture readiness.')
+            readiness_text = (
+                '## Fixture readiness\n'
+                '**Temporarily unavailable.** The tracked testing checklist '
+                'is still shown below; an operator should inspect fixture '
+                'state before using a scenario game.'
+            )
+        pages = beta_testing_guide.message_pages(
+            f'{readiness_text}\n\n{checklist}'
+        )
+        await interaction.followup.send(pages[0])
         for page in pages[1:]:
             await interaction.followup.send(page)
 
