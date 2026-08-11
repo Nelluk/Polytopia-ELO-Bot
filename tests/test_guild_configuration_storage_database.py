@@ -13,7 +13,8 @@ from runtime_config import load_runtime_profile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION_FLAG = 'POLYBOT_P10_3_STORAGE_INTEGRATION'
-SNAPSHOT_PATH = (
+SNAPSHOT_ENV = 'POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT'
+DEFAULT_SNAPSHOT_PATH = (
     PROJECT_ROOT
     / 'logs/development/guild-configuration/discord-snapshot.json'
 )
@@ -41,8 +42,14 @@ class GuildConfigurationStorageDatabaseTests(unittest.TestCase):
             bullet_enabled=profile.bullet_enabled,
         )
         storage.validate_target(target)
-        self.assertTrue(SNAPSHOT_PATH.is_file())
-        snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding='utf-8'))
+        snapshot_value = os.environ.get(SNAPSHOT_ENV, '').strip()
+        snapshot_path = (
+            Path(snapshot_value) if snapshot_value else DEFAULT_SNAPSHOT_PATH
+        )
+        if snapshot_value:
+            self.assertTrue(snapshot_path.is_absolute())
+        self.assertTrue(snapshot_path.is_file())
+        snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
         bundle = storage.build_import_bundle(
             target=target,
             server_settings=profile.server_settings,

@@ -57,7 +57,7 @@ gate and the reviewed private P10.3 Discord snapshot:
 ```bash
 POLYBOT_ENV=development \
 POLYBOT_P10_4_SHADOW_INTEGRATION=1 \
-POLYBOT_P10_4_SHADOW_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
+POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
   .venv/bin/python -m unittest -v \
   tests.test_guild_configuration_shadow_database
 ```

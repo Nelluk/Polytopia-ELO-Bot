@@ -14,7 +14,7 @@ from runtime_config import load_runtime_profile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION_FLAG = 'POLYBOT_P10_4_SHADOW_INTEGRATION'
-SNAPSHOT_ENV = 'POLYBOT_P10_4_SHADOW_SNAPSHOT'
+SNAPSHOT_ENV = 'POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT'
 
 
 @unittest.skipUnless(
