@@ -421,7 +421,11 @@ class RestartAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sent.is_owner)
         self.assertEqual(sent.confirmation_text, service.FORCE_CONFIRMATION)
         component.edit_original_response.assert_awaited_once_with(view=created)
-        self.assertIn('Restart accepted', str(created.to_components()))
+        accepted_panel = str(created.to_components())
+        self.assertIn('Restart accepted', accepted_panel)
+        self.assertIn('may keep showing the bot as online', accepted_panel)
+        self.assertIn('cannot update after the current process', accepted_panel)
+        self.assertIn('10–20 seconds', accepted_panel)
 
 
 class BotRestartExitTests(unittest.IsolatedAsyncioTestCase):

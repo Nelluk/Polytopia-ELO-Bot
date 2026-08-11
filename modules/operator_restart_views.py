@@ -128,7 +128,10 @@ class RestartConfirmationView(discord.ui.LayoutView):
         self.terminal = True
         self.busy = False
         self.status = (
-            'Restart accepted. The supervisor will start the reviewed checkout.'
+            'Restart accepted. The supervisor will start the reviewed checkout. '
+            'Discord may keep showing the bot as online during this brief '
+            'restart, and this panel cannot update after the current process '
+            'shuts down. Allow about 10–20 seconds before using the bot again.'
         )
         self.rebuild()
         self.stop()
