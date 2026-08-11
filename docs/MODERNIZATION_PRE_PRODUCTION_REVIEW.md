@@ -26,19 +26,19 @@ the P9.21 base.
 | N1 import/startup schema DDL | High | Resolved by P9.21 checkpoint `e532ce4`: model import performs no connection/DDL, startup verifies the required schema read-only before ban reconciliation, and schema creation exists only in the explicit development bootstrap apply path. |
 | N2 production identity/password literal fallback | Medium | Resolved by P9.21 checkpoint `e532ce4`: explicit nonempty production `expected_bot_id` and `psql_password` are required before server-settings or later effects. |
 
-The source findings are corrected and Tier-3 reviewed, but M7/R-002 remains
-blocked until P9.21 is integrated, pushed, and its accepted accumulation
-checkpoint passes the required beta startup evidence. The external review
-performed no tests or live operations; P9.21's durable test and stopped-writer
-evidence is recorded in the roadmap and must later bind to the exact candidate.
+The source findings are corrected, Tier-3 reviewed, integrated, pushed, and
+runtime-verified through P9.21 integration checkpoint `0b4d954`. The guarded
+beta startup proved the model-free read-only schema preflight precedes ban
+reconciliation. The external review itself performed no tests or live
+operations; P9.21's durable test, stopped-writer, and beta evidence is recorded
+in the roadmap and must later bind to the exact candidate.
 
 ## Recommendation
 
-The accumulation branch is **not yet ready to become a release candidate**.
-B1–B3, H1–H8, M1–M6, L1, and the later N1–N2 source findings are resolved in
-reviewed unit source through P9.21 checkpoint `e532ce4`. P9.21 still requires
-accumulation integration/push and exact-checkpoint beta startup evidence. M7
-then remains the final exact-HEAD release-candidate gate.
+The reviewed source blockers are resolved. B1–B3, H1–H8, M1–M6, L1, and the
+later N1–N2 findings are complete through P9.21. A bounded pre-M7 beta-
+testability unit remains optional but recommended; after that decision, M7 is
+the final exact-HEAD release-candidate evidence gate.
 
 ## Current resolution matrix
 

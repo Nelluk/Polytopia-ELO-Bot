@@ -508,7 +508,9 @@ plan/apply/confirmation tool, and requires explicit nonempty production
 is authorized. Implementation/tests checkpoint `e532ce4` passes 50 focused
 tests, final complete offline discovery has only the three known DuckDB
 environment failures, and the stopped-writer development gate is green.
-Integration evidence, push, beta restart, and close-out remain in progress.**
+Integration checkpoint `0b4d954` is pushed and the durable development beta
+is healthy at that exact runtime checkpoint. Final documentation close-out is
+in progress.**
 
 Accumulation close-out `7196a7b` was pushed to the configured GitHub branch.
 Read-only post-push beta inspection found the single expected development
@@ -13811,7 +13813,7 @@ gates close.
 
 ### P9.21 — Final adversarial-review startup authority blockers
 
-Status: **Complete in accumulation; integration evidence and beta startup pending**
+Status: **Complete in accumulation and development-beta runtime verified**
 
 Branch/base: `codex/p9-21-final-review-blockers`, exact clean accumulation base
 `92702262de60b7e7a73e6ec9d5286ba9d5b54419`.
@@ -13892,10 +13894,29 @@ output, and production remains unreachable from the bootstrap gate.
 The accepted unit merged into accumulation at
 `3d40851ef9a2f199305d5b6a090a82d98e6f9402` without conflict.
 
-Next action: commit and push the integration checkpoint, then start the durable
-development beta once at that accepted clean checkpoint and verify the new
-startup preflight. M7/R-002 remains blocked until the unit is pushed and
-runtime-verified.
+Integration evidence checkpoint
+`0b4d954f8b13648d53f8d8af817115a7a8c5f107` was pushed to GitHub, then the
+durable development beta started once from that exact clean checkpoint. Its
+prestart writer audit passed; PID `68691` authenticated as application
+`479029527553638401`, is active/running with zero automatic restarts, and is
+the only host-wide development writer. The protected control-socket health
+request completed. The running process reports exact checkpoint `0b4d954`,
+and the development log records the new startup schema preflight succeeding
+for `polytopia_dev` / `polybot_dev`, all 17 tables, and the winner foreign key
+before exactly one ban-snapshot reconciliation.
+
+This unit changes no command root, option, capability assignment, or ordinary
+Discord response. No application-command plan/apply, checklist change, tester
+announcement, or reporter mention is warranted. The deployment uses the
+documented no-announcement route because the affected behavior is internal
+startup safety and has already been exercised by the guarded service start.
+
+Next recommended action: P9.22, the bounded pre-M7 beta-testability/readiness
+pack already recorded in the roadmap: scenario-oriented `/whattotest`, fixture
+readiness, and safe staff preparation/reset through the existing owned-fixture
+framework without exposing general tester-triggered database seeding. Also
+ready: proceed directly to M7/R-002 exact-candidate freeze if no additional
+beta convenience tooling is desired.
 
 ## Standard work-unit template
 
@@ -15066,6 +15087,18 @@ deferred into this post-modernization backlog.
   merged into accumulation without conflict at
   `3d40851ef9a2f199305d5b6a090a82d98e6f9402`. Integration evidence, push, and
   the clean beta startup remained the next actions at this checkpoint.
+- Accumulation integration evidence checkpoint
+  `0b4d954f8b13648d53f8d8af817115a7a8c5f107` was pushed and launched once
+  through the guarded development service. PID `68691` is active/running with
+  zero restarts at exact checkpoint `0b4d954`; the expected beta application
+  authenticated, protected control health completed, and the host-wide audit
+  found exactly that one development writer.
+- Runtime logs prove the 17-table/winner-FK read-only schema preflight completed
+  before one ban reconciliation. Command shape and user-visible behavior are
+  unchanged, so no command apply, checklist edit, announcement, or reporter
+  notification occurred. P9.21 is Complete; recommended next is the bounded
+  pre-M7 beta-testability/readiness pack, with direct M7/R-002 freeze also
+  ready if no further beta convenience work is desired.
 
 ### 2026-08-11 — Final pre-M7 adversarial-review package prepared
 
