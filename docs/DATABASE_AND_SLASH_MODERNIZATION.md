@@ -552,7 +552,9 @@ all 1,789 tests with 77 intentional skips, and the complete stopped-writer
 development-PostgreSQL gate passes 77 tests with one intentional retained-
 fixture skip. Static development settings remain runtime authority; no
 production, command-sync, or Discord mutation occurred. Next staged unit is
-P10.4 development shadow reads/comparison.**
+P10.4 development shadow reads/comparison. Evidence and exact integration
+checkpoint `b92fe13372eb81720737908c1ed827971c320c75` is running on the healthy
+development beta; the accumulation close-out follows that checkpoint.**
 
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
@@ -14590,6 +14592,8 @@ Branch/base: `codex/p10-3-guild-config-storage`, exact clean pushed
 accumulation checkpoint `0edcb16ae54ff0c1b318e454e5b3bf6b58506cd0`.
 
 Implementation checkpoint: `16fa0f193a14902d8288c034f07c657822cf2ae1`.
+Evidence and exact fast-forward integration checkpoint:
+`b92fe13372eb81720737908c1ed827971c320c75`.
 
 Risk tier: **Tier 3 development schema/persistence boundary**. Nelluk
 explicitly approved only the additive migration/import in `polytopia_dev`,
@@ -15901,8 +15905,16 @@ deferred into this post-modernization backlog.
   fixture skip.
 - No production, command synchronization, Discord mutation, runtime-authority
   switch, draft, enrollment, dependency, or destructive schema operation
-  occurred. Next: integrate/push, restart and verify the beta once at the final
-  checkpoint, then select P10.4 shadow comparison.
+  occurred during implementation or the database gate.
+- Accepted the complete two-commit unit by exact fast-forward into
+  `codex/database-slash-modernization` at
+  `b92fe13372eb81720737908c1ed827971c320c75`. The durable beta restarted once
+  at that exact checkpoint as PID `139596`, authenticated as development
+  application `479029527553638401`, with zero restart churn and exactly one
+  host-wide development writer. Protected Beta Lab status reports all five
+  packs ready and all three lanes free. Command shape and runtime settings
+  authority are unchanged, so no command apply or tester announcement is
+  warranted. This accumulation close-out is the next checkpoint.
 
 ### 2026-08-11 — P10.2 offline typed guild configuration contract complete
 
