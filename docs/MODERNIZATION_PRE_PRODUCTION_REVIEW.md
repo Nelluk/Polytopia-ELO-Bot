@@ -165,6 +165,11 @@ writer development-database gate are green.**
   remain separately approved.
 - **Focused regression:** a nonempty global snapshot must be reported and stop
   apply before any guild sync; an empty global tree preserves current behavior.
+- **Resolution:** P9.14 makes both remote modes fetch and report the global
+  tree read-only. Guild apply validates that snapshot before its first sync and
+  fails closed with the observed root names when it is nonempty. Empty-global
+  apply retains the explicit-guild-only behavior. The tool still has no global
+  mutation or removal operation.
 
 ### H4 — Converted result and correction paths still perform synchronous ORM reloads and carry live models through awaits
 

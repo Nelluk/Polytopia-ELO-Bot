@@ -2,9 +2,10 @@
 """Plan and explicitly deploy guild-scoped application commands.
 
 The default mode is an offline plan.  ``inspect`` fetches current commands;
-``apply`` is the only mode that mutates Discord.  There is intentionally no
-global scope in this tool, and no code path calls ``CommandTree.sync`` without
-an explicit guild.
+``apply`` is the only mode that mutates Discord.  Remote modes inspect the
+global tree read-only, but there is intentionally no global mutation scope in
+this tool and no code path calls ``CommandTree.sync`` without an explicit
+guild.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import argparse
 import asyncio
 from contextlib import contextmanager
 import copy
+from dataclasses import dataclass
 import importlib
 import inspect
 import json
@@ -60,6 +62,14 @@ COMMAND_SOURCE_MODULES = (
 
 class CommandManagementError(RuntimeError):
     """Raised when the explicit deployment workflow cannot proceed safely."""
+
+
+@dataclass(frozen=True)
+class RemoteCommandSnapshot:
+    """Read-only remote state used to guard guild-scoped deployment."""
+
+    global_commands: tuple[Any, ...]
+    guild_commands: Mapping[int, tuple[Any, ...]]
 
 
 class _ModelImportPlaceholder:
@@ -260,7 +270,11 @@ def validate_apply_confirmation(
 
 
 def _plan_json(plans: Sequence[GuildCommandPlan]) -> str:
-    return json.dumps([
+    return json.dumps(_plan_values(plans), indent=2, sort_keys=True)
+
+
+def _plan_values(plans: Sequence[GuildCommandPlan]) -> list[dict[str, Any]]:
+    return [
         {
             'scope': plan.scope,
             'guild_id': plan.guild_id,
@@ -272,18 +286,52 @@ def _plan_json(plans: Sequence[GuildCommandPlan]) -> str:
             'removals': list(plan.diff.removals),
         }
         for plan in plans
-    ], indent=2, sort_keys=True)
+    ]
 
 
-async def fetch_current_commands(
+def _remote_plan_json(
+        snapshot: RemoteCommandSnapshot,
+        plans: Sequence[GuildCommandPlan]) -> str:
+    global_roots = sorted(command.name for command in snapshot.global_commands)
+    return json.dumps({
+        'global': {
+            'scope': 'global',
+            'current_roots': global_roots,
+            'count': len(global_roots),
+            'guild_apply_safe': not global_roots,
+        },
+        'guilds': _plan_values(plans),
+    }, indent=2, sort_keys=True)
+
+
+async def fetch_remote_commands(
         client: commands.Bot,
-        guild_ids: Iterable[int]) -> Mapping[int, Sequence[Any]]:
-    current: dict[int, Sequence[Any]] = {}
+        guild_ids: Iterable[int]) -> RemoteCommandSnapshot:
+    """Fetch global and selected-guild state without synchronizing either."""
+
+    global_commands = tuple(await client.tree.fetch_commands())
+    current: dict[int, tuple[Any, ...]] = {}
     for guild_id in guild_ids:
-        current[guild_id] = await client.tree.fetch_commands(
-            guild=discord.Object(id=guild_id)
+        current[guild_id] = tuple(
+            await client.tree.fetch_commands(guild=discord.Object(id=guild_id))
         )
-    return current
+    return RemoteCommandSnapshot(
+        global_commands=global_commands,
+        guild_commands=current,
+    )
+
+
+def validate_remote_global_commands(commands: Sequence[Any]) -> None:
+    """Refuse guild mutation while Discord still exposes global commands."""
+
+    roots = sorted(command.name for command in commands)
+    if roots:
+        raise CommandManagementError(
+            'Remote global application-command tree is nonempty ('
+            + ', '.join(roots)
+            + '); refusing guild apply. This tool cannot remove or synchronize '
+            'global commands.'
+        )
 
 
 def _prepare_guild_commands(
@@ -367,16 +415,17 @@ async def _remote_mode(
         guild_ids: Sequence[int]) -> int:
     await source_client.login(profile.discord_token)
     try:
-        current = await fetch_current_commands(source_client, guild_ids)
+        snapshot = await fetch_remote_commands(source_client, guild_ids)
         plans = plan_application_commands(
             policy,
             source_commands,
-            current,
+            snapshot.guild_commands,
             guild_ids=guild_ids,
             tree=source_client.tree,
         )
-        print(_plan_json(plans))
+        print(_remote_plan_json(snapshot, plans))
         if mode == 'apply':
+            validate_remote_global_commands(snapshot.global_commands)
             synced = await apply_guild_plans(source_client, plans)
             print(json.dumps({
                 'applied_guild_ids': sorted(synced),

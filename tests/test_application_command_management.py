@@ -1,6 +1,8 @@
 """Offline safety tests for the explicit application-command manager."""
 
 import asyncio
+from contextlib import redirect_stdout
+import io
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -134,6 +136,143 @@ class ApplicationCommandManagementTests(unittest.TestCase):
         )
         self.assertEqual(synced, {})
         tree.clear_commands.assert_not_called()
+
+    def test_remote_fetch_reads_global_then_each_explicit_guild(self):
+        class FakeTree:
+            def __init__(self):
+                self.scopes = []
+
+            async def fetch_commands(self, *, guild=None):
+                self.scopes.append(None if guild is None else guild.id)
+                if guild is None:
+                    return [FakeCommand('stale-global')]
+                return [FakeCommand(f'guild-{guild.id}')]
+
+        tree = FakeTree()
+        snapshot = asyncio.run(manager.fetch_remote_commands(
+            SimpleNamespace(tree=tree),
+            (20, 10),
+        ))
+
+        self.assertEqual(tree.scopes, [None, 20, 10])
+        self.assertEqual(
+            [command.name for command in snapshot.global_commands],
+            ['stale-global'],
+        )
+        self.assertEqual(
+            {
+                guild_id: [command.name for command in commands]
+                for guild_id, commands in snapshot.guild_commands.items()
+            },
+            {20: ['guild-20'], 10: ['guild-10']},
+        )
+
+    def test_remote_inspect_reports_nonempty_global_tree_without_mutation(self):
+        client = SimpleNamespace(
+            tree=SimpleNamespace(),
+            login=mock.AsyncMock(),
+            close=mock.AsyncMock(),
+        )
+        snapshot = manager.RemoteCommandSnapshot(
+            global_commands=(FakeCommand('stale-global'),),
+            guild_commands={10: ()},
+        )
+        policy = build_capability_policy({}, [10])
+
+        output = io.StringIO()
+        with mock.patch.object(
+                manager,
+                'fetch_remote_commands',
+                new=mock.AsyncMock(return_value=snapshot),
+        ), mock.patch.object(
+                manager,
+                'apply_guild_plans',
+                new=mock.AsyncMock(),
+        ) as apply, redirect_stdout(output):
+            result = asyncio.run(manager._remote_mode(
+                mode='inspect',
+                profile=SimpleNamespace(discord_token='token'),
+                source_client=client,
+                source_commands=(),
+                policy=policy,
+                guild_ids=(10,),
+            ))
+
+        self.assertEqual(result, 0)
+        self.assertIn('"current_roots": [\n      "stale-global"', output.getvalue())
+        self.assertIn('"guild_apply_safe": false', output.getvalue())
+        apply.assert_not_awaited()
+        client.close.assert_awaited_once()
+
+    def test_remote_apply_refuses_nonempty_global_tree_before_guild_sync(self):
+        client = SimpleNamespace(
+            tree=SimpleNamespace(),
+            login=mock.AsyncMock(),
+            close=mock.AsyncMock(),
+        )
+        snapshot = manager.RemoteCommandSnapshot(
+            global_commands=(FakeCommand('stale-global'),),
+            guild_commands={10: ()},
+        )
+        policy = build_capability_policy({}, [10])
+
+        output = io.StringIO()
+        with mock.patch.object(
+                manager,
+                'fetch_remote_commands',
+                new=mock.AsyncMock(return_value=snapshot),
+        ), mock.patch.object(
+                manager,
+                'apply_guild_plans',
+                new=mock.AsyncMock(),
+        ) as apply, redirect_stdout(output), self.assertRaisesRegex(
+                manager.CommandManagementError, 'stale-global'):
+            asyncio.run(manager._remote_mode(
+                mode='apply',
+                profile=SimpleNamespace(discord_token='token'),
+                source_client=client,
+                source_commands=(),
+                policy=policy,
+                guild_ids=(10,),
+            ))
+
+        self.assertIn('"guild_apply_safe": false', output.getvalue())
+        apply.assert_not_awaited()
+        client.close.assert_awaited_once()
+
+    def test_remote_apply_with_empty_global_tree_preserves_guild_apply(self):
+        client = SimpleNamespace(
+            tree=SimpleNamespace(),
+            login=mock.AsyncMock(),
+            close=mock.AsyncMock(),
+        )
+        snapshot = manager.RemoteCommandSnapshot(
+            global_commands=(),
+            guild_commands={10: ()},
+        )
+        policy = build_capability_policy({}, [10])
+
+        with mock.patch.object(
+                manager,
+                'fetch_remote_commands',
+                new=mock.AsyncMock(return_value=snapshot),
+        ), mock.patch.object(
+                manager,
+                'apply_guild_plans',
+                new=mock.AsyncMock(return_value={}),
+        ) as apply, redirect_stdout(io.StringIO()):
+            result = asyncio.run(manager._remote_mode(
+                mode='apply',
+                profile=SimpleNamespace(discord_token='token'),
+                source_client=client,
+                source_commands=(),
+                policy=policy,
+                guild_ids=(10,),
+            ))
+
+        self.assertEqual(result, 0)
+        apply.assert_awaited_once()
+        client.close.assert_awaited_once()
 
     def test_apply_uses_existing_tree_prunes_and_preserves_other_scopes(self):
         async def callback(_interaction):
