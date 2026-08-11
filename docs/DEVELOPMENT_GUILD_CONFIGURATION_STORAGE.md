@@ -1,9 +1,11 @@
 # Development guild configuration storage operations
 
 P10.3 owns the first additive PostgreSQL storage and exact static import for
-dynamic guild configuration. It is development-only. It does not change the
-runtime configuration source, enroll arbitrary guilds, synchronize Discord
-commands, or authorize any production schema or data operation.
+dynamic guild configuration. It is development-only. P10.4 may inspect this
+contract through the separate read-only startup shadow service, but neither
+unit changes the runtime configuration source, enrolls arbitrary guilds,
+synchronizes Discord commands, or authorizes any production operation. See
+`DEVELOPMENT_GUILD_CONFIGURATION_SHADOW.md` for that later read boundary.
 
 ## Fixed safety boundary
 

@@ -162,6 +162,9 @@ class MyBot(commands.Bot):
         self._startup_schema_preflight_lock = asyncio.Lock()
         self._startup_bans_reconciled = False
         self._startup_ban_lock = asyncio.Lock()
+        self._guild_configuration_shadow_complete = False
+        self._guild_configuration_shadow_lock = asyncio.Lock()
+        self.guild_configuration_shadow_result = None
         self._beta_persona_reconciliation_lock = asyncio.Lock()
         self._restart_exit_status = None
         # Guild commands are deployed out-of-process.  Keep runtime dispatch
@@ -310,6 +313,76 @@ class MyBot(commands.Bot):
                 result.discord_rows,
                 result.polytopia_rows,
             )
+            return result
+
+    async def _run_development_guild_configuration_shadow(self):
+        """Compare stored and static guild settings once without switching authority."""
+
+        profile = settings.runtime_profile
+        if profile.environment != 'development':
+            return None
+        if not self._startup_identity_validated or not self._startup_schema_preflight_complete:
+            raise RuntimeError(
+                'Guild configuration shadow reads require validated identity '
+                'and startup schema preflight.'
+            )
+        if self._guild_configuration_shadow_complete:
+            return self.guild_configuration_shadow_result
+        async with self._guild_configuration_shadow_lock:
+            if self._guild_configuration_shadow_complete:
+                return self.guild_configuration_shadow_result
+            shadow = importlib.import_module(
+                'modules.guild_configuration_shadow'
+            )
+            try:
+                bundle = shadow.expected_bundle_from_runtime(
+                    profile=profile,
+                    guilds=tuple(self.guilds),
+                )
+                request = shadow.request_from_profile(
+                    profile=profile,
+                    expected_bundle=bundle,
+                )
+                result = await shadow.run_shadow_comparison(request)
+            except shadow.GuildConfigurationShadowUnavailable as exc:
+                result = shadow.failure_result(
+                    shadow.STATUS_UNAVAILABLE,
+                    str(exc),
+                )
+            except shadow.GuildConfigurationShadowMalformed as exc:
+                result = shadow.failure_result(
+                    shadow.STATUS_MALFORMED,
+                    str(exc),
+                )
+            except Exception:
+                logger.exception(
+                    'Unexpected guild configuration shadow failure; static '
+                    'settings remain authoritative.'
+                )
+                result = shadow.failure_result(
+                    shadow.STATUS_MALFORMED,
+                    'shadow_runtime_failure',
+                )
+            self.guild_configuration_shadow_result = result
+            self._guild_configuration_shadow_complete = True
+            if result.promotion_ready:
+                logger.info(
+                    'Guild configuration shadow status=%s promotion_ready=true '
+                    'guilds=%s; static settings remain authoritative.',
+                    result.status,
+                    result.matched_guild_ids,
+                )
+            else:
+                logger.error(
+                    'Guild configuration shadow status=%s promotion_ready=false '
+                    'expected_guilds=%s stored_guilds=%s mismatches=%s reason=%s; '
+                    'static settings remain authoritative.',
+                    result.status,
+                    result.expected_guild_ids,
+                    result.stored_guild_ids,
+                    tuple((value.guild_id, value.paths) for value in result.mismatches),
+                    result.safe_reason,
+                )
             return result
 
     async def _revoke_beta_lab_personas(self) -> int:
@@ -540,6 +613,8 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             )
             await bot.close()
             raise
+
+        await bot._run_development_guild_configuration_shadow()
 
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print('Successfully logged in and booted...!')

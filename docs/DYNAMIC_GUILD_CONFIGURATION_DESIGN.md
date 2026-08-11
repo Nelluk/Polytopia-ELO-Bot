@@ -362,9 +362,12 @@ Each step is a separate bounded unit with its own review and evidence.
    transactional and digest-bound. Every inherited static value is
    materialized, role names resolve to exact IDs, the effective development
    staff-help mirror is explicit, and exact repeat apply/verify is idempotent.
-4. **Development shadow read.** Load database snapshots in a worker and compare
-   them with static effective settings. Static remains authoritative; any
-   mismatch is visible and blocks promotion.
+4. **Development shadow read (complete in P10.4).** On the first ready cycle,
+   reduce the live guild cache to bounded role/channel identity, materialize
+   the effective static document, and load the stored active graph through a
+   bounded read-only worker-owned connection. Publish one immutable
+   matched/mismatch/malformed/unavailable result; static remains authoritative
+   and only an exact semantic match permits consideration of promotion.
 5. **Per-profile authority switch.** Explicitly select database authority in
    development, preserve a static rollback switch, and prove startup,
    event-loop, connection, cancellation, and malformed-row behavior.

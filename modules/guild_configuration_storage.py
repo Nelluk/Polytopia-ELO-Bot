@@ -1,9 +1,9 @@
-"""Development-only persistence and legacy import for guild configuration.
+"""Development persistence and legacy import for guild configuration.
 
-P10.3 is deliberately not a runtime settings service.  This module owns an
-additive PostgreSQL storage contract plus an exact initial import.  Callers
-must supply a bounded Discord inventory and an already-selected development
-profile; ordinary bot startup and guild-setting reads do not import it.
+This module owns the P10.3 additive PostgreSQL storage contract plus its exact
+initial import.  It is not a runtime settings service.  P10.4 reuses its pure
+contract and read-only schema inventory only during one startup shadow check;
+ordinary guild-setting reads never import or call it.
 """
 
 from __future__ import annotations
@@ -691,6 +691,12 @@ def _schema_inventory(cursor: Any) -> SchemaInventory:
     return SchemaInventory(tables, columns, constraints)
 
 
+def inspect_schema_inventory(cursor: Any) -> SchemaInventory:
+    """Return the exact storage inventory for read-only sibling services."""
+
+    return _schema_inventory(cursor)
+
+
 def validate_schema_inventory(inventory: SchemaInventory) -> bool:
     """Return False when absent; reject every partial or drifted schema."""
 
@@ -973,6 +979,7 @@ __all__ = [
     'apply_storage',
     'build_import_bundle',
     'bundle_to_mapping',
+    'inspect_schema_inventory',
     'validate_discord_snapshot',
     'validate_live_identity',
     'validate_schema_inventory',
