@@ -613,9 +613,10 @@ separate.**
 
 P10.6a owner guild-configuration inspection is implemented on
 `codex/p10-6a-guild-config-read` from exact clean pushed accumulation base
-`d870df6ab11979b653e966dfbcb2d19e97cfa588`; Tier-3 review, complete offline
-validation, the read-only development-database gate, integration, and beta
-deployment remain pending. It adds four private owner-only commands beneath
+`d870df6ab11979b653e966dfbcb2d19e97cfa588`. Implementation checkpoint
+`67e9066` is Tier-3 reviewed, complete-offline validated, and read-only
+development-database gated; integration and beta deployment remain pending.
+It adds four private owner-only commands beneath
 `/operator guild`: a bounded registry list, compact sectioned active settings,
 exact live validation, and bounded revision/audit history for the current
 already enrolled guild. Every read uses one worker-owned read-only connection,
@@ -14885,7 +14886,8 @@ keep new-guild enrollment and command deployment out of P10.6.
 
 ### P10.6a — Owner guild-configuration inspection
 
-Status: **Implemented; Tier-3 review and validation pending.**
+Status: **Implemented, Tier-3 reviewed, and database-gated; integration and
+beta deployment pending.**
 
 Branch/base: `codex/p10-6a-guild-config-read`, exact clean pushed accumulation
 checkpoint `d870df6ab11979b653e966dfbcb2d19e97cfa588`.
@@ -14919,11 +14921,20 @@ delegation, runtime reload, and production authority remain out of scope.
 Operations and deployment gates are recorded in
 `docs/DEVELOPMENT_GUILD_CONFIGURATION_CONTROL.md`.
 
-Next action: complete Tier-3 review, full offline discovery, and the explicitly
-gated read-only development-database case. If accepted, integrate, perform the
-development-guild-only command plan/apply while the beta is stopped, restart
-the guarded beta, and privately verify all four commands before deciding the
-announcement disposition.
+Review found and corrected inconsistent multi-query history reads, a renderer
+that trusted a nominal validation result too readily, and environment-dependent
+test assumptions after database authority became active. History now uses one
+repeatable-read transaction, the renderer requires every validation flag, and
+both offline and database test harnesses publish or mock their intended
+configuration authority explicitly. Focused validation passes 58 tests;
+complete discovery passes all 1,836 tests with 80 intentional gated skips; and
+the stopped-writer database gate runs 79 tests with 78 passes and one retained-
+fixture skip.
+
+Next action: integrate, perform the development-guild-only command plan/apply
+while the beta is stopped, restart the guarded beta, and privately verify the
+new command tree and runtime health before deciding the announcement
+disposition.
 
 ## Standard work-unit template
 
@@ -16051,8 +16062,8 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.5 complete; P10.6a implemented pending
-integration.** The
+Design status: **P10.1 through P10.5 complete; P10.6a reviewed and
+database-gated pending integration.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16219,8 +16230,19 @@ deferred into this post-modernization backlog.
   the affected legacy tests now declare their intended static configuration
   dependency explicitly, so results no longer depend on the ignored local
   development authority selector.
-- Next: complete Tier-3 diff review and the explicitly gated read-only
-  real-graph case before integration or beta deployment.
+- Tier-3 review corrected inconsistent multi-query history reads by using one
+  repeatable-read transaction, made successful rendering conditional on every
+  validation flag, and bounded all Discord fields. No remaining actionable
+  diff finding is known.
+- The first combined database run exposed six legacy integration cases that
+  assumed static configuration was already readable even though the ignored
+  development profile now selects database authority. The gate now publishes
+  the exact reviewed stored snapshot when database authority is selected; the
+  repeated stopped-writer run passes 78 of 79 tests with only the retained
+  operator-fixture round trip intentionally skipped. The new P10.6a real-graph
+  test validates all four owner read surfaces without a database write.
+- Next: integrate, apply only the reviewed development-guild command change,
+  restart the guarded beta, and record runtime evidence.
 
 ### 2026-08-11 — P10.5 database authority implemented and database-gated
 
