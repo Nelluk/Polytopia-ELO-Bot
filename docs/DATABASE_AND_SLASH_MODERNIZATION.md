@@ -490,9 +490,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.22 pre-M7 beta testability/readiness is complete in
-accumulation and deployed to the development beta; wider human acceptance is
-pending. It was built on
+Current active unit: **P9.23a Beta Lab foundation is implemented, Tier-3
+reviewed, and stopped-writer validated on its isolated branch from exact clean
+accumulation base `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`. It consolidates the already
+owned WB1.3b server structure, leaderboard showcase, and game-result scenarios
+behind one status/plan surface; replaces `/whattotest` public followup spam with
+one private requester-bound categorized dashboard; shows participant names
+before diagnostic IDs; and exposes only the existing exact game-result reset
+through the running beta's protected socket. It does not yet create Discord
+roles/channels or broaden fixture ownership. P9.23b will add manifest-owned
+production-shaped scenario packs after the foundation's collision and repair
+boundaries are validated. Implementation checkpoint `51370f0`; accumulation
+integration, guild-only command convergence, guarded beta restart, live
+verification, and terminal tester announcement are next.**
+
+P9.22 pre-M7 beta testability/readiness is complete in accumulation and
+deployed to the development beta; wider human acceptance is pending. It was built on
 `codex/p9-22-beta-testability`, from exact clean local/tracking/GitHub
 accumulation checkpoint `a82726fcb9e8642ed0fd1888a253c7e0a399c8c0`.
 This Tier-3 unit keeps `/whattotest` public and read-only while adding a live
@@ -14022,6 +14035,79 @@ operation occurred. Human invocation of the new panels and wider tester
 acceptance remain evidence for the M7 bounded beta matrix, not unfinished
 source implementation.
 
+### P9.23a — Beta Lab foundation and compact testing dashboard
+
+Status: **Implementation, Tier-3 review, and stopped-writer validation complete;
+ready for accumulation integration and development-beta rollout.**
+
+Branch/base: `codex/p9-23a-beta-lab-foundation`, exact clean accumulation base
+`34b19e2546549d9cfc5d269fea8cde6d0d4428fc`.
+
+This Tier-3 unit is the first half of the approved pre-M7 Beta Lab initiative.
+It recognizes three already reviewed packs: the WB1.3b two-House/three-Team
+structure and pinned Team roles, the 24-player/48-game leaderboard showcase,
+and the three exact result scenarios. One immutable status/plan DTO reports
+their readiness and refuses ambiguous ownership instead of treating unrelated
+legacy guild/database content as fixtures.
+
+`/whattotest` remains a development-only no-option root but changes from a
+public chain of the entire Markdown file to one ephemeral requester-bound
+Components v2 workspace. Its overview shows pack health, current result IDs,
+participant display names with IDs retained only for diagnostics, and a short
+release pass. The tracked checklist remains authoritative and is parsed into
+its existing sections, with a category selector and bounded five-item pages.
+
+The new `scripts/manage_beta_lab.py` reaches only the running beta's protected
+mode-0600 socket for `status`, `plan`, and exact-confirmed `game-results`
+refresh. Refresh reuses P9.22's owner identity, immutable preview, stale
+fingerprint/game-ID checks, ELO coordinator, worker-local connection, row
+locks, atomic fixture/audit mutation, and terminal immutable reload. It does
+not create a second writer or a second Discord client. Missing participants
+still require the human-selected `/operator beta prepare` flow; ambiguous
+state fails closed.
+
+Out of scope: new Discord roles/channels, dynamic guild settings, arbitrary
+fixture adoption, general cleanup, tester-controlled mutations, production
+data or configuration, and expanded game/league/permission packs. P9.23b owns
+the idempotent staged Discord/database reconciler and broader synthetic packs;
+it must use durable exact Discord IDs because the two systems cannot share a
+transaction.
+
+Required validation: parser/pagination bounds, private requester controls and
+expiry, participant-name DTOs, profile/guild/database/role gates, protected-
+socket request/confirmation bounds, event-loop deferral and cancellation
+drainage, ELO coordination/stale-state/rollback inheritance, real-schema
+read-only combined status, complete offline discovery, full Tier-3 diff review,
+and a stopped-writer PostgreSQL run before the tester release because the unit
+broadens the running-beta mutation entry surface.
+
+Implementation/tests checkpoint: `51370f087f1a92be212ceb4552a948469162beb9`.
+Focused validation passes **97/97** plus compilation and `git diff --check`.
+Complete offline discovery runs **1,703 tests: 1,626 pass, 74 are intentionally
+gated/skipped, and only the three documented missing-DuckDB environment cases
+fail** (runtime import, dependency inventory, reporting-export import). No
+dependency was installed or synchronized.
+
+The stopped-writer gate verified PID `79000` as the sole authorized development
+writer, stopped only `polybot-development-beta@main.service`, and obtained a
+clear host-wide writer audit. The unchanged exact `development` /
+`polytopia_dev` / `polybot_dev` suite then ran **73 tests: 72 passed and the
+operator-owned fixture round trip was intentionally skipped**. The new
+read-only combined verifier loaded all three pack families through their real
+schema and proved the query changed no Game count. Its first run exposed only
+a missing import in the new test itself; after correcting and amending that
+test, the complete gate passed. No fixture refresh, schema operation, command
+synchronization, or production action occurred.
+
+The Tier-3 complete-diff review found and corrected one substantive edge before
+the checkpoint: cancellation after the ELO-coordinated refresh had started
+could finish the transaction but lose the committed IDs at the new control
+wrapper. The wrapper now drains the already-started commit and terminal status
+reload, returns truthful committed IDs or an explicit no-retry reconciliation
+warning, and has repeated cancellation coverage. Review also tightened the
+exact beta-only profile/guild gate, mention escaping, character-limited page
+numbering, and tracked Components-v2 body bounds. No blocking finding remains.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15159,6 +15245,35 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.23a Beta Lab foundation reviewed and database-gated
+
+- Reconciled clean local/tracking/GitHub accumulation at exact checkpoint
+  `34b19e2546549d9cfc5d269fea8cde6d0d4428fc`, created isolated branch
+  `codex/p9-23a-beta-lab-foundation`, and recorded implementation/tests at
+  `51370f087f1a92be212ceb4552a948469162beb9`.
+- Consolidated the existing reviewed server-structure, leaderboard-showcase,
+  and game-results packs behind immutable status/plan DTOs; changed
+  `/whattotest` from public multi-page spam to one private requester-bound
+  categorized dashboard; and showed participant names before diagnostic IDs.
+- Added only the existing result reset to the authenticated mode-0600 control
+  socket, with exact confirmation and inherited owner, stale-state, ELO,
+  transaction, and ownership boundaries. The foundation creates no Discord
+  resource and never starts a second Discord client or database writer.
+- Focused validation passed 97 tests. Complete discovery ran 1,703 tests with
+  1,626 passes, 74 intentional skips, and exactly the three documented missing-
+  DuckDB failures. Tier-3 review corrected post-commit cancellation truth,
+  mention escaping, exact beta-guild validation, and bounded page numbering.
+- Verified development beta PID `79000` as the only writer, stopped only its
+  user service, and required a clear host-wide audit. The strict PostgreSQL
+  suite then passed 72 of 73 tests with the one operator-owned fixture round
+  trip intentionally skipped. The new combined status verifier was read-only;
+  no fixture refresh or schema mutation occurred.
+- The beta remains intentionally stopped only for the short integration and
+  rollout window. Next action: commit this evidence, integrate into
+  accumulation, plan/apply only the development-guild command-description
+  change, start the guarded beta at the integrated checkpoint, verify the new
+  socket/dashboard health, then post the reviewed WHAT TO TEST release last.
 
 ### 2026-08-11 — P9.22 beta-testability implementation and gates complete
 

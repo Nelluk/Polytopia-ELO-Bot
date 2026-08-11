@@ -40,8 +40,10 @@ later N1–N2 findings are complete through P9.21. P9.22's bounded pre-M7 beta-
 testability source and stopped-writer validation are complete, integrated at
 `d58a2c7`, pushed through `a6b8d40`, and deployed to the development beta with
 the exact guild tree converged and the tester release posted. Wider human
-acceptance remains part of the bounded beta evidence. M7 is now the final
-exact-HEAD release-candidate evidence gate.
+acceptance remains part of the bounded beta evidence. Nelluk subsequently
+approved P9.23a/P9.23b to make that testing credible and rapid through a
+managed Beta Lab and compact dashboard. M7 remains the final exact-HEAD
+release-candidate evidence gate after those bounded pre-freeze units.
 
 ## Current resolution matrix
 
