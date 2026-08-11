@@ -539,6 +539,21 @@ pass 12/12 and complete offline discovery passes all 1,766 tests with 76
 intentional skips. The next staged implementation is additive development
 schema/import tooling, which requires separate schema-migration approval.**
 
+P10.3 additive development guild configuration storage/import is complete from
+exact clean accumulation base
+`0edcb16ae54ff0c1b318e454e5b3bf6b58506cd0`. Implementation checkpoint
+`16fa0f193a14902d8288c034f07c657822cf2ae1` adds exact registry, immutable
+revision, and protected audit tables plus private Discord snapshot,
+connection-free plan, digest-confirmed transactional apply, independent
+verify, and idempotency tooling. The approved development-only apply created
+the three tables in `polytopia_dev` and imported guild `478571892832206869`;
+the exact second apply was a verified no-op. Complete offline discovery passes
+all 1,789 tests with 77 intentional skips, and the complete stopped-writer
+development-PostgreSQL gate passes 77 tests with one intentional retained-
+fixture skip. Static development settings remain runtime authority; no
+production, command-sync, or Discord mutation occurred. Next staged unit is
+P10.4 development shadow reads/comparison.**
+
 P9.23c guided Beta Lab scenarios is complete in accumulation and deployed for
 Nelluk-only acceptance, from exact clean
 local/tracking/GitHub base
@@ -14566,6 +14581,82 @@ caching, or command synchronization. Those remain fail-closed future layers.
 No development-database gate or beta restart is warranted for unreachable pure
 offline code.
 
+### P10.3 — Additive development storage and exact static import
+
+Status: **Implementation and development migration complete; static settings
+remain authoritative.**
+
+Branch/base: `codex/p10-3-guild-config-storage`, exact clean pushed
+accumulation checkpoint `0edcb16ae54ff0c1b318e454e5b3bf6b58506cd0`.
+
+Implementation checkpoint: `16fa0f193a14902d8288c034f07c657822cf2ae1`.
+
+Risk tier: **Tier 3 development schema/persistence boundary**. Nelluk
+explicitly approved only the additive migration/import in `polytopia_dev`,
+with no production schema or runtime-authority switch.
+
+The bounded implementation adds:
+
+- exactly three additive tables for registry state/active revision, immutable
+  complete revisions, and protected lifecycle audit; draft storage is deferred
+  until an editor actually needs it;
+- named primary/foreign/check constraints, deferrable active/parent/audit
+  references, exact column/default/nullability inventory, a storage schema
+  version, canonical document/source digests, and no destructive down path;
+- a private mode-`0600` bounded Discord HTTP snapshot containing only the
+  configured development guild's role/channel identity, with no members,
+  messages, permissions, token, gateway session, database access, or Discord
+  mutation;
+- a connection-free plan that materializes all effective inherited static
+  values, resolves every referenced role name to one non-managed same-guild
+  role ID, verifies every configured channel/category ID, and prints a
+  bundle-digest-bound confirmation;
+- one transaction-scoped advisory lock plus exact configured/live
+  `development` / `polytopia_dev` / `polybot_dev` / application / disabled-
+  tasks-API-Bullet gates before DDL or import; and
+- exact repeat no-op behavior and independent read-only verification that
+  refuse source, document, schema, registry, revision, audit, or unexpected-
+  guild drift rather than rewriting revision one.
+
+The first real snapshot exposed a stale `Helper` name in the ignored
+development profile. No live Discord role had that name, so it granted no
+authority. The profile was corrected to retain only exact temporary
+`Beta Lab Staff` helper authority; no Discord resource was created and current
+authorization behavior did not change. Development `/staffhelp` is another
+explicit effective-value normalization: when `tools_support` is enabled, the
+document materializes the independently pinned `admin-spam` mirror channel
+`480078679930830849` rather than preserving the legacy null that runtime does
+not actually use.
+
+The reviewed live plan contains one guild, document digest
+`5dd75e59c06532c502ffda3560d182aaf46f14f5518eb59743dff5d881a8a4f0`,
+source digest
+`ab735d677590a93183578b811d8acca7a2bc5bcf0ab43fb46146eec252baa824`,
+and bundle digest
+`7b6ffce76572fb06386640727abcda1ade3feef5aad0c79e0a4185f66547955b`.
+With only durable beta PID `129519` identified and then stopped, the host-wide
+writer audit reported clear. The exact confirmed first apply created the
+schema/import and verified guild `478571892832206869`; the second exact apply
+reported no schema or imported guild and the same guild unchanged/verified.
+The standalone read-only verifier and gated storage integration test pass.
+The complete existing stopped-writer PostgreSQL suite plus the new case runs
+77 tests: 76 pass and the operator-managed fixture round trip is intentionally
+skipped.
+
+Focused P10.2/P10.3 validation passes 34 tests before the gated case; complete
+offline discovery passes all 1,789 tests with 77 intentional skips.
+`py_compile`, environment-free storage import, and `git diff --check` pass.
+Complete-diff review corrected PostgreSQL 18's generated `NOT NULL` constraint
+metadata handling while continuing to verify exact nullability/defaults, and
+caught the stale development Helper role before any database connection. No
+remaining actionable finding is known.
+
+P10.3 does not import the storage module from bot startup, add runtime models,
+read database configuration during ordinary commands, change static authority,
+enroll a guild, add drafts, activate revisions, synchronize commands, or touch
+production. P10.4 owns worker-loaded shadow comparison while static remains
+authoritative.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -15603,6 +15694,28 @@ specific capability restrictions, persistence, activation, and runtime cache
 publication remain separate validators/services rather than weakening this
 portable contract.
 
+### D-052 — Import one immutable development revision without switching authority
+
+Status: **Accepted; implemented by P10.3**
+
+The first persistence envelope contains only registry, immutable revision, and
+protected audit tables. Draft storage is deferred until the owner control
+plane establishes its actual lifecycle. Initial import writes complete
+revision/generation/event `1` atomically, binds confirmation to a complete
+bundle digest, and preserves the static runtime source. An exact repeat is a
+verified no-op; changed input never rewrites revision one or silently creates
+revision two.
+
+Live Discord identity is captured separately and privately, then consumed by
+an offline plan. Missing, ambiguous, managed, cross-guild, or wrong-object
+references fail closed. Legacy names that resolve to no live authority are
+corrected at the development source rather than invented in Discord or omitted
+silently. Environment-specific effective behavior, currently the fixed beta
+staff-help mirror, is materialized explicitly and recorded in the source
+digest. The additive schema has no supported destructive rollback; until an
+authority switch is separately approved, recovery is simply to keep static
+authority selected, preserve evidence, and fix forward.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -15610,19 +15723,19 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 and P10.2 complete.** The inventory, architecture, and
-offline typed contract are recorded in
-`docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md`, decision D-050, and decision
-D-051. The design
+Design status: **P10.1 through P10.3 complete.** The inventory, architecture,
+offline typed contract, and additive development import are recorded in
+`docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md` and decisions D-050 through
+D-052. The design
 selects a PostgreSQL revision service, immutable runtime snapshots, owner-only
 initial enrollment, Discord-first control plane, opt-in local delegation, and
 separate explicit command synchronization. It excludes secrets, process
 identity, bans, product catalogs, and arbitrary executable/JSON behavior.
 
 Implementation is intentionally staged rather than one large migration. The
-next selectable unit is additive development schema/import tooling under
-separate schema-migration approval. Later units own shadow reads, an explicit
-authority switch, owner editing,
+next selectable unit is development shadow reads/comparison, with static
+settings still authoritative. Later units own an explicit authority switch,
+owner editing,
 quarantined onboarding, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
@@ -15757,6 +15870,39 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.3 additive development storage/import database-gated
+
+- Created `codex/p10-3-guild-config-storage` from exact clean pushed
+  accumulation checkpoint `0edcb16ae54ff0c1b318e454e5b3bf6b58506cd0`
+  and recorded implementation checkpoint
+  `16fa0f193a14902d8288c034f07c657822cf2ae1`.
+- Added exact registry/revision/audit storage, private live Discord identity
+  snapshot, database-connection-free import planning, digest-bound
+  transactional development apply, exact-repeat no-op, independent verifier,
+  gated database regression, and the complete operations runbook.
+- The first live plan correctly refused a stale development `Helper` role name
+  that resolved nowhere. Removed only that dead ignored-profile entry and
+  retained exact `Beta Lab Staff`; no current permission or Discord resource
+  changed. Materialized the established fixed beta `admin-spam` staff-help
+  mirror as effective development behavior.
+- Tier-3 review also corrected PostgreSQL 18 constraint inventory so generated
+  `NOT NULL` metadata does not masquerade as an unknown application constraint;
+  exact column nullability/defaults and all named primary/foreign/check
+  constraints remain verified. No remaining actionable finding is known.
+- Focused P10.2/P10.3 tests pass 34 cases before the explicit live case;
+  complete offline discovery passes all 1,789 tests with 77 intentional skips.
+  `py_compile`, environment-free storage import, and `git diff --check` pass.
+- Stopped only durable development beta PID `129519` and required the host-wide
+  audit to report no writer. First apply created all three tables and imported
+  exact guild `478571892832206869`; second apply was a verified no-op. The
+  independent verifier and gated storage test pass. The complete development-
+  PostgreSQL suite runs 77 tests with 76 passes and one intentional retained-
+  fixture skip.
+- No production, command synchronization, Discord mutation, runtime-authority
+  switch, draft, enrollment, dependency, or destructive schema operation
+  occurred. Next: integrate/push, restart and verify the beta once at the final
+  checkpoint, then select P10.4 shadow comparison.
 
 ### 2026-08-11 — P10.2 offline typed guild configuration contract complete
 

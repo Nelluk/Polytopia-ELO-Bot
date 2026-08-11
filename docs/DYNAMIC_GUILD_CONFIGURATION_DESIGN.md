@@ -1,8 +1,8 @@
 # Dynamic Guild Configuration and Onboarding Design
 
-Status: architecture accepted; migration step 2's offline typed contract is
-implemented. Database, runtime-authority, and operator-control-plane work
-remain separately bounded.
+Status: architecture accepted; migration steps 2 and 3's offline typed
+contract and additive development storage/import are implemented. Runtime-
+authority and operator-control-plane work remain separately bounded.
 
 This document defines a safe replacement for PolyBot's hand-edited
 `server_settings.py` / `server_settings_dev.py` guild dictionaries. It is an
@@ -354,10 +354,14 @@ Each step is a separate bounded unit with its own review and evidence.
    reads. The contract stores exact role IDs, preserves semantic role/channel
    order, canonicalizes command capabilities, rejects incomplete or extended
    documents, and treats `@everyone` as valid only in user permission tiers.
-3. **Additive development schema and import tooling.** Under separate schema
-   approval, add the revisioned tables and a connection-free plan plus gated
-   development apply/verify/idempotency path. Materialize every inherited
-   static value and resolve role names to exact IDs.
+3. **Additive development schema and import tooling (complete in P10.3).**
+   Three tables own the registry, immutable revisions, and protected audit;
+   draft storage remains deferred until the control plane needs it. A bounded
+   read-only Discord snapshot supplies exact same-guild role/channel identity,
+   the plan is database- and Discord-connection-free, and the gated apply is
+   transactional and digest-bound. Every inherited static value is
+   materialized, role names resolve to exact IDs, the effective development
+   staff-help mirror is explicit, and exact repeat apply/verify is idempotent.
 4. **Development shadow read.** Load database snapshots in a worker and compare
    them with static effective settings. Static remains authoritative; any
    mismatch is visible and blocks promotion.
