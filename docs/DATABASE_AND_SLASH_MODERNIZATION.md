@@ -501,12 +501,15 @@ active database graph directly; explicit static source remains the rollback.
 Command-capability changes and no-op drafts cannot activate, command
 synchronization remains separate, and rollback-to-revision remains P10.6b3.
 Focused validation passes 111 tests with two explicit database gates skipped;
-complete offline discovery passes all 1,879 tests with 82 intentional gated
+complete offline discovery passes all 1,880 tests with 82 intentional gated
 skips. Tier-3 review is green after tightening allowlist typing, exact
 generation/inventory reconciliation, no-op rejection, full-digest usability,
-and unchanged capability policy. The rolled-back development-PostgreSQL gate,
-integration/evidence checkpoint, accumulation push, command plan/apply, and
-beta restart are next. No production action is authorized.**
+and unchanged capability policy. Database-gate correction `9a3e69b` makes the
+shared integration harness load current active database authority directly.
+The complete stopped-writer gate passes 82 tests: 81 passed and only the
+established operator-managed fixture round trip skipped. Integration/evidence,
+accumulation push, command plan/apply, and beta restart are next. No production
+action is authorized.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15049,12 +15052,13 @@ separately bounded following unit.
 
 ### P10.6b2 — Owner activation and runtime reconciliation
 
-Status: **Implemented and Tier-3 offline reviewed; integration and the
-stopped-writer development gate remain pending.**
+Status: **Implemented, Tier-3 reviewed, and development-database gated;
+integration remains pending.**
 
 Branch/base: `codex/p10-6b2-guild-config-activation`, exact clean pushed
 accumulation checkpoint `02d88287ead146e289652340aa757fc627cd76e0`.
 Implementation checkpoint: `203b7bf`.
+Database-gate correction: `9a3e69b`.
 
 Risk tier: **Tier 3 authoritative configuration mutation and runtime
 publication boundary.**
@@ -15092,8 +15096,17 @@ before restart remains the transitional rollback; automatic fallback is still
 forbidden.
 
 Focused validation passes 111 tests with the P10.6b1/P10.6b2 PostgreSQL cases
-explicitly skipped. Complete offline discovery passes all 1,879 tests with 82
-intentional gated skips. Tier-3 complete-diff review corrected permissive
+explicitly skipped. Complete offline discovery passes all 1,880 tests with 82
+intentional gated skips. The complete stopped-writer development PostgreSQL
+gate runs 82 tests: 81 pass and only the established operator-managed fixture
+round trip is skipped. The new activation case verifies the exact revision,
+generation, audit, and consumed draft before its guaranteed outer rollback.
+The first attempt correctly stopped before the shared integration class because
+the required reviewed absolute Discord snapshot path was omitted; the unit
+case still passed and rolled back. Review then found that the shared harness
+still reconstructed the superseded static-equality promotion. Correction
+`9a3e69b` makes it load current active database authority directly, and the
+complete rerun passes. Tier-3 complete-diff review corrected permissive
 profile allowlist normalization, required an exact single-generation advance
 with unchanged unrelated guilds and command policy, rejected no-op revisions,
 and exposed the complete confirmation digest. No remaining actionable offline
@@ -15107,8 +15120,7 @@ rollback-to-revision, production authority, or production operation. The
 existing command description changes, so a development-guild-only command
 plan/apply and guarded beta restart are appropriate after integration.
 
-Next action: run the P10.6b2 rolled-back stopped-writer database proof and the
-complete database gate, integrate and push the reviewed unit, then apply only
+Next action: integrate and push the reviewed unit, then apply only
 the development-guild command description and restart the guarded beta.
 P10.6b3 rollback-to-revision is the next separately bounded implementation.
 
@@ -16463,16 +16475,25 @@ deferred into this post-modernization backlog.
   exact confirmation, current Discord-reference, permission, no-op/capability,
   connection ownership, cancellation/event-loop, startup, and settings-swap
   coverage. Focused validation passes 111 tests with two gated database cases
-  skipped. Complete offline discovery passes all 1,879 tests with 82 intentional
+  skipped. Complete offline discovery passes all 1,880 tests with 82 intentional
   gated skips.
 - Tier-3 review tightened raw allowlist type validation, exact one-generation
   and unchanged-inventory reconciliation, full-digest panel visibility, no-op
   rejection at worker/storage boundaries, and unchanged command policy. No
   remaining actionable offline finding is known.
-- No schema, database, Discord, beta, dependency, or production effect occurred
-  during implementation/review. Next: commit this evidence, run the new always-
-  rolled-back activation proof and complete stopped-writer development gate,
-  integrate/push accumulation, then perform the development-guild-only command
+- The first stopped-writer attempt omitted the integration harness's required
+  absolute reviewed Discord snapshot path. The P10.6b2 transactional case
+  passed and rolled back, while the shared class failed before tests or writes.
+  That preflight exposed its stale static-equality authority setup; correction
+  `9a3e69b` now loads current active database authority directly. The complete
+  gate then ran 82 tests: 81 passed and only the established operator-managed
+  fixture round trip skipped. No active revision, audit, generation, draft, or
+  fixture change was retained.
+- No schema, retained database, Discord, dependency, or production effect
+  occurred; the gated development-database work was fully rolled back and only
+  the guarded beta stop remains in effect.
+  Next: commit this evidence, integrate/push accumulation, then perform the
+  development-guild-only command
   description apply and guarded beta restart. P10.6b3 rollback-to-revision is
   the next bounded unit.
 
