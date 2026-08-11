@@ -72,6 +72,16 @@ The P10.4 live read-only case proves the exact stored graph, connection
 ownership, and effective comparison; P10.5 then exercises publication through
 the guarded beta startup with `guild_configuration_source = database`.
 
+The isolated read-only publication regression is:
+
+```bash
+POLYBOT_ENV=development \
+POLYBOT_P10_5_AUTHORITY_INTEGRATION=1 \
+POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
+  .venv/bin/python -m unittest -v \
+  tests.test_guild_configuration_runtime_database
+```
+
 For deployment:
 
 1. verify the clean reviewed checkpoint and exactly one current development
