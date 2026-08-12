@@ -33,6 +33,8 @@ _ALLOWED_ENV_KEYS = frozenset({
     'POLYBOT_UV_IMAGE',
     'POLYBOT_POSTGRES_IMAGE',
     'POLYBOT_SOURCE_CHECKPOINT',
+    'POLYBOT_RUNTIME_UID',
+    'POLYBOT_RUNTIME_GID',
     'POLYBOT_BOT_MEMORY_LIMIT',
     'POLYBOT_BOT_CPU_LIMIT',
     'POLYBOT_POSTGRES_MEMORY_LIMIT',
@@ -143,6 +145,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'restart_supervisor_environment',
         'image_checkpoint_environment',
         'source_checkpoint_environment',
+        'bot_uid_environment',
+        'bot_gid_environment',
         'bot_stop_signal',
         'database_name',
         'database_user',
@@ -155,8 +159,6 @@ def _read_toml(path: Path) -> Mapping[str, object]:
     required_integers = (
         'contract_version',
         'postgres_major',
-        'bot_uid',
-        'bot_gid',
         'restart_exit_status',
         'bot_stop_grace_seconds',
         'database_port',
@@ -180,7 +182,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 2
+            value.get('contract_version') != 3
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -214,8 +216,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
             invalid.append(key)
     exact_scalars = {
         'postgres_major': 18,
-        'bot_uid': 10001,
-        'bot_gid': 10001,
+        'bot_uid_environment': 'POLYBOT_RUNTIME_UID',
+        'bot_gid_environment': 'POLYBOT_RUNTIME_GID',
         'restart_exit_status': 75,
         'restart_supervisor_environment': 'POLYBOT_RESTART_SUPERVISOR=compose',
         'image_checkpoint_environment': 'POLYBOT_IMAGE_CHECKPOINT',
@@ -389,6 +391,32 @@ def _backup_directory(path: Path, *, uid: int, gid: int) -> Finding:
             if safe else
             'Off-volume backup directory must match the configured recovery '
             f'UID/GID and mode 0700: {path}'
+        ),
+    )
+
+
+def _runtime_bind_ownership(
+    paths: tuple[Path, ...],
+    *,
+    uid: int,
+    gid: int,
+) -> Finding:
+    try:
+        mismatched = [
+            path for path in paths
+            if path.lstat().st_uid != uid or path.lstat().st_gid != gid
+        ]
+    except OSError:
+        mismatched = list(paths)
+    return _finding(
+        'runtime-bind-ownership',
+        BLOCK if mismatched else PASS,
+        (
+            'Private bot configuration ownership matches the configured '
+            'non-root container UID/GID.'
+            if not mismatched else
+            'Private bot configuration files must share the configured '
+            'non-root container UID/GID.'
         ),
     )
 
@@ -598,8 +626,11 @@ def _validate_assets(
     required_dockerfile = (
         f"ARG PYTHON_IMAGE={contract['python_image']}",
         f"ARG UV_IMAGE={contract['uv_image']}",
+        'ARG POLYBOT_RUNTIME_UID=10001',
+        'ARG POLYBOT_RUNTIME_GID=10001',
         'POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}',
-        f"USER {contract['bot_uid']}:{contract['bot_gid']}",
+        'COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .',
+        'USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}',
         f"STOPSIGNAL {contract['bot_stop_signal']}",
         '["python", "bot.py", "--skip_tasks"]',
     )
@@ -607,9 +638,11 @@ def _validate_assets(
         str(contract['python_image']),
         str(contract['uv_image']),
         'POLYBOT_SOURCE_CHECKPOINT:',
+        'POLYBOT_RUNTIME_UID: ${POLYBOT_RUNTIME_UID:?',
+        'POLYBOT_RUNTIME_GID: ${POLYBOT_RUNTIME_GID:?',
         'POLYBOT_RESTART_SUPERVISOR: compose',
         'read_only: true',
-        f'user: "{contract["bot_uid"]}:{contract["bot_gid"]}"',
+        'user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"',
         f'stop_signal: {contract["bot_stop_signal"]}',
         f'stop_grace_period: {contract["bot_stop_grace_seconds"]}s',
         'restart: "on-failure:5"',
@@ -791,6 +824,10 @@ def run_doctor(
         checkpoint = env_values.get('POLYBOT_SOURCE_CHECKPOINT', '')
         if checkpoint != git_state.checkpoint or not _CHECKPOINT.fullmatch(checkpoint):
             mismatched.append('POLYBOT_SOURCE_CHECKPOINT')
+        for key in ('POLYBOT_RUNTIME_UID', 'POLYBOT_RUNTIME_GID'):
+            value = env_values.get(key, '')
+            if not value.isdigit() or int(value) <= 0:
+                mismatched.append(key)
         if mode == 'bundled':
             for key in ('POLYBOT_RECOVERY_UID', 'POLYBOT_RECOVERY_GID'):
                 value = env_values.get(key, '')
@@ -823,6 +860,25 @@ def run_doctor(
                     'Backup directory ownership cannot be checked until the '
                     'recovery UID/GID are valid.',
                 ))
+
+        runtime_uid = env_values.get('POLYBOT_RUNTIME_UID', '')
+        runtime_gid = env_values.get('POLYBOT_RUNTIME_GID', '')
+        if runtime_uid.isdigit() and runtime_gid.isdigit():
+            findings.append(_runtime_bind_ownership(
+                (
+                    root / 'deploy/container/config.development.ini',
+                    root / 'deploy/container/server_settings_dev.py',
+                ),
+                uid=int(runtime_uid),
+                gid=int(runtime_gid),
+            ))
+        else:
+            findings.append(_finding(
+                'runtime-bind-ownership',
+                BLOCK,
+                'Private bot configuration ownership cannot be checked until '
+                'the runtime UID/GID are valid.',
+            ))
 
     config_path = root / 'deploy/container/config.development.ini'
     config_finding, defaults = _read_config(config_path)

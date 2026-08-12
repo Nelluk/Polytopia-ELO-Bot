@@ -8,6 +8,8 @@ FROM ${UV_IMAGE} AS uv
 FROM ${PYTHON_IMAGE} AS runtime
 
 ARG POLYBOT_SOURCE_CHECKPOINT
+ARG POLYBOT_RUNTIME_UID=10001
+ARG POLYBOT_RUNTIME_GID=10001
 
 COPY --from=uv /uv /uvx /bin/
 
@@ -22,15 +24,16 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 LABEL org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}
 
-RUN groupadd --gid 10001 polybot \
-    && useradd --uid 10001 --gid polybot --no-create-home --home-dir /app polybot
+RUN groupadd --gid "${POLYBOT_RUNTIME_GID}" polybot \
+    && useradd --uid "${POLYBOT_RUNTIME_UID}" --gid polybot \
+        --no-create-home --home-dir /app polybot
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 
-COPY . .
+COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .
 RUN test "${#POLYBOT_SOURCE_CHECKPOINT}" -eq 40 \
     && case "$POLYBOT_SOURCE_CHECKPOINT" in *[!0-9a-f]*) exit 2 ;; *) : ;; esac \
     && install -d -o polybot -g polybot -m 0750 \
@@ -38,7 +41,7 @@ RUN test "${#POLYBOT_SOURCE_CHECKPOINT}" -eq 40 \
         /app/logs/development \
         /tmp/polybot-matplotlib
 
-USER 10001:10001
+USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}
 STOPSIGNAL SIGINT
 
 CMD ["python", "bot.py", "--skip_tasks"]

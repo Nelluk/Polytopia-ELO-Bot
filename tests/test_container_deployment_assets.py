@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 2)
+        self.assertEqual(contract['contract_version'], 3)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -77,7 +77,13 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
             'ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32@sha256:', dockerfile
         )
         self.assertIn('uv sync --locked --no-dev --no-install-project', dockerfile)
-        self.assertIn('USER 10001:10001', dockerfile)
+        self.assertIn('ARG POLYBOT_RUNTIME_UID=10001', dockerfile)
+        self.assertIn('ARG POLYBOT_RUNTIME_GID=10001', dockerfile)
+        self.assertIn(
+            'COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .',
+            dockerfile,
+        )
+        self.assertIn('USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}', dockerfile)
         self.assertIn('STOPSIGNAL SIGINT', dockerfile)
         self.assertIn('POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
         self.assertIn('org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
@@ -112,7 +118,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('profiles: ["tools"]', compose)
         self.assertIn('bootstrap_development_database.py', compose)
         self.assertIn('read_only: true', compose)
-        self.assertIn('user: "10001:10001"', compose)
+        self.assertIn('user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"', compose)
         self.assertIn('cap_drop:', compose)
         self.assertIn('no-new-privileges:true', compose)
         self.assertIn('stop_signal: SIGINT', compose)

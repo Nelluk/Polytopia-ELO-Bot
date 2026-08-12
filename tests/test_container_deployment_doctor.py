@@ -61,6 +61,11 @@ class ContainerDeploymentDoctorTests(unittest.TestCase):
         ).read_text(encoding='utf-8').replace(
             'REPLACE_WITH_EXACT_CLEAN_GIT_HEAD', CHECKPOINT
         )
+        env = env.replace(
+            'POLYBOT_RUNTIME_UID=1000', f'POLYBOT_RUNTIME_UID={os.getuid()}'
+        ).replace(
+            'POLYBOT_RUNTIME_GID=1000', f'POLYBOT_RUNTIME_GID={os.getgid()}'
+        )
         (self.root / 'deploy/container/.env').write_text(env, encoding='utf-8')
         backup_directory = self.root / 'deploy/container/backups'
         backup_directory.mkdir(exist_ok=True)
@@ -282,6 +287,30 @@ log_root = logs/development
         finding = next(item for item in report.findings if item.key == 'compose-env')
         self.assertIn('POLYBOT_RECOVERY_UID', finding.message)
         self.assertIn('POLYBOT_RECOVERY_GID', finding.message)
+
+    def test_runtime_identity_must_be_positive_and_own_private_bind_files(self):
+        env_path = self.root / 'deploy/container/.env'
+        env_path.write_text(
+            env_path.read_text(encoding='utf-8').replace(
+                f'POLYBOT_RUNTIME_UID={os.getuid()}',
+                'POLYBOT_RUNTIME_UID=0',
+            ).replace(
+                f'POLYBOT_RUNTIME_GID={os.getgid()}',
+                'POLYBOT_RUNTIME_GID=9999',
+            ),
+            encoding='utf-8',
+        )
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+        )
+        blocked = {
+            item.key for item in report.findings if item.status == doctor.BLOCK
+        }
+        self.assertIn('compose-env', blocked)
+        self.assertIn('runtime-bind-ownership', blocked)
 
     def test_backup_directory_must_match_recovery_identity_and_mode(self):
         backup_directory = self.root / 'deploy/container/backups'
