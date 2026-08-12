@@ -501,7 +501,8 @@ and database boundary. The unit also applies the selected N4 correction:
 pre/post `pg_dump` session observations remain useful, but are no longer
 described as proof that no transient session existed between them. No host or
 production restore is authorized. Implementation/integration checkpoint:
-`d27d6c83508ad00ef4e28d4eabad5fcddcf3189f`.**
+`d27d6c83508ad00ef4e28d4eabad5fcddcf3189f`; live evidence checkpoint:
+`af0b4e3b1c98e7324fcf41ffe5f66f9f80459518`.**
 
 Focused recovery/export/document validation passes 21 tests. Complete offline
 discovery passes all 2,045 tests with 89 intentional database gates skipped.
@@ -17406,6 +17407,7 @@ deferred into this post-modernization backlog.
   required reviewed guild-configuration snapshot variable was omitted. The
   corrected unchanged gate ran 77 tests: 76 passed and only the established
   operator-owned fixture round trip skipped.
+- Live evidence and N4 resolution checkpoint: `af0b4e3`.
 - Removed the one-use secret files and owned recovery container/network/
   volume/image; retained only the private archive/digest pair for the planned
   local-machine transfer rehearsal. Disk returned to 2.3 GB free. Restarted
