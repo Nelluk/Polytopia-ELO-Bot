@@ -409,7 +409,7 @@ check:
 
 - accumulation branch: `codex/database-slash-modernization`
 - P11.5B first trusted-guild bootstrap implementation checkpoint: `0e2775b`;
-  reviewed and ready for accumulation integration
+  evidence and fast-forward integration checkpoint: `cdaf58b`
 - P11.6 card-parity implementation checkpoint: `0a40340`; reviewed
   accumulation merge checkpoint: `30f2257`
 - P11.7 persisted 2v2 ELO-graph checkpoints: `6be4e09`, `2f6f121`;
@@ -16070,8 +16070,8 @@ trusted-guild authority.
 
 ### P11.5B — First trusted-guild bootstrap
 
-Status: **Implemented; Tier-3 reviewed and ready for accumulation
-integration.**
+Status: **Complete; Tier-3 reviewed and fast-forward integrated at
+`cdaf58b`.**
 
 Branch/base: `codex/p11-5b-first-guild-bootstrap`, from exact clean pushed
 accumulation checkpoint
@@ -17674,12 +17674,15 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
-### 2026-08-12 — P11.5B first trusted-guild bootstrap reviewed
+### 2026-08-12 — P11.5B first trusted-guild bootstrap reviewed and integrated
 
 - Created `codex/p11-5b-first-guild-bootstrap` from exact clean pushed
   accumulation checkpoint `5d5ea9c`, added the bounded `./polybot
   bootstrap-guild GUILD_ID` operator flow, and committed implementation/tests/
   runbook as `0e2775b`.
+- Recorded review evidence and fast-forward integrated the complete unit at
+  exact accumulation checkpoint `cdaf58b`; no conflict or unrelated checkout
+  change was present.
 - The new operation captures one exact read-only Discord guild inventory,
   prints a database-free digest-bound plan, and requires exact confirmation
   for one serializable transaction that accepts only the complete empty
