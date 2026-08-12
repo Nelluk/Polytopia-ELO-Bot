@@ -77,10 +77,6 @@ class ContainerDatabaseRecoveryTests(unittest.TestCase):
                 'APPLICATION_SECRET=/run/secrets/polybot_database_password': (
                     f'APPLICATION_SECRET={self.app_secret}'
                 ),
-                (
-                    'EXPECTED_DIGEST='
-                    'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b'
-                ): f'EXPECTED_DIGEST={self.import_digest}',
             },
         )
 
@@ -272,6 +268,7 @@ esac
         )
         self.assertEqual(applied.returncode, 0, applied.stderr)
         self.assertIn('Fresh-volume restore drill complete.', applied.stdout)
+        self.assertIn('verified counts: 71|4|44|15|3|48|24', applied.stdout)
         self.assertTrue(self.psql_marker.exists())
         self.assertTrue(self.restore_marker.exists())
         self.assertNotIn(ADMIN_PASSWORD, applied.stdout + applied.stderr)
@@ -334,6 +331,7 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
+            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
         )
         self.assertEqual(applied.returncode, 0, applied.stderr)
         self.assertIn(
@@ -358,6 +356,34 @@ esac
         self.assertFalse(self.psql_marker.exists())
         self.assertFalse(self.restore_marker.exists())
 
+    def test_import_apply_requires_fresh_volume_verified_counts(self):
+        self.psql_marker.unlink(missing_ok=True)
+        result = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION=(
+                f'IMPORT polytopia_dev {self.import_digest}'
+            ),
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('seven digest-bound expected counts', result.stderr)
+        self.assertFalse(self.psql_marker.exists())
+        self.assertFalse(self.restore_marker.exists())
+
+    def test_import_refuses_counts_that_differ_from_verified_restore(self):
+        result = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION=(
+                f'IMPORT polytopia_dev {self.import_digest}'
+            ),
+            POLYBOT_IMPORT_EXPECTED_COUNTS='0|0|0|0|0|0|0',
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('fresh-volume-verified archive', result.stderr)
+
     def test_import_wrong_confirmation_refuses_before_database_access(self):
         self.psql_marker.unlink(missing_ok=True)
         result = self._run(
@@ -379,6 +405,7 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
+            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
             FAKE_SESSION_COUNTER=str(self.session_counter),
         )
 
@@ -396,6 +423,7 @@ esac
                     POLYBOT_IMPORT_CONFIRMATION=(
                         f'IMPORT polytopia_dev {self.import_digest}'
                     ),
+                    POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
                     **{variable: '0'},
                 )
                 self.assertEqual(result.returncode, 2)
@@ -409,6 +437,7 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
+            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
             FAKE_PUBLIC_RELATIONS='1',
         )
 
@@ -424,7 +453,7 @@ esac
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn('exact reviewed archive basename', result.stderr)
+        self.assertIn('reviewed development format', result.stderr)
         self.assertFalse(self.psql_marker.exists())
 
 

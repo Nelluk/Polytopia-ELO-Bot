@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # Import the one reviewed host-development archive into the ordinary bundled
-# development database. The target, source artifact, and expected bounded
-# counts are fixed so this job cannot become a general-purpose restore path.
+# development database. The target is fixed and the source must be one
+# checksum-paired archive produced by the reviewed development backup path.
 
 set -eu
 umask 077
@@ -14,9 +14,10 @@ APPLICATION_ROLE=polybot_dev
 BACKUP_ROOT=/backups
 ADMIN_SECRET=/run/secrets/postgres_admin_password
 APPLICATION_SECRET=/run/secrets/polybot_database_password
-EXPECTED_ARCHIVE=polybot-polytopia_dev-20260812T123355Z-d27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump
-EXPECTED_DIGEST=a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b
-EXPECTED_COUNTS='71|4|44|15|3|48|24'
+EXPECTED_ARCHIVE_PREFIX=polybot-polytopia_dev
+LEGACY_ARCHIVE=polybot-polytopia_dev-20260812T123355Z-d27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump
+LEGACY_DIGEST=a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b
+LEGACY_COUNTS='71|4|44|15|3|48|24'
 
 fail() {
   echo "Development database import refused: $1" >&2
@@ -35,8 +36,15 @@ fail() {
   || fail 'PGUSER must be the bundled administrative role.'
 
 archive_name=${POLYBOT_BACKUP_ARCHIVE:-}
-[ "$archive_name" = "$EXPECTED_ARCHIVE" ] \
-  || fail 'POLYBOT_BACKUP_ARCHIVE must be the exact reviewed archive basename.'
+[ -n "$archive_name" ] \
+  || fail 'POLYBOT_BACKUP_ARCHIVE must name one reviewed development archive.'
+case "$archive_name" in
+  */*|.*|*..*|*[!A-Za-z0-9._-]*)
+    fail 'Backup archive must be one safe basename.' ;;
+esac
+printf '%s\n' "$archive_name" \
+  | grep -Eq "^${EXPECTED_ARCHIVE_PREFIX}-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{40}\\.dump$" \
+  || fail 'Backup archive name does not match the reviewed development format.'
 archive_path="$BACKUP_ROOT/$archive_name"
 digest_path="${archive_path}.sha256"
 [ -f "$archive_path" ] && [ ! -L "$archive_path" ] && [ -s "$archive_path" ] \
@@ -46,8 +54,6 @@ digest_path="${archive_path}.sha256"
 
 archive_digest=$(sha256sum "$archive_path" | awk '{print $1}') \
   || fail 'Could not digest the reviewed archive.'
-[ "$archive_digest" = "$EXPECTED_DIGEST" ] \
-  || fail 'Archive digest does not match the reviewed transfer.'
 expected_digest_line="$archive_digest  $archive_name"
 digest_bytes=$(wc -c <"$digest_path") \
   || fail 'Could not inspect the archive digest sidecar.'
@@ -77,6 +83,19 @@ if [ -z "$provided_confirmation" ]; then
 fi
 [ "$provided_confirmation" = "$confirmation" ] \
   || fail 'Import confirmation does not match the exact target and archive digest.'
+
+expected_counts=${POLYBOT_IMPORT_EXPECTED_COUNTS:-}
+if [ "$archive_name" = "$LEGACY_ARCHIVE" ] && [ "$archive_digest" = "$LEGACY_DIGEST" ]; then
+  [ -z "$expected_counts" ] || [ "$expected_counts" = "$LEGACY_COUNTS" ] \
+    || fail 'Expected counts do not match the reviewed transferred archive.'
+  expected_counts=$LEGACY_COUNTS
+  count_scope='reviewed transferred fixture counts'
+else
+  printf '%s\n' "$expected_counts" \
+    | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
+    || fail 'A verified archive must supply seven digest-bound expected counts.'
+  count_scope='fresh-volume-verified bounded archive counts'
+fi
 
 for secret in "$ADMIN_SECRET" "$APPLICATION_SECRET"; do
   [ -f "$secret" ] && [ ! -L "$secret" ] \
@@ -262,10 +281,15 @@ imported_counts=$(psql \
       (SELECT count(*) FROM game WHERE id BETWEEN 200 AND 247),
       (SELECT count(*) FROM player WHERE id BETWEEN 163 AND 186)
   ") || fail 'Could not verify bounded imported data counts.'
-[ "$imported_counts" = "$EXPECTED_COUNTS" ] \
-  || fail 'Imported data counts do not match the digest-bound reviewed archive.'
+printf '%s\n' "$imported_counts" \
+  | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
+  || fail 'Imported data counts have an unexpected shape.'
+
+[ "$imported_counts" = "$expected_counts" ] \
+  || fail 'Imported data counts do not match the fresh-volume-verified archive.'
 
 echo 'Development bundled database import complete.'
 echo "verified database: $TARGET_DATABASE"
-echo 'verified counts: guild_games=71 houses=4 guild_players=44 guild_teams=15 beta_games=3 showcase_games=48 showcase_players=24'
+echo "verified count scope: $count_scope"
+echo "verified counts: $imported_counts"
 echo 'The bot remains stopped; this job never starts it.'

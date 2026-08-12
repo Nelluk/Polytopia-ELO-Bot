@@ -15968,6 +15968,37 @@ writer database gate, command plan/apply, checklist update, and announcement
 are unwarranted because this unit changes no active host-beta or command-tree
 behavior.
 
+### P11.5A — Cross-platform container deployment interface
+
+Status: **In progress on `codex/p11-5a-container-interface`**
+
+Branch/base: exact clean pushed accumulation checkpoint
+`f495391434879d90691775bb984ede79a6b3897d`.
+
+Risk tier: **Tier 3 operational/database and secret-safety boundary.**
+
+Objective: replace the engineering-internal ordinary Compose sequence with
+one repository-owned `./polybot` interface for setup, verified import, start,
+status, logs, restart, stop, backup, and fresh-volume backup verification on
+macOS Docker Desktop and Linux Docker Engine/Compose. Raw jobs remain
+available for diagnosis.
+
+The interface must reuse the existing doctor, provisioner, schema bootstrap,
+import, backup, and isolated restore implementation. It may create or update
+only ignored deployment inputs, must never print or overwrite secrets, must
+retain visible exact confirmations for consequential operations, and must
+preserve the one-bot-writer and no-automatic-sync rules. Fresh empty database
+setup is supported, but first-ever trusted-guild bootstrap remains P11.5B;
+`start` fails closed until that unit is complete. A verified imported database
+already contains its trusted guild authority.
+
+Required evidence: focused shell/interface/doctor/recovery coverage including
+Darwin and Linux decisions, complete offline discovery, shell and compilation
+checks, Compose rendering, immutable-image doctor and bind probe, read-only
+real Darwin status against the healthy `polybot-mac-beta` project, complete
+diff review, and proof that the existing Mac beta was not restarted or
+degraded during implementation.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.

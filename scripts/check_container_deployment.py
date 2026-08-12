@@ -16,6 +16,7 @@ sys.dont_write_bytecode = True
 
 from modules.container_deployment_doctor import (  # noqa: E402
     ContainerDoctorError,
+    GitSnapshot,
     MODES,
     format_report,
     report_json,
@@ -32,6 +33,23 @@ def parse_args(argv=None):
     )
     parser.add_argument('--mode', choices=MODES, required=True)
     parser.add_argument('--json', action='store_true', help='emit machine JSON')
+    parser.add_argument(
+        '--immutable-image-checkpoint',
+        default='',
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        '--host-platform',
+        choices=('darwin', 'linux'),
+        default='',
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        '--host-uid',
+        type=int,
+        default=-1,
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
 
 
@@ -45,7 +63,36 @@ def main(argv=None) -> int:
         )
         return 2
     try:
-        report = run_doctor(PROJECT_ROOT, mode=args.mode)
+        run_options = {}
+        if args.immutable_image_checkpoint:
+            image_checkpoint = os.environ.get(
+                'POLYBOT_IMAGE_CHECKPOINT', ''
+            ).strip()
+            if (
+                    os.environ.get('POLYBOT_DEPLOYMENT_CLI_INTERNAL') != '1'
+                    or args.immutable_image_checkpoint != image_checkpoint
+                    or len(image_checkpoint) != 40
+                    or any(
+                        value not in '0123456789abcdef'
+                        for value in image_checkpoint
+                    )
+                    or args.host_platform not in {'darwin', 'linux'}
+                    or args.host_uid < 0):
+                raise ContainerDoctorError(
+                    'Immutable-image doctor invocation is invalid.'
+                )
+            run_options = {
+                'git_probe': lambda _root: GitSnapshot(
+                    checkpoint=image_checkpoint,
+                    clean=True,
+                ),
+                'which': lambda name: (
+                    '/usr/bin/docker' if name == 'docker' else None
+                ),
+                'host_platform': args.host_platform,
+                'host_uid': args.host_uid,
+            }
+        report = run_doctor(PROJECT_ROOT, mode=args.mode, **run_options)
     except ContainerDoctorError as exc:
         print(f'Container deployment doctor refused: {exc}', file=sys.stderr)
         return 2

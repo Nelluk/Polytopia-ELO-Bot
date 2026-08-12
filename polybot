@@ -1,0 +1,810 @@
+#!/bin/sh
+
+# Cross-platform operator interface for the development-only Compose stack.
+# Raw Compose and recovery jobs remain available for diagnosis, but ordinary
+# operations should enter through this fail-closed wrapper.
+
+set -eu
+umask 077
+
+if [ "${POLYBOT_SOURCE_ONLY:-0}" = 1 ] && [ -n "${POLYBOT_ROOT_OVERRIDE:-}" ]; then
+  ROOT=$(CDPATH= cd -- "$POLYBOT_ROOT_OVERRIDE" && pwd -P)
+else
+  ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+fi
+ASSETS=$ROOT/deploy/container
+COMPOSE_FILE=$ASSETS/compose.development.yaml
+ENV_FILE=$ASSETS/.env
+CONFIG_FILE=$ASSETS/config.development.ini
+SERVER_SETTINGS_FILE=$ASSETS/server_settings_dev.py
+SECRETS_DIR=$ASSETS/secrets
+BACKUP_DIR=$ASSETS/backups
+ADMIN_SECRET=$SECRETS_DIR/postgres-admin-password.txt
+APP_SECRET=$SECRETS_DIR/polybot-database-password.txt
+if [ "${POLYBOT_SOURCE_ONLY:-0}" = 1 ] && [ -n "${POLYBOT_PROJECT_NAME:-}" ]; then
+  PROJECT_NAME=$POLYBOT_PROJECT_NAME
+else
+  PROJECT_NAME=polybot-mac-beta
+fi
+VERIFIED_SUFFIX=.verified
+
+fail() {
+  echo "PolyBot deployment refused: $*" >&2
+  exit 2
+}
+
+usage() {
+  cat <<'EOF'
+Usage: ./polybot COMMAND [ARGUMENT]
+
+Commands:
+  setup                 Prepare private inputs, image, and an empty database
+  import-backup PATH    Import one fresh-volume-verified development archive
+  start                 Start the sole development bot and database
+  status                Report concise deployment and writer state
+  logs [--follow]       Show the latest bot logs, optionally following
+  restart               Cleanly restart the running bot container
+  stop                  Stop bot and database while retaining persistence
+  backup                Create a confirmed logical development backup
+  verify-backup PATH    Restore-test an archive in the isolated recovery volume
+EOF
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "Required command is unavailable: $1"
+}
+
+platform_name() {
+  detected=${POLYBOT_PLATFORM_OVERRIDE:-$(uname -s)}
+  case "$detected" in
+    Darwin|darwin) echo darwin ;;
+    Linux|linux) echo linux ;;
+    *) fail "Only macOS Docker Desktop and Linux Docker Engine are supported." ;;
+  esac
+}
+
+host_uid() {
+  id -u
+}
+
+host_gid() {
+  id -g
+}
+
+runtime_uid() {
+  if [ "$(platform_name)" = darwin ]; then
+    echo 1000
+  else
+    host_uid
+  fi
+}
+
+runtime_gid() {
+  if [ "$(platform_name)" = darwin ]; then
+    echo 1000
+  else
+    host_gid
+  fi
+}
+
+validate_project_name() {
+  case "$PROJECT_NAME" in
+    ''|*[!a-z0-9_-]*|[-_]*) fail 'The internal Compose project name is invalid.' ;;
+  esac
+}
+
+compose() {
+  docker compose \
+    --project-name "$PROJECT_NAME" \
+    --env-file "$ENV_FILE" \
+    --file "$COMPOSE_FILE" \
+    "$@"
+}
+
+require_engine() {
+  require_command git
+  require_command docker
+  docker compose version >/dev/null 2>&1 \
+    || fail 'Docker Compose plugin syntax is required: docker compose.'
+  docker info >/dev/null 2>&1 \
+    || fail 'Docker Engine is unavailable; start Docker Desktop or Docker Engine.'
+}
+
+git_checkpoint() {
+  checkpoint=$(git -C "$ROOT" rev-parse --verify HEAD 2>/dev/null) \
+    || fail 'Could not inspect the Git checkpoint.'
+  case "$checkpoint" in
+    ''|*[!0-9a-f]*) fail 'Git HEAD is not one lowercase SHA-1.' ;;
+  esac
+  [ "${#checkpoint}" -eq 40 ] || fail 'Git HEAD is not one lowercase SHA-1.'
+  status=$(GIT_OPTIONAL_LOCKS=0 git -C "$ROOT" status --porcelain --untracked-files=all) \
+    || fail 'Could not inspect Git cleanliness.'
+  [ -z "$status" ] || fail 'The tracked checkout must be clean.'
+  echo "$checkpoint"
+}
+
+ensure_private_directories() {
+  [ -d "$SECRETS_DIR" ] || mkdir -p "$SECRETS_DIR"
+  [ -d "$BACKUP_DIR" ] || mkdir -p "$BACKUP_DIR"
+  [ ! -L "$SECRETS_DIR" ] && [ ! -L "$BACKUP_DIR" ] \
+    || fail 'Private deployment directories must not be symlinks.'
+  chmod 700 "$SECRETS_DIR" "$BACKUP_DIR"
+}
+
+generate_secret() {
+  target=$1
+  [ ! -e "$target" ] && [ ! -L "$target" ] \
+    || fail "Refusing to replace existing secret: $target"
+  (
+    set -C
+    umask 077
+    dd if=/dev/urandom bs=48 count=1 2>/dev/null \
+      | od -An -tx1 \
+      | tr -d ' \n' >"$target"
+    printf '\n' >>"$target"
+  ) || fail 'Could not generate a private random secret.'
+  chmod 600 "$target"
+}
+
+validate_secret_file() {
+  target=$1
+  [ -f "$target" ] && [ ! -L "$target" ] \
+    || fail "Required secret is not one regular file: $target"
+  chmod 600 "$target"
+  lines=$(wc -l <"$target" | tr -d ' ')
+  bytes=$(wc -c <"$target" | tr -d ' ')
+  [ "$lines" -eq 1 ] && [ "$bytes" -ge 33 ] \
+    || fail "Required secret has an unsafe shape: $target"
+}
+
+rewrite_config_key() {
+  EDIT_KEY=$1
+  EDIT_VALUE=$2
+  EDIT_TEMP=$BACKUP_DIR/.polybot-config.$$
+  : >"$EDIT_TEMP"
+  chmod 600 "$EDIT_TEMP"
+  EDIT_FOUND=false
+  while IFS= read -r EDIT_LINE || [ -n "$EDIT_LINE" ]; do
+    EDIT_LEFT=${EDIT_LINE%%=*}
+    EDIT_NORMALIZED=$(printf '%s' "$EDIT_LEFT" | tr -d ' \t')
+    if [ "$EDIT_NORMALIZED" = "$EDIT_KEY" ] && [ "$EDIT_LINE" != "$EDIT_LEFT" ]; then
+      printf '%s = %s\n' "$EDIT_KEY" "$EDIT_VALUE" >>"$EDIT_TEMP"
+      EDIT_FOUND=true
+    else
+      printf '%s\n' "$EDIT_LINE" >>"$EDIT_TEMP"
+    fi
+  done <"$CONFIG_FILE"
+  if [ "$EDIT_FOUND" = false ]; then
+    printf '%s = %s\n' "$EDIT_KEY" "$EDIT_VALUE" >>"$EDIT_TEMP"
+  fi
+  mv "$EDIT_TEMP" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+}
+
+rewrite_env_key() {
+  EDIT_KEY=$1
+  EDIT_VALUE=$2
+  EDIT_TEMP=$BACKUP_DIR/.polybot-env.$$
+  : >"$EDIT_TEMP"
+  chmod 600 "$EDIT_TEMP"
+  EDIT_FOUND=false
+  while IFS= read -r EDIT_LINE || [ -n "$EDIT_LINE" ]; do
+    case "$EDIT_LINE" in
+      "$EDIT_KEY="*)
+        printf '%s=%s\n' "$EDIT_KEY" "$EDIT_VALUE" >>"$EDIT_TEMP"
+        EDIT_FOUND=true
+        ;;
+      *) printf '%s\n' "$EDIT_LINE" >>"$EDIT_TEMP" ;;
+    esac
+  done <"$ENV_FILE"
+  if [ "$EDIT_FOUND" = false ]; then
+    printf '%s=%s\n' "$EDIT_KEY" "$EDIT_VALUE" >>"$EDIT_TEMP"
+  fi
+  mv "$EDIT_TEMP" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+}
+
+prepare_ignored_inputs() {
+  ensure_private_directories
+  scaffolded=false
+
+  if [ ! -e "$CONFIG_FILE" ] && [ ! -L "$CONFIG_FILE" ]; then
+    if [ -f "$ROOT/config.development.ini" ] && [ ! -L "$ROOT/config.development.ini" ]; then
+      cp -p "$ROOT/config.development.ini" "$CONFIG_FILE"
+    else
+      cp "$ROOT/config.development.ini-EXAMPLE" "$CONFIG_FILE"
+      scaffolded=true
+    fi
+  fi
+  if [ ! -e "$SERVER_SETTINGS_FILE" ] && [ ! -L "$SERVER_SETTINGS_FILE" ]; then
+    if [ -f "$ROOT/server_settings_dev.py" ] && [ ! -L "$ROOT/server_settings_dev.py" ]; then
+      cp -p "$ROOT/server_settings_dev.py" "$SERVER_SETTINGS_FILE"
+    else
+      cp "$ROOT/server_settings_dev-EXAMPLE.py" "$SERVER_SETTINGS_FILE"
+      scaffolded=true
+    fi
+  fi
+  [ -f "$CONFIG_FILE" ] && [ ! -L "$CONFIG_FILE" ] \
+    || fail 'Container development config must be one regular non-symlink file.'
+  [ -f "$SERVER_SETTINGS_FILE" ] && [ ! -L "$SERVER_SETTINGS_FILE" ] \
+    || fail 'Container server settings must be one regular non-symlink file.'
+  chmod 600 "$CONFIG_FILE" "$SERVER_SETTINGS_FILE"
+
+  [ -e "$ADMIN_SECRET" ] || generate_secret "$ADMIN_SECRET"
+  [ -e "$APP_SECRET" ] || generate_secret "$APP_SECRET"
+  validate_secret_file "$ADMIN_SECRET"
+  validate_secret_file "$APP_SECRET"
+  cmp -s "$ADMIN_SECRET" "$APP_SECRET" \
+    && fail 'Administrative and application database secrets must differ.'
+
+  APP_PASSWORD=$(sed -n '1p' "$APP_SECRET")
+  rewrite_config_key guild_configuration_source database
+  rewrite_config_key psql_db polytopia_dev
+  rewrite_config_key psql_user polybot_dev
+  rewrite_config_key psql_password "$APP_PASSWORD"
+  APP_PASSWORD=
+  rewrite_config_key psql_host postgres
+  rewrite_config_key psql_port 5432
+  rewrite_config_key background_tasks_enabled false
+  rewrite_config_key allow_development_background_tasks false
+  rewrite_config_key api_enabled false
+  rewrite_config_key allow_development_api false
+  rewrite_config_key bullet_enabled false
+  rewrite_config_key image_root data/development/images
+  rewrite_config_key log_root logs/development
+
+  if [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ]; then
+    cp "$ASSETS/development.env.example" "$ENV_FILE"
+  fi
+  [ -f "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ] \
+    || fail 'Compose environment must be one regular non-symlink file.'
+  chmod 600 "$ENV_FILE"
+  checkpoint=$(git_checkpoint)
+  short_checkpoint=$(printf '%.7s' "$checkpoint")
+  rewrite_env_key POLYBOT_BOT_IMAGE "$PROJECT_NAME:$short_checkpoint"
+  rewrite_env_key POLYBOT_SOURCE_CHECKPOINT "$checkpoint"
+  rewrite_env_key POLYBOT_RUNTIME_UID "$(runtime_uid)"
+  rewrite_env_key POLYBOT_RUNTIME_GID "$(runtime_gid)"
+  rewrite_env_key POLYBOT_RECOVERY_UID "$(host_uid)"
+  rewrite_env_key POLYBOT_RECOVERY_GID "$(host_gid)"
+
+  if [ "$scaffolded" = true ]; then
+    echo 'Private container configuration scaffolds were created.'
+    echo "Edit only these ignored files, then rerun ./polybot setup:"
+    echo "  $CONFIG_FILE"
+    echo "  $SERVER_SETTINGS_FILE"
+    return 2
+  fi
+}
+
+configured_image() {
+  sed -n 's/^POLYBOT_BOT_IMAGE=//p' "$ENV_FILE" | tail -n 1
+}
+
+configured_checkpoint() {
+  sed -n 's/^POLYBOT_SOURCE_CHECKPOINT=//p' "$ENV_FILE" | tail -n 1
+}
+
+run_immutable_doctor() {
+  checkpoint=$(configured_checkpoint)
+  image=$(configured_image)
+  [ -n "$image" ] || fail 'Run ./polybot setup to configure the image.'
+  docker image inspect "$image" >/dev/null 2>&1 \
+    || fail 'The exact image is absent; rerun ./polybot setup.'
+  docker run --rm \
+    --network none \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --user 0:0 \
+    --mount "type=bind,src=$ENV_FILE,dst=/app/deploy/container/.env,readonly" \
+    --mount "type=bind,src=$CONFIG_FILE,dst=/app/deploy/container/config.development.ini,readonly" \
+    --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/app/deploy/container/server_settings_dev.py,readonly" \
+    --mount "type=bind,src=$ADMIN_SECRET,dst=/app/deploy/container/secrets/postgres-admin-password.txt,readonly" \
+    --mount "type=bind,src=$APP_SECRET,dst=/app/deploy/container/secrets/polybot-database-password.txt,readonly" \
+    --mount "type=bind,src=$BACKUP_DIR,dst=/app/deploy/container/backups,readonly" \
+    --env POLYBOT_ENV=development \
+    --env POLYBOT_DEPLOYMENT_CLI_INTERNAL=1 \
+    "$image" \
+    python scripts/check_container_deployment.py \
+      --mode bundled \
+      --immutable-image-checkpoint "$checkpoint" \
+      --host-platform "$(platform_name)" \
+      --host-uid "$(host_uid)"
+}
+
+live_bind_probe() {
+  image=$(configured_image)
+  docker run --rm \
+    --network none \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --user "$(runtime_uid):$(runtime_gid)" \
+    --mount "type=bind,src=$CONFIG_FILE,dst=/probe/config.development.ini,readonly" \
+    --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/probe/server_settings_dev.py,readonly" \
+    "$image" /bin/sh -c \
+      'test -r /probe/config.development.ini && test -r /probe/server_settings_dev.py' \
+    || fail 'Docker could not present the private configuration to the non-root runtime.'
+  echo 'Private configuration bind probe: readable by the non-root runtime.'
+}
+
+bot_container_id() {
+  docker ps -aq \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter 'label=com.docker.compose.service=bot' \
+    | head -n 1
+}
+
+postgres_container_id() {
+  docker ps -aq \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter 'label=com.docker.compose.service=postgres' \
+    | head -n 1
+}
+
+container_running() {
+  target=$1
+  [ -n "$target" ] || return 1
+  [ "$(docker inspect "$target" --format '{{.State.Running}}' 2>/dev/null)" = true ]
+}
+
+host_writer_count() {
+  container_pids=,
+  for candidate in $(docker ps -q); do
+    candidate_pid=$(docker inspect "$candidate" --format '{{.State.Pid}}' 2>/dev/null || true)
+    case "$candidate_pid" in
+      ''|*[!0-9]*) ;;
+      *) container_pids=${container_pids}${candidate_pid}, ;;
+    esac
+  done
+  ps -axo pid=,command= 2>/dev/null \
+    | awk -v container_pids="$container_pids" '
+        $0 ~ /[b]ot\.py/ && $0 ~ /--skip_tasks/ \
+          && index(container_pids, "," $1 ",") == 0 {count++}
+        END {print count + 0}
+      '
+}
+
+other_container_writers() {
+  allowed=$1
+  count=0
+  for candidate in $(docker ps -q); do
+    [ "$candidate" = "$allowed" ] && continue
+    command_value=$(docker inspect "$candidate" --format '{{json .Config.Cmd}}' 2>/dev/null || true)
+    case "$command_value" in
+      *bot.py*--skip_tasks*) count=$((count + 1)) ;;
+    esac
+  done
+  echo "$count"
+}
+
+assert_single_writer_startable() {
+  allowed=$(bot_container_id)
+  host_count=$(host_writer_count)
+  [ "$host_count" -eq 0 ] \
+    || fail "A host bot.py --skip_tasks writer is already running ($host_count found)."
+  other_count=$(other_container_writers "$allowed")
+  [ "$other_count" -eq 0 ] \
+    || fail "Another container bot.py --skip_tasks writer is already running ($other_count found)."
+}
+
+wait_for_postgres() {
+  postgres_id=$(postgres_container_id)
+  [ -n "$postgres_id" ] || fail 'Bundled PostgreSQL container is absent.'
+  attempt=0
+  while [ "$attempt" -lt 30 ]; do
+    health=$(docker inspect "$postgres_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' 2>/dev/null || true)
+    [ "$health" = healthy ] && return 0
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  fail 'Bundled PostgreSQL did not become healthy.'
+}
+
+public_relation_count() {
+  postgres_id=$(postgres_container_id)
+  docker exec --user postgres "$postgres_id" \
+    psql -X -v ON_ERROR_STOP=1 -At -d polytopia_dev -c \
+      "SELECT count(*) FROM pg_class AS relation JOIN pg_namespace AS namespace ON namespace.oid=relation.relnamespace WHERE namespace.nspname='public' AND relation.relkind IN ('r','p','S','v','m','f');"
+}
+
+trusted_guild_state() {
+  postgres_id=$(postgres_container_id)
+  table_present=$(docker exec --user postgres "$postgres_id" \
+    psql -X -v ON_ERROR_STOP=1 -At -d polytopia_dev -c \
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='guild_configuration_registry';" 2>/dev/null || echo 0)
+  if [ "$table_present" != 1 ]; then
+    echo P11.5B_REQUIRED
+    return
+  fi
+  docker exec --user postgres "$postgres_id" \
+    psql -X -v ON_ERROR_STOP=1 -At -d polytopia_dev -c \
+      "SELECT COALESCE(string_agg(guild_id::text, ',' ORDER BY guild_id), 'NONE') FROM guild_configuration_registry WHERE enrollment_state='active' AND active_revision IS NOT NULL;"
+}
+
+confirm_exact_or_blank() {
+  confirmation=$1
+  echo "Type exactly to apply, or press Enter to leave the database unchanged:"
+  echo "  $confirmation"
+  printf '> '
+  IFS= read -r provided || provided=
+  [ -z "$provided" ] && return 1
+  [ "$provided" = "$confirmation" ] \
+    || fail 'Confirmation did not match exactly.'
+  return 0
+}
+
+confirm_exact() {
+  confirmation=$1
+  echo 'Type exactly to continue:'
+  echo "  $confirmation"
+  printf '> '
+  IFS= read -r provided || provided=
+  [ "$provided" = "$confirmation" ] \
+    || fail 'Confirmation did not match exactly.'
+}
+
+schema_plan() {
+  compose --profile tools run --rm schema
+}
+
+command_setup() {
+  require_engine
+  validate_project_name
+  prepare_ignored_inputs
+  checkpoint=$(git_checkpoint)
+  echo "Building exact development image for checkpoint $checkpoint..."
+  compose build bot
+  run_immutable_doctor
+  live_bind_probe
+  compose up -d postgres
+  wait_for_postgres
+  compose --profile tools run --rm database-provision
+  relations=$(public_relation_count)
+  case "$relations" in
+    ''|*[!0-9]*) fail 'Could not inspect development database freshness.' ;;
+  esac
+  if [ "$relations" -eq 0 ]; then
+    plan=$(schema_plan)
+    printf '%s\n' "$plan"
+    confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)
+    [ -n "$confirmation" ] || fail 'Schema plan did not emit its exact confirmation.'
+    if confirm_exact_or_blank "$confirmation"; then
+      compose --profile tools run --rm schema --apply --confirm "$confirmation"
+    else
+      echo 'Database remains safely provisioned and relation-empty for import-backup.'
+    fi
+  else
+    echo "Existing database detected ($relations public relations); setup did not overwrite it."
+  fi
+  guild_state=$(trusted_guild_state)
+  if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
+    echo 'Trusted guild: not bootstrapped. P11.5B is required before ./polybot start.'
+  else
+    echo "Trusted active guilds: $guild_state"
+  fi
+  echo 'Setup complete. No Discord bot was started and no commands were synchronized.'
+}
+
+require_prepared_inputs() {
+  for target in "$ENV_FILE" "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$ADMIN_SECRET" "$APP_SECRET"; do
+    [ -f "$target" ] && [ ! -L "$target" ] \
+      || fail 'Deployment inputs are incomplete; run ./polybot setup.'
+  done
+}
+
+command_start() {
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  host_checkpoint=$(git_checkpoint)
+  [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
+    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
+  run_immutable_doctor
+  live_bind_probe
+  assert_single_writer_startable
+  compose up -d postgres
+  wait_for_postgres
+  guild_state=$(trusted_guild_state)
+  if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
+    fail 'No active trusted guild exists. Complete P11.5B or import a verified database before start.'
+  fi
+  compose up -d bot
+  echo 'Development bot start requested; automatic Discord command synchronization remains disabled.'
+  command_status
+}
+
+command_status() {
+  require_engine
+  validate_project_name
+  echo 'PolyBot development container status'
+  echo "project: $PROJECT_NAME"
+  echo "platform: $(platform_name)"
+  if [ -f "$ENV_FILE" ]; then
+    echo "configured checkpoint: $(configured_checkpoint)"
+  else
+    echo 'configured checkpoint: not set up'
+  fi
+  bot_id=$(bot_container_id)
+  postgres_id=$(postgres_container_id)
+  if container_running "$bot_id"; then
+    bot_state=running
+    runtime_checkpoint=$(docker exec "$bot_id" /bin/sh -c 'printf %s "$POLYBOT_IMAGE_CHECKPOINT"' 2>/dev/null || echo unknown)
+    image_id=$(docker inspect "$bot_id" --format '{{.Image}}')
+    architecture=$(docker image inspect "$image_id" --format '{{.Architecture}}' 2>/dev/null || echo unknown)
+    observed_application=$(docker logs --tail 250 "$bot_id" 2>/dev/null \
+      | sed -n 's/.*Logged in as: .* - \([0-9][0-9]*\).*/\1/p' \
+      | tail -n 1)
+    [ -n "$observed_application" ] || observed_application=not-yet-observed
+    expected_application=$(sed -n 's/^[[:space:]]*expected_bot_id[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" 2>/dev/null | tail -n 1)
+    [ -n "$expected_application" ] || expected_application=unknown
+    echo "bot: running; application=$observed_application; expected_application=$expected_application; checkpoint=$runtime_checkpoint; architecture=$architecture"
+  else
+    bot_state=stopped
+    echo 'bot: stopped'
+  fi
+  if container_running "$postgres_id"; then
+    db_health=$(docker inspect "$postgres_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')
+    db_identity=$(docker exec --user postgres "$postgres_id" \
+      psql -X -At -d polytopia_dev -c "SELECT current_database() || '/' || pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()" 2>/dev/null || echo unavailable)
+    guild_state=$(trusted_guild_state)
+    echo "database: running; health=$db_health; identity=$db_identity; trusted_guilds=$guild_state"
+  else
+    echo 'database: stopped'
+  fi
+  volumes=$(docker volume ls -q \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" 2>/dev/null \
+    | tr '\n' ',' | sed 's/,$//')
+  [ -n "$volumes" ] || volumes=none
+  host_count=$(host_writer_count)
+  other_count=$(other_container_writers "$bot_id")
+  project_bot_count=0
+  [ "$bot_state" = running ] && project_bot_count=1
+  echo "persistence: $volumes"
+  echo "writer state: project_bots=$project_bot_count host_writers=$host_count other_container_writers=$other_count"
+}
+
+command_logs() {
+  require_engine
+  validate_project_name
+  bot_id=$(bot_container_id)
+  [ -n "$bot_id" ] || fail 'The development bot container does not exist.'
+  case "${1:-}" in
+    '') docker logs --tail 100 "$bot_id" ;;
+    --follow) docker logs --tail 100 --follow "$bot_id" ;;
+    *) fail 'Usage: ./polybot logs [--follow]' ;;
+  esac
+}
+
+command_stop() {
+  require_engine
+  validate_project_name
+  bot_id=$(bot_container_id)
+  postgres_id=$(postgres_container_id)
+  if container_running "$bot_id"; then
+    docker stop --time 45 "$bot_id" >/dev/null
+  fi
+  if container_running "$postgres_id"; then
+    docker stop --time 60 "$postgres_id" >/dev/null
+  fi
+  echo 'Development bot and database stopped; named volumes and backups were retained.'
+}
+
+command_restart() {
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  bot_id=$(bot_container_id)
+  container_running "$bot_id" || fail 'The development bot is not running.'
+  assert_single_writer_startable
+  compose restart bot
+  echo 'Development bot restarted with SIGINT; command synchronization was not run.'
+  command_status
+}
+
+prepare_archive_source() {
+  source_archive=$1
+  [ -f "$source_archive" ] && [ ! -L "$source_archive" ] && [ -s "$source_archive" ] \
+    || fail 'Archive PATH must be one nonempty regular non-symlink file.'
+  source_sidecar=${source_archive}.sha256
+  [ -f "$source_sidecar" ] && [ ! -L "$source_sidecar" ] \
+    || fail 'Archive PATH must have an adjacent .sha256 sidecar.'
+  archive_name=${source_archive##*/}
+  printf '%s\n' "$archive_name" \
+    | grep -Eq '^polybot-polytopia_dev-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{40}\.dump$' \
+    || fail 'Archive basename does not match the reviewed development backup format.'
+  source_directory=$(CDPATH= cd -- "$(dirname -- "$source_archive")" && pwd -P) \
+    || fail 'Could not resolve the archive directory.'
+  SOURCE_ARCHIVE_PATH=$source_directory/$archive_name
+  SOURCE_SIDECAR_PATH=${SOURCE_ARCHIVE_PATH}.sha256
+  STAGED_ARCHIVE_NAME=$archive_name
+  STAGED_ARCHIVE_PATH=$BACKUP_DIR/$archive_name
+}
+
+stage_archive() {
+  prepare_archive_source "$1"
+  target_archive=$BACKUP_DIR/$archive_name
+  target_sidecar=${target_archive}.sha256
+  if [ "$SOURCE_ARCHIVE_PATH" != "$target_archive" ]; then
+    if [ -e "$target_archive" ] || [ -L "$target_archive" ] || [ -e "$target_sidecar" ] || [ -L "$target_sidecar" ]; then
+      cmp -s "$SOURCE_ARCHIVE_PATH" "$target_archive" \
+        && cmp -s "$SOURCE_SIDECAR_PATH" "$target_sidecar" \
+        || fail 'Refusing to replace a different staged archive or sidecar.'
+    else
+      cp -p "$SOURCE_ARCHIVE_PATH" "$target_archive"
+      cp -p "$SOURCE_SIDECAR_PATH" "$target_sidecar"
+      chmod 600 "$target_archive" "$target_sidecar"
+    fi
+  fi
+  STAGED_ARCHIVE_NAME=$archive_name
+  STAGED_ARCHIVE_PATH=$target_archive
+}
+
+restore_plan() {
+  compose --profile recovery run --rm --no-deps \
+    --volume "$SOURCE_ARCHIVE_PATH:/backups/$STAGED_ARCHIVE_NAME:ro" \
+    --volume "$SOURCE_SIDECAR_PATH:/backups/${STAGED_ARCHIVE_NAME}.sha256:ro" \
+    -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
+    database-restore-drill
+}
+
+import_plan() {
+  compose --profile recovery run --rm --no-deps \
+    --volume "$SOURCE_ARCHIVE_PATH:/backups/$STAGED_ARCHIVE_NAME:ro" \
+    --volume "$SOURCE_SIDECAR_PATH:/backups/${STAGED_ARCHIVE_NAME}.sha256:ro" \
+    -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
+    database-import
+}
+
+recovery_volume() {
+  docker volume ls -q \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter 'label=com.docker.compose.volume=postgres_restore_data' \
+    | head -n 1
+}
+
+write_verification_receipt() {
+  digest=$1
+  counts=$2
+  receipt=${STAGED_ARCHIVE_PATH}${VERIFIED_SUFFIX}
+  receipt_temp=$BACKUP_DIR/.polybot-verified.$$
+  printf 'VERIFIED %s %s %s\n' "$digest" "$STAGED_ARCHIVE_NAME" "$counts" >"$receipt_temp"
+  chmod 600 "$receipt_temp"
+  mv "$receipt_temp" "$receipt"
+}
+
+command_verify_backup() {
+  [ "$#" -eq 1 ] || fail 'Usage: ./polybot verify-backup PATH'
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  ensure_private_directories
+  prepare_archive_source "$1"
+  plan=$(restore_plan)
+  printf '%s\n' "$plan"
+  confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)
+  digest=$(printf '%s\n' "$plan" | sed -n 's/^sha256: //p' | tail -n 1)
+  [ -n "$confirmation" ] && [ -n "$digest" ] \
+    || fail 'Restore plan did not emit its digest-bound confirmation.'
+  confirm_exact "$confirmation"
+  stage_archive "$1"
+  old_volume=$(recovery_volume)
+  if [ -n "$old_volume" ]; then
+    volume_confirmation="REMOVE RECOVERY VOLUME $old_volume"
+    echo 'Fresh-volume verification requires removal of only the retained recovery volume.'
+    confirm_exact "$volume_confirmation"
+    compose --profile recovery rm -sf restore-postgres >/dev/null 2>&1 || true
+    docker volume rm "$old_volume" >/dev/null
+  fi
+  compose --profile recovery up -d restore-postgres
+  result=$(compose --profile recovery run --rm \
+    -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
+    -e "POLYBOT_RESTORE_CONFIRMATION=$confirmation" \
+    database-restore-drill)
+  printf '%s\n' "$result"
+  counts=$(printf '%s\n' "$result" | sed -n 's/^verified counts: //p' | tail -n 1)
+  printf '%s\n' "$counts" | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
+    || fail 'Restore verification did not emit bounded data counts.'
+  write_verification_receipt "$digest" "$counts"
+  echo "Backup verified on a fresh isolated recovery volume: $STAGED_ARCHIVE_NAME"
+}
+
+command_import_backup() {
+  [ "$#" -eq 1 ] || fail 'Usage: ./polybot import-backup PATH'
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  ensure_private_directories
+  bot_id=$(bot_container_id)
+  container_running "$bot_id" \
+    && fail 'Stop the development bot before importing a database.'
+  prepare_archive_source "$1"
+  plan=$(import_plan)
+  printf '%s\n' "$plan"
+  confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)
+  digest=$(printf '%s\n' "$plan" | sed -n 's/^sha256: //p' | tail -n 1)
+  [ -n "$confirmation" ] && [ -n "$digest" ] \
+    || fail 'Import plan did not emit its digest-bound confirmation.'
+  receipt=${STAGED_ARCHIVE_PATH}${VERIFIED_SUFFIX}
+  [ -f "$receipt" ] && [ ! -L "$receipt" ] \
+    || fail 'Archive lacks a matching fresh-volume verification receipt; run verify-backup first.'
+  receipt_value=$(cat "$receipt")
+  expected_prefix="VERIFIED $digest $STAGED_ARCHIVE_NAME "
+  case "$receipt_value" in
+    "$expected_prefix"*) expected_counts=${receipt_value#"$expected_prefix"} ;;
+    *) fail 'Archive verification receipt does not match its name and digest.' ;;
+  esac
+  printf '%s\n' "$expected_counts" | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
+    || fail 'Archive verification receipt contains malformed bounded counts.'
+  confirm_exact "$confirmation"
+  stage_archive "$1"
+  compose up -d postgres
+  wait_for_postgres
+  compose --profile tools run --rm database-provision
+  compose --profile recovery run --rm \
+    -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
+    -e "POLYBOT_IMPORT_CONFIRMATION=$confirmation" \
+    -e "POLYBOT_IMPORT_EXPECTED_COUNTS=$expected_counts" \
+    database-import
+  echo 'Verified archive imported. Run ./polybot start after reviewing status.'
+}
+
+command_backup() {
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  plan=$(compose --profile recovery run --rm --no-deps database-backup)
+  printf '%s\n' "$plan"
+  confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)
+  [ -n "$confirmation" ] || fail 'Backup plan did not emit its checkpoint confirmation.'
+  confirm_exact "$confirmation"
+  bot_id=$(bot_container_id)
+  postgres_id=$(postgres_container_id)
+  was_running=false
+  database_was_running=false
+  if container_running "$bot_id"; then
+    was_running=true
+    compose stop bot
+  fi
+  if container_running "$postgres_id"; then
+    database_was_running=true
+  fi
+  set +e
+  compose --profile recovery run --rm \
+    -e "POLYBOT_BACKUP_CONFIRMATION=$confirmation" \
+    database-backup
+  result=$?
+  set -e
+  if [ "$was_running" = true ]; then
+    compose start bot
+  fi
+  if [ "$database_was_running" = false ] && [ "$was_running" = false ]; then
+    compose stop postgres
+  fi
+  [ "$result" -eq 0 ] || fail 'Backup failed; the prior bot state was restored.'
+  echo 'Backup complete; the prior bot running state was restored.'
+}
+
+main() {
+  validate_project_name
+  command=${1:-}
+  [ "$#" -gt 0 ] && shift || true
+  case "$command" in
+    setup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot setup'; command_setup ;;
+    import-backup) command_import_backup "$@" ;;
+    start) [ "$#" -eq 0 ] || fail 'Usage: ./polybot start'; command_start ;;
+    status) [ "$#" -eq 0 ] || fail 'Usage: ./polybot status'; command_status ;;
+    logs) command_logs "$@" ;;
+    restart) [ "$#" -eq 0 ] || fail 'Usage: ./polybot restart'; command_restart ;;
+    stop) [ "$#" -eq 0 ] || fail 'Usage: ./polybot stop'; command_stop ;;
+    backup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot backup'; command_backup ;;
+    verify-backup) command_verify_backup "$@" ;;
+    -h|--help|help|'') usage ;;
+    *) usage >&2; fail "Unknown command: $command" ;;
+  esac
+}
+
+if [ "${POLYBOT_SOURCE_ONLY:-0}" != 1 ]; then
+  main "$@"
+fi

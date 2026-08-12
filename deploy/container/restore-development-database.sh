@@ -205,7 +205,27 @@ wrong_table_owners=$(psql \
 [ "$wrong_table_owners" = 0 ] \
   || fail 'Restored application tables or sequences have the wrong owner.'
 
+restored_counts=$(psql \
+  --host="$RESTORE_HOST" \
+  --port="$RESTORE_PORT" \
+  --username="$APPLICATION_ROLE" \
+  --dbname="$RESTORE_DATABASE" \
+  -X -v ON_ERROR_STOP=1 -Atqc "
+    SELECT
+      (SELECT count(*) FROM game WHERE guild_id = 478571892832206869),
+      (SELECT count(*) FROM house),
+      (SELECT count(*) FROM player WHERE guild_id = 478571892832206869),
+      (SELECT count(*) FROM team WHERE guild_id = 478571892832206869),
+      (SELECT count(*) FROM game WHERE id BETWEEN 2286 AND 2288),
+      (SELECT count(*) FROM game WHERE id BETWEEN 200 AND 247),
+      (SELECT count(*) FROM player WHERE id BETWEEN 163 AND 186)
+  ") || fail 'Could not verify bounded restored data counts.'
+printf '%s\n' "$restored_counts" \
+  | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
+  || fail 'Restored data counts have an unexpected shape.'
+
 echo 'Fresh-volume restore drill complete.'
 echo "verified database: $RESTORE_DATABASE"
 echo 'verified: required tables, game.winner_id foreign key, and application ownership'
+echo "verified counts: $restored_counts"
 echo 'The isolated recovery volume is intentionally retained for inspection.'

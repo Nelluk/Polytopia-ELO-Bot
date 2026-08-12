@@ -429,6 +429,57 @@ log_root = logs/development
                 run_doctor.assert_not_called()
                 self.assertIn('exactly development', stderr.getvalue())
 
+    def test_cli_accepts_only_matching_internal_immutable_image_checkpoint(self):
+        report = doctor.DoctorReport(
+            mode='bundled',
+            checkpoint=CHECKPOINT,
+            findings=(),
+            commands=(),
+        )
+        environment = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
+            'POLYBOT_DEPLOYMENT_CLI_INTERNAL': '1',
+        }
+        with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            cli, 'run_doctor', return_value=report
+        ) as run_doctor, mock.patch('sys.stdout', new_callable=io.StringIO):
+            self.assertEqual(cli.main([
+                '--mode', 'bundled',
+                '--immutable-image-checkpoint', CHECKPOINT,
+                '--host-platform', 'darwin',
+                '--host-uid', '501',
+            ]), 0)
+
+        options = run_doctor.call_args.kwargs
+        self.assertEqual(options['host_platform'], 'darwin')
+        self.assertEqual(options['host_uid'], 501)
+        self.assertEqual(options['which']('docker'), '/usr/bin/docker')
+        self.assertIsNone(options['which']('docker-compose'))
+        self.assertEqual(
+            options['git_probe'](Path('/unused')),
+            doctor.GitSnapshot(checkpoint=CHECKPOINT, clean=True),
+        )
+
+    def test_cli_rejects_forged_immutable_image_checkpoint(self):
+        environment = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
+        }
+        with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            cli, 'run_doctor'
+        ) as run_doctor, mock.patch(
+            'sys.stderr', new_callable=io.StringIO
+        ) as stderr:
+            self.assertEqual(cli.main([
+                '--mode', 'bundled',
+                '--immutable-image-checkpoint', CHECKPOINT,
+                '--host-platform', 'linux',
+                '--host-uid', '1000',
+            ]), 2)
+        run_doctor.assert_not_called()
+        self.assertIn('invalid', stderr.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 4)
+        self.assertEqual(contract['contract_version'], 5)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -39,17 +39,10 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertEqual(contract['restore_database_host'], 'restore-postgres')
         self.assertEqual(contract['import_database_name'], 'polytopia_dev')
         self.assertEqual(contract['import_database_host'], 'postgres')
+        self.assertEqual(contract['import_archive_prefix'], 'polybot-polytopia_dev')
+        self.assertEqual(contract['verified_archive_receipt_suffix'], '.verified')
         self.assertEqual(
-            contract['import_archive_name'],
-            'polybot-polytopia_dev-20260812T123355Z-'
-            'd27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump',
-        )
-        self.assertEqual(
-            contract['import_archive_sha256'],
-            'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b',
-        )
-        self.assertEqual(
-            contract['import_expected_counts'],
+            contract['legacy_import_expected_counts'],
             {
                 'guild_games': 71,
                 'houses': 4,
@@ -206,7 +199,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('--no-acl', import_source)
         self.assertIn('public_relations', import_source)
         self.assertGreaterEqual(import_source.count('target_sessions'), 4)
-        self.assertIn('EXPECTED_COUNTS=', import_source)
+        self.assertIn('LEGACY_COUNTS=', import_source)
         self.assertIn('FROM pg_constraint AS fk', import_source)
         self.assertNotIn('AS constraint', import_source)
         self.assertNotIn('DROP DATABASE', import_source)

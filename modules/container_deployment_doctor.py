@@ -158,8 +158,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'restore_database_host',
         'import_database_name',
         'import_database_host',
-        'import_archive_name',
-        'import_archive_sha256',
+        'import_archive_prefix',
+        'verified_archive_receipt_suffix',
     )
     required_integers = (
         'contract_version',
@@ -187,7 +187,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 4
+            value.get('contract_version') != 5
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -239,13 +239,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'restore_database_host': 'restore-postgres',
         'import_database_name': 'polytopia_dev',
         'import_database_host': 'postgres',
-        'import_archive_name': (
-            'polybot-polytopia_dev-20260812T123355Z-'
-            'd27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump'
-        ),
-        'import_archive_sha256': (
-            'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b'
-        ),
+        'import_archive_prefix': 'polybot-polytopia_dev',
+        'verified_archive_receipt_suffix': '.verified',
     }
     for key, expected in exact_scalars.items():
         if value.get(key) != expected:
@@ -259,8 +254,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'showcase_games': 48,
         'showcase_players': 24,
     }
-    if value.get('import_expected_counts') != expected_import_counts:
-        invalid.append('import_expected_counts')
+    if value.get('legacy_import_expected_counts') != expected_import_counts:
+        invalid.append('legacy_import_expected_counts')
     if not str(value.get('postgres_image', '')).startswith('postgres:18.'):
         invalid.append('postgres_image')
     if invalid:
@@ -731,8 +726,7 @@ def _validate_assets(
         for value in (
             str(contract['import_database_host']),
             str(contract['import_database_name']),
-            str(contract['import_archive_name']),
-            str(contract['import_archive_sha256']),
+            str(contract['import_archive_prefix']),
             'IMPORT $TARGET_DATABASE $archive_digest',
             '--single-transaction',
         ):

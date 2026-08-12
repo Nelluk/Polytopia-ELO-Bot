@@ -1,12 +1,15 @@
-# Containerized development feasibility and proof
+# Containerized development deployment
 
-Status: development-only live-engine infrastructure proof. This is not a
-supported long-running deployment or production runbook.
-It does not replace either existing systemd service.
+Status: supported development-only operator interface with retained
+live-engine evidence. This is not a production runbook and does not authorize
+a production container migration. The earlier development-only live-engine infrastructure proof
+remains recorded below; this interface does not replace either existing systemd service.
 
 ## Verdict
 
-A two-service Compose deployment is practical for PolyBot. The reviewed shape
+A two-service Compose deployment is practical for PolyBot. P11.5A makes the
+repository-owned `./polybot` command the ordinary macOS/Linux interface; raw
+Compose jobs remain the diagnostic implementation layer. The reviewed shape
 keeps the bot image replaceable, gives PostgreSQL its own pinned-major service
 and persistent volume, and removes host PostgreSQL role/database setup from the
 ordinary development path. The repository now contains a build definition,
@@ -66,11 +69,13 @@ operationally clean on this host.
   whose `postgres_restore_data` volume is separate from the ordinary database
   volume. Neither job is part of normal startup.
 - `database-import` can connect only to the ordinary bundled `postgres`
-  service and fixed `polytopia_dev` target. It accepts only the transferred
-  archive and digest recorded in contract version 4, requires a safely
-  provisioned relation-empty target plus zero target sessions, restores once
-  as `polybot_dev`, and verifies the digest-bound bounded data counts. It never
-  starts the bot and is not part of normal startup.
+  service and fixed `polytopia_dev` target. It accepts only the reviewed
+  development backup basename format with an exact adjacent SHA-256 sidecar,
+  requires a safely provisioned relation-empty target plus zero target
+  sessions, restores once as `polybot_dev`, and verifies schema, ownership,
+  and bounded data counts. The operator interface additionally requires a
+  matching receipt from `verify-backup` before import. It never starts the bot
+  and is not part of normal startup.
 
 The immutable contract is
 `deploy/container/container-contract.toml`. Version changes to its images,
@@ -107,11 +112,72 @@ current runtime config reads INI values, not Docker `_FILE` variables. P11.2's
 doctor compares the values without displaying them. Changing runtime secret
 loading is optional later work, not hidden inside this deployment proof.
 
-## Intended bundled-database flow
+## Primary operator interface
 
-Run from the repository root. P11.4A exercised these infrastructure commands
-under the uniquely scoped `polybot-p11-4a` project. Ordinary use should choose
-one reviewed project name and first satisfy the remaining operational gates.
+Run from the clean repository root. Ordinary operation requires only Git,
+Docker with the Compose plugin, and standard macOS/Linux utilities. Python,
+Compose profiles, project-name flags, numeric identity decisions, checkpoint
+interpolation, archive environment variables, secret generation, and digest
+token construction stay inside the repository-owned entrypoint. The fixed
+development project is `polybot-mac-beta` on both platforms:
+
+```bash
+./polybot setup
+./polybot import-backup PATH
+./polybot start
+./polybot status
+./polybot logs
+./polybot restart
+./polybot stop
+./polybot backup
+./polybot verify-backup PATH
+```
+
+`setup` creates or updates only ignored deployment inputs. It copies an
+existing ignored development profile when available or creates private
+scaffolds from the tracked examples, generates distinct database secrets
+without printing them, fixes only container-owned database/effect settings,
+pins the exact clean checkpoint, selects the reviewed Darwin/Linux identity
+policy, builds the image, runs the existing doctor inside that immutable
+image, performs the real bind-readability probe, starts PostgreSQL, and reuses
+the existing provisioner. It never overwrites an existing database or Discord
+configuration. If it creates scaffolds, the operator fills the Discord and
+denylist placeholders and reruns setup.
+
+When the ordinary database is relation-empty, setup prints the existing schema
+plan and exact confirmation. Entering the token initializes a fresh empty
+application schema; pressing Enter leaves the target relation-empty for
+`import-backup`. Repeated setup preserves existing data and reports that it
+was not overwritten.
+
+A first-ever fresh schema does not yet contain a trusted guild-configuration
+registry. `start` therefore refuses it with a P11.5B message. P11.5B remains
+the separately reviewed first trusted-guild bootstrap. A verified imported
+database already contains its trusted guild configuration and can proceed to
+start after the normal identity checks.
+
+`verify-backup PATH` requires an adjacent `.sha256` sidecar, shows the existing
+connection-free restore plan, requires its exact digest-bound confirmation,
+and restore-tests only in the isolated recovery volume. Reusing that volume
+requires a second visible exact confirmation before removal. Success creates
+an ignored digest/name/count-bound verification receipt. `import-backup PATH`
+requires that receipt, prints the existing import plan, requires its exact
+confirmation, and still relies on the import job's stopped-bot, empty-target,
+PostgreSQL-18, role, ownership, schema, and count checks.
+
+`backup` exposes the existing plan and checkpoint confirmation, stops only the
+local bot writer for the dump, and restores its prior running state. `start`
+audits host and container writers before convergence and never synchronizes
+Discord commands. `status` reports bot/database state, exact checkpoint,
+application ID, architecture, health, persistence, trusted guild state, and
+writer counts without printing a token or password.
+
+## Advanced Compose troubleshooting and reference
+
+These commands are the diagnostic implementation layer preserved for incident
+analysis and contract development. Use `./polybot` for ordinary deployment.
+P11.4A exercised the raw infrastructure commands under the uniquely scoped
+`polybot-p11-4a` project.
 
 ```bash
 cp config.development.ini-EXAMPLE deploy/container/config.development.ini
@@ -169,7 +235,7 @@ config's `psql_host` to the real development endpoint, and omit the bundled
 provisioning step. The database must already satisfy the same application-role
 and schema gates.
 
-## Backup and fresh-volume restore flow
+## Advanced backup and fresh-volume restore reference
 
 This flow is for the bundled development database only. An external database
 operator must use that provider's independently reviewed logical recovery
