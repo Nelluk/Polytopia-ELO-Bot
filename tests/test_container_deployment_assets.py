@@ -207,6 +207,8 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('public_relations', import_source)
         self.assertGreaterEqual(import_source.count('target_sessions'), 4)
         self.assertIn('EXPECTED_COUNTS=', import_source)
+        self.assertIn('FROM pg_constraint AS fk', import_source)
+        self.assertNotIn('AS constraint', import_source)
         self.assertNotIn('DROP DATABASE', import_source)
         self.assertNotIn('CREATE DATABASE', import_source)
         self.assertNotIn('polytopia2', import_source)

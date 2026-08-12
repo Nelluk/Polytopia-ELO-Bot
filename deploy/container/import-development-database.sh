@@ -217,13 +217,13 @@ winner_foreign_key=$(psql \
   --dbname="$TARGET_DATABASE" \
   -X -v ON_ERROR_STOP=1 -Atqc "
     SELECT count(*)
-    FROM pg_constraint AS constraint
-    JOIN pg_class AS source_table ON source_table.oid = constraint.conrelid
-    JOIN pg_class AS target_table ON target_table.oid = constraint.confrelid
+    FROM pg_constraint AS fk
+    JOIN pg_class AS source_table ON source_table.oid = fk.conrelid
+    JOIN pg_class AS target_table ON target_table.oid = fk.confrelid
     JOIN pg_attribute AS source_column
       ON source_column.attrelid = source_table.oid
-     AND source_column.attnum = constraint.conkey[1]
-    WHERE constraint.contype = 'f'
+     AND source_column.attnum = fk.conkey[1]
+    WHERE fk.contype = 'f'
       AND source_table.relname = 'game'
       AND source_column.attname = 'winner_id'
       AND target_table.relname = 'gameside'
