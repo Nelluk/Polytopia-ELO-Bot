@@ -668,6 +668,7 @@ prepare_archive_source() {
     || fail 'Archive basename does not match the reviewed development backup format.'
   source_directory=$(CDPATH= cd -- "$(dirname -- "$source_archive")" && pwd -P) \
     || fail 'Could not resolve the archive directory.'
+  SOURCE_ARCHIVE_DIRECTORY=$source_directory
   SOURCE_ARCHIVE_PATH=$source_directory/$archive_name
   SOURCE_SIDECAR_PATH=${SOURCE_ARCHIVE_PATH}.sha256
   STAGED_ARCHIVE_NAME=$archive_name
@@ -695,16 +696,14 @@ stage_archive() {
 
 restore_plan() {
   compose --profile recovery run --rm --no-deps \
-    --volume "$SOURCE_ARCHIVE_PATH:/backups/$STAGED_ARCHIVE_NAME:ro" \
-    --volume "$SOURCE_SIDECAR_PATH:/backups/${STAGED_ARCHIVE_NAME}.sha256:ro" \
+    --volume "$SOURCE_ARCHIVE_DIRECTORY:/backups:ro" \
     -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
     database-restore-drill
 }
 
 import_plan() {
   compose --profile recovery run --rm --no-deps \
-    --volume "$SOURCE_ARCHIVE_PATH:/backups/$STAGED_ARCHIVE_NAME:ro" \
-    --volume "$SOURCE_SIDECAR_PATH:/backups/${STAGED_ARCHIVE_NAME}.sha256:ro" \
+    --volume "$SOURCE_ARCHIVE_DIRECTORY:/backups:ro" \
     -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
     database-import
 }
