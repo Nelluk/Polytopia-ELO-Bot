@@ -493,9 +493,11 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.1 containerized development feasibility and static
-proof is implemented and offline-validated on
+proof is complete and integrated from
 `codex/p11-1-container-development-proof`, based on exact clean pushed
-accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`.
+accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`, at
+implementation/integration checkpoint
+`309c2221b4e2800515b14c4434ca220bde8aa1ec`.
 It defines separate pinned-version bot and PostgreSQL 18 containers, a
 non-root/read-only bot boundary, independent persistent volumes, explicit
 development database provisioning and schema jobs, an external-database
@@ -510,9 +512,12 @@ runtime image exclusions that would have omitted the Beta Lab manifests and
 wordmark assets, moved application-role privilege validation ahead of database
 creation, and added exact immutable-image supervision because the existing
 restart command accepted only systemd plus a Git checkout. Existing systemd
-services and the durable beta remain unchanged. Next: commit and integrate
-P11.1, then take the already approved
-P11.2 read-only container deployment doctor as a separate bounded unit.**
+services remain unchanged. The durable beta was reverified healthy at its
+prior runtime checkpoint `18bec1e`, PID `283074`, with zero restarts, one
+host-wide writer, correct development identity, and all five Beta Lab packs
+ready. Restart is batched until after the approved P11.2 documentation/tooling
+unit; no database/command-tree/tester operation is warranted. Next: P11.2
+read-only container deployment doctor as a separate bounded unit.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15558,7 +15563,7 @@ was granted. Owner-first command acceptance remains available through
 
 ### P11.1 — Containerized development feasibility and static proof
 
-Status: **Implemented and offline-validated; integration pending**
+Status: **Complete; integrated at `309c222`**
 
 Branch/base: `codex/p11-1-container-development-proof`, exact clean pushed
 accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`.
@@ -15608,6 +15613,13 @@ Operational design and limitations are in
 read-only doctor that validates engine/Compose availability, ignored inputs,
 secret/config agreement, and contract-to-asset consistency, then prints the
 next commands without invoking Docker or any external system.
+
+Implementation and exact fast-forward integration checkpoint:
+`309c2221b4e2800515b14c4434ca220bde8aa1ec`. The running development beta
+remains healthy on prior runtime checkpoint `18bec1e`; its one restart is
+deferred and batched after P11.2 because P11.1 changes no command tree or
+database and its new runtime branch is activated only by a future exact
+Compose environment. No tester announcement is warranted.
 
 ## Standard work-unit template
 
@@ -16972,10 +16984,10 @@ because they share legacy status; their risks and operational owners differ.
 
 ### 7. Containerized deployment feasibility
 
-Design status: **P11.1 development proof implemented and offline-validated;
-integration and the approved P11.2 read-only deployment doctor remain. No
-container engine is installed on the current host, so live proof and all
-production adoption remain deferred gates.**
+Design status: **P11.1 development proof is complete and integrated at
+`309c222`; the approved P11.2 read-only deployment doctor remains. No container
+engine is installed on the current host, so live proof and all production
+adoption remain deferred gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17065,6 +17077,14 @@ deferred into this post-modernization backlog.
   checks pass. No image/container/volume/database/Discord/beta/production
   operation occurred. Next: integrate/push P11.1, then implement the approved
   read-only P11.2 deployment doctor in a fresh unit worktree.
+- Fast-forwarded P11.1 into `codex/database-slash-modernization` at exact
+  checkpoint `309c2221b4e2800515b14c4434ca220bde8aa1ec`. The development beta
+  remained active and healthy at prior runtime checkpoint `18bec1e`, PID
+  `283074`, with zero service restarts, exactly one host-wide writer, the
+  correct application/database identity, and all five Beta Lab packs ready.
+  No command tree or database changed. Its restart is intentionally batched
+  until after P11.2; no tester announcement is warranted. Next: commit/push
+  this close-out and create P11.2 from that exact pushed checkpoint.
 
 ### 2026-08-11 — P10.9 delegation implemented and database-gated
 
