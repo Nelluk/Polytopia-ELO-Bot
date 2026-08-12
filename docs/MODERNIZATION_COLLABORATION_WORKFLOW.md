@@ -177,28 +177,34 @@ The worktree reuses only development-local resources:
 
 - ignored `config.development.ini` and `server_settings_dev.py` symlinks point
   to the same files in the primary development clone;
-- Python commands use
-  `/home/nelluk/PolyBot39-dev/.venv/bin/python` explicitly rather than
-  creating, synchronizing, or symlinking another environment;
+- Python commands use the exact shared interpreter at
+  `<primary-checkout>/.venv/bin/python` rather than creating, synchronizing,
+  or symlinking another environment;
 - production configuration and credentials are never linked into the
   worktree.
 
 Before a worker runs tests or imports the runtime profile in a new worktree,
-run:
+run the helper by an absolute path from the primary checkout, passing the
+existing target worktree:
 
 ```bash
-/home/nelluk/PolyBot39-dev/scripts/setup_development_worktree.sh "$PWD"
+/absolute/path/to/primary-checkout/scripts/setup_development_worktree.sh "$PWD"
 ```
 
+The command works on macOS and Linux. The helper derives the authoritative
+primary checkout from the physical parent of its invoked script; `$PWD` is only
+the target argument. It uses the same primary-relative `.venv/bin/python` on
+either host and does not accept an environment override for that location.
 The script is idempotent and fail-closed. It creates only the two documented
 development-configuration symlinks, refuses to overwrite an existing path or
 target the production checkout, verifies the shared interpreter, and runs the
 read-only development-profile check. It does not install dependencies,
 connect to PostgreSQL, launch the bot, or broaden any database/Discord gate.
 
-Codex local environments may run this command automatically as their Linux
-setup script. The repository workflow still includes the explicit command in
-worker prompts so it remains auditable when no app environment is selected.
+Codex local environments may run this command automatically as their Linux or
+macOS setup script. The repository workflow still includes the explicit
+absolute-path command in worker prompts so it remains auditable when no app
+environment is selected.
 Do not use `.worktreeinclude` for these two files: that mechanism copies
 ignored files into disposable managed worktrees and snapshots, while the
 symlink setup keeps one authoritative development-only credential copy.
@@ -391,11 +397,12 @@ runbook in full. Verify that the worktree is clean and detached at EXPECTED_SHA.
 Create and switch to BRANCH_NAME before editing. Stop if the base, branch,
 worktree, or runtime state differs from the prompt.
 
-Run `/home/nelluk/PolyBot39-dev/scripts/setup_development_worktree.sh "$PWD"`
-before profile-dependent tests or imports. Stop if it refuses the worktree.
+Run `/absolute/path/to/primary-checkout/scripts/setup_development_worktree.sh "$PWD"`
+before profile-dependent tests or imports. The helper path must be absolute and
+must be in the primary checkout; stop if it refuses the worktree.
 
-Run Python through /home/nelluk/PolyBot39-dev/.venv/bin/python; do not install
-or synchronize dependencies unless separately approved.
+Run Python through `/absolute/path/to/primary-checkout/.venv/bin/python`; do not
+install or synchronize dependencies unless separately approved.
 ```
 
 The remainder of the prompt supplies the selected unit's objective, scope,
