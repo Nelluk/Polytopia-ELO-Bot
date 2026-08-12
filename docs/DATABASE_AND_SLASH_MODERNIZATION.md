@@ -503,8 +503,9 @@ command plan. Commit publishes the new fail-closed runtime policy before the
 one-guild sync; active-policy reconciliation is separately repeatable without
 another database write. Unknown or stale remotely registered roots are denied
 again at runtime dispatch. Global synchronization, production, schema, and
-implicit startup apply remain excluded. Implementation, validation, review,
-integration, and development deployment evidence are pending.**
+implicit startup apply remain excluded. Implementation checkpoint `1af74ca`
+passes the complete offline and stopped-writer PostgreSQL gates after Tier-3
+review; integration and development deployment evidence are pending.**
 
 Previous unit: **P10.7 quarantined development-guild onboarding is
 complete, integrated, pushed, development-guild registered, and beta-deployed
@@ -15304,7 +15305,8 @@ runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
 ### P10.6c — Coordinated command-capability activation
 
-Status: **In progress**
+Status: **Implemented, reviewed, and database-gated; integration and
+development deployment pending**
 
 Branch/base: `codex/p10-6c-command-capability-activation`, exact clean pushed
 accumulation checkpoint `0497d071576b45290ada4e526a6b52635d181e42`.
@@ -16812,6 +16814,39 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.6c command-capability activation reviewed and database-gated
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `0497d071576b45290ada4e526a6b52635d181e42`, created isolated branch/worktree
+  `codex/p10-6c-command-capability-activation`, and ran the required
+  development setup with database authority, beta identity, and disabled
+  background tasks/API/Bullet evidence.
+- Implementation/test/runbook checkpoint `1af74ca` adds owner-only
+  `/operator guild commands`, immutable active/draft/Discord plan evidence,
+  exact full-digest confirmation, one-transaction plan-bound activation, and
+  repeatable active-policy reconciliation without another database write.
+  Runtime policy publication precedes the exact target-guild sync; remote
+  global commands are a hard refusal and startup still never synchronizes.
+- Tier-3 complete-diff review corrected stale-root dispatch to fail closed,
+  including autocomplete, prohibited active-root source-shape drift from
+  riding a capability activation, and limited cross-guild editing to command
+  capabilities because role/channel selectors belong to the invoking guild.
+  No remaining actionable review finding is known.
+- Focused validation passes 59 tests. Compilation and diff checks pass.
+  Complete offline discovery runs 1,949 tests: 1,862 pass and 87 intentional
+  gates skip. The previously documented missing DuckDB limitation is no
+  longer present in the approved synchronized development environment.
+- The healthy durable beta at code checkpoint `e38f44d`, PID `258874`, was the
+  sole development writer and stopped cleanly. The gated PostgreSQL suite ran
+  78 tests: 77 passed and only the established operator-fixture round trip
+  skipped. The P10.6c case created and verified a capability-changing revision
+  plus protected plan-digest audit inside an outer transaction, then rolled
+  everything back. No schema or retained development data changed.
+- Next: commit this evidence, fast-forward into accumulation, push, run the
+  reviewed offline and exact development-guild command plan/apply, restart the
+  guarded beta at the clean checkpoint, and record final identity/health.
+  This owner-only control-plane release does not warrant a tester ping.
 
 ### 2026-08-11 — P10.7 quarantined onboarding implemented and database-gated
 
