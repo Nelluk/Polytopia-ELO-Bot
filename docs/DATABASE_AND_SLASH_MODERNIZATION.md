@@ -493,8 +493,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.9 additive guild-configuration delegation is
-implemented and development-database gated on
-`codex/p10-9-guild-delegation`, based on exact clean pushed accumulation
+complete, integrated, pushed, development-guild registered, and beta-deployed
+from `codex/p10-9-guild-delegation`, based on exact clean pushed accumulation
 checkpoint `6f676e903d9936c881d93394d9d7ec39a5fc552f`. The owner controls one
 versioned policy per active guild through `/operator guild delegation`, with
 explicit assignable role IDs, activation delegation off by default, full-plan
@@ -513,13 +513,22 @@ Focused validation passes 156 tests; complete offline discovery passes all
 PostgreSQL gate passes 87 of 88 tests with only the established retained-
 fixture round trip skipped; the P10.9 policy/audit proof fully rolls back and
 retains no policy. Implementation/review checkpoint `c2951c3`. Tier-3 review
-corrected strict role-ID normalization,
-no-op mutation rejection, role-snapshot filtering, rollback evidence, and a
+corrected strict role-ID normalization, no-op mutation rejection, role-snapshot
+filtering, rollback evidence, and a
 future-state-dependent real-schema fixture. No actionable finding remains.
-Accumulation integration, development-guild registration, and beta restart
-are the remaining close-out actions. Production authority, lifecycle
-retirement, global/startup synchronization, and real policy grants remain
-excluded.**
+Exact fast-forward integration and pushed code/evidence checkpoint is
+`18bec1eea46b6d20b6a6e014e5dd367595a29e07`. Remote inspection found an empty
+global tree, one new `guild` root, and one `operator` update; exact guild-only
+apply converged all 12 roots. The guarded beta runs that exact checkpoint as
+PID `283074`, authenticated as development application
+`479029527553638401`, with zero restarts, one host-wide development writer,
+and all five protected Beta Lab packs ready. No manager policy was fabricated,
+and this owner/security release required no tester announcement. Production
+authority, lifecycle retirement, global/startup synchronization, and real
+policy grants remain excluded. Next recommended: a larger P10.10 development
+offboarding/recovery unit combining non-destructive retirement, explicit
+retired-to-suspended recovery, command-tree reconciliation, delegation
+dormancy safeguards, and guarded redacted configuration export/verification.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15492,8 +15501,8 @@ a retained second development enrollment solely for live acceptance.
 
 ### P10.9 — Opt-in same-guild ordinary-setting delegation
 
-Status: **Implementation and development database gate complete; integration
-and beta deployment in progress**
+Status: **Complete; integrated, pushed, development-guild registered, and
+beta-deployed**
 
 Branch/base: `codex/p10-9-guild-delegation`, exact clean pushed accumulation
 checkpoint `6f676e903d9936c881d93394d9d7ec39a5fc552f`.
@@ -15552,6 +15561,16 @@ Implementation/review checkpoint: `c2951c3`.
 Out of scope: granting an actual development role policy merely for acceptance,
 security-setting delegation, lifecycle retirement, production schema or
 authority, global/startup command synchronization, and tester announcement.
+
+Exact fast-forward integration and pushed running checkpoint:
+`18bec1eea46b6d20b6a6e014e5dd367595a29e07`. The exact development-guild apply
+created `guild`, updated `operator`, left the other ten roots unchanged, and
+post-inspection reports all 12 roots unchanged with an empty global tree. The
+guarded beta runs that checkpoint as PID `283074`, authenticated as application
+`479029527553638401`, with zero service restarts, one host-wide development
+writer, and all five protected Beta Lab packs ready. No real delegation policy
+was granted. Owner-first command acceptance remains available through
+`/operator guild delegation` and an unconfigured `/guild edit` denial.
 
 ## Standard work-unit template
 
@@ -17010,6 +17029,27 @@ deferred into this post-modernization backlog.
   only the configured development-guild command tree, then restore and verify
   the guarded beta. No tester announcement is planned for this owner/security
   surface.
+- Fast-forwarded implementation/review checkpoint `c2951c3` and evidence
+  checkpoint `18bec1e` into `codex/database-slash-modernization`, then pushed
+  exact checkpoint `18bec1eea46b6d20b6a6e014e5dd367595a29e07` to GitHub.
+  Read-only Discord inspection proved an empty global tree, one `guild` create,
+  one `operator` update, and ten unchanged roots. Exact development-guild-only
+  apply succeeded; repeat inspection reports all 12 roots unchanged and no
+  global roots.
+- Started only the guarded beta from that exact clean pushed checkpoint. PID
+  `283074` authenticated as development application `479029527553638401`, has
+  zero service restarts, and is the sole host-wide development writer. Its
+  protected Beta Lab status is `ready` across all five packs. No real manager
+  policy was created merely for smoke testing. This owner/security surface
+  changes no tester workflow, so `BETA_WHAT_TO_TEST.md` is unchanged and no
+  announcement or tester ping was sent. P10.9 is complete.
+- Next recommended: take a larger P10.10 development offboarding/recovery unit
+  while idle time is available. The recommended contract combines
+  non-destructive retirement, explicit retired-to-suspended recovery before
+  ordinary resume, exact command-tree reconciliation, stale-delegation
+  dormancy/review, and guarded redacted configuration export/verification. It
+  remains development-only and does not authorize production migration or
+  static-settings removal.
 
 ### 2026-08-11 — P10.8 owner lifecycle implemented and database-gated
 
