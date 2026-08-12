@@ -87,9 +87,10 @@ operationally clean on this host.
   normal startup.
 
 The immutable contract is
-`deploy/container/container-contract.toml`. Contract version 7 includes the
-container Beta Lab control/checkpoint identity and requires the durable bot to
-hold the shared Beta writer lock for its full lifetime. Version changes to its
+`deploy/container/container-contract.toml`. Contract version 8 includes the
+container Beta Lab control/checkpoint identity, a root-owned embedded checkpoint
+proof, and requires the durable bot to hold the shared Beta writer lock for its
+full lifetime. Version changes to its
 images, identity, persistence, or startup-effect policy require review together
 with the Compose and Dockerfile changes.
 

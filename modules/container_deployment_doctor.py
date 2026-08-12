@@ -192,7 +192,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 7
+            value.get('contract_version') != 8
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -704,6 +704,7 @@ def _validate_assets(
         'ARG POLYBOT_RUNTIME_UID=10001',
         'ARG POLYBOT_RUNTIME_GID=10001',
         'POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}',
+        '/usr/local/share/polybot/image-checkpoint',
         'COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .',
         'USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}',
         f"STOPSIGNAL {contract['bot_stop_signal']}",

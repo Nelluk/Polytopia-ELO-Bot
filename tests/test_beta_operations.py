@@ -168,14 +168,24 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                     )
 
     def test_compose_operator_context_is_explicit_and_fail_closed(self):
-        beta_operations.assert_operator_context({
-            'POLYBOT_RESTART_SUPERVISOR': 'compose',
-            'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
-        })
+        with mock.patch.object(
+                beta_operations, '_assert_compose_operator_boundary') as boundary:
+            beta_operations.assert_operator_context({
+                'POLYBOT_RESTART_SUPERVISOR': 'compose',
+                'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
+            })
+        boundary.assert_called_once()
         beta_operations.assert_operator_context({
             'POLYBOT_RESTART_SUPERVISOR': 'systemd',
             'POLYBOT_BETA_OPERATOR_CONTEXT': 'host-systemd',
         })
+        with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
+            beta_operations.assert_operator_context({
+                'POLYBOT_RESTART_SUPERVISOR': 'compose',
+                'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
+                'POLYBOT_BETA_CHECKPOINT': 'a' * 40,
+                'POLYBOT_IMAGE_CHECKPOINT': 'a' * 40,
+            })
         for environ in (
             {},
             {'POLYBOT_RESTART_SUPERVISOR': 'compose'},

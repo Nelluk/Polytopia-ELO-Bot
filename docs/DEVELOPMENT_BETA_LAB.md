@@ -106,7 +106,10 @@ different socket and writer-lock inode. Direct Python invocation remains a
 legacy non-Compose/systemd path only and must explicitly set the reviewed
 `POLYBOT_RESTART_SUPERVISOR=systemd` and
 `POLYBOT_BETA_OPERATOR_CONTEXT=host-systemd` pair. Missing, mixed, or unknown
-context values fail before profile or socket/database access.
+context values fail before profile or socket/database access. Compose context
+also proves the `/app` image root, image interpreter, root-owned embedded image
+checkpoint, and the shared log-volume mount; ordinary environment strings are
+not sufficient.
 
 `status` returns primitive pack DTOs. `plan` adds the bounded action for each
 pack and explicitly reports which live mutations are implemented. The

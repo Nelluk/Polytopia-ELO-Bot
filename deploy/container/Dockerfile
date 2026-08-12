@@ -36,6 +36,11 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .
 RUN test "${#POLYBOT_SOURCE_CHECKPOINT}" -eq 40 \
     && case "$POLYBOT_SOURCE_CHECKPOINT" in *[!0-9a-f]*) exit 2 ;; *) : ;; esac \
+    && install -d -o root -g root -m 0755 /usr/local/share/polybot \
+    && printf '%s\n' "$POLYBOT_SOURCE_CHECKPOINT" \
+        > /usr/local/share/polybot/image-checkpoint \
+    && chown root:root /usr/local/share/polybot/image-checkpoint \
+    && chmod 0444 /usr/local/share/polybot/image-checkpoint \
     && install -d -o polybot -g polybot -m 0750 \
         /app/data/development/images \
         /app/logs/development \

@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import unicodedata
 from typing import Any, Mapping, Sequence
@@ -52,6 +53,11 @@ BETA_TESTER_ROLE_STATE = 'tester-role.json'
 BETA_WRITER_LOCK = 'beta-writer.lock'
 COMPOSE_OPERATOR_CONTEXT = 'compose'
 HOST_OPERATOR_CONTEXT = 'host-systemd'
+COMPOSE_PROJECT_ROOT = Path('/app')
+COMPOSE_LOG_VOLUME_ROOT = Path('/app/logs/development')
+COMPOSE_IMAGE_CHECKPOINT_FILE = Path(
+    '/usr/local/share/polybot/image-checkpoint'
+)
 
 MANIFEST_SCHEMA_VERSION = 1
 RELEASE_STATE_SCHEMA_VERSION = 1
@@ -93,20 +99,71 @@ class BetaRuntimeInvariantError(BetaOperationsError):
 
 
 def assert_operator_context(environ: Mapping[str, str] | None = None) -> None:
-    """Require an explicit supervisor/path pair for every operational CLI."""
+    """Require a reviewed supervisor path and prove the Compose boundary."""
 
     selected = os.environ if environ is None else environ
     supervisor = str(selected.get('POLYBOT_RESTART_SUPERVISOR', '')).strip()
     context = str(selected.get('POLYBOT_BETA_OPERATOR_CONTEXT', '')).strip()
-    if (supervisor, context) in {
-        ('compose', COMPOSE_OPERATOR_CONTEXT),
-        ('systemd', HOST_OPERATOR_CONTEXT),
-    }:
+    if (supervisor, context) == ('compose', COMPOSE_OPERATOR_CONTEXT):
+        _assert_compose_operator_boundary(selected)
+        return
+    if (supervisor, context) == ('systemd', HOST_OPERATOR_CONTEXT):
         return
     raise BetaRuntimeInvariantError(
         'Beta Lab operations require the ./polybot Compose interface or an '
         'explicit reviewed host-systemd operator context.'
     )
+
+
+def _assert_compose_operator_boundary(environ: Mapping[str, str]) -> None:
+    """Reject a self-declared Compose context outside the reviewed image."""
+
+    project_root = Path(__file__).resolve().parents[1]
+    container_marker = Path('/.dockerenv')
+    expected_python = COMPOSE_PROJECT_ROOT / '.venv/bin/python'
+    try:
+        marker = container_marker.stat()
+        checkpoint_file = COMPOSE_IMAGE_CHECKPOINT_FILE.stat()
+        exact_python = os.path.samefile(sys.executable, expected_python)
+    except (FileNotFoundError, OSError):
+        exact_python = False
+        marker = None
+        checkpoint_file = None
+    if (
+        project_root != COMPOSE_PROJECT_ROOT
+        or marker is None
+        or not stat.S_ISREG(marker.st_mode)
+        or marker.st_uid != 0
+        or checkpoint_file is None
+        or not stat.S_ISREG(checkpoint_file.st_mode)
+        or checkpoint_file.st_uid != 0
+        or COMPOSE_IMAGE_CHECKPOINT_FILE.is_symlink()
+        or not exact_python
+        or not COMPOSE_LOG_VOLUME_ROOT.is_mount()
+    ):
+        raise BetaRuntimeInvariantError(
+            'Compose Beta Lab operations require the reviewed non-root image, '
+            'interpreter, and shared log-volume mount.'
+        )
+    try:
+        embedded_checkpoint = COMPOSE_IMAGE_CHECKPOINT_FILE.read_text(
+            encoding='ascii',
+        ).strip()
+    except (OSError, UnicodeError) as exc:
+        raise BetaRuntimeInvariantError(
+            'The Compose image checkpoint proof is unreadable.'
+        ) from exc
+    configured_checkpoint = _environment_value(environ, BETA_CHECKPOINT_ENV)
+    image_checkpoint = _environment_value(environ, 'POLYBOT_IMAGE_CHECKPOINT')
+    if (
+        not _CHECKPOINT.fullmatch(embedded_checkpoint)
+        or embedded_checkpoint != configured_checkpoint
+        or embedded_checkpoint != image_checkpoint
+    ):
+        raise BetaRuntimeInvariantError(
+            'The embedded Compose image checkpoint does not match the runtime '
+            'configuration.'
+        )
 
 
 class BetaPathError(BetaOperationsError):

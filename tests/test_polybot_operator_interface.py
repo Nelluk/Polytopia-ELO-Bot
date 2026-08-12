@@ -123,6 +123,57 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         self.assertIn('differs from Git HEAD', result.stderr)
         self.assertNotIn('unexpected-docker-effect', result.stdout)
 
+    def test_other_container_writer_census_recognizes_guarded_launcher(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                docker() {
+                  if [ "$1" = ps ]; then
+                    printf '%s\n' allowed other
+                  else
+                    printf '%s\n' '["python","scripts/run_development_beta.py","--skip_tasks"]'
+                  fi
+                }
+                other_container_writers allowed
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
+    def test_other_project_guarded_launcher_blocks_start(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                bot_container_id() { printf '%s\n' current; }
+                host_writer_count() { printf '%s\n' 0; }
+                docker() {
+                  if [ "$1" = ps ]; then
+                    printf '%s\n' current other-project-bot
+                  else
+                    printf '%s\n' '["python","scripts/run_development_beta.py","--skip_tasks"]'
+                  fi
+                }
+                assert_single_writer_startable
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(
+            'Another guarded development-beta container is already running',
+            result.stderr,
+        )
+
     def test_darwin_and_linux_choose_the_reviewed_runtime_identities(self):
         darwin = self._source(
             'printf "%s|%s|%s\\n" "$(platform_name)" "$(runtime_uid)" "$(runtime_gid)"',

@@ -5,6 +5,7 @@ import contextlib
 import io
 from pathlib import Path
 from types import SimpleNamespace
+import tempfile
 import unittest
 from unittest import mock
 
@@ -259,6 +260,24 @@ class PersonaRoleTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersonaDatabaseTests(unittest.TestCase):
+    def test_self_declared_compose_context_refuses_before_profile_load(self):
+        environment = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_RESTART_SUPERVISOR': 'compose',
+            'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
+            'POLYBOT_BETA_CHECKPOINT': 'a' * 40,
+            'POLYBOT_IMAGE_CHECKPOINT': 'a' * 40,
+        }
+        with mock.patch.dict(
+                manage_beta_lab_personas.os.environ, environment, clear=True), \
+                mock.patch.object(manage_beta_lab_personas, '_profile') as profile, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            result = manage_beta_lab_personas.main(['database-status'])
+
+        self.assertEqual(result, 2)
+        profile.assert_not_called()
+        self.assertIn('Compose Beta Lab operations require', stderr.getvalue())
+
     def test_cli_reports_shared_writer_refusal_without_traceback(self):
         refusal = personas.beta_wider_setup.WiderBetaSetupSafetyError(
             'durable writer is active',
@@ -471,6 +490,124 @@ class PersonaDatabaseTests(unittest.TestCase):
         self.assertIn(personas.DATABASE_PENDING_STATE_FILENAME, state)
         publish.assert_not_called()
 
+    def test_pending_rollback_requires_recorded_ids_to_be_absent(self):
+        policy = SimpleNamespace(
+            guild_id=300,
+            house_name='Beta Lab House',
+            team_name='Beta Lab Team',
+        )
+        baseline = {'house': {'id': 10}, 'team': {'id': 20}}
+        version_two = personas._evidence_from_baseline(
+            baseline, policy, origin='created',
+        )
+        legacy = {
+            'schema_version': 1, 'guild_id': 300, 'house_id': 10,
+            'house_name': policy.house_name, 'team_id': 20,
+            'team_name': policy.team_name,
+        }
+        database = SimpleNamespace(
+            connection_context=contextlib.nullcontext,
+            atomic=contextlib.nullcontext,
+            execute_sql=mock.Mock(),
+        )
+        for pending in (version_two, legacy):
+            states = {personas.DATABASE_PENDING_STATE_FILENAME: pending}
+            with self.subTest(schema_version=pending['schema_version']), \
+                    mock.patch.object(personas, 'manifest', return_value=policy), \
+                    mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
+                    mock.patch.object(personas, '_role_state_for_database'), \
+                    mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: states.get(name)), \
+                    mock.patch.object(personas, '_remove_state') as remove, \
+                    mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
+                    mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
+                    mock.patch.object(personas.beta_wider_setup, '_identity'), \
+                    mock.patch.object(personas, '_database_rows', return_value=((), ())), \
+                    mock.patch.object(personas, '_database_rows_by_evidence_ids', return_value=(((10,),), ())):
+                with self.assertRaisesRegex(
+                    personas.BetaLabPersonaError,
+                    'identities still exist',
+                ):
+                    personas.reconcile_pending_database(object())
+            remove.assert_not_called()
+
+    def test_pending_rollback_removes_evidence_only_when_both_ids_are_absent(self):
+        policy = SimpleNamespace(
+            guild_id=300,
+            house_name='Beta Lab House',
+            team_name='Beta Lab Team',
+        )
+        pending = personas._evidence_from_baseline(
+            {'house': {'id': 10}, 'team': {'id': 20}},
+            policy,
+            origin='created',
+        )
+        states = {personas.DATABASE_PENDING_STATE_FILENAME: pending}
+        database = SimpleNamespace(
+            connection_context=contextlib.nullcontext,
+            atomic=contextlib.nullcontext,
+            execute_sql=mock.Mock(),
+        )
+        with mock.patch.object(personas, 'manifest', return_value=policy), \
+                mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
+                mock.patch.object(personas, '_role_state_for_database'), \
+                mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: states.get(name)), \
+                mock.patch.object(personas, '_remove_state') as remove, \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
+                mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
+                mock.patch.object(personas.beta_wider_setup, '_identity'), \
+                mock.patch.object(personas, '_database_rows', return_value=((), ())), \
+                mock.patch.object(personas, '_database_rows_by_evidence_ids', return_value=((), ())) as by_ids:
+            result = personas.reconcile_pending_database(object())
+
+        self.assertFalse(result.ready)
+        by_ids.assert_called_once_with(database, pending)
+        remove.assert_called_once()
+
+    def test_reconcile_holds_writer_lock_through_final_proof_and_publication(self):
+        policy = SimpleNamespace(
+            guild_id=300,
+            house_name='Beta Lab House',
+            team_name='Beta Lab Team',
+        )
+        baseline = {'house': {'id': 10}, 'team': {'id': 20}}
+        evidence = personas._evidence_from_baseline(
+            baseline, policy, origin='adopted',
+        )
+        state = {}
+        database = SimpleNamespace(connection_context=contextlib.nullcontext)
+        final = personas.PersonaDatabaseStatus(True, 'ready', 20, 10)
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / 'beta-writer.lock'
+
+            @contextlib.contextmanager
+            def writer_scope(_profile):
+                with personas.beta_operations.BetaWriterLock(lock_path):
+                    yield
+
+            def publish(_profile, *, replace_state=None):
+                self.assertIsNone(replace_state)
+                contender = personas.beta_operations.BetaWriterLock(lock_path)
+                with self.assertRaises(
+                    personas.beta_operations.BetaRuntimeInvariantError,
+                ):
+                    contender.acquire()
+
+            with mock.patch.object(personas, 'manifest', return_value=policy), \
+                    mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
+                    mock.patch.object(personas, '_role_state_for_database'), \
+                    mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: state.get(name)), \
+                    mock.patch.object(personas, '_write_state', side_effect=lambda _p, name, value: state.__setitem__(name, value)), \
+                    mock.patch.object(personas, '_publish_database_state', side_effect=publish), \
+                    mock.patch.object(personas, 'database_status', return_value=final), \
+                    mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', side_effect=writer_scope), \
+                    mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
+                    mock.patch.object(personas, '_read_only_database_baseline', side_effect=(baseline, baseline)):
+                self.assertIs(personas.reconcile_pending_database(object()), final)
+
+            contender = personas.beta_operations.BetaWriterLock(lock_path)
+            contender.acquire()
+            contender.release()
+
     def test_reconcile_upgrades_only_exact_legacy_evidence(self):
         profile = object()
         policy = SimpleNamespace(
@@ -617,6 +754,7 @@ class PersonaDatabaseTests(unittest.TestCase):
         write_event = f'write-{personas.DATABASE_PENDING_STATE_FILENAME}'
         self.assertLess(events.index(write_event), events.index('atomic-exit-True'))
         self.assertLess(events.index('atomic-exit-True'), events.index('publish'))
+        self.assertLess(events.index('publish'), events.index('writer-exit-True'))
         self.assertNotIn(f'write-{personas.DATABASE_STATE_FILENAME}', events)
 
     def test_pending_evidence_blocks_status_and_seed_retry(self):

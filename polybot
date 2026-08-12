@@ -564,7 +564,9 @@ other_container_writers() {
     [ "$candidate" = "$allowed" ] && continue
     command_value=$(docker inspect "$candidate" --format '{{json .Config.Cmd}}' 2>/dev/null || true)
     case "$command_value" in
-      *bot.py*--skip_tasks*) count=$((count + 1)) ;;
+      *bot.py*--skip_tasks*|*scripts/run_development_beta.py*--skip_tasks*)
+        count=$((count + 1))
+        ;;
     esac
   done
   echo "$count"
@@ -577,7 +579,7 @@ assert_single_writer_startable() {
     || fail "A host bot.py --skip_tasks writer is already running ($host_count found)."
   other_count=$(other_container_writers "$allowed")
   [ "$other_count" -eq 0 ] \
-    || fail "Another container bot.py --skip_tasks writer is already running ($other_count found)."
+    || fail "Another guarded development-beta container is already running ($other_count found)."
 }
 
 wait_for_postgres() {

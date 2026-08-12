@@ -463,6 +463,36 @@ def _database_rows(database: Any, policy: beta_lab_persona_manifest.BetaLabPerso
     return houses, teams
 
 
+def _database_rows_by_evidence_ids(
+    database: Any,
+    evidence: Mapping[str, Any],
+) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
+    """Look up pending creation identities without relying on mutable names."""
+
+    try:
+        house_id = int(evidence['house_id'])
+        team_id = int(evidence['team_id'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise BetaLabPersonaError(
+            'Pending persona evidence has invalid database identities.'
+        ) from exc
+    if house_id <= 0 or team_id <= 0:
+        raise BetaLabPersonaError(
+            'Pending persona evidence has invalid database identities.'
+        )
+    houses = beta_wider_setup._rows(
+        database,
+        'SELECT id FROM house WHERE id = %s',
+        (house_id,),
+    )
+    teams = beta_wider_setup._rows(
+        database,
+        'SELECT id FROM team WHERE id = %s',
+        (team_id,),
+    )
+    return tuple(houses), tuple(teams)
+
+
 def _canonical_digest(value: Mapping[str, Any]) -> str:
     encoded = json.dumps(
         value,
@@ -833,7 +863,7 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
                     beta_wider_setup._identity(database)
                     houses, teams = _database_rows(database, policy)
                     if not houses and not teams:
-                        if (
+                        rolled_back_creation = (
                             _legacy_database_evidence_matches(pending, policy)
                             or (
                                 isinstance(pending, Mapping)
@@ -844,7 +874,17 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
                                     policy,
                                 )
                             )
-                        ):
+                        )
+                        if rolled_back_creation:
+                            recorded_houses, recorded_teams = (
+                                _database_rows_by_evidence_ids(database, pending)
+                            )
+                            if recorded_houses or recorded_teams:
+                                raise BetaLabPersonaError(
+                                    'Pending persona database identities still '
+                                    'exist with changed discovery fields; manual '
+                                    'review is required.'
+                                )
                             _remove_state(
                                 profile,
                                 DATABASE_PENDING_STATE_FILENAME,
