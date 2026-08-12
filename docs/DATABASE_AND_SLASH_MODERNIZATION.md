@@ -493,13 +493,14 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.4A exact-image and isolated-database live-engine
-proof is implemented and Tier-3 reviewed on
+proof is complete, Tier-3 reviewed, and fast-forward integrated from
 `codex/p11-4a-live-container-proof`, based on exact clean pushed accumulation
 checkpoint `77a60b46f6b91615a9b02a9f9a6b4321d67ccc87`. Implementation checkpoints:
 `b59525017bd3778a5239b53efd7fc4e19422ecd7`,
 `53b99ea4cf27a23d1a1fa90b7de82ed9910e7b58`,
 `f4bd1d8552030a374055e23eafcfd5e5e7dc4cc7`, and
-`40534f5ccbf9442b9af30861493c53e3e47ed38b`; integration is pending.**
+`40534f5ccbf9442b9af30861493c53e3e47ed38b`; evidence/integration checkpoint:
+`2a79e80d20ac385a9a1a4886de11bd9b66f7ad93`.**
 
 Docker 29.7.2 and Compose 5.4.0 resolved and pulled immutable registry digests
 for CPython 3.12.13 slim Bookworm, uv 0.11.32, and PostgreSQL 18.4 Bookworm.
@@ -17266,8 +17267,11 @@ deferred into this post-modernization backlog.
   returned to 2.3 GB free. Tier-3 complete-diff review found no remaining
   actionable implementation issue. No beta restart, command sync,
   tester-document/announcement, host `polytopia_dev`, or production action is
-  warranted. Next: integrate/push P11.4A, then resolve build headroom before a
-  separately scoped P11.4B bot lifecycle/single-writer/Discord proof.
+  warranted. Fast-forward integrated the reviewed unit into
+  `codex/database-slash-modernization` at
+  `2a79e80d20ac385a9a1a4886de11bd9b66f7ad93`. This roadmap commit is the
+  accumulation close-out; next resolve build headroom before a separately
+  scoped P11.4B bot lifecycle/single-writer/Discord proof.
 
 ### 2026-08-12 — P11.3 guarded container recovery implemented and reviewed
 
