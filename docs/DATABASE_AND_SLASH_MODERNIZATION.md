@@ -493,9 +493,11 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.2 read-only container deployment doctor is
-implemented and offline-validated on
+complete, integrated, pushed, and loaded by the development beta from
 `codex/p11-2-container-deployment-doctor`, based on exact clean pushed P11.1
-accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`.
+accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`, at
+implementation/integration checkpoint
+`7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe`.
 It validates a clean exact Git checkpoint, the static contract against the
 selected Dockerfile/Compose assets, container-only config and server-settings
 shape, development/production identity separation, disabled development
@@ -507,16 +509,20 @@ external system, or creates/fixes inputs.
 
 Focused doctor/assets validation passes 16 tests; complete offline discovery
 passes all 2,014 tests with 89 intentional database gates skipped. The real
-checkout invocation
-truthfully blocks on uncommitted unit work, absent ignored container inputs,
-and the host's absent Docker CLI while still printing the reviewed commands;
+clean exact-checkpoint invocation truthfully passes Git/assets and blocks on
+absent ignored container inputs and the host's absent Docker CLI while still
+printing the reviewed commands;
 it discloses no credentials. Tier-2 review corrected implicit Compose `.env`
 discovery, added exact development CLI and bounded-file gates, strengthened
 contract scalar/security checks, and kept unused PostgreSQL pins optional in
 external mode. No actionable finding remains. Commit, integration, push, and
-the batched beta restart remain next. No PostgreSQL, Discord, container,
-service, command-tree, dependency, or production mutation has occurred in
-P11.2.**
+the batched beta restart succeeded: PID `292880`, exact checkpoint `7fc73cf`,
+zero service restarts, one host-wide development writer, correct development
+identity, and all five Beta Lab packs ready. No PostgreSQL, command-tree,
+container, dependency, tester-announcement, or production mutation occurred.
+Next recommended: scope P11.3 logical container backup/restore and live-proof
+gates without installing an engine; also ready is the separate development
+feedback retention/redaction lifecycle.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15622,7 +15628,7 @@ Compose environment. No tester announcement is warranted.
 
 ### P11.2 — Read-only container deployment doctor
 
-Status: **Implemented and Tier-2 reviewed; integration pending**
+Status: **Complete; integrated, pushed, and beta-loaded at `7fc73cf`**
 
 Branch/base: `codex/p11-2-container-deployment-doctor`, exact clean pushed
 P11.1 accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`.
@@ -15666,10 +15672,18 @@ PostgreSQL image pin in external mode. It also disables Python bytecode writes
 and Git optional locks so the inspection itself does not alter the checkout.
 No actionable finding remains.
 
-The current checkout invocation is an
-expected blocked report because the unit is uncommitted, no ignored container
-inputs were fabricated, and no Docker executable is installed. It performed
-no mutation. Integration remains next.
+The clean exact-checkpoint invocation passes Git/assets and returns the
+expected blocked report because no ignored container inputs were fabricated
+and no Docker executable is installed. It performed no mutation.
+
+Implementation/exact fast-forward integration and pushed checkpoint:
+`7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe`. The already planned single beta
+restart loaded that exact checkpoint as PID `292880`; systemd reports active/
+running with zero restarts, the authenticated identity is application
+`479029527553638401`, the host-wide audit finds exactly that one development
+writer, and all five Beta Lab packs are ready. P11.2 changes no bot command
+tree or database behavior, so no command apply, stopped-writer database gate,
+checklist change, or tester announcement was warranted.
 
 ## Standard work-unit template
 
@@ -17035,10 +17049,9 @@ because they share legacy status; their risks and operational owners differ.
 ### 7. Containerized deployment feasibility
 
 Design status: **P11.1 development proof is complete and integrated at
-`309c222`; P11.2's approved read-only deployment doctor is implemented and
-Tier-2 reviewed, pending integration. No container engine is installed on the
-current host, so live proof and all production adoption remain deferred
-gates.**
+`309c222`; P11.2's approved read-only deployment doctor is complete at
+`7fc73cf`. No container engine is installed on the current host, so live proof
+and all production adoption remain deferred gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17118,12 +17131,23 @@ deferred into this post-modernization backlog.
   development/contract safety gating, exposed database/socket/privileged
   Compose patterns, external-mode handling of the unused PostgreSQL pin, and
   Python/Git incidental checkout writes. No actionable finding remains. The
-  real worktree report
-  correctly blocks on uncommitted work, absent ignored inputs, and absent
-  Docker while disclosing no credentials and still showing next commands. No
+  clean exact-checkpoint report passes Git/assets and correctly blocks on
+  absent ignored inputs and absent Docker while disclosing no credentials and
+  still showing next commands. No
   PostgreSQL/Discord/container/service/command-tree/dependency/production
   mutation occurred. Next: commit, integrate/push, then perform the already
   batched beta restart/health check without a tester announcement.
+- Fast-forwarded and pushed exact P11.2 checkpoint
+  `7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe`. Restarted only the development
+  beta once after both container units: PID `292880` runs that exact checkpoint,
+  authenticated as development application `479029527553638401`; systemd is
+  active/running with zero automatic restarts; the host-wide audit finds one
+  development writer; and all five Beta Lab packs are ready. No command tree,
+  database, container, dependency, tester checklist/announcement, or production
+  action occurred. P11.2 is complete. Next recommended: scope a P11.3 logical
+  backup/restore and live-engine proof unit without installing an engine; the
+  development feedback retention/redaction lifecycle is also independently
+  ready.
 
 ### 2026-08-11 — P11.1 container-development proof implemented offline
 
