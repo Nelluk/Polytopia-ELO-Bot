@@ -91,22 +91,38 @@ cp deploy/container/development.env.example deploy/container/.env
 mkdir -p deploy/container/secrets deploy/container/backups
 chmod 700 deploy/container/secrets deploy/container/backups
 # Fill both config files and the two secret files, set the .env checkpoint to
-# the exact clean Git HEAD, then chmod the secrets 600.
+# the exact clean Git HEAD, set guild_configuration_source=database and
+# psql_host=postgres, then chmod configs and secrets 600.
+chmod 600 deploy/container/config.development.ini deploy/container/server_settings_dev.py
+chmod 600 deploy/container/secrets/postgres-admin-password.txt deploy/container/secrets/polybot-database-password.txt
 
 python scripts/check_container_deployment.py --mode bundled
-docker compose --file deploy/container/compose.development.yaml --profile tools config
-docker compose --file deploy/container/compose.development.yaml build bot
-docker compose --file deploy/container/compose.development.yaml up -d postgres
-docker compose --file deploy/container/compose.development.yaml --profile tools run --rm database-provision
-docker compose --file deploy/container/compose.development.yaml --profile tools run --rm schema
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml --profile tools config
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml build bot
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml up -d postgres
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml --profile tools run --rm database-provision
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml --profile tools run --rm schema
 # Review the schema plan, then repeat with: --apply --confirm <exact-token>
-docker compose --file deploy/container/compose.development.yaml up -d bot
-docker compose --file deploy/container/compose.development.yaml logs --tail 100 bot
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml up -d bot
+docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml logs --tail 100 bot
 ```
 
-P11.2 adds `check_container_deployment.py`; until then the static tests are the
-only repository-owned preflight. The doctor never invokes Docker, connects to
-PostgreSQL or Discord, creates files, or changes permissions.
+`check_container_deployment.py` is the repository-owned preflight. It requires
+a clean exact Git checkpoint; validates the contract against the selected
+Compose/Dockerfile assets; parses but does not execute server settings; checks
+the container-only config, production denylists, disabled development effects,
+secret file type/mode/shape, password agreement, and exact image/checkpoint
+pins; and reports Docker/standalone-Compose executables found on `PATH`. It
+does not run either executable, connect to PostgreSQL or Discord, create files,
+or change permissions. A ready report therefore means inputs are ready for the
+printed `docker compose ... config` command; that explicit command is still
+the first proof of plugin availability and fully rendered Compose syntax.
+
+Use `--mode external` with the external Compose file and a non-loopback,
+non-`postgres` database host. That mode does not require or inspect the bundled
+PostgreSQL secrets. `--json` emits the same findings and commands without
+including token or password values. Any `BLOCK` finding exits 2 while still
+printing the ordered commands; warnings do not prevent readiness.
 
 The first bot start remains intentionally later than database provisioning and
 explicit schema apply. Fixture operations remain separate and must retain the

@@ -492,32 +492,31 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.1 containerized development feasibility and static
-proof is complete and integrated from
-`codex/p11-1-container-development-proof`, based on exact clean pushed
-accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`, at
-implementation/integration checkpoint
-`309c2221b4e2800515b14c4434ca220bde8aa1ec`.
-It defines separate pinned-version bot and PostgreSQL 18 containers, a
-non-root/read-only bot boundary, independent persistent volumes, explicit
-development database provisioning and schema jobs, an external-database
-variant, and a machine-readable safety contract. Normal startup never changes
-application schema or fixtures and never synchronizes Discord commands.
+Current active unit: **P11.2 read-only container deployment doctor is
+implemented and offline-validated on
+`codex/p11-2-container-deployment-doctor`, based on exact clean pushed P11.1
+accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`.
+It validates a clean exact Git checkpoint, the static contract against the
+selected Dockerfile/Compose assets, container-only config and server-settings
+shape, development/production identity separation, disabled development
+effects, private secret file safety, application-password agreement, and
+exact image/checkpoint pins. Bundled and external database modes print their
+ordered reviewed commands. The doctor detects Docker/standalone-Compose
+executables through `PATH` only; it never invokes either, connects to an
+external system, or creates/fixes inputs.
 
-The current host has neither Docker nor Podman, so no image, container,
-volume, database, or Discord operation was attempted. Static asset/shell tests
-pass 6 tests; complete offline discovery passes all 2,004 tests with 89
-intentional gates skipped; lockfile and diff checks pass. Review corrected
-runtime image exclusions that would have omitted the Beta Lab manifests and
-wordmark assets, moved application-role privilege validation ahead of database
-creation, and added exact immutable-image supervision because the existing
-restart command accepted only systemd plus a Git checkout. Existing systemd
-services remain unchanged. The durable beta was reverified healthy at its
-prior runtime checkpoint `18bec1e`, PID `283074`, with zero restarts, one
-host-wide writer, correct development identity, and all five Beta Lab packs
-ready. Restart is batched until after the approved P11.2 documentation/tooling
-unit; no database/command-tree/tester operation is warranted. Next: P11.2
-read-only container deployment doctor as a separate bounded unit.**
+Focused doctor/assets validation passes 16 tests; complete offline discovery
+passes all 2,014 tests with 89 intentional database gates skipped. The real
+checkout invocation
+truthfully blocks on uncommitted unit work, absent ignored container inputs,
+and the host's absent Docker CLI while still printing the reviewed commands;
+it discloses no credentials. Tier-2 review corrected implicit Compose `.env`
+discovery, added exact development CLI and bounded-file gates, strengthened
+contract scalar/security checks, and kept unused PostgreSQL pins optional in
+external mode. No actionable finding remains. Commit, integration, push, and
+the batched beta restart remain next. No PostgreSQL, Discord, container,
+service, command-tree, dependency, or production mutation has occurred in
+P11.2.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15621,6 +15620,57 @@ deferred and batched after P11.2 because P11.1 changes no command tree or
 database and its new runtime branch is activated only by a future exact
 Compose environment. No tester announcement is warranted.
 
+### P11.2 — Read-only container deployment doctor
+
+Status: **Implemented and Tier-2 reviewed; integration pending**
+
+Branch/base: `codex/p11-2-container-deployment-doctor`, exact clean pushed
+P11.1 accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`.
+
+Risk tier: **Tier 2 read-only operator tooling and secret-safety boundary.**
+
+`scripts/check_container_deployment.py --mode bundled|external` loads only
+standard-library inspection code. It requires a clean exact Git SHA, checks
+the versioned TOML contract and corresponding static Docker/Compose policies,
+requires a regular ignored `.env` whose reviewed image tags and source
+checkpoint match, parses the private INI and server-settings AST without
+executing application configuration, and checks environment-specific database
+host identity plus disabled tasks/API/Bullet and populated production
+denylists. Bundled mode additionally requires regular non-symlink mode-0600
+admin/application secret files, exactly one line each, a distinct admin
+password, and constant-time application-secret/INI agreement. Values never
+enter findings, text, or JSON output. External mode omits the bundled database
+and secret checks and refuses loopback or the bundled service hostname.
+
+Executable discovery uses only `shutil.which`; Docker and Compose are never
+run. A Docker CLI finding therefore leaves one explicit Compose-plugin warning
+and makes the printed `docker compose ... config` command the next syntax/
+plugin proof. Missing Docker is a blocker but does not suppress the ordered
+commands. The tool does not import Discord, Peewee, or PostgreSQL clients; it
+does not create directories/files, chmod, build/pull images, connect to a
+database or Discord, or touch services. Text and JSON modes exit 0 only with
+no blockers and otherwise exit 2.
+
+Focused doctor/assets validation passes 16 tests, covering ready bundled and
+external inputs, executable absence, dirty/checkpoint drift, asset/contract/
+env drift, unsafe private file modes and multiline secrets, password mismatch
+without disclosure, external-host refusal, immutable results, and external-
+client import/invocation absence plus exact development CLI gating. Complete
+offline discovery passes all 2,014 tests with 89 intentional database gates
+skipped. Compilation, lockfile, and diff checks pass. Tier-2 complete-diff
+review corrected implicit Compose environment discovery by printing
+`--env-file` on every command, bounded every ignored input, made exact
+development and safety-critical contract scalars fail closed, rejects exposed
+database ports/privileged/socket mounts, and avoids requiring the unused
+PostgreSQL image pin in external mode. It also disables Python bytecode writes
+and Git optional locks so the inspection itself does not alter the checkout.
+No actionable finding remains.
+
+The current checkout invocation is an
+expected blocked report because the unit is uncommitted, no ignored container
+inputs were fabricated, and no Docker executable is installed. It performed
+no mutation. Integration remains next.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16985,9 +17035,10 @@ because they share legacy status; their risks and operational owners differ.
 ### 7. Containerized deployment feasibility
 
 Design status: **P11.1 development proof is complete and integrated at
-`309c222`; the approved P11.2 read-only deployment doctor remains. No container
-engine is installed on the current host, so live proof and all production
-adoption remain deferred gates.**
+`309c222`; P11.2's approved read-only deployment doctor is implemented and
+Tier-2 reviewed, pending integration. No container engine is installed on the
+current host, so live proof and all production adoption remain deferred
+gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17048,6 +17099,31 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P11.2 read-only deployment doctor implemented
+
+- Reconciled exact clean local/tracking/GitHub P11.1 close-out checkpoint
+  `c2c823dd6e22831894308ef1e4165cf1036cd212`, created isolated branch/worktree
+  `codex/p11-2-container-deployment-doctor`, and ran the required development
+  setup with exact development identity and disabled tasks/API/Bullet.
+- Added a standard-library-only doctor with bundled/external modes, text/JSON
+  output, clean checkpoint and static contract/asset checks, ignored config/
+  server-settings validation without execution, private single-line secret
+  safety and nondisclosing password agreement, PATH-only engine discovery,
+  and ordered `--env-file` Compose commands. It never invokes a container or
+  external client and never creates or repairs an input.
+- Focused doctor/assets validation passes 16 tests; complete offline discovery
+  passes all 2,014 tests with 89 intentional gates skipped. Tier-2 review
+  corrected implicit `.env` discovery, bounded ignored inputs, exact
+  development/contract safety gating, exposed database/socket/privileged
+  Compose patterns, external-mode handling of the unused PostgreSQL pin, and
+  Python/Git incidental checkout writes. No actionable finding remains. The
+  real worktree report
+  correctly blocks on uncommitted work, absent ignored inputs, and absent
+  Docker while disclosing no credentials and still showing next commands. No
+  PostgreSQL/Discord/container/service/command-tree/dependency/production
+  mutation occurred. Next: commit, integrate/push, then perform the already
+  batched beta restart/health check without a tester announcement.
 
 ### 2026-08-11 — P11.1 container-development proof implemented offline
 
