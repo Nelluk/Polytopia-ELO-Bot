@@ -438,8 +438,11 @@ check:
   `sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`
 - P9.28R2 adversarial correction checkpoint: `931e245`; validated exact arm64
   image: `sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
+- P9.28R3 database-scoped writer-exclusion checkpoint:
+  `843dfffc8f0577c6f95cf7eddbf7d43c3990b740`; exact source image built and
+  validated locally
 - current combined offline result: complete exact-image discovery succeeded
-  across 2,134 tests with 98 intentional skips
+  across 2,140 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
@@ -535,23 +538,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28R2 adversarial container/evidence correction is
-complete locally at `931e245`.** Compose operator context now proves the `/app`
-image root, image interpreter, root-owned embedded checkpoint, and mounted log-
-volume boundary before profile/database loading. Cross-container census counts
-the guarded launcher command. Pending rollback proves both recorded row IDs are
-absent before deleting evidence, and fault injection proves the writer lock is
-held across final proof and publication. Exact arm64 image
-`sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
-passed 2,134 tests with 98 intentional skips. The direct-host reproduction
-refuses before profile load; the exact image plus actual named log volume and
-matching embedded checkpoint passes. No command synchronization, tester
-announcement, production, RackNerd, or external-database action occurred. RC2
-remains historical. Final Mac beta evidence at docs-inclusive checkpoint
-`58cab81` passed: the expected application authenticated, all five packs were
-ready, running reconcile refused, stopped-writer reconcile returned exact House
-256/Team 802 ready at census 0/0/0, and restart restored 1/0/0. The next unit is
-P9.29 human command, retained-prefix, and public/private visibility acceptance.
+Current active unit: **P9.28R3 universal database-writer exclusion is offline-
+validated at `843dfff` and awaiting final Mac beta evidence.** A follow-up
+adversarial review correctly reopened N8-R1 and N9-R2 because a mounted log path
+does not prove one shared lock inode across Compose projects, volumes, and the
+supported host-systemd mode. The durable launcher now owns a dedicated
+PostgreSQL advisory-lock session for the exact development database, and its
+keeper fail-stops the bot if that session is lost. Every supported one-shot
+persona mutation obtains the same database lock inside its existing filesystem
+guard and holds it through final baseline proof and evidence publication.
+Contract version 9 and focused fault injection cover refusal, ordering, and
+session-loss termination. Exact source-image validation passed 132 focused
+tests and all 2,140 offline tests with 98 intentional skips. No command sync,
+tester announcement, production, RackNerd, schema, or database-row mutation
+occurred. Next: refresh the Mac beta and prove that an exact alternate container
+with a different mounted log volume cannot acquire the same database lock;
+then perform stopped/restarted one-shot recovery and record final evidence.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16668,6 +16670,58 @@ running reconcile exited 2; stopped-writer census was 0/0/0 and reconcile
 returned House 256/Team 802 ready; restart restored 1/0/0. Proceed to P9.29
 bounded human acceptance. No command sync or tester announcement occurred.
 
+### P9.28R3 — Database-scoped universal writer exclusion
+
+Status: **Offline-complete at `843dfff`; final Mac beta evidence pending.**
+
+Branch/base: `codex/p9-28r3-database-writer-lock`, exact clean pushed base
+`57952ecdb3f8f986ad41d26d51253871eb383924`; implementation checkpoint
+`843dfffc8f0577c6f95cf7eddbf7d43c3990b740`.
+
+Risk tier: **Tier 3 database-writer exclusion, evidence publication, and
+durable-service fail-stop behavior.**
+
+The follow-up adversarial review correctly reopened N8-R1 and N9-R2. The
+P9.28R2 Compose proof established that a real path was mounted, but did not
+establish that another exact container mounted the same volume. The supported
+host-systemd path also used a different filesystem lock namespace. Therefore
+the filesystem lock remains useful local defense but is not the universal
+writer identity.
+
+P9.28R3 adds one fixed signed-64-bit PostgreSQL session advisory lock on the
+exact `polytopia_dev` / `polybot_dev` connection. The guarded launcher starts a
+minimal lock keeper before taking the filesystem lock and executing the bot.
+It accepts startup only after the keeper reports acquisition, checks that
+session twice per second, and sends SIGTERM to the durable bot if the lock
+session becomes unusable. Bundled Compose, external Compose, and host-systemd
+all use this launcher and therefore contend on the database identity rather
+than a path or volume.
+
+Persona seed, cleanup, and pending reconciliation retain their filesystem
+guard, then acquire the same advisory lock before any database inspection or
+mutation. They retain both locks through the final complete baseline and
+atomic evidence publication. This order cannot deadlock with the durable
+launcher: a one-shot holding the filesystem lock fails its nonblocking
+database-lock attempt while a starting durable process holds the database
+lock, releases the file lock, and lets startup continue.
+
+Contract version 9 records the new boundary. Six focused lock tests cover
+exact database identity, competing-session refusal, file/database/final-proof/
+publication/release ordering, fail-closed error translation, initial keeper
+refusal without signaling an innocent parent, and parent termination after
+session loss. The combined exact-source-image suite passed 132 tests; complete
+discovery passed all 2,140 tests with 98 intentional skips. Compilation and
+`git diff --check` passed. A read-only live database probe using two temporary
+exact-code containers and different named log volumes proved the second
+database lock was refused; no database row or schema changed.
+
+Final acceptance requires the docs-inclusive Mac beta to hold the lock, an
+alternate exact container with a different log volume to be refused, running
+one-shot reconciliation to fail, bot-only stop to release both locks and allow
+the no-op reconciliation, and restart to restore one healthy writer. No
+command synchronization, tester announcement, production, or RackNerd action
+is part of this unit.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -18119,6 +18173,25 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.28R3 database-scoped writer exclusion offline-validated
+
+- Accepted the follow-up adversarial finding that filesystem mount checks do
+  not create a universal lock namespace across alternate Compose volumes and
+  host-systemd.
+- Added a dedicated PostgreSQL advisory-lock keeper to every durable launcher
+  mode and required every persona mutation/reconciliation to hold the same
+  lock through final proof and evidence publication. Loss of the durable lock
+  session fail-stops the bot.
+- Bumped the container contract to version 9. The exact `843dfff` source image
+  passed 132 focused tests and complete discovery: 2,140 passed with 98
+  intentional skips. Compilation and patch checks passed.
+- A non-mutating live PostgreSQL probe used two temporary exact-code containers
+  with different named log volumes; the first acquired the database lock and
+  the second was refused. Both temporary resources were removed afterward.
+- Final Mac refresh, canonical alternate-volume refusal, stopped reconciliation,
+  restart recovery, and final evidence recording remain. No command sync,
+  tester announcement, production, or RackNerd action occurred.
 
 ### 2026-08-12 — P9.28R2 adversarial blockers corrected
 
