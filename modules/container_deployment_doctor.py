@@ -13,6 +13,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tomllib
 from typing import Callable, Mapping
 
@@ -155,6 +156,10 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'backup_archive_prefix',
         'restore_database_name',
         'restore_database_host',
+        'import_database_name',
+        'import_database_host',
+        'import_archive_name',
+        'import_archive_sha256',
     )
     required_integers = (
         'contract_version',
@@ -182,7 +187,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 3
+            value.get('contract_version') != 4
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -232,10 +237,30 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'backup_archive_prefix': 'polybot-polytopia_dev',
         'restore_database_name': 'polytopia_restore_verify',
         'restore_database_host': 'restore-postgres',
+        'import_database_name': 'polytopia_dev',
+        'import_database_host': 'postgres',
+        'import_archive_name': (
+            'polybot-polytopia_dev-20260812T123355Z-'
+            'd27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump'
+        ),
+        'import_archive_sha256': (
+            'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b'
+        ),
     }
     for key, expected in exact_scalars.items():
         if value.get(key) != expected:
             invalid.append(key)
+    expected_import_counts = {
+        'guild_games': 71,
+        'houses': 4,
+        'guild_players': 44,
+        'guild_teams': 15,
+        'beta_fixture_games': 3,
+        'showcase_games': 48,
+        'showcase_players': 24,
+    }
+    if value.get('import_expected_counts') != expected_import_counts:
+        invalid.append('import_expected_counts')
     if not str(value.get('postgres_image', '')).startswith('postgres:18.'):
         invalid.append('postgres_image')
     if invalid:
@@ -400,24 +425,44 @@ def _runtime_bind_ownership(
     *,
     uid: int,
     gid: int,
+    host_platform: str,
+    host_uid: int,
 ) -> Finding:
     try:
-        mismatched = [
-            path for path in paths
-            if path.lstat().st_uid != uid or path.lstat().st_gid != gid
-        ]
+        if host_platform == 'darwin':
+            mismatched = [
+                path for path in paths if path.lstat().st_uid != host_uid
+            ]
+        else:
+            mismatched = [
+                path for path in paths
+                if path.lstat().st_uid != uid or path.lstat().st_gid != gid
+            ]
     except OSError:
         mismatched = list(paths)
+    if host_platform == 'darwin':
+        success = (
+            'Private bot configuration is owned by the invoking macOS user; '
+            'Docker Desktop presents private binds to the configured non-root '
+            'container identity.'
+        )
+        failure = (
+            'Private bot configuration files on macOS must be owned by the '
+            'invoking host user.'
+        )
+    else:
+        success = (
+            'Private bot configuration ownership matches the configured '
+            'non-root container UID/GID.'
+        )
+        failure = (
+            'Private bot configuration files must share the configured '
+            'non-root container UID/GID.'
+        )
     return _finding(
         'runtime-bind-ownership',
         BLOCK if mismatched else PASS,
-        (
-            'Private bot configuration ownership matches the configured '
-            'non-root container UID/GID.'
-            if not mismatched else
-            'Private bot configuration files must share the configured '
-            'non-root container UID/GID.'
-        ),
+        success if not mismatched else failure,
     )
 
 
@@ -617,6 +662,10 @@ def _validate_assets(
             (assets / 'restore-development-database.sh').read_text(encoding='utf-8')
             if mode == 'bundled' else ''
         )
+        import_script = (
+            (assets / 'import-development-database.sh').read_text(encoding='utf-8')
+            if mode == 'bundled' else ''
+        )
     except (OSError, UnicodeError):
         return _finding(
             'repository-assets', BLOCK,
@@ -658,6 +707,7 @@ def _validate_assets(
             'postgres_data:/var/lib/postgresql',
             'database-backup:',
             'database-restore-drill:',
+            'database-import:',
             'profiles: ["recovery"]',
             './backups:/backups',
             'restore-postgres:',
@@ -671,13 +721,23 @@ def _validate_assets(
             str(contract['restore_database_name']),
             'pg_restore --list',
         )
-        joined_recovery_scripts = backup_script + restore_script
+        joined_recovery_scripts = backup_script + restore_script + import_script
         missing.extend(
             value for value in required_recovery_script
             if value not in joined_recovery_scripts
         )
         if str(contract['restore_database_host']) not in restore_script:
             missing.append(str(contract['restore_database_host']))
+        for value in (
+            str(contract['import_database_host']),
+            str(contract['import_database_name']),
+            str(contract['import_archive_name']),
+            str(contract['import_archive_sha256']),
+            'IMPORT $TARGET_DATABASE $archive_digest',
+            '--single-transaction',
+        ):
+            if value not in import_script:
+                missing.append(value)
     else:
         for forbidden in ('\n  postgres:', 'postgres_data', 'database-provision'):
             if forbidden in compose:
@@ -776,12 +836,16 @@ def run_doctor(
     mode: str,
     which: Callable[[str], str | None] = shutil.which,
     git_probe: Callable[[Path], GitSnapshot] = _git_snapshot,
+    host_platform: str = sys.platform,
+    host_uid: int | None = None,
 ) -> DoctorReport:
     if mode not in MODES:
         raise ContainerDoctorError(
             f'Mode must be one of: {", ".join(MODES)}.'
         )
     root = Path(project_root).resolve()
+    if host_uid is None:
+        host_uid = os.getuid()
     contract = _read_toml(root / 'deploy/container/container-contract.toml')
     findings: list[Finding] = []
 
@@ -871,6 +935,8 @@ def run_doctor(
                 ),
                 uid=int(runtime_uid),
                 gid=int(runtime_gid),
+                host_platform=host_platform,
+                host_uid=host_uid,
             ))
         else:
             findings.append(_finding(

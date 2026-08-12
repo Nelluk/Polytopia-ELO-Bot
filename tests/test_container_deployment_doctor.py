@@ -65,6 +65,10 @@ class ContainerDeploymentDoctorTests(unittest.TestCase):
             'POLYBOT_RUNTIME_UID=1000', f'POLYBOT_RUNTIME_UID={os.getuid()}'
         ).replace(
             'POLYBOT_RUNTIME_GID=1000', f'POLYBOT_RUNTIME_GID={os.getgid()}'
+        ).replace(
+            'POLYBOT_RECOVERY_UID=1000', f'POLYBOT_RECOVERY_UID={os.getuid()}'
+        ).replace(
+            'POLYBOT_RECOVERY_GID=1000', f'POLYBOT_RECOVERY_GID={os.getgid()}'
         )
         (self.root / 'deploy/container/.env').write_text(env, encoding='utf-8')
         backup_directory = self.root / 'deploy/container/backups'
@@ -163,6 +167,7 @@ log_root = logs/development
             mode='bundled',
             which=self._docker_only,
             git_probe=self._git,
+            host_platform='linux',
         )
         self.assertFalse(report.ready)
         rendered = doctor.format_report(report)
@@ -269,10 +274,10 @@ log_root = logs/development
         env_path = self.root / 'deploy/container/.env'
         env_path.write_text(
             env_path.read_text(encoding='utf-8').replace(
-                'POLYBOT_RECOVERY_UID=1000',
+                f'POLYBOT_RECOVERY_UID={os.getuid()}',
                 'POLYBOT_RECOVERY_UID=0',
             ).replace(
-                'POLYBOT_RECOVERY_GID=1000',
+                f'POLYBOT_RECOVERY_GID={os.getgid()}',
                 'POLYBOT_RECOVERY_GID=operator',
             ),
             encoding='utf-8',
@@ -282,6 +287,7 @@ log_root = logs/development
             mode='bundled',
             which=self._docker_only,
             git_probe=self._git,
+            host_platform='linux',
         )
         self.assertFalse(report.ready)
         finding = next(item for item in report.findings if item.key == 'compose-env')
@@ -305,12 +311,58 @@ log_root = logs/development
             mode='bundled',
             which=self._docker_only,
             git_probe=self._git,
+            host_platform='linux',
         )
         blocked = {
             item.key for item in report.findings if item.status == doctor.BLOCK
         }
         self.assertIn('compose-env', blocked)
         self.assertIn('runtime-bind-ownership', blocked)
+
+    def test_darwin_allows_private_host_owner_to_differ_from_runtime_identity(self):
+        env_path = self.root / 'deploy/container/.env'
+        env_path.write_text(
+            env_path.read_text(encoding='utf-8').replace(
+                f'POLYBOT_RUNTIME_UID={os.getuid()}',
+                'POLYBOT_RUNTIME_UID=4242',
+            ).replace(
+                f'POLYBOT_RUNTIME_GID={os.getgid()}',
+                'POLYBOT_RUNTIME_GID=4343',
+            ),
+            encoding='utf-8',
+        )
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+            host_platform='darwin',
+            host_uid=os.getuid(),
+        )
+
+        finding = next(
+            item for item in report.findings
+            if item.key == 'runtime-bind-ownership'
+        )
+        self.assertEqual(finding.status, doctor.PASS)
+        self.assertIn('Docker Desktop', finding.message)
+
+    def test_darwin_still_rejects_private_files_not_owned_by_invoking_user(self):
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+            host_platform='darwin',
+            host_uid=os.getuid() + 1,
+        )
+
+        finding = next(
+            item for item in report.findings
+            if item.key == 'runtime-bind-ownership'
+        )
+        self.assertEqual(finding.status, doctor.BLOCK)
+        self.assertIn('invoking host user', finding.message)
 
     def test_backup_directory_must_match_recovery_identity_and_mode(self):
         backup_directory = self.root / 'deploy/container/backups'

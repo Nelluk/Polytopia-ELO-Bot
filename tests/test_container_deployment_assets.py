@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 3)
+        self.assertEqual(contract['contract_version'], 4)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -37,6 +37,29 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertEqual(contract['backup_archive_prefix'], 'polybot-polytopia_dev')
         self.assertEqual(contract['restore_database_name'], 'polytopia_restore_verify')
         self.assertEqual(contract['restore_database_host'], 'restore-postgres')
+        self.assertEqual(contract['import_database_name'], 'polytopia_dev')
+        self.assertEqual(contract['import_database_host'], 'postgres')
+        self.assertEqual(
+            contract['import_archive_name'],
+            'polybot-polytopia_dev-20260812T123355Z-'
+            'd27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump',
+        )
+        self.assertEqual(
+            contract['import_archive_sha256'],
+            'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b',
+        )
+        self.assertEqual(
+            contract['import_expected_counts'],
+            {
+                'guild_games': 71,
+                'houses': 4,
+                'guild_players': 44,
+                'guild_teams': 15,
+                'beta_fixture_games': 3,
+                'showcase_games': 48,
+                'showcase_players': 24,
+            },
+        )
         self.assertEqual(contract['restart_exit_status'], 75)
         self.assertEqual(
             contract['restart_supervisor_environment'],
@@ -111,6 +134,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('database-provision:', compose)
         self.assertIn('database-backup:', compose)
         self.assertIn('database-restore-drill:', compose)
+        self.assertIn('database-import:', compose)
         self.assertIn('restore-postgres:', compose)
         self.assertIn('postgres_restore_data:/var/lib/postgresql', compose)
         self.assertIn('./backups:/backups', compose)
@@ -135,7 +159,8 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
     def test_recovery_jobs_are_development_only_plan_first_and_syntactically_valid(self):
         backup = self.assets / 'backup-development-database.sh'
         restore = self.assets / 'restore-development-database.sh'
-        for script in (backup, restore):
+        database_import = self.assets / 'import-development-database.sh'
+        for script in (backup, restore, database_import):
             with self.subTest(script=script.name):
                 result = subprocess.run(
                     ['/bin/sh', '-n', script],
@@ -148,6 +173,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
 
         backup_source = backup.read_text(encoding='utf-8')
         restore_source = restore.read_text(encoding='utf-8')
+        import_source = database_import.read_text(encoding='utf-8')
         self.assertIn('BACKUP $SOURCE_DATABASE $checkpoint', backup_source)
         self.assertIn('zero other source-database sessions', backup_source)
         self.assertIn(
@@ -171,6 +197,19 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('wrong_table_owners', restore_source)
         self.assertNotIn('DROP DATABASE', restore_source)
         self.assertNotIn('polytopia2', restore_source)
+
+        self.assertIn('IMPORT $TARGET_DATABASE $archive_digest', import_source)
+        self.assertIn('IMPORT_HOST=postgres', import_source)
+        self.assertIn('TARGET_DATABASE=polytopia_dev', import_source)
+        self.assertIn('--single-transaction', import_source)
+        self.assertIn('--no-owner', import_source)
+        self.assertIn('--no-acl', import_source)
+        self.assertIn('public_relations', import_source)
+        self.assertGreaterEqual(import_source.count('target_sessions'), 4)
+        self.assertIn('EXPECTED_COUNTS=', import_source)
+        self.assertNotIn('DROP DATABASE', import_source)
+        self.assertNotIn('CREATE DATABASE', import_source)
+        self.assertNotIn('polytopia2', import_source)
 
     def test_backup_without_confirmation_is_connection_free_plan(self):
         result = subprocess.run(
@@ -226,6 +265,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertNotIn('database-provision', compose)
         self.assertNotIn('database-backup', compose)
         self.assertNotIn('database-restore-drill', compose)
+        self.assertNotIn('database-import', compose)
         self.assertNotIn('restore-postgres', compose)
 
     def test_database_provisioner_is_development_and_major_gated(self):

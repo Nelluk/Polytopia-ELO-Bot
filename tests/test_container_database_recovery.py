@@ -12,6 +12,10 @@ import unittest
 CHECKPOINT = 'a' * 40
 ADMIN_PASSWORD = 'administrative-test-secret'
 APP_PASSWORD = 'application-test-secret'
+IMPORT_ARCHIVE_NAME = (
+    'polybot-polytopia_dev-20260812T123355Z-'
+    'd27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump'
+)
 
 
 class ContainerDatabaseRecoveryTests(unittest.TestCase):
@@ -54,6 +58,29 @@ class ContainerDatabaseRecoveryTests(unittest.TestCase):
                 'APPLICATION_SECRET=/run/secrets/polybot_database_password': (
                     f'APPLICATION_SECRET={self.app_secret}'
                 ),
+            },
+        )
+        import_archive = self.backups / IMPORT_ARCHIVE_NAME
+        import_archive.write_bytes(b'reviewed transferred development archive\n')
+        self.import_digest = hashlib.sha256(import_archive.read_bytes()).hexdigest()
+        import_archive.with_suffix('.dump.sha256').write_text(
+            f'{self.import_digest}  {IMPORT_ARCHIVE_NAME}\n',
+            encoding='utf-8',
+        )
+        self.import_script = self._copy_script(
+            'import-development-database.sh',
+            {
+                'BACKUP_ROOT=/backups': f'BACKUP_ROOT={self.backups}',
+                'ADMIN_SECRET=/run/secrets/postgres_admin_password': (
+                    f'ADMIN_SECRET={self.admin_secret}'
+                ),
+                'APPLICATION_SECRET=/run/secrets/polybot_database_password': (
+                    f'APPLICATION_SECRET={self.app_secret}'
+                ),
+                (
+                    'EXPECTED_DIGEST='
+                    'a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b'
+                ): f'EXPECTED_DIGEST={self.import_digest}',
             },
         )
 
@@ -105,8 +132,13 @@ printf 'called\n' >"$FAKE_RESTORE_MARKER"
             '''#!/bin/sh
 printf 'called\n' >"$FAKE_PSQL_MARKER"
 case "$*" in
+  *--dbname=polytopia_dev*current_database*) echo polytopia_dev:polybot_dev ;;
   *current_database*) echo postgres:postgres ;;
   *server_version_num*) echo 180004 ;;
+  *"FROM pg_roles AS role"*) echo "${FAKE_SAFE_ROLE:-1}" ;;
+  *"FROM pg_database AS database"*) echo "${FAKE_SAFE_DATABASE:-1}" ;;
+  *"relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')"*) echo "${FAKE_PUBLIC_RELATIONS:-0}" ;;
+  *"id BETWEEN 2286 AND 2288"*) echo '71|4|44|15|3|48|24' ;;
   *relation.relkind*) echo 0 ;;
   *pg_get_userbyid*) echo 1 ;;
   *pg_stat_activity*)
@@ -132,7 +164,7 @@ esac
     def _environment(self, **updates: str) -> dict[str, str]:
         environment = {
             **os.environ,
-            'PATH': f'{self.fake_bin}:/usr/bin:/bin',
+            'PATH': f'{self.fake_bin}:/usr/bin:/bin:/sbin',
             'POLYBOT_ENV': 'development',
             'POLYBOT_SOURCE_CHECKPOINT': CHECKPOINT,
             'PGHOST': 'postgres',
@@ -161,7 +193,7 @@ esac
             POLYBOT_BACKUP_CONFIRMATION=f'BACKUP polytopia_dev {CHECKPOINT}',
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        archives = list(self.backups.glob('*.dump'))
+        archives = list(self.backups.glob('*T120000Z*.dump'))
         self.assertEqual(len(archives), 1)
         archive = archives[0]
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -198,8 +230,8 @@ esac
 
         self.assertEqual(result.returncode, 2)
         self.assertIn('present after pg_dump', result.stderr)
-        self.assertEqual(list(self.backups.glob('*.dump')), [])
-        self.assertEqual(list(self.backups.glob('*.sha256')), [])
+        self.assertEqual(list(self.backups.glob('*T120000Z*.dump')), [])
+        self.assertEqual(list(self.backups.glob('*T120000Z*.sha256')), [])
         self.assertFalse((self.backups / '.polybot-backup.lock').exists())
 
     def test_backup_plan_states_the_pre_post_sampling_limitation(self):
@@ -278,6 +310,122 @@ esac
         self.assertEqual(result.returncode, 2)
         self.assertIn('not fresh', result.stderr)
         self.assertFalse(self.restore_marker.exists())
+
+    def test_import_plan_is_connection_free_and_apply_is_digest_bound(self):
+        self.psql_marker.unlink(missing_ok=True)
+        self.restore_marker.unlink(missing_ok=True)
+
+        plan = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+        )
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        self.assertIn(
+            f'IMPORT polytopia_dev {self.import_digest}',
+            plan.stdout,
+        )
+        self.assertIn('no PostgreSQL connection or write', plan.stdout)
+        self.assertFalse(self.psql_marker.exists())
+        self.assertFalse(self.restore_marker.exists())
+
+        applied = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION=(
+                f'IMPORT polytopia_dev {self.import_digest}'
+            ),
+        )
+        self.assertEqual(applied.returncode, 0, applied.stderr)
+        self.assertIn(
+            'Development bundled database import complete.',
+            applied.stdout,
+        )
+        self.assertTrue(self.psql_marker.exists())
+        self.assertTrue(self.restore_marker.exists())
+        self.assertNotIn(ADMIN_PASSWORD, applied.stdout + applied.stderr)
+        self.assertNotIn(APP_PASSWORD, applied.stdout + applied.stderr)
+
+    def test_import_plan_does_not_read_secrets(self):
+        self.admin_secret.unlink()
+        self.app_secret.unlink()
+
+        plan = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+        )
+
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        self.assertFalse(self.psql_marker.exists())
+        self.assertFalse(self.restore_marker.exists())
+
+    def test_import_wrong_confirmation_refuses_before_database_access(self):
+        self.psql_marker.unlink(missing_ok=True)
+        result = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION='IMPORT polytopia_dev wrong',
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('does not match', result.stderr)
+        self.assertFalse(self.psql_marker.exists())
+        self.assertFalse(self.restore_marker.exists())
+
+    def test_import_refuses_session_race_before_restore(self):
+        self.restore_marker.unlink(missing_ok=True)
+        result = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION=(
+                f'IMPORT polytopia_dev {self.import_digest}'
+            ),
+            FAKE_SESSION_COUNTER=str(self.session_counter),
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('connected during preflight', result.stderr)
+        self.assertFalse(self.restore_marker.exists())
+
+    def test_import_requires_restricted_role_and_owned_database(self):
+        for variable in ('FAKE_SAFE_ROLE', 'FAKE_SAFE_DATABASE'):
+            with self.subTest(variable=variable):
+                self.restore_marker.unlink(missing_ok=True)
+                result = self._run(
+                    self.import_script,
+                    POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+                    POLYBOT_IMPORT_CONFIRMATION=(
+                        f'IMPORT polytopia_dev {self.import_digest}'
+                    ),
+                    **{variable: '0'},
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse(self.restore_marker.exists())
+
+    def test_import_repeat_refuses_nonfresh_target_before_restore(self):
+        self.restore_marker.unlink(missing_ok=True)
+        repeated = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
+            POLYBOT_IMPORT_CONFIRMATION=(
+                f'IMPORT polytopia_dev {self.import_digest}'
+            ),
+            FAKE_PUBLIC_RELATIONS='1',
+        )
+
+        self.assertEqual(repeated.returncode, 2)
+        self.assertIn('Target is not fresh', repeated.stderr)
+        self.assertFalse(self.restore_marker.exists())
+
+    def test_import_rejects_any_other_archive_before_database_access(self):
+        self.psql_marker.unlink(missing_ok=True)
+        result = self._run(
+            self.import_script,
+            POLYBOT_BACKUP_ARCHIVE='another.dump',
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('exact reviewed archive basename', result.stderr)
+        self.assertFalse(self.psql_marker.exists())
 
 
 if __name__ == '__main__':

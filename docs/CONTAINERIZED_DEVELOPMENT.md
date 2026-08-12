@@ -11,8 +11,8 @@ keeps the bot image replaceable, gives PostgreSQL its own pinned-major service
 and persistent volume, and removes host PostgreSQL role/database setup from the
 ordinary development path. The repository now contains a build definition,
 bundled-database Compose definition, external-database variant, explicit
-database provisioner, plan-first backup and isolated restore-drill jobs, and a
-machine-readable contract.
+database provisioner, plan-first backup, isolated restore-drill, and exact
+ordinary-development import jobs, plus a machine-readable contract.
 
 P11.4A exercised the infrastructure path with Docker 29.7.2 and Compose 5.4.0.
 It resolved and committed immutable registry digests, built and inspected an
@@ -33,13 +33,15 @@ operationally clean on this host.
 ## Reviewed architecture
 
 - `bot` is built from CPython 3.12.13 and the locked `uv` 0.11.32 environment.
-  The ignored `.env` supplies the positive non-root UID/GID that already owns
-  both mode-0600 private configuration mounts; the same identity owns copied
-  application source in the image. This preserves private host permissions
-  without making the container root. The doctor rejects an invalid identity
-  or ownership mismatch. Runtime uses a read-only root filesystem, all Linux
-  capabilities dropped, a bounded tmpfs, resource ceilings, and persistent
-  image and log volumes.
+  The ignored `.env` supplies a positive non-root UID/GID; the same identity
+  owns copied application source in the image. On Linux that numeric identity
+  must exactly own both mode-0600 private configuration mounts. On Docker
+  Desktop for macOS, the mode-0600 files instead remain owned by the invoking
+  host user and Docker Desktop presents the bind to the configured container
+  identity. The doctor applies only that narrower Darwin exception and keeps
+  the Linux exact-owner check unchanged. Runtime uses a read-only root
+  filesystem, all Linux capabilities dropped, a bounded tmpfs, resource
+  ceilings, and persistent image and log volumes.
 - `postgres` uses PostgreSQL 18.4, matching the development server major
   verified on 2026-08-11. Its data is isolated in `postgres_data`; the bot
   never shares that filesystem.
@@ -62,6 +64,12 @@ operationally clean on this host.
   directory. `database-restore-drill` can connect only to `restore-postgres`,
   whose `postgres_restore_data` volume is separate from the ordinary database
   volume. Neither job is part of normal startup.
+- `database-import` can connect only to the ordinary bundled `postgres`
+  service and fixed `polytopia_dev` target. It accepts only the transferred
+  archive and digest recorded in contract version 4, requires a safely
+  provisioned relation-empty target plus zero target sessions, restores once
+  as `polybot_dev`, and verifies the digest-bound bounded data counts. It never
+  starts the bot and is not part of normal startup.
 
 The immutable contract is
 `deploy/container/container-contract.toml`. Version changes to its images,
@@ -308,6 +316,76 @@ space, surviving verified generations, and off-host copy. This conservative
 manual policy avoids a retention bug silently erasing the only recoverable
 generation.
 
+### Importing the reviewed transfer into the ordinary bundled database
+
+This is a separate one-time development import, not a general restore path.
+It accepts only
+`polybot-polytopia_dev-20260812T123355Z-d27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump`
+with SHA-256
+`a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+The archive and `.sha256` sidecar remain read-only inputs and must be retained.
+On the Mac transfer rehearsal, always retain the explicit project name:
+
+```bash
+COMPOSE='docker compose --project-name polybot-mac-beta --env-file deploy/container/.env --file deploy/container/compose.development.yaml'
+ARCHIVE='polybot-polytopia_dev-20260812T123355Z-d27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump'
+```
+
+1. Stop the owned container bot and inspect the owned project. A bot container
+   must not be running, and import also refuses any sampled target-database
+   session.
+
+   ```bash
+   $COMPOSE stop bot
+   $COMPOSE ps bot postgres
+   ```
+
+2. Validate and print the exact plan without starting PostgreSQL. This reads
+   only the archive pair and catalog; it does not read a secret, connect to
+   PostgreSQL, or write a file.
+
+   ```bash
+   $COMPOSE --profile recovery run --rm --no-deps \
+     -e "POLYBOT_BACKUP_ARCHIVE=$ARCHIVE" \
+     database-import
+   ```
+
+3. Start a fresh ordinary PostgreSQL volume and run only the idempotent
+   provisioner. Do not run the schema job: the import requires an existing
+   restricted `polybot_dev` role and owned `polytopia_dev` database with zero
+   public relations.
+
+   ```bash
+   $COMPOSE up -d postgres
+   $COMPOSE --profile tools run --rm database-provision
+   ```
+
+4. Apply the exact digest-bound confirmation emitted by the plan.
+
+   ```bash
+   $COMPOSE --profile recovery run --rm \
+     -e "POLYBOT_BACKUP_ARCHIVE=$ARCHIVE" \
+     -e 'POLYBOT_IMPORT_CONFIRMATION=IMPORT polytopia_dev a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b' \
+     database-import
+   ```
+
+   The job rechecks PostgreSQL major 18, `postgres:postgres` maintenance
+   identity, the restricted application role, target ownership, no target
+   sessions, and a relation-empty public schema before `pg_restore`. Restore
+   uses one transaction with `--no-owner --no-acl`. Post-restore checks require
+   all application tables, `game.winner_id -> gameside.id`, application-owned
+   tables/sequences, 71 guild games, 4 Houses, 44 guild Players, 15 guild
+   Teams, result fixtures 2286–2288, 48 showcase games, and 24 showcase
+   Players.
+
+5. Repeat the apply command once. It must refuse the now non-fresh target
+   before invoking `pg_restore`. Keep the bot stopped for the separately gated
+   single-writer and lifecycle proof.
+
+The bundled service publishes no host port. This procedure cannot address an
+external database or any production database and contains no create/drop
+database operation.
+
 ## Restart and shutdown behavior
 
 Docker sends `SIGINT` and allows 45 seconds, matching the reviewed bot cleanup
@@ -373,9 +451,10 @@ never use `latest`.
 ## Remaining gates before supported use
 
 1. Provide enough build headroom for Compose to exit cleanly, or use a
-   reviewed remote build/registry workflow. Review vulnerability results for
-   the exact images; P11.4A reviewed image history and locked packages but did
-   not install a scanner.
+   reviewed remote build/registry workflow. The original VPS remained limited
+   to about 2.3 GB free; the 2026-08-12 Mac audit had about 516 GiB available.
+   Review vulnerability results for the exact images; P11.4A reviewed image
+   history and locked packages but did not install a scanner.
 2. Exercise persistent bot image/log volumes, runtime resource ceilings,
    SIGINT shutdown, exit-75 restart, database unavailability/recovery, and an
    actual development Discord login using a separately authorized token/writer
