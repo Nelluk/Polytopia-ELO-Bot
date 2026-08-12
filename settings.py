@@ -296,6 +296,7 @@ def reconcile_database_guild_configuration(
     expected_current: dict[int, tuple[int, int, str]],
     activated_guild_id: int,
     expected_activation: tuple[int, int, str],
+    expected_command_capabilities: tuple[str, ...] | None = None,
 ) -> None:
     """Atomically replace one published DB snapshot after a committed write."""
 
@@ -318,10 +319,51 @@ def reconcile_database_guild_configuration(
         raise RuntimeError('Expected runtime inventory is incomplete.')
     if activated_guild_id not in current.guilds:
         raise RuntimeError('Activated guild is outside the runtime inventory.')
-    if snapshot.command_policy != current.command_policy:
-        raise RuntimeError(
-            'Activation cannot change application-command capabilities.'
-        )
+    if expected_command_capabilities is None:
+        if snapshot.command_policy != current.command_policy:
+            raise RuntimeError(
+                'Activation cannot change application-command capabilities.'
+            )
+    else:
+        expected_command_capabilities = tuple(expected_command_capabilities)
+        if (
+                snapshot.command_policy.allowed_guild_ids
+                != current.command_policy.allowed_guild_ids
+                or snapshot.command_policy.families
+                != current.command_policy.families
+        ):
+            raise RuntimeError(
+                'The command-policy vocabulary or guild inventory changed '
+                'during reconciliation.'
+            )
+        if (
+                snapshot.command_policy.capabilities_for_guild(
+                    activated_guild_id
+                ) != expected_command_capabilities
+        ):
+            raise RuntimeError(
+                'Reloaded application-command capabilities differ from the '
+                'confirmed activation.'
+            )
+        if (
+                current.command_policy.capabilities_for_guild(
+                    activated_guild_id
+                ) == expected_command_capabilities
+        ):
+            raise RuntimeError(
+                'Coordinated activation did not change command capabilities.'
+            )
+        for guild_id in current.guilds:
+            if guild_id == activated_guild_id:
+                continue
+            if (
+                    snapshot.command_policy.capabilities_for_guild(guild_id)
+                    != current.command_policy.capabilities_for_guild(guild_id)
+            ):
+                raise RuntimeError(
+                    'An unrelated guild command policy changed during '
+                    'reconciliation.'
+                )
     for guild_id, value in current.guilds.items():
         expected = expected_current[guild_id]
         observed = (value.revision, value.generation, value.document_digest)

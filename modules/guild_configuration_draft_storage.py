@@ -634,6 +634,7 @@ def activation_source_digest(
     *,
     draft: StoredGuildConfigurationDraft,
     actor: str,
+    command_plan_digest: str | None = None,
 ) -> str:
     if not isinstance(draft, StoredGuildConfigurationDraft):
         raise GuildConfigurationDraftStorageError(
@@ -641,7 +642,14 @@ def activation_source_digest(
         )
     if not isinstance(actor, str) or not actor or len(actor) > 200:
         raise GuildConfigurationDraftStorageError('Activation actor is invalid.')
-    return _canonical_digest({
+    if command_plan_digest is not None and (
+            not isinstance(command_plan_digest, str)
+            or not _HEX_DIGEST.fullmatch(command_plan_digest)
+    ):
+        raise GuildConfigurationDraftStorageError(
+            'Activation command-plan digest is invalid.'
+        )
+    evidence = {
         'source_kind': ACTIVATION_SOURCE_KIND,
         'guild_id': draft.guild_id,
         'draft_version': draft.draft_version,
@@ -649,7 +657,10 @@ def activation_source_digest(
         'base_generation': draft.base_generation,
         'document_digest': draft.document_digest,
         'actor': actor,
-    })
+    }
+    if command_plan_digest is not None:
+        evidence['command_plan_digest'] = command_plan_digest
+    return _canonical_digest(evidence)
 
 
 def activate_draft(
@@ -661,6 +672,7 @@ def activate_draft(
     active_document_digest: str,
     actor: str,
     changed_paths: tuple[str, ...],
+    command_plan_digest: str | None = None,
 ) -> GuildConfigurationActivation:
     """Create one immutable active revision/audit and consume its draft."""
 
@@ -693,7 +705,11 @@ def activate_draft(
         raise GuildConfigurationDraftStorageError(
             'Activation changed-path evidence is invalid.'
         )
-    source_digest = activation_source_digest(draft=draft, actor=actor)
+    source_digest = activation_source_digest(
+        draft=draft,
+        actor=actor,
+        command_plan_digest=command_plan_digest,
+    )
     payload = json.dumps(
         document_to_mapping(draft.document),
         ensure_ascii=False,
@@ -752,14 +768,22 @@ def activate_draft(
         raise GuildConfigurationDraftStorageError(
             'The active configuration changed during activation.'
         )
-    details = json.dumps({
+    detail_values = {
         'draft_version': draft.draft_version,
         'base_revision': active_revision,
         'base_generation': active_generation,
         'previous_document_digest': active_document_digest,
         'source_digest': source_digest,
         'changed_paths': list(changed_paths),
-    }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    }
+    if command_plan_digest is not None:
+        detail_values['command_plan_digest'] = command_plan_digest
+    details = json.dumps(
+        detail_values,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(',', ':'),
+    )
     cursor.execute(
         f'INSERT INTO "{storage.AUDIT_TABLE}" '
         '(guild_id, event_number, event_type, revision_number, generation, '

@@ -31,12 +31,14 @@ configuration, and `AGENTS.md` remain authoritative.
 - Do not connect to or modify the production database `polytopia2`.
 - Production services, production command synchronization, and production
   deployment require separate explicit approval.
-- The development beta is not a command-registration mechanism. Keep it
-  stopped while preparing a command-tree change; run the explicit,
-  guild-scoped management tool's offline plan, and only after separately
-  approved apply/smoke gates launch the beta with no startup synchronization.
-  Stop it temporarily when a gated fixture operation or other documented
-  safety procedure requires the bot to be offline.
+- Beta startup is not a command-registration mechanism and automatic
+  synchronization remains forbidden. Source-shape deployments use the
+  explicit out-of-process guild-scoped plan/apply tool while the beta is
+  stopped. P10.6c is the sole development exception: the configured owner may
+  explicitly activate a database capability plan and synchronize one exact
+  active guild through its digest-confirmed, empty-global control. Stop the
+  beta temporarily when a gated fixture operation or other documented safety
+  procedure requires the bot to be offline.
 - The standing beta authorization does not cover production, a global command
   synchronization, a different guild/profile, enabling background tasks or
   the API, dependency installation, or materially broader live testing.
@@ -490,7 +492,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.7 quarantined development-guild onboarding is
+Current active unit: **P10.6c coordinated command-capability activation is in
+progress from exact clean pushed accumulation checkpoint
+`0497d071576b45290ada4e526a6b52635d181e42` on
+`codex/p10-6c-command-capability-activation`. The selected Tier-3 contract lets
+the configured owner target any active database guild from an already trusted
+operator context, validates a capability-changing complete draft, and binds
+its immutable activation evidence to an exact empty-global/guild-only Discord
+command plan. Commit publishes the new fail-closed runtime policy before the
+one-guild sync; active-policy reconciliation is separately repeatable without
+another database write. Unknown or stale remotely registered roots are denied
+again at runtime dispatch. Global synchronization, production, schema, and
+implicit startup apply remain excluded. Implementation, validation, review,
+integration, and development deployment evidence are pending.**
+
+Previous unit: **P10.7 quarantined development-guild onboarding is
 complete, integrated, pushed, development-guild registered, and beta-deployed
 from
 `codex/p10-7-quarantined-onboarding`, based on exact clean pushed accumulation
@@ -15286,6 +15302,67 @@ Next action: P10.6c should coordinate application-command capability
 activation with an explicit development-guild plan/apply and fail-closed
 runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
+### P10.6c — Coordinated command-capability activation
+
+Status: **In progress**
+
+Branch/base: `codex/p10-6c-command-capability-activation`, exact clean pushed
+accumulation checkpoint `0497d071576b45290ada4e526a6b52635d181e42`.
+
+Risk tier: **Tier 3 authoritative configuration mutation, runtime dispatch,
+and remote Discord publication boundary.**
+
+The owner-only `/operator guild commands target_guild_id:[optional]` command
+runs from an already active trusted guild and targets one exact active database
+guild. This is required for P10.7-enrolled guilds that begin prefix-only and
+therefore cannot yet invoke their own operator root. `/operator guild edit`
+accepts the same optional target in a capability-only mode because Discord
+role/channel selectors are scoped to the invoking guild. Once `operator` is
+registered, ordinary settings remain editable from inside the target with its
+own native selectors. Ordinary activation remains separate and refuses
+capability drift.
+
+When the target has a capability-changing draft, the command live-validates it
+and privately freezes the active revision/generation/document digest, draft
+version/full digest, current and desired capability sets, local source command
+fingerprints, exact remote target tree and diff, and an empty remote global
+tree into one SHA-256 plan. Full confirmation is
+`ACTIVATE COMMANDS <draft-digest> <plan-digest>`. The worker repeats owner,
+target, database identity/schema, active/draft CAS, live reference, plan digest,
+and exact confirmation checks. One transaction appends the full revision,
+advances generation once, records the command-plan digest in the protected
+audit, and consumes the draft.
+
+Post-commit publication reloads the complete active graph and atomically
+publishes the new runtime policy while requiring unrelated guild evidence and
+capabilities to remain unchanged. A new command-tree interaction check denies
+any root absent from that active policy, independently of Discord registration.
+Only then does the explicit event-loop coordinator recheck the empty global and
+exact target evidence, synchronize that one guild, and verify convergence.
+Existing active-root fingerprint drift blocks the flow and remains owned by
+the external source-deployment tool; capability activation cannot silently
+carry unrelated command-shape updates.
+
+When no draft changes capabilities, the same command plans active-policy-only
+reconciliation. An already converged tree is a read-only no-op; otherwise exact
+`SYNC COMMANDS <plan-digest>` confirmation applies one guild without a database
+revision. This is also the repair route after a committed activation whose
+Discord outcome is unverified; repeating the consumed database activation is
+never suggested.
+
+Required evidence includes digest determinism/model-free views, cross-guild
+owner targeting, default-deny stale-root dispatch, exact global refusal and
+guild-only apply, remote/source drift, transaction rollback, protected audit
+binding, post-commit reload/apply failure, cancellation drainage, connection
+ownership, event-loop responsiveness, terminal publication fallback, command
+registration, complete offline discovery, and the explicitly gated rolled-back
+development PostgreSQL graph. Operational procedure is
+`docs/DEVELOPMENT_GUILD_COMMAND_CAPABILITIES.md`.
+
+Out of scope: global sync/removal, production configuration or Discord state,
+schema changes, automatic startup synchronization, delegation, enrollment,
+suspension/retirement, and capability-changing historical rollback.
+
 ### P10.7 — Quarantined development-guild onboarding
 
 Status: **Complete; integrated, pushed, development-guild registered, and
@@ -16548,6 +16625,32 @@ capability activation and explicit guild-only apply. Known production guilds
 remain denied in development, and production enrollment needs separate
 authority.
 
+### D-060 — Activate command capabilities with fail-closed policy before one-guild sync
+
+Status: **Accepted for P10.6c implementation**
+
+A P10.7-enrolled guild starts prefix-only, so command capability management
+must be invokable from another already trusted active guild with an exact
+owner-selected target. Keep complete draft editing and database revision
+history as the configuration authority; do not introduce a second mutable
+capability store or edit ignored static settings.
+
+Capability activation is one explicit two-effect workflow, not an atomicity
+claim across PostgreSQL and Discord. Preview and confirmation bind the complete
+draft plus exact target-tree fingerprints and an observed empty global tree.
+Commit the immutable revision/audit first, publish the new runtime policy, then
+synchronize only the confirmed guild and re-inspect convergence. The runtime
+interaction boundary independently rejects every root outside the active
+policy, so removals fail closed while Discord catches up and additions cannot
+run before policy publication.
+
+If the database commits but runtime publication fails, restart reconciliation
+remains authoritative. If database/runtime publication succeeds but Discord
+apply is failed or uncertain, retain committed truth and reconcile the active
+policy through a fresh exact guild-only plan without another database write.
+Never add startup synchronization, a global fallback, or compensating database
+rollback for a remote Discord failure.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16555,7 +16658,8 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6b3 and P10.7 implemented in development.** The
+Design status: **P10.1 through P10.6b3 and P10.7 implemented in development;
+P10.6c is in progress.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in

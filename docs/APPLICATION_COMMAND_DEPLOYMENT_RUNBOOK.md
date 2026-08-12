@@ -2,7 +2,10 @@
 
 P8.0 makes application-command registration an explicit, guild-scoped
 operation. The bot does not synchronize commands from `on_ready`; launching a
-beta cannot change the Discord command tree.
+beta cannot change the Discord command tree. Under database authority, P10.6c
+adds a separate owner-confirmed one-guild capability workflow described in
+`DEVELOPMENT_GUILD_COMMAND_CAPABILITIES.md`; it is not a startup side effect or
+a replacement for this source-deployment procedure.
 
 ## Policy
 
@@ -111,6 +114,23 @@ owner/superuser checks remain the authoritative authorization boundary.
   mutation. Unknown capabilities and assigned roots absent from the loaded
   command source are not silently ignored. Reserved roots are harmless while
   their capabilities remain unassigned.
+
+## Database-authority development exception
+
+The profile-backed tool above remains authoritative for deploying changed
+command source and for initial deployment of the P10.6c command itself. Once a
+database-authority beta is already running P10.6c, capability assignments come
+from its immutable active guild documents rather than ignored static settings.
+The owner may then use `/operator guild commands` to activate a reviewed
+capability-changing draft or reconcile the active policy. That path repeats
+the empty-global guard, binds exact command fingerprints into its confirmation,
+and contains only an explicit target-guild `sync` call.
+
+Do not use the profile-backed offline plan as evidence for a later database
+capability revision: it intentionally does not connect to PostgreSQL. Use the
+P10.6c private plan for that revision. Production remains on this separately
+approved out-of-process procedure until production database authority is
+explicitly authorized.
 
 P8.0 evidence for this repository records offline planning only. No live
 Discord inspection or apply is implied by the runbook or by a green offline

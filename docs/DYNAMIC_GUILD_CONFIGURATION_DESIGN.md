@@ -4,9 +4,9 @@ Status: architecture accepted; migration steps 2 through 5's offline typed
 contract, additive development storage/import, shadow comparison, and explicit
 development authority switch are implemented. Owner inspection, inactive
 draft editing, ordinary-settings activation, exact runtime reconciliation, and
-monotonic rollback-to-revision are also implemented in development. Onboarding,
-delegation, coordinated command-capability activation, and production authority
-remain separately bounded.
+monotonic rollback-to-revision and quarantined onboarding are also implemented
+in development. Coordinated command-capability activation is in progress;
+delegation and production authority remain separately bounded.
 
 This document defines a safe replacement for PolyBot's hand-edited
 `server_settings.py` / `server_settings_dev.py` guild dictionaries. It is an
@@ -378,7 +378,7 @@ Each step is a separate bounded unit with its own review and evidence.
    snapshot is published, uses stable role IDs for authorization/effects, and
    stops startup without fallback on every non-match. Static rollback is an
    explicit selector change plus restart; production cannot select database.
-6. **Owner control plane (inspection through rollback complete).** P10.6a adds bounded private list, sectioned active
+6. **Owner control plane (inspection through coordinated command activation complete).** P10.6a adds bounded private list, sectioned active
    settings, live validation, and revision/audit history reads for the current
    already enrolled guild. P10.6b1 adds the separately versioned 24-hour
    inactive draft row and private typed preview/editor, with complete-document
@@ -386,7 +386,11 @@ Each step is a separate bounded unit with its own review and evidence.
    activation and exact post-commit runtime reconciliation. P10.6b3 adds
    digest-confirmed rollback that clones an earlier document into a new
    monotonic revision without consuming any draft. Keep enrollment and command
-   deployment separate.
+   deployment separate. P10.6c lets the owner target any active guild from an
+   already trusted operator context, binds a capability-changing draft to an
+   exact empty-global/guild-only Discord plan, publishes the fail-closed runtime
+   policy before applying that one guild, and provides active-policy-only
+   reconciliation without a repeated database write.
 7. **Quarantined onboarding (complete in P10.7 for development).** Unknown
    guilds are retained without a database row and all guild-scoped commands
    and listener events remain inert. The owner starts from an already active

@@ -163,6 +163,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         runner: Runner,
         role_names: Mapping[int, str],
         channel_names: Mapping[int, str],
+        target_guild_id: int | None = None,
+        capabilities_only: bool = False,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
@@ -171,7 +173,15 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.runner = runner
         self.role_names = dict(role_names)
         self.channel_names = dict(channel_names)
-        self.section = service.IDENTITY
+        self.target_guild_id = (
+            int(result.guild_id) if target_guild_id is None else int(target_guild_id)
+        )
+        self.capabilities_only = bool(capabilities_only)
+        self.sections = (
+            (service.CAPABILITIES,)
+            if self.capabilities_only else service.SECTIONS
+        )
+        self.section = self.sections[0]
         self.field_key = service.fields_for_section(self.section)[0].key
         self.list_mode = 'add'
         self.busy = False
@@ -228,6 +238,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                     if draft is not None and uses_optimistic_evidence else None
                 ),
                 replacement_document=replacement_document,
+                target_guild_id=self.target_guild_id,
             )
         except workers.OperatorGuildConfigurationDraftError as exc:
             self.busy = False
@@ -524,7 +535,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                         value=value,
                         default=value == self.section,
                     )
-                    for value in service.SECTIONS
+                    for value in self.sections
                 ],
                 disabled=self.busy,
             )
@@ -561,7 +572,14 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             discord.ui.TextDisplay(
                 f'**Status:** {_escape(self.status)}\n'
                 '-# Activation publishes ordinary settings immediately. Command '
-                'capability changes remain blocked and commands are never synchronized here.'
+                'capability changes use `/operator guild commands`, which plans '
+                'and synchronizes only one explicitly confirmed guild.'
+                + (
+                    '\n-# Cross-guild editing is capability-only because Discord '
+                    'role/channel selectors belong to the invoking guild. Enable '
+                    '`operator`, then edit other settings from inside the target.'
+                    if self.capabilities_only else ''
+                )
             ),
         ))
         controls = []

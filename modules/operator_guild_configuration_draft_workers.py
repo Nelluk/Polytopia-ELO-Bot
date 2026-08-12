@@ -31,13 +31,16 @@ REPLACE = 'replace'
 DISCARD = 'discard'
 VALIDATE = 'validate'
 ACTIVATE = 'activate'
+ACTIVATE_COMMANDS = 'activate_commands'
 ROLLBACK_PREVIEW = 'rollback_preview'
 ROLLBACK_COMMIT = 'rollback_commit'
 OPERATIONS = frozenset({
-    SHOW, RESET, REPLACE, DISCARD, VALIDATE, ACTIVATE,
+    SHOW, RESET, REPLACE, DISCARD, VALIDATE, ACTIVATE, ACTIVATE_COMMANDS,
     ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
 })
-WRITE_OPERATIONS = frozenset({RESET, REPLACE, DISCARD, ACTIVATE, ROLLBACK_COMMIT})
+WRITE_OPERATIONS = frozenset({
+    RESET, REPLACE, DISCARD, ACTIVATE, ACTIVATE_COMMANDS, ROLLBACK_COMMIT,
+})
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -120,6 +123,7 @@ class GuildConfigurationDraftRequest:
     expected_active_generation: int | None = None
     expected_active_digest: str | None = None
     confirmation_text: str | None = field(default=None, repr=False)
+    command_plan_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -238,11 +242,26 @@ def _validate_request(
                 request.expected_active_revision,
                 request.expected_active_generation,
                 request.expected_active_digest,
-                request.confirmation_text,
             )
     ):
         raise OperatorGuildConfigurationDraftValidationError(
             'Rollback evidence is accepted only by rollback operations.'
+        )
+    if (
+            request.operation not in {
+                ROLLBACK_PREVIEW, ROLLBACK_COMMIT, ACTIVATE_COMMANDS,
+            }
+            and request.confirmation_text is not None
+    ):
+        raise OperatorGuildConfigurationDraftValidationError(
+            'Confirmation text is not accepted by this operation.'
+        )
+    if (
+            request.operation != ACTIVATE_COMMANDS
+            and request.command_plan_digest is not None
+    ):
+        raise OperatorGuildConfigurationDraftValidationError(
+            'Command-plan evidence is accepted only by coordinated activation.'
         )
     if request.operation == REPLACE:
         _strict_positive(request.expected_draft_version, 'Expected draft version')
@@ -255,7 +274,7 @@ def _validate_request(
             raise OperatorGuildConfigurationDraftValidationError(
                 'A complete replacement draft document is required.'
             )
-    elif request.operation in {DISCARD, ACTIVATE}:
+    elif request.operation in {DISCARD, ACTIVATE, ACTIVATE_COMMANDS}:
         _strict_positive(request.expected_draft_version, 'Expected draft version')
         if not isinstance(request.expected_draft_digest, str) or not _HEX_DIGEST.fullmatch(
                 request.expected_draft_digest):
@@ -266,6 +285,23 @@ def _validate_request(
             raise OperatorGuildConfigurationDraftValidationError(
                 'Discard does not accept replacement content.'
             )
+        if request.operation == ACTIVATE_COMMANDS:
+            if (
+                    not isinstance(request.command_plan_digest, str)
+                    or not _HEX_DIGEST.fullmatch(request.command_plan_digest)
+            ):
+                raise OperatorGuildConfigurationDraftValidationError(
+                    'A full command-plan digest is required.'
+                )
+            expected = (
+                f'ACTIVATE COMMANDS {request.expected_draft_digest} '
+                f'{request.command_plan_digest}'
+            )
+            if request.confirmation_text != expected:
+                raise OperatorGuildConfigurationDraftValidationError(
+                    f'Command-capability activation requires exact confirmation '
+                    f'{expected!r}.'
+                )
     elif request.operation in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT}:
         _strict_positive(request.target_revision, 'Rollback source revision')
         if request.operation == ROLLBACK_PREVIEW:
@@ -333,13 +369,14 @@ def _validate_request(
         request.expected_active_generation,
         request.expected_active_digest,
         request.confirmation_text,
+        request.command_plan_digest,
     )):
         raise OperatorGuildConfigurationDraftValidationError(
             'Optimistic draft evidence is accepted only by edit, discard, or '
             'activation.'
         )
     if request.operation in {
-        VALIDATE, ACTIVATE, ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
+        VALIDATE, ACTIVATE, ACTIVATE_COMMANDS, ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
     }:
         if not request.discord_snapshot_json:
             raise OperatorGuildConfigurationDraftValidationError(
@@ -369,6 +406,7 @@ def request_from_profile(
     expected_active_generation: int | None = None,
     expected_active_digest: str | None = None,
     confirmation_text: str | None = None,
+    command_plan_digest: str | None = None,
     runtime_guild_ids: Sequence[int] | None = None,
 ) -> GuildConfigurationDraftRequest:
     if (
@@ -430,6 +468,7 @@ def request_from_profile(
         expected_active_generation=expected_active_generation,
         expected_active_digest=expected_active_digest,
         confirmation_text=confirmation_text,
+        command_plan_digest=command_plan_digest,
     )
     return _validate_request(request)
 
@@ -735,7 +774,9 @@ def execute_draft_operation(
                     raise OperatorGuildConfigurationDraftValidationError(
                         'The stored guild-configuration draft is invalid.'
                     ) from exc
-                if request.operation in {REPLACE, DISCARD, VALIDATE, ACTIVATE} and draft is None:
+                if request.operation in {
+                    REPLACE, DISCARD, VALIDATE, ACTIVATE, ACTIVATE_COMMANDS,
+                } and draft is None:
                     raise OperatorGuildConfigurationDraftConflict(
                         'No current draft exists; create a fresh draft first.'
                     )
@@ -783,16 +824,22 @@ def execute_draft_operation(
                         live_references_valid=True,
                         runtime_snapshot_current=True,
                     )
-                elif request.operation == ACTIVATE:
+                elif request.operation in {ACTIVATE, ACTIVATE_COMMANDS}:
                     assert draft is not None
                     _live_validate(request, draft)
-                    if (
+                    capabilities_changed = (
                         draft.document.command_capabilities
                         != active_document.command_capabilities
-                    ):
+                    )
+                    if request.operation == ACTIVATE and capabilities_changed:
                         raise OperatorGuildConfigurationDraftValidationError(
                             'Command-capability changes cannot be activated yet; '
-                            'restore the active capability set before activation.'
+                            'use `/operator guild commands` for coordinated activation.'
+                        )
+                    if request.operation == ACTIVATE_COMMANDS and not capabilities_changed:
+                        raise OperatorGuildConfigurationDraftValidationError(
+                            'The draft does not change command capabilities; use '
+                            'ordinary activation.'
                         )
                     changed_paths = _changed_paths(
                         active_document,
@@ -812,6 +859,7 @@ def execute_draft_operation(
                             active_document_digest=active_digest,
                             actor=actor,
                             changed_paths=changed_paths,
+                            command_plan_digest=request.command_plan_digest,
                         )
                     except drafts.GuildConfigurationDraftStorageError as exc:
                         raise OperatorGuildConfigurationDraftConflict(str(exc)) from exc
@@ -921,6 +969,7 @@ async def run_draft_operation(
 
 __all__ = [
     'ACTIVATE',
+    'ACTIVATE_COMMANDS',
     'DISCARD',
     'GuildConfigurationDraftRequest',
     'GuildConfigurationDraftResult',

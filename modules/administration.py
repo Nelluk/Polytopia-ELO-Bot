@@ -60,6 +60,8 @@ from modules import operator_guild_configuration_rollback_views
 from modules import operator_guild_enrollment as operator_guild_enrollment_service
 from modules import operator_guild_enrollment_views
 from modules import operator_guild_enrollment_workers
+from modules import operator_guild_command_capabilities
+from modules import operator_guild_command_capability_views
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -331,6 +333,202 @@ class administration(commands.Cog):
             channel=channel,
         )
         return result
+
+    @staticmethod
+    def _operator_target_guild_id(
+        interaction: discord.Interaction,
+        target_guild_id: str | None,
+    ) -> int:
+        raw = (
+            str(interaction.guild_id)
+            if target_guild_id is None else target_guild_id.strip()
+        )
+        try:
+            normalized = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Enter the exact positive numeric target guild ID.') from exc
+        if normalized <= 0 or str(normalized) != raw:
+            raise ValueError('Enter the exact positive numeric target guild ID.')
+        return normalized
+
+    def _operator_visible_target_guild(self, target_guild_id: int):
+        guild = self.bot.get_guild(int(target_guild_id))
+        if guild is None:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
+                'The exact target guild is not visible to this development bot.'
+            )
+        if settings.database_guild_configuration(int(target_guild_id)) is None:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
+                'The exact target guild is not active in the running database snapshot.'
+            )
+        return guild
+
+    async def _operator_guild_command_plan(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: int,
+    ):
+        self._operator_visible_target_guild(target_guild_id)
+        shown = await self._operator_guild_draft_operation(
+            interaction,
+            operator_guild_configuration_draft_workers.SHOW,
+            target_guild_id=target_guild_id,
+        )
+        runtime_record = settings.database_guild_configuration(target_guild_id)
+        if runtime_record is None:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
+                'The running target configuration is not published.'
+            )
+        active_capabilities = tuple(
+            runtime_record.document.command_capabilities
+        )
+        draft = shown.draft
+        if (
+                draft is not None
+                and tuple(draft.document.command_capabilities)
+                != active_capabilities
+        ):
+            validated = await self._operator_guild_draft_operation(
+                interaction,
+                operator_guild_configuration_draft_workers.VALIDATE,
+                target_guild_id=target_guild_id,
+            )
+            if validated.validation is None or validated.draft is None:
+                raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
+                    'The capability-changing draft did not pass current validation.'
+                )
+            draft = validated.draft
+            return await operator_guild_command_capabilities.inspect_command_plan(
+                bot=self.bot,
+                policy=settings.application_command_policy,
+                guild_id=target_guild_id,
+                active_revision=validated.active_revision,
+                active_generation=validated.active_generation,
+                active_document_digest=validated.active_document_digest,
+                current_capabilities=active_capabilities,
+                desired_capabilities=draft.document.command_capabilities,
+                mode=operator_guild_command_capabilities.ACTIVATE,
+                draft_version=draft.draft_version,
+                draft_document_digest=draft.document_digest,
+            )
+        return await operator_guild_command_capabilities.inspect_command_plan(
+            bot=self.bot,
+            policy=settings.application_command_policy,
+            guild_id=target_guild_id,
+            active_revision=shown.active_revision,
+            active_generation=shown.active_generation,
+            active_document_digest=shown.active_document_digest,
+            current_capabilities=active_capabilities,
+            desired_capabilities=active_capabilities,
+            mode=operator_guild_command_capabilities.RECONCILE,
+        )
+
+    async def _operator_apply_commands_after_commit(
+        self,
+        *,
+        plan,
+        revision: int,
+        generation: int,
+    ):
+        task = asyncio.create_task(
+            operator_guild_command_capabilities.apply_command_plan(
+                bot=self.bot,
+                policy=settings.application_command_policy,
+                plan=plan,
+            )
+        )
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError as exc:
+            try:
+                await task
+            except BaseException:
+                pass
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityCommitted(
+                revision=revision,
+                generation=generation,
+                detail='the interaction was cancelled after commit',
+            ) from exc
+        except Exception as exc:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityCommitted(
+                revision=revision,
+                generation=generation,
+                detail='Discord guild synchronization or verification failed',
+            ) from exc
+
+    async def _operator_guild_command_commit(
+        self,
+        interaction: discord.Interaction,
+        plan,
+        confirmation_text: str,
+    ):
+        if confirmation_text != plan.confirmation:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityDrift(
+                'The command-capability confirmation did not match the preview.'
+            )
+        fresh = await self._operator_guild_command_plan(
+            interaction,
+            plan.guild_id,
+        )
+        if fresh != plan:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityDrift(
+                'The database or Discord command evidence changed after preview; '
+                'open a fresh plan.'
+            )
+        if plan.mode == operator_guild_command_capabilities.RECONCILE:
+            try:
+                applied = await operator_guild_command_capabilities.apply_command_plan(
+                    bot=self.bot,
+                    policy=settings.application_command_policy,
+                    plan=plan,
+                )
+            except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError:
+                raise
+            except Exception as exc:
+                raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
+                    'The exact guild command apply could not be verified. No '
+                    'database revision was written; open a fresh plan before retrying.'
+                ) from exc
+            return operator_guild_command_capabilities.GuildCommandCapabilityCompletion(
+                plan=plan,
+                apply=applied,
+            )
+
+        assert plan.draft_version is not None
+        assert plan.draft_document_digest is not None
+        try:
+            activated = await self._operator_guild_draft_operation(
+                interaction,
+                operator_guild_configuration_draft_workers.ACTIVATE_COMMANDS,
+                expected_draft_version=plan.draft_version,
+                expected_draft_digest=plan.draft_document_digest,
+                command_plan_digest=plan.plan_digest,
+                confirmation_text=confirmation_text,
+                target_guild_id=plan.guild_id,
+            )
+        except operator_guild_configuration_draft_workers.OperatorGuildConfigurationActivationCommitted as exc:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityCommitted(
+                revision=exc.activation.revision,
+                generation=exc.activation.generation,
+                detail='runtime publication could not be verified',
+            ) from exc
+        if activated.activation is None or not activated.runtime_published:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityCommitted(
+                revision=activated.active_revision,
+                generation=activated.active_generation,
+                detail='runtime publication did not return committed evidence',
+            )
+        applied = await self._operator_apply_commands_after_commit(
+            plan=plan,
+            revision=activated.activation.revision,
+            generation=activated.activation.generation,
+        )
+        return operator_guild_command_capabilities.GuildCommandCapabilityCompletion(
+            plan=plan,
+            apply=applied,
+            committed_revision=activated.activation.revision,
+            committed_generation=activated.activation.generation,
+        )
 
     async def _publish_confirmed_game(
         self,
@@ -1211,6 +1409,8 @@ class administration(commands.Cog):
         expected_active_generation: int | None = None,
         expected_active_digest: str | None = None,
         confirmation_text: str | None = None,
+        command_plan_digest: str | None = None,
+        target_guild_id: int | None = None,
     ):
         current_snapshot = {
             int(guild_id): (
@@ -1240,6 +1440,7 @@ class administration(commands.Cog):
                 expected_active_generation=expected_active_generation,
                 expected_active_digest=expected_active_digest,
                 confirmation_text=confirmation_text,
+                target_guild_id=target_guild_id,
             )
         else:
             request = operator_guild_draft_service.build_request(
@@ -1249,6 +1450,9 @@ class administration(commands.Cog):
                 expected_draft_version=expected_draft_version,
                 expected_draft_digest=expected_draft_digest,
                 replacement_document=replacement_document,
+                command_plan_digest=command_plan_digest,
+                confirmation_text=confirmation_text,
+                target_guild_id=target_guild_id,
             )
         result = await operator_guild_configuration_draft_workers.run_draft_operation(
             request
@@ -1264,6 +1468,11 @@ class administration(commands.Cog):
                         committed_change.revision,
                         committed_change.generation,
                         committed_change.document_digest,
+                    ),
+                    expected_command_capabilities=(
+                        committed_change.document.command_capabilities
+                        if operation == operator_guild_configuration_draft_workers.ACTIVATE_COMMANDS
+                        else None
                     ),
                 )
             except Exception as exc:
@@ -1391,6 +1600,70 @@ class administration(commands.Cog):
             )
 
     @operator_guild_group.command(
+        name='commands',
+        description='Plan capability activation or reconcile one guild command tree.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id=(
+            'Active target server ID; omit to use the server where this command runs.'
+        ),
+    )
+    async def operator_guild_commands_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str | None = None,
+    ):
+        access_error = operator_guild_draft_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        try:
+            target = self._operator_target_guild_id(interaction, target_guild_id)
+        except ValueError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            plan = await self._operator_guild_command_plan(interaction, target)
+            guild = self._operator_visible_target_guild(target)
+            if (
+                    plan.mode == operator_guild_command_capabilities.RECONCILE
+                    and not (plan.creates or plan.updates or plan.removals)
+            ):
+                return await interaction.edit_original_response(
+                    content=(
+                        f'`{guild.name}` (`{target}`) already matches its active '
+                        'command capabilities. The remote global tree is empty; '
+                        'no database or Discord write was needed.'
+                    )
+                )
+            view = operator_guild_command_capability_views.GuildCommandCapabilityWorkspace(
+                requester_id=int(interaction.user.id),
+                guild_name=str(guild.name),
+                plan=plan,
+                runner=self._operator_guild_command_commit,
+            )
+            await operator_guild_command_capability_views.publish_private(
+                interaction,
+                view,
+            )
+            return view
+        except (
+            operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
+            operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError,
+        ) as exc:
+            return await interaction.edit_original_response(content=str(exc))
+        except Exception:
+            logger.exception('Unexpected operator guild-command planning failure')
+            return await interaction.edit_original_response(
+                content=(
+                    'Could not build a trustworthy command-capability plan. '
+                    'No configuration or Discord command tree was changed.'
+                )
+            )
+
+    @operator_guild_group.command(
         name='rollback',
         description='Restore an earlier document as a new configuration revision.',
     )
@@ -1437,11 +1710,17 @@ class administration(commands.Cog):
 
     @operator_guild_group.command(
         name='edit',
-        description='Privately edit, validate, and activate guild settings.',
+        description='Privately edit and validate one active guild configuration.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id=(
+            'Active target server ID; omit to edit the server where this command runs.'
+        ),
     )
     async def operator_guild_draft_slash(
         self,
         interaction: discord.Interaction,
+        target_guild_id: str | None = None,
     ):
         access_error = operator_guild_draft_service.access_error(interaction)
         if access_error is not None:
@@ -1449,14 +1728,20 @@ class administration(commands.Cog):
                 access_error,
                 ephemeral=True,
             )
+        try:
+            target = self._operator_target_guild_id(interaction, target_guild_id)
+        except ValueError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         try:
+            target_guild = self._operator_visible_target_guild(target)
             result = await self._operator_guild_draft_operation(
                 interaction,
                 operator_guild_configuration_draft_workers.SHOW,
+                target_guild_id=target,
             )
             runtime_record = settings.database_guild_configuration(
-                int(interaction.guild_id)
+                target
             )
             if runtime_record is None:
                 raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftValidationError(
@@ -1464,7 +1749,7 @@ class administration(commands.Cog):
                 )
             role_names, channel_names = (
                 operator_guild_configuration_draft_views.identity_maps(
-                    interaction.guild
+                    target_guild
                 )
             )
             view = operator_guild_configuration_draft_views.GuildConfigurationDraftWorkspace(
@@ -1474,6 +1759,8 @@ class administration(commands.Cog):
                 runner=self._operator_guild_draft_operation,
                 role_names=role_names,
                 channel_names=channel_names,
+                target_guild_id=target,
+                capabilities_only=(target != int(interaction.guild_id)),
             )
             await operator_guild_configuration_draft_views.publish_private(
                 interaction,

@@ -218,14 +218,21 @@ def build_request(
     bot: Any,
     interaction: Any,
     operation: str,
+    target_guild_id: int | None = None,
     expected_draft_version: int | None = None,
     expected_draft_digest: str | None = None,
     replacement_document: GuildConfigurationDocument | None = None,
+    command_plan_digest: str | None = None,
+    confirmation_text: str | None = None,
 ) -> workers.GuildConfigurationDraftRequest:
-    guild_id = int(interaction.guild_id)
+    guild_id = int(
+        interaction.guild_id if target_guild_id is None else target_guild_id
+    )
     runtime_guild_ids = settings.database_guild_ids()
     snapshot = None
-    if operation in {workers.VALIDATE, workers.ACTIVATE}:
+    if operation in {
+        workers.VALIDATE, workers.ACTIVATE, workers.ACTIVATE_COMMANDS,
+    }:
         snapshot = shadow.capture_discord_snapshot(
             profile=settings.runtime_profile,
             guilds=tuple(bot.guilds),
@@ -245,6 +252,8 @@ def build_request(
             else document_to_mapping(replacement_document)
         ),
         discord_snapshot=snapshot,
+        command_plan_digest=command_plan_digest,
+        confirmation_text=confirmation_text,
         runtime_guild_ids=runtime_guild_ids,
     )
 
@@ -255,6 +264,7 @@ def build_rollback_request(
     interaction: Any,
     operation: str,
     target_revision: int,
+    target_guild_id: int | None = None,
     expected_target_digest: str | None = None,
     expected_active_revision: int | None = None,
     expected_active_generation: int | None = None,
@@ -265,7 +275,9 @@ def build_rollback_request(
         raise GuildConfigurationDraftEditError(
             'Unknown guild-configuration rollback operation.'
         )
-    guild_id = int(interaction.guild_id)
+    guild_id = int(
+        interaction.guild_id if target_guild_id is None else target_guild_id
+    )
     runtime_guild_ids = settings.database_guild_ids()
     snapshot = shadow.capture_discord_snapshot(
         profile=settings.runtime_profile,

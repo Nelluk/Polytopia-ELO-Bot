@@ -128,41 +128,45 @@ def main(args: List[str] = None):
 
 class PolyBotCommandTree(discord.app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        async def deny(message: str) -> bool:
+            if getattr(interaction, 'type', None) is discord.InteractionType.autocomplete:
+                if not interaction.response.is_done():
+                    await interaction.response.autocomplete([])
+                return False
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+            return False
+
         if not getattr(settings, 'guild_configuration_ready', lambda: True)():
-            message = (
+            return await deny(
                 'The bot is still validating its server configuration. '
                 'Try the command again in a moment.'
             )
-            if interaction.response.is_done():
-                await interaction.followup.send(message, ephemeral=True)
-            else:
-                await interaction.response.send_message(
-                    message,
-                    ephemeral=True,
-                )
-            return False
         guild_id = getattr(interaction, 'guild_id', None)
         if guild_id is not None and int(guild_id) not in settings.config:
-            message = (
+            return await deny(
                 'This server is quarantined and has not been enrolled by the '
                 'bot owner. No command was run.'
             )
-            if interaction.response.is_done():
-                await interaction.followup.send(message, ephemeral=True)
-            else:
-                await interaction.response.send_message(
-                    message,
-                    ephemeral=True,
+        if guild_id is not None:
+            data = getattr(interaction, 'data', None) or {}
+            root = data.get('name') if isinstance(data, dict) else None
+            allowed_roots = settings.application_command_policy.roots_for_guild(
+                int(guild_id)
+            )
+            if not isinstance(root, str) or root not in allowed_roots:
+                return await deny(
+                    'This application command is not enabled for this server. '
+                    'No command was run.'
                 )
-            return False
         if not settings.maintenance_mode:
             return True
-        message = 'The bot is restarting. Try the command again in a moment.'
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
-        return False
+        return await deny('The bot is restarting. Try the command again in a moment.')
 
 
 class MyBot(commands.Bot):
@@ -194,9 +198,10 @@ class MyBot(commands.Bot):
         self.guild_configuration_shadow_result = None
         self._beta_persona_reconciliation_lock = asyncio.Lock()
         self._restart_exit_status = None
-        # Guild commands are deployed out-of-process.  Keep runtime dispatch
-        # failures observable and always acknowledge a delivered interaction
-        # instead of leaving Discord's "Sending command..." state unresolved.
+        # Startup never deploys commands. Source-shape deployments remain in
+        # the explicit external tool; P10.6c may separately apply one
+        # owner-confirmed database capability plan to one exact guild. Keep
+        # dispatch failures observable and acknowledge delivered interactions.
         self.tree.on_error = self._on_application_command_error
 
     @staticmethod
