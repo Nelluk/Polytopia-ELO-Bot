@@ -7471,19 +7471,23 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
 
             global_enabled = guild_id in self.settings.servers_included_in_global_lb()
-            expected_member_delta = (38, 38) if global_enabled else (0, None)
+            # New 1000-ELO records use the provisional 75-point factor. The
+            # retained low-ELO boost adds int(38 * .4) == 15, so equal-side
+            # winner/loss deltas are +53 and -23 rather than symmetric.
+            winner_global = (53, 1053) if global_enabled else (0, None)
+            loser_global = (-23, 977) if global_enabled else (0, None)
             graph = self._p117_elo_graph_snapshot(
                 games=(game,), players=players, teams=teams, squads=squads,
             )
             self.assertEqual(
                 graph['players'],
-                ((1038, 1038, 1038, 1038),) * 2
-                + ((962, 1000, 962, 1000),) * 2,
+                ((1053, 1053, 1053, 1053),) * 2
+                + ((977, 1000, 977, 1000),) * 2,
             )
             self.assertEqual(
                 graph['members'],
-                ((1038, 1038, 1038, 1038),) * 2
-                + ((962, 1000, 962, 1000),) * 2
+                ((1053, 1053, 1053, 1053),) * 2
+                + ((977, 1000, 977, 1000),) * 2
                 if global_enabled else ((1000, 1000, 1000, 1000),) * 4,
             )
             self.assertEqual(graph['teams'], ((1016, 1016), (984, 984)))
@@ -7494,13 +7498,10 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(
                 graph['lineups'],
-                ((38, 1038, 38, 1038, expected_member_delta[0],
-                  expected_member_delta[1], expected_member_delta[0],
-                  expected_member_delta[1]),) * 2
-                + ((-38, 962, -38, 962, -expected_member_delta[0],
-                    962 if global_enabled else None,
-                    -expected_member_delta[0],
-                    962 if global_enabled else None),) * 2,
+                ((53, 1053, 53, 1053, winner_global[0], winner_global[1],
+                  winner_global[0], winner_global[1]),) * 2
+                + ((-23, 977, -23, 977, loser_global[0], loser_global[1],
+                    loser_global[0], loser_global[1]),) * 2,
             )
 
             self.models.Game.load_full_game(game.id).reverse_elo_changes()
@@ -7509,12 +7510,12 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(
                 reversed_graph['players'],
-                ((1000, 1038, 1000, 1038),) * 2
+                ((1000, 1053, 1000, 1053),) * 2
                 + ((1000, 1000, 1000, 1000),) * 2,
             )
             self.assertEqual(
                 reversed_graph['members'],
-                ((1000, 1038, 1000, 1038),) * 2
+                ((1000, 1053, 1000, 1053),) * 2
                 + ((1000, 1000, 1000, 1000),) * 2
                 if global_enabled else ((1000, 1000, 1000, 1000),) * 4,
             )
@@ -7601,18 +7602,21 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
 
             global_enabled = guild_id in self.settings.servers_included_in_global_lb()
+            # The first game applies the 1000-ELO +15/-15 boost to the
+            # provisional +/-38 bases.  The second uses the retained
+            # low-ELO boost at 1053 and 977: -46 + 13 == -33, and
+            # +46 + 20 == +66.
             expected_member_rows = (
-                ((1006, 1038, 1006, 1038),) * 2
-                + ((1029, 1029, 1029, 1029),) * 2
+                ((1020, 1053, 1020, 1053),) * 2
+                + ((1043, 1043, 1043, 1043),) * 2
                 if global_enabled else ((1000, 1000, 1000, 1000),) * 4
             )
-            expected_member_delta = (38, 1038, 38, 1038, 38, 1038, 38, 1038)
             expected_graph = {
-                'players': ((1006, 1038, 1006, 1038),) * 2
-                + ((1029, 1029, 1029, 1029),) * 2,
+                'players': ((1020, 1053, 1020, 1053),) * 2
+                + ((1043, 1043, 1043, 1043),) * 2,
                 'members': expected_member_rows,
                 'teams': ((999, 999), (1001, 1001)),
-                'squads': (1000, 1000),
+                'squads': (996, 1004),
                 'sides': (
                     (16, 1016, 16, 1016, 25),
                     (-16, 984, -16, 984, -25),
@@ -7620,16 +7624,17 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     (17, 1001, 17, 1001, 29),
                 ),
                 'lineups': (
-                    expected_member_delta if global_enabled else (38, 1038, 38, 1038, 0, None, 0, None),
+                    (53, 1053, 53, 1053, 53, 1053, 53, 1053)
+                    if global_enabled else (53, 1053, 53, 1053, 0, None, 0, None),
                 ) * 2 + (
-                    (-38, 962, -38, 962, -38, 962, -38, 962)
-                    if global_enabled else (-38, 962, -38, 962, 0, None, 0, None),
+                    (-23, 977, -23, 977, -23, 977, -23, 977)
+                    if global_enabled else (-23, 977, -23, 977, 0, None, 0, None),
                 ) * 2 + (
-                    (-32, 1006, -32, 1006, -32, 1006, -32, 1006)
-                    if global_enabled else (-32, 1006, -32, 1006, 0, None, 0, None),
+                    (-33, 1020, -33, 1020, -33, 1020, -33, 1020)
+                    if global_enabled else (-33, 1020, -33, 1020, 0, None, 0, None),
                 ) * 2 + (
-                    (67, 1029, 67, 1029, 67, 1029, 67, 1029)
-                    if global_enabled else (67, 1029, 67, 1029, 0, None, 0, None),
+                    (66, 1043, 66, 1043, 66, 1043, 66, 1043)
+                    if global_enabled else (66, 1043, 66, 1043, 0, None, 0, None),
                 ) * 2,
             }
             before_replay = self._p117_elo_graph_snapshot(
