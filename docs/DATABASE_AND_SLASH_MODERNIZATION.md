@@ -419,10 +419,15 @@ check:
   base `c2241330b47152271fb6194c75adc72beec63fe5`
 - P11.5C quarantine-precedence correction checkpoint: `15c46e7`; branch
   validation: 2,101 offline tests passed with 91 intentional skips;
-  query-dependent development gates were invoked and skipped under their
-  unchanged opt-in flags
-- current combined offline result: 2,081 tests passed with 91 intentional
-  development-database gates skipped
+  roadmap/integration checkpoint: `aa936c6`
+- P11.5C's unchanged storage and shadow query-dependent gates each passed
+  against the stopped-writer `development` / `polytopia_dev` / `polybot_dev`
+  database after integration; no database write occurred
+- P11.5D writer-census and backup-restoration implementation checkpoint:
+  `f5cd39d` on `codex/p11-5d-writer-backup-hardening`, from exact clean base
+  `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`
+- current combined offline result: complete discovery succeeded across 2,109
+  tests with 91 intentional development-database skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
@@ -525,9 +530,10 @@ continues running the prior reviewed `de5ad77` image under project
 `polybot-mac-beta` as development application `479029527553638401`; it has
 not been restarted or recreated for this unit. No application-command
 synchronization, tester announcement, external database, or production action
-occurred.** The current local branch carries the separately scoped P11.5C
-bootstrap-pending dispatch latch, which remains pending integration into the
-accumulation branch.
+occurred.** P11.5C is integrated and pushed at `aa936c6`; its two required
+read-only development-database gates passed against the stopped-writer
+development identity. P11.5D is implemented and Tier-3 reviewed at `f5cd39d`
+on its isolated branch and is pending final accumulation integration.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16149,9 +16155,8 @@ command synchronization, or tester announcement.
 
 ### P11.5C — Bootstrap-pending dispatch latch
 
-Status: **Implemented; Tier-3 self-reviewed at `3928b16`, with the
-quarantine-precedence correction at `15c46e7`; accumulation integration and any
-beta acceptance remain pending.**
+Status: **Complete; Tier-3 self-reviewed at `3928b16`, corrected at
+`15c46e7`, and fast-forward integrated with roadmap checkpoint `aa936c6`.**
 
 Branch/base: `codex/p11-5c-bootstrap-pending-dispatch`, exact clean base
 `c2241330b47152271fb6194c75adc72beec63fe5`.
@@ -16193,28 +16198,43 @@ surface.
 Evidence: the new focused P11.5C module passed 11 tests; the combined focused
 bootstrap/runtime/shadow/operator/startup/League set passed 91 tests; complete
 offline discovery passed 2,101 tests with 91 intentional skips; compilation
-and diff checks passed. The unchanged query-dependent development gates were
-not enabled and therefore skipped as designed. No production service, live
-Discord, database write, restart, command sync, deploy, merge, push, or
-announcement was performed.
+and diff checks passed. After integration, the unchanged storage and shadow
+query-dependent gates each passed against the stopped-writer `development` /
+`polytopia_dev` / `polybot_dev` identity. Those reads made no database change.
+No production service, live Discord, database write, restart, command sync,
+deploy, or announcement was performed.
 
-### P11.5D — Writer census and restoration cleanup queue (N6/N7)
+### P11.5D — Writer census and restoration cleanup (N6/N7)
 
-Status: **Planned; queued after P11.5C.**
+Status: **Implemented and Tier-3 reviewed at `f5cd39d`; pending final
+fast-forward integration into the accumulation branch.**
+
+Branch/base: `codex/p11-5d-writer-backup-hardening`, exact clean base
+`aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`.
 
 Risk tier: **Tier 3 operational/recovery boundary.**
 
-N6 will make writer census platform- and namespace-correct: Darwin counts all
-matching native host writers and never compares Docker PIDs with host PIDs;
-Linux excludes container descendants only for a verified local daemon; remote
-contexts do not make PID-namespace comparisons. Focused tests must cover
-native writers, container descendants, remote contexts, and ambiguous evidence.
+N6 makes writer census platform- and namespace-correct. Darwin counts every
+matching native host writer and never compares Docker VM PIDs with host PIDs.
+Linux excludes native processes beneath container roots only when the active
+endpoint is a verified standard local daemon socket. Remote `ssh://`, custom
+Unix-socket, failed-context, and otherwise ambiguous evidence conservatively
+count every native match.
 
-N7 will harden restoration cleanup: install idempotent restoration traps before
-changing service state, preserve the original exit or signal status, and report
-cleanup failures honestly. SIGKILL and host failure remain explicit limits;
-cleanup must not claim restoration when the trap could not run. Neither N6 nor
-N7 is implemented in P11.5C.
+N7 records the exact bot and PostgreSQL service states and installs idempotent
+restoration traps before the first service mutation. The backup child runs
+under a tracked PID; catchable signals terminate and drain it before restoring
+both services. Backup and signal statuses are preserved, while a successful
+backup followed by failed restoration returns a distinct cleanup failure and
+does not claim success. `SIGKILL`, host failure, and power loss remain explicit
+uncatchable limits requiring operator inspection.
+
+Evidence: the combined operator, deployment-doctor, and worktree-setup set
+passed 41 focused tests locally and in an isolated RackNerd development
+worktree. Complete offline discovery succeeded across 2,109 tests with 91
+intentional skips. Shell parsing and diff checks passed. No production,
+database, Discord, service restart, deployment, or command-sync action was
+performed.
 
 ### P11.6 — Player, team, and game card parity polish
 
@@ -17764,6 +17784,37 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5D writer census and backup restoration hardened
+
+- Created `codex/p11-5d-writer-backup-hardening` from exact clean pushed
+  accumulation checkpoint `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`;
+  committed implementation and focused tests at `f5cd39d`.
+- Made native writer counting platform- and namespace-correct: Darwin never
+  compares Docker VM PIDs with host PIDs, while Linux excludes container
+  descendants only for a verified standard local-daemon socket. Remote,
+  custom-socket, and ambiguous contexts count every native match.
+- Armed idempotent restoration before service mutation, tracked and drained
+  the backup child, restored the exact prior bot/PostgreSQL states, preserved
+  backup and catchable-signal statuses, and made cleanup failure distinct and
+  honest. `SIGKILL`, host failure, and power loss remain explicit trap limits.
+- The combined operator/deployment-doctor/worktree-setup set passed 41 tests
+  locally and in an isolated RackNerd development worktree. Complete offline
+  discovery succeeded across 2,109 tests with 91 intentional skips; shell and
+  diff checks passed.
+- No production, database, Discord, service restart, deployment, command sync,
+  or announcement action occurred.
+
+### 2026-08-12 — P11.5C integrated and database gates passed
+
+- Fast-forward integrated and pushed the complete P11.5C unit with roadmap
+  checkpoint `aa936c6` on `codex/database-slash-modernization`.
+- With no development bot writer running, separately enabled the unchanged
+  P10.3 storage and P10.4 shadow read-only integration gates. Each passed
+  against the verified `development` / `polytopia_dev` / `polybot_dev`
+  identity and existing reviewed snapshot.
+- No database write, production access, Discord action, command sync, service
+  restart, deployment, or announcement occurred.
 
 ### 2026-08-12 — P11.5C bootstrap-pending dispatch latch implemented
 

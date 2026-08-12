@@ -186,12 +186,26 @@ requires that receipt, prints the existing import plan, requires its exact
 confirmation, and still relies on the import job's stopped-bot, empty-target,
 PostgreSQL-18, role, ownership, schema, and count checks.
 
-`backup` exposes the existing plan and checkpoint confirmation, stops only the
-local bot writer for the dump, and restores its prior running state. `start`
-audits host and container writers before convergence and never synchronizes
-Discord commands. `status` reports bot/database state, exact checkpoint,
-application ID, architecture, health, persistence, trusted guild state, and
-writer counts without printing a token or password.
+`backup` exposes the existing plan and checkpoint confirmation, records the
+exact bot and PostgreSQL service states before changing either service, and
+restores both states after success, backup failure, or a catchable
+`HUP`/`INT`/`TERM`. Signal handling terminates and drains the active backup
+child before idempotent restoration. The command preserves the backup or
+signal status; a successful backup followed by failed restoration returns a
+distinct cleanup failure and never claims that restoration succeeded.
+`SIGKILL`, host failure, and power loss cannot run shell traps, so operators
+must inspect `./polybot status` and restore the intended service state after
+those failures.
+
+`start` audits host and container writers before convergence and never
+synchronizes Discord commands. On Darwin every matching native host writer is
+counted because Docker Desktop PIDs do not share the host PID namespace. On
+Linux, native processes beneath container roots are excluded only when the
+active Docker endpoint is a verified standard local daemon socket; remote,
+custom-socket, and ambiguous contexts conservatively count every native
+match. `status` reports bot/database state, exact checkpoint, application ID,
+architecture, health, persistence, trusted guild state, and writer counts
+without printing a token or password.
 
 ## Advanced Compose troubleshooting and reference
 
