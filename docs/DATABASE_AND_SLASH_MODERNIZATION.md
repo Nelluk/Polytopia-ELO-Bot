@@ -414,6 +414,12 @@ check:
   accumulation merge checkpoint: `30f2257`
 - P11.7 persisted 2v2 ELO-graph checkpoints: `6be4e09`, `2f6f121`;
   fast-forward accumulation checkpoint: `2f6f121`
+- P11.5C bootstrap-pending dispatch latch implementation checkpoint:
+  `3928b16` on `codex/p11-5c-bootstrap-pending-dispatch`, from exact clean
+  base `c2241330b47152271fb6194c75adc72beec63fe5`
+- P11.5C branch validation: 2,099 offline tests passed with 91 intentional
+  skips; query-dependent development gates were invoked and skipped under
+  their unchanged opt-in flags
 - current combined offline result: 2,081 tests passed with 91 intentional
   development-database gates skipped
 - current stopped-writer development-database result: all 79 cases passed
@@ -510,15 +516,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.5A cross-platform container deployment interface is
-complete: implemented, locally validated, Tier-3 reviewed, and fast-forward integrated
-at `f4ff80faa4e58dff968e9004a4e18d37c247fc8c` from exact pushed base
-`f495391434879d90691775bb984ede79a6b3897d`. The existing sole local
-bot continues running the prior reviewed `de5ad77` image under project
-`polybot-mac-beta` as development application `479029527553638401`; it has not
-been restarted or recreated for this unit. No application-command
-synchronization, tester announcement, external database, or production action
-occurred.**
+Current active unit: **P11.5C bootstrap-pending dispatch latch is implemented,
+locally validated, and Tier-3 self-reviewed at `3928b16` on
+`codex/p11-5c-bootstrap-pending-dispatch`, from exact clean base
+`c2241330b47152271fb6194c75adc72beec63fe5`; integration into the accumulation
+branch remains pending.** The existing sole local bot continues running the
+prior reviewed `de5ad77` image under project `polybot-mac-beta` as development
+application `479029527553638401`; it has not been restarted or recreated for
+this unit. No application-command synchronization, tester announcement,
+external database, or production action occurred.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16070,8 +16076,9 @@ trusted-guild authority.
 
 ### P11.5B — First trusted-guild bootstrap
 
-Status: **Complete; Tier-3 reviewed and fast-forward integrated at
-`cdaf58b`.**
+Status: **Complete as the fresh-database bootstrap operation; N5 dispatch
+correction implemented by P11.5C. Tier-3 reviewed and fast-forward integrated
+at `cdaf58b`.**
 
 Branch/base: `codex/p11-5b-first-guild-bootstrap`, from exact clean pushed
 accumulation checkpoint
@@ -16102,6 +16109,18 @@ roles/channels, or infer ordinary guild policy. After the bot starts, the
 owner explicitly registers the development-guild operator surface and uses
 `/guild edit` to configure and activate the desired ordinary capabilities.
 
+N5 correction: the operator-only document is intentionally not ordinary
+dispatch-ready. Its persisted @everyone levels and `$` prefix would otherwise
+leave prefix listeners available before the first configuration, while the
+application capability only narrows slash-command roots. P11.5C therefore
+derives an immutable `bootstrap_pending` latch only from the exact persisted
+`first_guild_bootstrap` audit event for the current revision. Pending guilds
+remain blocked for prefix and non-lifecycle events, with an exact configured-
+owner interaction allowlist for first configuration and recovery. Only a
+verified changed-document owner activation clears the latch after runtime
+publication; imports, enrollment, existing activated graphs, suspend/resume,
+and rollback graphs are not pending.
+
 Implementation checkpoint:
 `0e2775b2c25fdc10d67f4c24dbf7c39f073685b3`. Focused bootstrap/operator/
 container validation passes 24 tests; shell parsing, compilation, and diff
@@ -16124,6 +16143,70 @@ a known product failure.
 The imported Mac beta already has active trusted guild
 `478571892832206869`, so P11.5B requires no Mac beta restart, schema apply,
 command synchronization, or tester announcement.
+
+### P11.5C — Bootstrap-pending dispatch latch
+
+Status: **Implemented; Tier-3 self-reviewed at `3928b16`; accumulation
+integration and any beta acceptance remain pending.**
+
+Branch/base: `codex/p11-5c-bootstrap-pending-dispatch`, exact clean base
+`c2241330b47152271fb6194c75adc72beec63fe5`.
+
+Risk tier: **Tier 3 security/permission and runtime-publication boundary.**
+
+Objective: close the P11.5B/N5 gap without redesigning roles or adding
+automatic command synchronization. The read-only shadow loader now selects
+revision provenance plus bounded immutable audit evidence. It derives
+`bootstrap_pending=True` only when the active graph is exactly revision 1,
+generation 1, active, owned by the P11.5B bootstrap actor/source, and matched
+to one exact `first_guild_bootstrap` audit event and details object. Missing,
+malformed, forged, duplicate, or conflicting evidence fails closed; no schema
+migration was needed.
+
+The latch is carried through stored loading, direct/shadow runtime building,
+startup publication, and post-commit reconciliation. Initial publication
+retains the pending snapshot, and publication failures leave that old snapshot
+in place while quarantine and restart remain fail-closed. Clearing requires a
+verified next revision/generation with a changed document, `owner_activation`
+source, and the pending revision as its parent; command-tree reconciliation
+alone cannot clear it. Import, enrollment, existing activation, rollback, and
+suspend/resume graphs are explicitly non-pending.
+
+Dispatch now centrally drops pending-guild prefix and non-lifecycle events
+before listeners, prefix parsing, pre-invoke database connections, workers, or
+Discord effects. Prefix pre-invoke retains a second fail-closed guard. Pending
+interactions are admitted only for the exact configured owner and these exact
+paths: `/guild edit`, `/operator guild list`, `/operator guild settings`,
+`/operator guild validate`, `/operator guild history`, `/operator guild edit`,
+`/operator guild commands`, and `/operator bot restart`; unrelated and
+non-owner paths are denied before handlers. Startup logs pending state and suppresses
+nonessential pending-guild persona and League startup mutation while retaining
+the minimum owner configuration/recovery surface.
+
+Evidence: the new focused P11.5C module passed 10 tests; the combined focused
+bootstrap/runtime/shadow/operator/startup/League set passed 90 tests; complete
+offline discovery passed 2,099 tests with 91 intentional skips; compilation,
+cached diff checks, and the unchanged query-dependent development gates passed
+or skipped as designed. No production service, live Discord, database write,
+restart, command sync, deploy, merge, push, or announcement was performed.
+
+### P11.5D — Writer census and restoration cleanup queue (N6/N7)
+
+Status: **Planned; queued after P11.5C.**
+
+Risk tier: **Tier 3 operational/recovery boundary.**
+
+N6 will make writer census platform- and namespace-correct: Darwin counts all
+matching native host writers and never compares Docker PIDs with host PIDs;
+Linux excludes container descendants only for a verified local daemon; remote
+contexts do not make PID-namespace comparisons. Focused tests must cover
+native writers, container descendants, remote contexts, and ambiguous evidence.
+
+N7 will harden restoration cleanup: install idempotent restoration traps before
+changing service state, preserve the original exit or signal status, and report
+cleanup failures honestly. SIGKILL and host failure remain explicit limits;
+cleanup must not claim restoration when the trap could not run. Neither N6 nor
+N7 is implemented in P11.5C.
 
 ### P11.6 — Player, team, and game card parity polish
 
@@ -17673,6 +17756,27 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5C bootstrap-pending dispatch latch implemented
+
+- Created `codex/p11-5c-bootstrap-pending-dispatch` from exact clean base
+  `c2241330b47152271fb6194c75adc72beec63fe5` after the required development
+  worktree setup gate; implementation/tests committed locally at `3928b16`.
+- Corrected P11.5B/N5: the least-authority first-guild document remains
+  bootstrap-pending until a changed document is activated and verified through
+  runtime publication. No role redesign or automatic synchronization was
+  introduced.
+- Added strict persisted-audit derivation, immutable runtime propagation,
+  central pending dispatch suppression, exact owner/path interaction admission,
+  startup-listener suppression, and fail-closed publication/quarantine/restart
+  behavior. No storage schema migration was required.
+- Focused P11.5C coverage passed 10 tests; the combined focused set passed 90;
+  complete offline discovery passed 2,099 tests with 91 intentional skips.
+  Query-dependent development tests were invoked through their unchanged
+  opt-in gates and skipped because the flags were not enabled.
+- No production, service restart, live Discord, database mutation, command
+  synchronization, deployment, merge, push, or tester announcement occurred.
+  N6/N7 are queued as P11.5D for separate implementation.
 
 ### 2026-08-12 — P11.5B first trusted-guild bootstrap reviewed and integrated
 
