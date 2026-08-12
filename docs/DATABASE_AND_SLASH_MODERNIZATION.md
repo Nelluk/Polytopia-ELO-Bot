@@ -492,17 +492,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.10/N3 global guild-authority mutation coordination
-is complete, Tier-3 reviewed, database-gated, and fast-forward integrated on
-`codex/p10-10-guild-mutation-coordinator`, based on exact clean pushed
-accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
-Implementation checkpoint: `f33b14b`. Focused validation passes 195 tests;
-complete offline discovery passes all 2,038 tests with 89 intentional database
-gates skipped; and the complete stopped-writer development PostgreSQL gate
-passes 88 of 89 tests with only the established owned-fixture round trip
-skipped. Unit integration checkpoint: `2fd16f7a5026b5bdecc9e20704350b8ed52d6741`;
-pushed accumulation/deployed runtime checkpoint:
-`791f6abc661f49c389c5f2e8482062e5906ca2e0`.**
+Current active unit: **P11.4B1 stopped-host-development-database export and
+fresh isolated container import rehearsal is in progress on
+`codex/p11-4b1-host-database-import`, based on exact clean pushed accumulation
+checkpoint `2cb462e7d1271787b6550290375518e59e766566`. Risk tier: Tier 3 operational
+and database boundary. The unit also applies the selected N4 correction:
+pre/post `pg_dump` session observations remain useful, but are no longer
+described as proof that no transient session existed between them. No host or
+production restore is authorized.**
+
+Previous completed source unit: **P10.10/N3 global guild-authority mutation
+coordination is complete, Tier-3 reviewed, database-gated, integrated, pushed,
+and deployed. Implementation checkpoint: `f33b14b`; unit integration:
+`2fd16f7a5026b5bdecc9e20704350b8ed52d6741`; pushed/deployed runtime:
+`791f6abc661f49c389c5f2e8482062e5906ca2e0`; documentation close-out:
+`2cb462e7d1271787b6550290375518e59e766566`.**
 
 The accepted fail-fast process-wide claim spans final revalidation, database
 commit, complete graph reload, immutable runtime publication, exact one-guild
@@ -516,13 +520,12 @@ reconciliation or startup reload clears the latch; exact owner-only
 `/operator bot restart` remains the recovery path and is not broadened to an
 unknown guild.
 
-Next recommended after N3: **P11.4B1 local host-database import/rehearsal plus
-the N4 backup-guarantee semantics correction already selected by Nelluk.** It
-must retain a stopped host writer, import only into a fresh isolated container
-database, verify logical backup/restore identity and application behavior, and
-state accurately that pre/post session observations do not prove no transient
-session existed during `pg_dump`. No production or host-database restore is
-authorized.
+P11.4B1 selected result: retain a stopped host writer, export through the
+fixed development profile and held beta writer lock, import only into a fresh
+isolated container database, verify logical backup/restore identity and
+bounded application data, and state accurately that pre/post session samples
+do not prove no transient session existed during `pg_dump`. No production or
+host-database restore is authorized.
 
 Previous completed infrastructure unit: **P11.4A exact-image and isolated-
 database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from

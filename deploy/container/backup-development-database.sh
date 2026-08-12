@@ -69,6 +69,8 @@ echo 'Development container database backup plan'
 echo "source service: $SOURCE_HOST"
 echo "source database: $SOURCE_DATABASE"
 echo 'required writer state: bot stopped; zero other source-database sessions'
+echo 'session evidence: sampled immediately before and after pg_dump'
+echo 'limitation: those samples do not prove that no transient session existed between them'
 echo 'archive: custom-format pg_dump plus SHA-256 sidecar in /backups'
 echo 'publication: validated temporary files followed by atomic rename'
 echo "confirmation: $confirmation"
@@ -184,7 +186,7 @@ pg_restore --list "$temporary_archive" >/dev/null \
 
 after_sessions=$(active_sessions)
 [ "$after_sessions" = 0 ] \
-  || fail 'A source-database session appeared during backup; no archive was published.'
+  || fail 'A source-database session was present after pg_dump; no archive was published.'
 
 archive_digest=$(sha256sum "$temporary_archive" | awk '{print $1}') \
   || fail 'Could not digest the temporary archive.'
@@ -209,4 +211,6 @@ backup_lock=
 echo 'Development container database backup complete.'
 echo "archive: $archive_name"
 echo "sha256: $archive_digest"
+echo "session samples: before=$before_sessions after=$after_sessions"
+echo 'The session samples are observations, not proof that no transient session existed.'
 echo 'retention: keep this pair until a newer archive has passed a fresh-volume restore drill'

@@ -150,6 +150,10 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         restore_source = restore.read_text(encoding='utf-8')
         self.assertIn('BACKUP $SOURCE_DATABASE $checkpoint', backup_source)
         self.assertIn('zero other source-database sessions', backup_source)
+        self.assertIn(
+            'do not prove that no transient session existed between them',
+            backup_source,
+        )
         self.assertGreaterEqual(backup_source.count('active_sessions'), 3)
         self.assertIn('--format=custom', backup_source)
         self.assertIn('pg_restore --list', backup_source)

@@ -167,6 +167,50 @@ operator must use that provider's independently reviewed logical recovery
 procedure; this Compose project does not acquire external administrative
 credentials.
 
+### Importing the stopped host development database
+
+P11.4B1 adds a separate source-side export for rehearsing a realistic move
+from the existing host `polytopia_dev` database. Run it only from the exact
+clean primary development checkout, never from the production checkout. The
+plan is connection-free and prints the checkpoint-bound confirmation:
+
+```bash
+POLYBOT_ENV=development \
+  .venv/bin/python scripts/export_host_development_database.py
+```
+
+Stop only the durable development beta and prove the host-wide development
+writer audit is clear. Then repeat the command with its exact confirmation:
+
+```bash
+POLYBOT_ENV=development \
+  .venv/bin/python scripts/export_host_development_database.py \
+  --confirm 'EXPORT polytopia_dev EXACT_40_HEX_CHECKPOINT'
+```
+
+The apply path requires the fixed local `polytopia_dev`/`polybot_dev`
+identity, PostgreSQL 18, disabled development integrations, the development
+guild allowlist, a clean exact checkout, and the durable beta writer lock for
+the complete database operation. It checks destination headroom, samples zero
+other sessions before and after `pg_dump`, validates the private temporary
+archive with `pg_restore --list`, and atomically publishes the archive plus
+its exact digest under ignored `deploy/container/backups`.
+
+This is logical-backup evidence, not continuous session monitoring. A
+short-lived uncoordinated client could connect and disconnect between the two
+observations. The actual writer exclusion comes from stopping the owned beta,
+holding its writer lock, and auditing host processes; the samples are useful
+additional observations. Keep the beta stopped while performing the fresh-
+volume restore and comparing bounded source/restore table counts.
+
+To rehearse on another machine, copy the archive and `.sha256` pair through a
+private channel into that checkout's ignored `deploy/container/backups`, then
+follow the fresh-volume restore steps below. The target remains the fixed
+isolated `polytopia_restore_verify` database and exposes no host port. Its
+administrative and application passwords are new recovery-cluster secrets;
+they do not need to equal the source server's credentials. Never point this
+flow at an existing database or use it as authority to change production.
+
 Set `POLYBOT_RECOVERY_UID` and `POLYBOT_RECOVERY_GID` in the ignored `.env` to
 the positive host UID/GID that owns `deploy/container/backups`. Recovery jobs
 run with that identity, a read-only root filesystem, dropped capabilities, and
@@ -195,7 +239,8 @@ COMPOSE='docker compose --env-file deploy/container/.env --file deploy/container
 3. Apply that exact plan. The job requires PostgreSQL 18, the fixed
    `postgres`/`polytopia_dev`/`polybot_dev` identities, enough free destination
    space for the current uncompressed database size plus 64 MiB, and zero
-   other source-database sessions before and after `pg_dump`. It validates a
+   other source-database sessions when sampled immediately before and after
+   `pg_dump`. It validates a
    private temporary custom archive with `pg_restore --list`, computes its
    SHA-256, then atomically publishes the archive and digest sidecar.
 
@@ -205,7 +250,10 @@ COMPOSE='docker compose --env-file deploy/container/.env --file deploy/container
      database-backup
    ```
 
-   A role session appearing during the dump prevents publication. A
+   A session present at either observation prevents publication. These two
+   samples do not prove that no short-lived session connected and disconnected
+   between them; the operational guarantee is therefore the stopped-writer
+   procedure, not continuous database-side session monitoring. A
    `.polybot-backup.lock` left by an abrupt container kill must be investigated
    before it is manually removed.
 

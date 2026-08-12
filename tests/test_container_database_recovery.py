@@ -189,7 +189,7 @@ esac
         self.assertEqual(repeated.returncode, 2)
         self.assertEqual(archive.read_bytes(), original)
 
-    def test_backup_refuses_if_application_session_appears_during_dump(self):
+    def test_backup_refuses_if_application_session_is_present_after_dump(self):
         result = self._run(
             self.backup_script,
             POLYBOT_BACKUP_CONFIRMATION=f'BACKUP polytopia_dev {CHECKPOINT}',
@@ -197,10 +197,20 @@ esac
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn('appeared during backup', result.stderr)
+        self.assertIn('present after pg_dump', result.stderr)
         self.assertEqual(list(self.backups.glob('*.dump')), [])
         self.assertEqual(list(self.backups.glob('*.sha256')), [])
         self.assertFalse((self.backups / '.polybot-backup.lock').exists())
+
+    def test_backup_plan_states_the_pre_post_sampling_limitation(self):
+        result = self._run(self.backup_script)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('sampled immediately before and after pg_dump', result.stdout)
+        self.assertIn(
+            'do not prove that no transient session existed between them',
+            result.stdout,
+        )
 
     def test_restore_is_local_plan_then_exact_fresh_target_apply(self):
         archive, digest = self._create_backup()
