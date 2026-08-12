@@ -534,6 +534,67 @@ class BootstrapPendingDispatchTests(unittest.IsolatedAsyncioTestCase):
         )
         autocomplete.response.autocomplete.assert_awaited_once_with([])
 
+    async def test_quarantine_precedes_pending_allowlist_and_keeps_restart_only(self):
+        owner_id = int(settings.owner_id)
+        settings.quarantine_database_guild_configuration(GUILD_ID)
+        self.assertTrue(settings.database_guild_configuration_bootstrap_pending(GUILD_ID))
+        self.assertTrue(settings.database_guild_configuration_quarantined(GUILD_ID))
+
+        for path in sorted(
+            bot_module.BOOTSTRAP_PENDING_INTERACTION_PATHS
+            - {('operator', 'bot', 'restart')},
+        ):
+            with self.subTest(path=path):
+                denied = interaction(path, requester_id=owner_id)
+                self.assertFalse(
+                    await bot_module.PolyBotCommandTree.interaction_check(
+                        None, denied,
+                    )
+                )
+                denied.response.send_message.assert_awaited_once()
+                self.assertIn(
+                    'temporarily quarantined',
+                    denied.response.send_message.await_args.args[0],
+                )
+
+        restart = interaction(
+            ('operator', 'bot', 'restart'), requester_id=owner_id,
+        )
+        self.assertTrue(
+            await bot_module.PolyBotCommandTree.interaction_check(None, restart)
+        )
+
+        impostor = interaction(
+            ('operator', 'bot', 'restart'), requester_id=owner_id + 1,
+        )
+        self.assertFalse(
+            await bot_module.PolyBotCommandTree.interaction_check(None, impostor)
+        )
+        impostor.response.send_message.assert_awaited_once()
+        self.assertIn(
+            'temporarily quarantined',
+            impostor.response.send_message.await_args.args[0],
+        )
+
+        message = SimpleNamespace(
+            guild=SimpleNamespace(id=GUILD_ID, name='Fresh Development Guild'),
+            author=SimpleNamespace(name='non-owner'),
+            content='$opengame',
+        )
+        self.assertEqual(bot_module.get_prefix(None, message), 'fakeprefix')
+        instance = bot_module.MyBot()
+        try:
+            with mock.patch.object(
+                bot_module.commands.Bot, 'dispatch', autospec=True,
+            ) as parent_dispatch:
+                instance.dispatch('message', message)
+                instance.dispatch(
+                    'raw_reaction_add', SimpleNamespace(guild_id=GUILD_ID),
+                )
+            parent_dispatch.assert_not_called()
+        finally:
+            await instance.close()
+
     async def test_prefix_messages_preinvoke_and_listener_events_are_inert(self):
         message = SimpleNamespace(
             guild=SimpleNamespace(id=GUILD_ID, name='Fresh Development Guild'),

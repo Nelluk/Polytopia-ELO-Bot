@@ -214,6 +214,21 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                 'Try the command again in a moment.'
             )
         guild_id = getattr(interaction, 'guild_id', None)
+        quarantined = (
+            guild_id is not None
+            and settings.database_guild_configuration_quarantined(guild_id)
+        )
+        owner_restart_recovery = (
+            _is_owner_restart_recovery(interaction)
+            and guild_id is not None
+            and (int(guild_id) in settings.config or quarantined)
+        )
+        if quarantined and not owner_restart_recovery:
+            return await deny(
+                'This server is temporarily quarantined because a committed '
+                'configuration change could not be published safely. No command '
+                'was run; the owner can use `/operator bot restart` to reconcile.'
+            )
         if (
                 guild_id is not None
                 and settings.database_guild_configuration_bootstrap_pending(guild_id)
@@ -225,24 +240,6 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                     'recovery paths.'
                 )
             return True
-        quarantined = (
-            guild_id is not None
-            and settings.database_guild_configuration_quarantined(guild_id)
-        )
-        owner_restart_recovery = (
-            _is_owner_restart_recovery(interaction)
-            and guild_id is not None
-            and (int(guild_id) in settings.config or quarantined)
-        )
-        if (
-                quarantined
-                and not owner_restart_recovery
-        ):
-            return await deny(
-                'This server is temporarily quarantined because a committed '
-                'configuration change could not be published safely. No command '
-                'was run; the owner can use `/operator bot restart` to reconcile.'
-            )
         if (
                 guild_id is not None
                 and int(guild_id) not in settings.config
