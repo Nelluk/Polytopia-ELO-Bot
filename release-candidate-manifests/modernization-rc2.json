@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "release_id": "modernization-rc2",
+  "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+  "rollback_sha": "c35e2f1d0011709d233c0aa8afa258602b457635",
+  "branch": "codex/database-slash-modernization",
+  "source_digests": {
+    "uv.lock": "d9b8292c59af1ac5b8466d273e84550e3b192b346c817a12cdc4bcf3606d111d",
+    "deploy/systemd/polytopia.service": "9e90b085feaac52c5b75171da6732d9a48ec9b3d64b7287f9ad8cfbbb0bb7c8d",
+    "deploy/systemd/polytopia-modernization-canary.conf": "7083a7908536371e8f28b188db2cc4d5dd033a9bf5e4db3632df276e17847f16",
+    "scripts/migrate_player_timezone_production.py": "b41b76e565314819240fa6ce50a6b3d5f6f800a2207fda66b4f04a6764ff8fd1",
+    "scripts/manage_application_commands.py": "c501083a4666b4d46ed54f0dbbf6ec93526e2ebf6c6dbe67af6f57fbb30de3c8",
+    "docs/MODERNIZATION_PRODUCTION_CUTOVER.md": "9319cc5c14bc74ac9df0cd66c91932638cd37815067465aefc6f606e07c4add5",
+    "release-candidate-manifests/tester-instructions-draft.md": "cd59b8a1da74f19f59a38a7d0dcf1160ec0804081d9d4436d786990bdb32dd5a"
+  },
+  "production_plan": {
+    "expected_bot_id": 484067640302764042,
+    "database": "polytopia2",
+    "api_enabled": false,
+    "global_commands_expected_empty": true,
+    "guilds": [
+      {
+        "guild_id": 283436219780825088,
+        "name": "Polytopia Main",
+        "staff_help_channel": 742857671237042176,
+        "first_helper_role": "ELO-Helper",
+        "capabilities": ["tools_support"]
+      },
+      {
+        "guild_id": 447883341463814144,
+        "name": "PolyChampions",
+        "staff_help_channel": 742832436047511572,
+        "first_helper_role": "Helper",
+        "capabilities": [
+          "core_user",
+          "house",
+          "league",
+          "squad",
+          "team",
+          "tools_support"
+        ]
+      }
+    ],
+    "omitted_capabilities": ["beta_testing", "elo_maintenance", "operator"]
+  },
+  "adversarial_findings": [
+    {"id": "B1", "status": "resolved", "checkpoints": ["8b9ede1b9fec6bda6ab60e91ffb9c068b1ab3163"]},
+    {"id": "B2", "status": "resolved", "checkpoints": ["d4a37d0aab1475b36d270a34e22c64cf74da5c91"]},
+    {"id": "B3", "status": "resolved", "checkpoints": ["3444d5d37360ddaacea5999570a6db863e226bce"]},
+    {"id": "H1", "status": "resolved", "checkpoints": ["102d64a945950cf077ad4b3406e59fe39161d6ae"]},
+    {"id": "H2", "status": "resolved", "checkpoints": ["102d64a945950cf077ad4b3406e59fe39161d6ae"]},
+    {"id": "H3", "status": "resolved", "checkpoints": ["4a645ed2828b150a4267663bd3427a1d85631bb9"]},
+    {"id": "H4", "status": "resolved", "checkpoints": ["8038077589e204853d749f9eb932264ba532160f"]},
+    {"id": "H5", "status": "resolved", "checkpoints": ["364d53a271cbfdd74515cfc0fb964e05eb6e8f3f"]},
+    {"id": "H6", "status": "resolved", "checkpoints": ["dc8608bb16d361215726948cacd2740023a4f774"]},
+    {"id": "H7", "status": "resolved", "checkpoints": ["2d561aec079fac4d7301a5eab2a62dd6b456dd2c"]},
+    {"id": "H8", "status": "resolved", "checkpoints": ["00e23c943b030c1de6a0b850621e16269abc558e"]},
+    {"id": "M1", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M2", "status": "resolved", "checkpoints": ["981d41e3db5f519f2e238d120360df233aa953f7"]},
+    {"id": "M3", "status": "resolved", "checkpoints": ["981d41e3db5f519f2e238d120360df233aa953f7"]},
+    {"id": "M4", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M5", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M6", "status": "resolved", "checkpoints": ["9b248d335353b0b8c394f0be5a33bb08ae1db2e9"]},
+    {"id": "L1", "status": "resolved", "checkpoints": ["a344ab44587a42e4c9801fdcb03398c788f38273"]},
+    {"id": "N1", "status": "resolved", "checkpoints": ["0b4d954f8b13648d53f8d8af817115a7a8c5f107"]},
+    {"id": "N2", "status": "resolved", "checkpoints": ["0b4d954f8b13648d53f8d8af817115a7a8c5f107"]},
+    {"id": "N3", "status": "resolved", "checkpoints": ["f33b14b2396e25a0dccc3f580e075cf7b0773977"]},
+    {"id": "N4", "status": "resolved", "checkpoints": ["d27d6c83508ad00ef4e28d4eabad5fcddcf3189f"]},
+    {"id": "N5", "status": "resolved", "checkpoints": ["3928b1663a0ea2d057ccf085fb6413a86e7836f3", "15c46e7886a07a9bb6f5028e2f766c36de6280d1"]},
+    {"id": "N6", "status": "resolved", "checkpoints": ["f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"]},
+    {"id": "N7", "status": "resolved", "checkpoints": ["f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"]}
+  ],
+  "gates": {
+    "cutover_review": {
+      "status": "pass",
+      "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+      "command": "Tier-3 phase/checkpoint and cutover-critical seam review from historical RC1 acf706f through candidate 8e79dc2",
+      "total": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failures": [],
+      "evidence": [
+        "Verified rollback and every B1-B3, H1-H8, M1-M6, L1, and N1-N7 checkpoint are ancestors of the exact candidate.",
+        "Verified the seven cutover-critical candidate-tree SHA-256 digests, exact production support routes, guild-only canary policy, empty-global-tree policy, additive schema boundary, service assets, and tester-message boundary.",
+        "RC1 remains historical; the validator now rejects a release record that omits any N3-N7 correction."
+      ]
+    },
+    "offline_suite": {
+      "status": "pass",
+      "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+      "command": "Exact arm64 image, no network, read-only root, all capabilities dropped: POLYBOT_ENV=development python -m unittest discover -q",
+      "total": 2110,
+      "passed": 2012,
+      "skipped": 98,
+      "failures": [],
+      "evidence": [
+        "Exact candidate image sha256:989da370c8b0ac21c25ac25039e966960e6e366b8c4c7b171dea5cb6cdb3b768 ran as non-root 1000:1000 on arm64.",
+        "Complete discovery ran 2,110 tests with 2,012 passes, 98 intentional database-gated skips, and no failures."
+      ]
+    },
+    "development_database_suite": {
+      "status": "pass",
+      "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+      "command": "Stopped project bot; verified zero project/host/other-container writers; captured the read-only allowlisted Discord snapshot; POLYBOT_RUN_DB_INTEGRATION=1 python -m unittest tests.test_database_integration -q",
+      "total": 79,
+      "passed": 78,
+      "skipped": 1,
+      "failures": [],
+      "evidence": [
+        "Preflight verified development, polytopia_dev, polybot_dev, disabled background tasks/API, bundled healthy PostgreSQL, and the reviewed guild 478571892832206869 snapshot.",
+        "The corrected exact-candidate invocation passed 79 tests with one intentional retained-fixture skip; two earlier zero-test attempts failed closed because the required snapshot path was absent and then not yet present.",
+        "The beta was restored afterward from the same exact candidate image."
+      ]
+    },
+    "bounded_beta_matrix": {
+      "status": "pending",
+      "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+      "command": "Run the remaining reviewed concise WHAT TO TEST command/parity/visibility checks through exact-candidate development beta 479029527553638401",
+      "total": 7,
+      "passed": 4,
+      "skipped": 3,
+      "failures": [],
+      "evidence": [
+        "Exact candidate 8e79dc2 authenticated as development application 479029527553638401 with restart count zero, one project writer, and no host or other-container writer.",
+        "Read-only inspection found zero global commands and all 12 development-guild roots unchanged, with no create, update, or removal.",
+        "A controlled stopped-writer gate and exact-image restoration completed successfully without database replacement or command synchronization.",
+        "Nelluk's P11.8 visual acceptance of the unchanged player, team, and game card runtime carries forward; broader tester command, retained-prefix parity, and visibility evidence remain pending."
+      ]
+    },
+    "production_configuration": {
+      "status": "pending",
+      "candidate_sha": "8e79dc295c024340fd55f9678d507e6e214469b4",
+      "command": "Under separate production-read approval, run the redacted runtime check and compare ignored capability/support routes with this RC2 record",
+      "total": 3,
+      "passed": 0,
+      "skipped": 3,
+      "failures": [],
+      "evidence": [
+        "RC2 pins only the reviewed non-secret desired bot, database, API, guild, support-route, capability, omission, and empty-global-tree values.",
+        "No production checkout, ignored production configuration, database, service, Discord tree, or secret was accessed."
+      ]
+    }
+  }
+}

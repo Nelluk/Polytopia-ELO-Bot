@@ -58,6 +58,12 @@ The current validator requires the original B1–B3, H1–H8, M1–M6, L1, and
 N1–N2 findings plus the post-RC1 N3–N7 corrections. RC1 remains historical
 evidence for its older candidate; it cannot certify a post-P11 source tree.
 
+RC2 freezes source `8e79dc295c024340fd55f9678d507e6e214469b4`.
+Cutover review, complete offline discovery, and stopped-writer development
+PostgreSQL discovery pass. The bounded-beta matrix remains pending at four of
+seven checks, and production configuration remains pending at zero of three;
+therefore `require-ready` intentionally returns nonzero.
+
 ## Tester-message boundary
 
 `release-candidate-manifests/tester-instructions-draft.md` is deliberately

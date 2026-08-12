@@ -427,16 +427,16 @@ check:
   `f5cd39d` on `codex/p11-5d-writer-backup-hardening`, from exact clean base
   `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`; reviewed evidence and
   fast-forward integration checkpoint: `57efbbe`
-- P11.8 Mac beta refresh source checkpoint:
-  `1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`; exact arm64 image:
-  `sha256:3716c0b6b3069face166aea70a38973cea1ce15a6482a9d52d3222bde40a87f0`
-- current combined offline result: complete discovery succeeded across 2,109
-  tests with 91 intentional development-database skips
+- P9.26 frozen RC2 source candidate:
+  `8e79dc295c024340fd55f9678d507e6e214469b4`; exact arm64 image:
+  `sha256:989da370c8b0ac21c25ac25039e966960e6e366b8c4c7b171dea5cb6cdb3b768`
+- current combined offline result: exact-candidate complete discovery
+  succeeded across 2,110 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
 - deployment disposition: RackNerd remains stopped and the sole Mac container
-  beta runs exact pushed source `1cb3ad6` in the reviewed arm64 image above.
+  beta runs exact local candidate `8e79dc2` in the reviewed arm64 image above.
   P11.6 card parity received Nelluk's bounded visual acceptance; P11.7 is
   test-only. The 12 development-guild roots are unchanged and the global tree
   is empty, so no command synchronization or tester announcement occurred.
@@ -526,18 +526,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.26/M7-R-002 release-candidate refresh is in progress
-from exact clean pushed accumulation checkpoint
-`cf4dbfe1b1dfe7d6a27555ed3e845e9b09bdd3bb`.** RC1 remains historical because
-its `acf706f` candidate predates the resolved N3–N7 findings and post-P11
-source. P9.26 expands the strict finding inventory, freezes a new exact source
-candidate, and reruns its cutover, offline, stopped-writer development-
-database, and bounded-beta gates. Production configuration remains a separate
-read/approval boundary. P11.8 is complete, integrated, and pushed at
-`cf4dbfe`; the sole Mac beta still runs exact source `1cb3ad6`, the 12
-development-guild roots remain unchanged, and Nelluk accepted the P11.6 cards.
-P11.5C is integrated and pushed at `aa936c6`; P11.5D is integrated and pushed
-at `57efbbe`.
+Current active unit: **P9.26/M7-R-002 release-candidate refresh is implemented
+and candidate-validated from exact source
+`8e79dc295c024340fd55f9678d507e6e214469b4`; RC2 evidence is recorded but
+readiness remains blocked by three bounded-beta checks and all three separately
+approved production-configuration checks.** RC1 remains historical. The exact
+candidate passes the cutover review, all 2,110 offline tests with 98 intentional
+skips, and all 79 stopped-writer development-database cases with one intentional
+skip. The sole Mac beta runs exact candidate `8e79dc2`, restart count zero;
+read-only inspection found zero global commands and all 12 guild roots
+unchanged. No command synchronization, tester announcement, RackNerd runtime,
+production configuration, production database, or production service action
+occurred.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16383,8 +16383,8 @@ verification.
 
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
-Status: **In progress; candidate source correction under review before exact
-SHA freeze.**
+Status: **Implemented and candidate-validated; bounded human beta and
+production-configuration gates remain pending.**
 
 Branch/base: `codex/p9-26-release-candidate-refresh`, exact clean pushed
 accumulation checkpoint `cf4dbfe1b1dfe7d6a27555ed3e845e9b09bdd3bb`.
@@ -16406,6 +16406,27 @@ global command tree and may inspect but not apply guild commands. Human card
 acceptance from P11.8 can be carried forward only as that bounded visual item;
 it does not silently complete the remaining tester matrix. The production-
 configuration gate remains pending until separately approved redacted access.
+
+Frozen source candidate: `8e79dc295c024340fd55f9678d507e6e214469b4`.
+The exact arm64/non-root candidate image is
+`sha256:989da370c8b0ac21c25ac25039e966960e6e366b8c4c7b171dea5cb6cdb3b768`.
+Complete isolated discovery passes 2,110 tests with 98 intentional skips. The
+stopped-writer suite passes 79 cases with one intentional retained-fixture
+skip after a read-only allowlisted Discord snapshot was captured; two earlier
+zero-test invocations failed closed because that required snapshot input was
+absent. The restored beta authenticated as application `479029527553638401`
+with restart count zero, one project writer, and no host or other-container
+writer. Read-only command inspection found zero globals and all 12 guild roots
+unchanged; no apply occurred.
+
+`release-candidate-manifests/modernization-rc2.json` records the passing
+cutover, offline, and development-database gates. Its bounded-beta gate is
+pending at four of seven checks: exact startup, command convergence,
+stop/restore, and Nelluk's still-applicable P11.8 card acceptance are present;
+the remaining command, retained-prefix parity, and visibility checks are not.
+The production-configuration gate is pending at zero of three because no
+production read was authorized or performed. `require-ready` must therefore
+continue to fail.
 
 ## Standard work-unit template
 
@@ -17858,6 +17879,30 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.26 post-P11 RC2 candidate validated
+
+- Frozen exact source candidate
+  `8e79dc295c024340fd55f9678d507e6e214469b4` from clean pushed base
+  `cf4dbfe1b1dfe7d6a27555ed3e845e9b09bdd3bb`. The strict validator now
+  requires N3–N7; RC1 remains historical.
+- Built arm64/non-root candidate image
+  `sha256:989da370c8b0ac21c25ac25039e966960e6e366b8c4c7b171dea5cb6cdb3b768`.
+  Complete isolated discovery passed all 2,110 tests with 98 intentional
+  skips.
+- Stopped only the beta bot, proved zero project/host/other-container writers,
+  captured the bounded allowlisted Discord role/channel snapshot read-only,
+  and passed all 79 development-database cases with one intentional skip.
+  Two prior zero-test invocations failed closed on the missing required
+  snapshot and made no candidate finding.
+- Restored the beta from exact candidate `8e79dc2`; it authenticated as
+  application `479029527553638401` with restart count zero. Read-only command
+  inspection found zero globals and all 12 guild roots unchanged. No apply,
+  announcement, external database, RackNerd runtime, or production action
+  occurred.
+- RC2 passes cutover, offline, and development-database gates. It correctly
+  remains not ready: three bounded-beta checks and all three separately
+  approved production-configuration checks are pending.
 
 ### 2026-08-12 — P11.8 Mac beta refreshed and cards accepted
 

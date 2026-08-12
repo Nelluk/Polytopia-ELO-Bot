@@ -93,11 +93,12 @@ offline discovery.
 
 Status: In progress through P9.26. The P9.24 source candidate
 `acf706fed8d51a061383e7caba2a4c210ec61981` and RC1 record are historical:
-they predate N3–N7 and the post-P11 accumulation source. P9.26 freezes a new
-exact candidate, requires every N3–N7 resolution checkpoint, and refreshes
-candidate-bound offline, stopped-writer development PostgreSQL, cutover, and
-beta evidence. Separately approved redacted production-configuration proof
-remains required before readiness can pass.
+they predate N3–N7 and the post-P11 accumulation source. P9.26 freezes exact
+candidate `8e79dc295c024340fd55f9678d507e6e214469b4`, requires every N3–N7
+resolution checkpoint, and passes candidate-bound cutover review, 2,110-case
+offline discovery, and 79-case stopped-writer development PostgreSQL discovery.
+RC2 remains correctly not ready: three bounded-beta items and all three
+separately approved redacted production-configuration checks are pending.
 
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable

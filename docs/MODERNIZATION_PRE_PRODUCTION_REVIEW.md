@@ -610,8 +610,10 @@ Status: **In progress through P9.26/R-002 after all preceding corrections.**
   approval boundary. The validator's `require-ready` mode rejects that state.
 - **P9.26 refresh:** RC1 predates N3–N7 and the P11 source corrections. The
   refreshed validator requires those findings and a new RC2 record bound to
-  one post-P11 candidate. RC1 remains historical and must not be promoted as
-  current release evidence.
+  exact post-P11 candidate `8e79dc295c024340fd55f9678d507e6e214469b4`.
+  Cutover, 2,110-case offline, and 79-case stopped-writer development-database
+  gates pass. RC1 remains historical and RC2 remains blocked by three human
+  beta and all three production-configuration checks.
 
 ## Low / documentation
 
