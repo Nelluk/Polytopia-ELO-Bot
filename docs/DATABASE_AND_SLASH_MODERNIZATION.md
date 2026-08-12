@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 Status: Active
 
@@ -492,49 +492,57 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.3 guarded container database recovery is complete,
-Tier-3 reviewed, and fast-forward integrated from
-`codex/p11-3-container-recovery`, based on exact clean pushed accumulation
-checkpoint `c09292803c16f6c8a5184e9c1f9c17896856a500`. Implementation checkpoint:
-`d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`; evidence/integration checkpoint:
-`70bb734cb7396e3357f6a51d47090ed8a5c29d11`.
+Current active unit: **P11.4A exact-image and isolated-database live-engine
+proof is implemented and Tier-3 reviewed on
+`codex/p11-4a-live-container-proof`, based on exact clean pushed accumulation
+checkpoint `77a60b46f6b91615a9b02a9f9a6b4321d67ccc87`. Implementation checkpoints:
+`b59525017bd3778a5239b53efd7fc4e19422ecd7`,
+`53b99ea4cf27a23d1a1fa90b7de82ed9910e7b58`,
+`f4bd1d8552030a374055e23eafcfd5e5e7dc4cc7`, and
+`40534f5ccbf9442b9af30861493c53e3e47ed38b`; integration is pending.**
 
-The bundled Compose recovery profile now has an explicit, plan-first logical
-backup job and a digest-bound restore drill that can address only a second
-PostgreSQL 18 service on its own `postgres_restore_data` volume. Backup apply
-requires exact checkpoint confirmation, the fixed development database/role,
-the exact administrative maintenance identity, sufficient off-volume free
-space, and zero competing source-database sessions before and after the dump.
-It validates a private custom archive with `pg_restore --list`, writes an
-exact SHA-256 sidecar, and publishes the pair atomically. Restore planning
-checks the exact archive/digest locally without a database connection; apply
-requires exact digest confirmation, a genuinely fresh isolated cluster,
-single-transaction restore as `polybot_dev`, and required-table, winner-FK,
-and object-owner verification. It cannot target `polytopia_dev` or an external
-database. Recovery-volume cleanup and archive deletion remain explicit human
-actions, never automatic.
+Docker 29.7.2 and Compose 5.4.0 resolved and pulled immutable registry digests
+for CPython 3.12.13 slim Bookworm, uv 0.11.32, and PostgreSQL 18.4 Bookworm.
+The deployment contract is version 3. Live proof corrected three material
+offline assumptions: doctor fixtures no longer copy ignored private runtime
+inputs; image source and mode-0600 bind mounts use an explicit matching
+non-root runtime UID/GID checked by the doctor; and the ignored Compose `.env`
+is excluded from the build context. Host-only tests now isolate the durable
+beta venv guard and skip Git-backed production-backup fixtures only when Git
+is intentionally absent from the minimal runtime image.
 
-The contract is version 2. The read-only doctor now validates recovery assets,
-positive recovery UID/GID values, and an exact owner/GID/mode-0700 off-volume
-directory in bundled mode while leaving those unused inputs optional in
-external mode. Focused recovery/assets/doctor validation passes 25 tests;
-complete offline discovery passes all 2,023 tests with 89 intentional database
-gates skipped. The first full command without `POLYBOT_ENV` was correctly
-refused at import and was rerun with the exact development gate. Shell syntax,
-compilation, lockfile, and diff checks pass. Tier-3 review corrected external-
-mode leakage, directory ownership, exact sidecar shape, credential argument
-exposure, complete source-session detection, fresh-cluster role inventory,
-administrative identity verification, and contract versioning. No actionable
-finding remains. No Docker/Podman executable was exposed during implementation;
-after the pushed close-out, `/usr/bin/docker` appeared on `PATH` but was not
-invoked and its Compose plugin remains unverified. No image, container, volume,
-PostgreSQL, Discord, service, dependency, tester, or production mutation
-occurred. The unchanged host beta remains healthy on
-`7fc73cf` as the only development writer with all five Beta Lab packs ready;
-no restart is warranted for inactive container recovery tooling. Next
-recommended: P11.4 live-engine development proof if Docker and Compose are
-available; also ready is
-the separate development feedback retention/redaction lifecycle.**
+The exact `40534f5` image was published as local image
+`sha256:8b18ec562f8d273fdd4c43548d1b903b8fe51779e287c977ad09bbc1f0751d3a`.
+Inspection verified non-root `1000:1000`, the exact OCI source revision,
+locked runtime packages, and absence of private config, Compose env, secrets,
+and Git metadata. The hardened no-network image ran all 2,024 offline tests
+with zero failures/errors and 96 skips; the host suite retains the seven
+Git-dependent cases and passes 2,024 with 89 gated skips. Focused
+container/recovery/doctor coverage passes 26 tests.
+
+An isolated `polybot-p11-4a` project exposed no host port. Fresh provisioning
+created only `polybot_dev`/`polytopia_dev`; a repeated run was idempotent. The
+exact schema plan/apply verified 17 tables and the winner foreign key. A
+57,012-byte custom archive with digest
+`bdff2cd533db5140c274aa2e45b72d07cae8b96489fe2cc50100297d5f00054c`
+restored into the separate fresh recovery volume and passed required-table,
+winner-FK, and object-owner verification; a repeated apply refused the
+non-fresh target. The host beta, host `polytopia_dev`, Discord, and production
+were untouched. All unit containers, network, four volumes, images, build
+cache, and synthetic archive pair were removed; the pre-existing
+`hello-world` resource remains and disk returned to 2.3 GB free.
+
+Remaining limitation: with only about 2.3 GB free, Docker publishes the 1.44
+GB on-disk bot image but Compose exits nonzero when its final small client
+metadata file encounters peak disk exhaustion. The verified image remains
+usable after unit-cache removal, but supported use needs more build headroom
+or a reviewed remote build/registry path. Vulnerability scanning and the
+container bot lifecycle/Discord writer window remain separate. Next
+recommended: P11.4B container bot lifecycle proof—persistent image/log
+volumes, resource ceilings, SIGINT, exit-75, database outage/recovery, exact
+single-writer audit, and one development Discord login—only after resolving
+build headroom and choosing a controlled writer window. Also ready: the
+independent development feedback retention/redaction lifecycle.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -17202,6 +17210,64 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.4A live-engine infrastructure proof completed
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `77a60b46f6b91615a9b02a9f9a6b4321d67ccc87`, created isolated
+  `codex/p11-4a-live-container-proof`, ran the required worktree setup, and
+  confirmed the unchanged host beta healthy on `7fc73cf` as the only
+  development writer with all five Beta Lab packs ready. Docker 29.7.2 and
+  Compose 5.4.0 became available through the host's `docker` group; no sudo,
+  dependency synchronization, host database, Discord, service, or production
+  action occurred.
+- Resolved and committed immutable registry digests for Python 3.12.13 slim
+  Bookworm, uv 0.11.32, and PostgreSQL 18.4 Bookworm. Live builds exposed and
+  corrected three material assumptions: doctor fixtures copied ignored
+  private files, restrictive host source modes made fixed UID 10001 unable to
+  read the image or private binds, and ignored `deploy/container/.env` entered
+  the image context. Contract version 3 now uses a positive configured
+  non-root runtime UID/GID matching both mode-0600 config owners, copies source
+  with that identity, verifies ownership in the doctor, and excludes every
+  private runtime input. Host-operation tests retain their assertions while
+  making filesystem identity checks explicit and Git-dependent fixtures skip
+  only in a minimal image without Git.
+- Built exact checkpoint `40534f5ccbf9442b9af30861493c53e3e47ed38b` as
+  image ID
+  `sha256:8b18ec562f8d273fdd4c43548d1b903b8fe51779e287c977ad09bbc1f0751d3a`.
+  Inspection verified non-root `1000:1000`, `/app`, exact OCI revision,
+  locked packages, and no baked Compose env, configs, secrets, or Git data.
+  The no-network/read-only/capability-dropped image ran 2,024 tests with zero
+  failures/errors and 96 skips; seven additional skips are the host Git-backed
+  production-backup cases. The full host suite passes 2,024 with 89 skips;
+  focused container assets/doctor/recovery coverage passes 26 tests. Compile,
+  shell syntax, lockfile, Compose rendering, and diff checks pass.
+- The uniquely scoped `polybot-p11-4a` project started healthy PostgreSQL 18
+  without a host port. First provisioning created only
+  `polybot_dev`/`polytopia_dev`; the second run was idempotent. Exact schema
+  plan/apply verified 17 model tables and `game.winner_id`'s foreign key. The
+  stopped-writer backup published a 57,012-byte custom archive with SHA-256
+  `bdff2cd533db5140c274aa2e45b72d07cae8b96489fe2cc50100297d5f00054c`.
+  Exact digest confirmation restored it into a fresh second PostgreSQL volume
+  and verified required tables, the winner foreign key, and object ownership;
+  a repeated restore correctly refused the non-fresh recovery target.
+- Peak build storage is the remaining infrastructure limitation. Starting
+  from about 2.3 GB free, Docker published the 1.44 GB on-disk image but
+  Compose returned nonzero because its final small client metadata file hit
+  `no space left on device`. The published image remained inspectable and ran
+  the full suite after unit-only cache cleanup. Supported use therefore needs
+  more local headroom or a reviewed remote build/registry path; no scanner was
+  installed, so exact-image vulnerability results also remain open.
+- Cleanly stopped and deleted only the two synthetic database containers,
+  network, four `polybot-p11-4a` volumes, unit images/cache, and synthetic
+  backup pair. These test-only resources are not recoverable and are not
+  needed after the verified drill. Docker returned to the pre-existing
+  `hello-world` image/container with zero volumes and zero build cache; root
+  returned to 2.3 GB free. Tier-3 complete-diff review found no remaining
+  actionable implementation issue. No beta restart, command sync,
+  tester-document/announcement, host `polytopia_dev`, or production action is
+  warranted. Next: integrate/push P11.4A, then resolve build headroom before a
+  separately scoped P11.4B bot lifecycle/single-writer/Discord proof.
 
 ### 2026-08-12 — P11.3 guarded container recovery implemented and reviewed
 

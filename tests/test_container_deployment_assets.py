@@ -252,8 +252,9 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
             self.root / 'docs/CONTAINERIZED_DEVELOPMENT.md'
         ).read_text(encoding='utf-8')
 
-        self.assertIn('development-only static proof', runbook)
-        self.assertIn('no\nDocker or Podman executable', runbook)
+        self.assertIn('development-only live-engine infrastructure proof', runbook)
+        self.assertIn('Docker 29.7.2 and Compose 5.4.0', runbook)
+        self.assertIn('2,024', runbook)
         self.assertIn('does not replace either existing systemd service', runbook)
         self.assertIn('Normal database or bot startup never creates application schema', runbook)
         self.assertIn('exit status 75', runbook)

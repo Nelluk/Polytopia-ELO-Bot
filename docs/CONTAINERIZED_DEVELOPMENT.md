@@ -1,7 +1,8 @@
 # Containerized development feasibility and proof
 
-Status: development-only static proof. This is not a production deployment
-runbook and does not replace either existing systemd service.
+Status: development-only live-engine infrastructure proof. This is not a
+supported long-running deployment or production runbook.
+It does not replace either existing systemd service.
 
 ## Verdict
 
@@ -13,18 +14,30 @@ bundled-database Compose definition, external-database variant, explicit
 database provisioner, plan-first backup and isolated restore-drill jobs, and a
 machine-readable contract.
 
-This checkpoint is deliberately not a claim that an image has been built,
-that a recovery job has run, or that Discord has been reached from a
-container. At the P11.2/P11.3 offline checks, the development host exposed no
-Docker or Podman executable. The proof is therefore limited to offline
-contract, shell-syntax, lockfile, and application tests. A supported container
-deployment still needs a later live-engine unit to build, inspect, start, and
-smoke the exact images and recovery path.
+P11.4A exercised the infrastructure path with Docker 29.7.2 and Compose 5.4.0.
+It resolved and committed immutable registry digests, built and inspected an
+exact-checkpoint bot image, ran the complete offline suite inside that image,
+provisioned a new bundled PostgreSQL 18 cluster twice, applied the plan-first
+schema bootstrap, and completed the digest-confirmed backup/fresh-volume
+restore drill. It did not start the bot, contact Discord, touch the host
+development database, or establish a supported service deployment.
+
+The host had only about 2.3 GB free. Docker published the 1.44 GB on-disk bot
+image, but Compose then exited nonzero because its small client-side build
+metadata file could not be written at peak usage. The image itself was
+inspectable and passed all runtime checks after the unit-only build cache was
+removed. This is valid feasibility evidence, but the deployment flow needs
+more disk headroom (or a remote build/registry workflow) before it is
+operationally clean on this host.
 
 ## Reviewed architecture
 
 - `bot` is built from CPython 3.12.13 and the locked `uv` 0.11.32 environment.
-  It runs as UID/GID 10001, with a read-only root filesystem, all Linux
+  The ignored `.env` supplies the positive non-root UID/GID that already owns
+  both mode-0600 private configuration mounts; the same identity owns copied
+  application source in the image. This preserves private host permissions
+  without making the container root. The doctor rejects an invalid identity
+  or ownership mismatch. Runtime uses a read-only root filesystem, all Linux
   capabilities dropped, a bounded tmpfs, resource ceilings, and persistent
   image and log volumes.
 - `postgres` uses PostgreSQL 18.4, matching the development server major
@@ -57,11 +70,11 @@ the Compose and Dockerfile changes.
 
 ## Configuration and secret boundary
 
-The container image excludes ignored runtime configs, mutable logs/images,
-secrets, and Git metadata. It retains tracked tests, documentation, Beta Lab
-manifests, and rendering assets so the exact built image can run its offline
-suite and serve the same development features. It receives two ignored
-container-specific config files as read-only mounts:
+The container image excludes the ignored Compose environment, runtime configs,
+mutable logs/images, secrets, and Git metadata. It retains tracked tests,
+documentation, Beta Lab manifests, and rendering assets so the exact built
+image can run its offline suite and serve the same development features. It
+receives two ignored container-specific config files as read-only mounts:
 
 - `deploy/container/config.development.ini`
 - `deploy/container/server_settings_dev.py`
@@ -87,8 +100,9 @@ loading is optional later work, not hidden inside this deployment proof.
 
 ## Intended bundled-database flow
 
-Run from the repository root. These are the eventual commands for a host with
-Docker Compose; they have not been executed on the current host.
+Run from the repository root. P11.4A exercised these infrastructure commands
+under the uniquely scoped `polybot-p11-4a` project. Ordinary use should choose
+one reviewed project name and first satisfy the remaining operational gates.
 
 ```bash
 cp config.development.ini-EXAMPLE deploy/container/config.development.ini
@@ -98,7 +112,8 @@ mkdir -p deploy/container/secrets deploy/container/backups
 chmod 700 deploy/container/secrets deploy/container/backups
 # Fill both config files and the two secret files, set the .env checkpoint to
 # the exact clean Git HEAD, set guild_configuration_source=database and
-# psql_host=postgres, then chmod configs and secrets 600.
+# psql_host=postgres, set POLYBOT_RUNTIME_UID/GID to the owner of both config
+# files, then chmod configs and secrets 600.
 chmod 600 deploy/container/config.development.ini deploy/container/server_settings_dev.py
 chmod 600 deploy/container/secrets/postgres-admin-password.txt deploy/container/secrets/polybot-database-password.txt
 
@@ -118,11 +133,13 @@ a clean exact Git checkpoint; validates the contract against the selected
 Compose/Dockerfile assets; parses but does not execute server settings; checks
 the container-only config, production denylists, disabled development effects,
 secret file type/mode/shape, password agreement, and exact image/checkpoint
-pins; and reports Docker/standalone-Compose executables found on `PATH`. It
-does not run either executable, connect to PostgreSQL or Discord, create files,
-or change permissions. A ready report therefore means inputs are ready for the
-printed `docker compose ... config` command; that explicit command is still
-the first proof of plugin availability and fully rendered Compose syntax.
+pins; validates that the configured non-root runtime identity owns both
+private bot mounts; and reports Docker/standalone-Compose executables found on
+`PATH`. It does not run either executable, connect to PostgreSQL or Discord,
+create files, or change permissions. A ready report therefore means inputs are
+ready for the printed `docker compose ... config` command; that explicit
+command is still the first proof of plugin availability and fully rendered
+Compose syntax.
 
 Use `--mode external` with the external Compose file and a non-loopback,
 non-`postgres` database host. That mode does not require or inspect the bundled
@@ -277,19 +294,48 @@ volume. PostgreSQL major upgrades require a separate dump/restore or
 `pg_upgrade` plan. Never point a new major image at the existing volume and
 never use `latest`.
 
+## P11.4A evidence
+
+- Registry digests: Python
+  `sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2`,
+  uv `sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c`,
+  and PostgreSQL
+  `sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382`.
+- Exact source/image checkpoint `40534f5ccbf9442b9af30861493c53e3e47ed38b`;
+  local image ID
+  `sha256:8b18ec562f8d273fdd4c43548d1b903b8fe51779e287c977ad09bbc1f0751d3a`.
+  Inspection verified non-root `1000:1000`, `/app`, the exact OCI revision,
+  and no baked private runtime input.
+- The no-network, read-only-root, capability-dropped image ran all 2,024
+  offline tests with zero failures/errors and 96 skips. Seven extra skips are
+  host Git-dependent production-backup boundary cases; they still run and pass
+  in the complete host suite. The minimal runtime image intentionally does not
+  contain Git.
+- Fresh and repeated provisioning succeeded; exact schema confirmation
+  produced 17 tables and the winner foreign key. A 57,012-byte custom archive
+  with SHA-256
+  `bdff2cd533db5140c274aa2e45b72d07cae8b96489fe2cc50100297d5f00054c`
+  restored into the second fresh volume and passed required-table, winner-FK,
+  and ownership checks. Repeating the restore refused the non-fresh target.
+- Both database services were healthy with only internal `5432/tcp`; no host
+  port was published. All `polybot-p11-4a` containers, network, four volumes,
+  images, cache, and synthetic backup pair were then removed. The pre-existing
+  `hello-world` resource remained untouched.
+
 ## Remaining gates before supported use
 
-1. Resolve the exact Python, uv, and PostgreSQL image digests from their
-   official registries and review their provenance. Version tags are pinned in
-   this offline proof, but tags are not immutable digests.
-2. Build with network access, review image history/packages and vulnerability
-   results, then run the full offline suite inside the built bot image.
-3. Exercise fresh-volume provision, repeated provision, schema plan/apply,
-   volume persistence, resource ceilings, SIGINT, exit-75 restart, database
-   unavailability/recovery, and an actual development Discord login.
-4. Execute the logical backup/restore drill and cross-runtime single-writer
-   audit with the exact built images.
-5. Only after those development results, design a separately approved
+1. Provide enough build headroom for Compose to exit cleanly, or use a
+   reviewed remote build/registry workflow. Review vulnerability results for
+   the exact images; P11.4A reviewed image history and locked packages but did
+   not install a scanner.
+2. Exercise persistent bot image/log volumes, runtime resource ceilings,
+   SIGINT shutdown, exit-75 restart, database unavailability/recovery, and an
+   actual development Discord login using a separately authorized token/writer
+   window.
+3. Perform a cross-runtime single-writer audit immediately before any
+   container bot login. P11.4A deliberately left the healthy host beta as the
+   only development writer and never started the container bot.
+4. Only after those development results, design a separately approved
    production migration, secret/volume ownership, rollback, and monitoring
    plan. No production database, service, or command registration is
    authorized by this document.
