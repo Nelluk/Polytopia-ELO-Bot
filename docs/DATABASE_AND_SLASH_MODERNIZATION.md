@@ -527,13 +527,14 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.8 current-accumulation Mac beta refresh and card
-acceptance is complete in the isolated evidence branch. The sole
+acceptance is complete and locally fast-forward integrated at `170e460`. The sole
 `polybot-mac-beta` bot runs exact pushed source `1cb3ad6` as development
 application `479029527553638401`; PostgreSQL and the trusted database guild
 snapshot remain healthy, command roots are unchanged, and Nelluk accepted the
 P11.6 cards after a bounded visual check. No command synchronization, tester
 announcement, external database, RackNerd runtime, or production action
-occurred. Final roadmap integration/push is pending.** P11.5C is integrated
+occurred. GitHub publication remains pending its explicit external-push
+approval.** P11.5C is integrated
 and pushed at `aa936c6`; its two required read-only development-database gates
 passed against the stopped-writer development identity. P11.5D is integrated
 with its reviewed evidence at `57efbbe`.
@@ -16337,8 +16338,8 @@ new cases remain part of future stopped-writer database validation windows.
 
 ### P11.8 — Current-accumulation Mac beta refresh and card acceptance
 
-Status: **Beta-validated on exact pushed source `1cb3ad6`; evidence branch
-integration pending.**
+Status: **Complete and locally fast-forward integrated at `170e460`; GitHub
+publication pending explicit external-push approval.**
 
 Branch/base: `codex/p11-8-mac-beta-refresh`, exact clean pushed base
 `1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`.
@@ -17856,6 +17857,10 @@ deferred into this post-modernization backlog.
 - Nelluk accepted the P11.6 player/team/game card changes after a quick visual
   check. No tester announcement, RackNerd runtime action, external database,
   production access, or production service action occurred.
+- Evidence checkpoint `170e460` was locally fast-forward integrated into
+  `codex/database-slash-modernization`. The external gate requires separate
+  explicit approval before publishing the new unit branch and accumulation
+  update to GitHub.
 - Next recommended unit: P9.26/M7-R-002 exact release-candidate refresh from
   the post-P11 accumulation tip, followed by candidate-bound gates. The older
   `acf706f` RC1 manifest must not be treated as evidence for current runtime
