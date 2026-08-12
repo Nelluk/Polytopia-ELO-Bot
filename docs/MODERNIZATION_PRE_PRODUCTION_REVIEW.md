@@ -54,12 +54,14 @@ the stopped-writer development PostgreSQL suite passes 88 of 89 cases with
 only the established retained-fixture skip. Integration and beta checkpoint
 evidence are recorded in the roadmap rather than inferred here.
 
-N4 remains open and is assigned to the next approved P11.4B1 local import and
-rehearsal unit. The selected correction is the smaller accurate-semantics
-route: retain stopped-writer operation and pre/post observations, but stop
-claiming they detect every transient session during a logically consistent
-dump. P11.4B1 must also rehearse a logical import of the host development data
-into a fresh isolated container database; it grants no production authority.
+N4 is resolved by P11.4B1 implementation/integration checkpoint `d27d6c8`.
+The container and host-development backup plans retain stopped-writer
+operation and pre/post observations while explicitly stating that those two
+samples do not prove no transient session existed between them. A real
+85,932-byte logical archive of stopped host `polytopia_dev` restored into the
+fresh isolated `polytopia_restore_verify` container database with exact digest,
+schema, ownership, and bounded source/restore data agreement. A repeated
+restore refused the non-fresh volume. No production or host restore occurred.
 
 ## Recommendation
 
@@ -92,7 +94,7 @@ release-candidate evidence gate after those bounded pre-freeze units.
 | M7 | In progress | P9.24/R-002 exact release-candidate evidence |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
 | N3 | Resolved | P10.10 implementation `f33b14b`, evidence/integration `2fd16f7`, pushed/deployed runtime `791f6ab` |
-| N4 | Open | P11.4B1 accurate backup semantics plus isolated local import/rehearsal |
+| N4 | Resolved | P11.4B1 accurate backup semantics and isolated real host-development import at `d27d6c8` |
 
 ## Blocker
 

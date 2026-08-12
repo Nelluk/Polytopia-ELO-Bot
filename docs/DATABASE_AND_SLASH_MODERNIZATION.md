@@ -493,13 +493,38 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.4B1 stopped-host-development-database export and
-fresh isolated container import rehearsal is in progress on
+fresh isolated container import rehearsal is complete, Tier-3 reviewed,
+integrated, pushed, and development-validated on
 `codex/p11-4b1-host-database-import`, based on exact clean pushed accumulation
 checkpoint `2cb462e7d1271787b6550290375518e59e766566`. Risk tier: Tier 3 operational
 and database boundary. The unit also applies the selected N4 correction:
 pre/post `pg_dump` session observations remain useful, but are no longer
 described as proof that no transient session existed between them. No host or
-production restore is authorized.**
+production restore is authorized. Implementation/integration checkpoint:
+`d27d6c83508ad00ef4e28d4eabad5fcddcf3189f`.**
+
+Focused recovery/export/document validation passes 21 tests. Complete offline
+discovery passes all 2,045 tests with 89 intentional database gates skipped.
+The corrected stopped-writer PostgreSQL gate passes 76 tests with the one
+established operator-owned fixture round trip skipped. The first gated command
+was refused before tests because it omitted the now-required reviewed guild-
+configuration snapshot; the corrected documented command is the passing run.
+
+The real stopped host export published an 85,932-byte PostgreSQL 18 custom
+archive with SHA-256
+`a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`;
+both session observations were zero. The exact digest-confirmed archive
+restored into fresh isolated `polytopia_restore_verify` on the contract-pinned
+PostgreSQL 18.4 image with no host port. Required-table, winner-FK, and object-
+owner checks passed. Bounded source/restore evidence matched 71 guild games, 4
+Houses, 44 guild Players, 15 guild Teams, fixture IDs 2286–2288, 48 showcase
+games, and 24 showcase Players. A repeated apply refused the non-fresh volume
+before writes. The isolated container/network/volume, one-use secrets, and
+unit-only image were removed; the private archive/digest pair is retained for
+Nelluk's planned local-machine transfer rehearsal. The beta is healthy at
+`d27d6c8`, expected application `479029527553638401`, PID `347159`, exactly one
+development writer, and all five Beta Lab packs ready. No command apply,
+checklist update, or tester announcement was warranted.
 
 Previous completed source unit: **P10.10/N3 global guild-authority mutation
 coordination is complete, Tier-3 reviewed, database-gated, integrated, pushed,
@@ -526,6 +551,13 @@ isolated container database, verify logical backup/restore identity and
 bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
+
+Next recommended after P11.4B1: **P11.4B2 container bot lifecycle proof**, once
+enough Docker build headroom is available: build the exact pushed checkpoint,
+exercise persistent image/log volumes, resource ceilings, SIGINT and exit-75
+restart behavior, database outage/recovery, exact single-writer exclusion, and
+one controlled development Discord login. Also ready: the independent
+development feedback retention/redaction lifecycle.
 
 Previous completed infrastructure unit: **P11.4A exact-image and isolated-
 database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from
@@ -17349,6 +17381,37 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.4B1 host-development container import rehearsal passed
+
+- Reconciled exact clean pushed accumulation checkpoint `2cb462e`, created the
+  isolated unit, and added a development-only source export guarded by the
+  fixed profile, clean checkpoint, exact confirmation, local PostgreSQL 18
+  identity, beta writer lock, headroom, private temporary archive validation,
+  SHA-256 sidecar, and atomic publication. The bundled and host plans now state
+  N4 accurately: pre/post session observations are not continuous monitoring.
+- Focused validation passes 21 tests; complete offline discovery passes 2,045
+  with 89 intentional skips. Tier-3 complete-diff review found no remaining
+  actionable issue. Implementation/integration checkpoint `d27d6c8` was
+  pushed before live operations.
+- Stopped only the guarded beta and required a clear host-wide writer audit.
+  The 85,932-byte host archive digest is
+  `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`;
+  both source session observations were zero. The pinned PostgreSQL 18.4
+  recovery-only Compose configuration exposed no host port and restored the
+  archive into fresh `polytopia_restore_verify`. Required tables, winner FK,
+  application ownership, and bounded source/restore counts/fixture IDs all
+  matched. A repeat restore refused the non-fresh volume before writes.
+- The first stopped-writer suite command was refused before tests because the
+  required reviewed guild-configuration snapshot variable was omitted. The
+  corrected unchanged gate ran 77 tests: 76 passed and only the established
+  operator-owned fixture round trip skipped.
+- Removed the one-use secret files and owned recovery container/network/
+  volume/image; retained only the private archive/digest pair for the planned
+  local-machine transfer rehearsal. Disk returned to 2.3 GB free. Restarted
+  the sole beta at exact `d27d6c8` as PID `347159`; expected application
+  `479029527553638401` authenticated and all five Beta Lab packs are ready.
+  No command registration, checklist change, or tester announcement occurred.
 
 ### 2026-08-12 — P10.10/N3 global guild mutation coordination validated
 
