@@ -492,13 +492,15 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.4B3 Mac container bot lifecycle proof is complete
-and development-validated from exact code/image checkpoint
-`de5ad771fe98404e25696ea246a9c0a8b80e2a87`. The sole local bot is running
-under project `polybot-mac-beta` as development application
-`479029527553638401`; the RackNerd development beta remains inactive and its
-host-wide writer audit is clear. No application-command synchronization,
-tester announcement, external database, or production action occurred.**
+Current active unit: **P11.5A cross-platform container deployment interface is
+implemented on `codex/p11-5a-container-interface` from exact pushed base
+`f495391434879d90691775bb984ede79a6b3897d`. The short `./polybot` interface is
+under final offline and real Darwin validation. The existing sole local bot
+continues running the prior reviewed `de5ad77` image under project
+`polybot-mac-beta` as development application `479029527553638401`; it has not
+been restarted or recreated for this unit. No application-command
+synchronization, tester announcement, external database, or production action
+occurred.**
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -590,11 +592,12 @@ bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
 
-Next recommended after P11.4B3: retain the sole local beta for bounded operator
-acceptance and observation without announcing to testers unless separately
-requested. Any production-container design, migration, or cutover remains a
-separately approved unit. Also ready: the independent development feedback
-retention/redaction lifecycle.
+Next recommended after P11.5A: Tier-3 review and accumulation integration.
+P11.5B remains the separate first-ever trusted-guild bootstrap for a fresh
+empty database; an imported database already contains that authority. Retain
+the sole local beta for bounded operator acceptance without announcing to
+testers unless separately requested. Any production-container design,
+migration, or cutover remains separately approved.
 
 Previous completed infrastructure unit: **P11.4A exact-image and isolated-
 database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from
