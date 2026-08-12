@@ -500,7 +500,8 @@ never use `latest`.
 - Branch `codex/p11-5a-container-interface` starts at exact pushed accumulation
   checkpoint `f495391434879d90691775bb984ede79a6b3897d`. Implementation
   checkpoints are `f4512c2`, `bf57515`, `a1f07a2`, `159a9e0`, and Tier-3
-  correction `1e84351`.
+  correction `1e84351`; reviewed unit checkpoint `f4ff80f` was fast-forward
+  integrated into `codex/database-slash-modernization`.
 - On arm64 macOS with Docker Desktop Engine/Client 29.6.2, Compose 5.3.1, and
   about 512 GiB available, the repository entrypoint selected the fixed
   `polybot-mac-beta` project and internal `1000:1000` identity. Host ownership

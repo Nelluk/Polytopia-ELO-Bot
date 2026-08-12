@@ -493,10 +493,9 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.5A cross-platform container deployment interface is
-implemented, locally validated, and Tier-3 reviewed on
-`codex/p11-5a-container-interface` from exact pushed base
-`f495391434879d90691775bb984ede79a6b3897d`; accumulation integration remains
-pending. The existing sole local
+complete: implemented, locally validated, Tier-3 reviewed, and fast-forward integrated
+at `f4ff80faa4e58dff968e9004a4e18d37c247fc8c` from exact pushed base
+`f495391434879d90691775bb984ede79a6b3897d`. The existing sole local
 bot continues running the prior reviewed `de5ad77` image under project
 `polybot-mac-beta` as development application `479029527553638401`; it has not
 been restarted or recreated for this unit. No application-command
@@ -593,12 +592,13 @@ bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
 
-Next recommended after P11.5A: accumulation integration.
-P11.5B remains the separate first-ever trusted-guild bootstrap for a fresh
-empty database; an imported database already contains that authority. Retain
-the sole local beta for bounded operator acceptance without announcing to
-testers unless separately requested. Any production-container design,
-migration, or cutover remains separately approved.
+Next recommended after P11.5A: design and review P11.5B's separate first-ever
+trusted-guild bootstrap for a fresh empty database; an imported database
+already contains that authority. A real Linux operator-path exercise also
+remains separate evidence. Retain the sole local beta for bounded operator
+acceptance without announcing to testers unless separately requested. Any
+production-container design, migration, or cutover remains separately
+approved.
 
 Previous completed infrastructure unit: **P11.4A exact-image and isolated-
 database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from
@@ -15974,9 +15974,8 @@ behavior.
 
 ### P11.5A — Cross-platform container deployment interface
 
-Status: **Implementation and local validation complete on
-`codex/p11-5a-container-interface`; Tier-3 reviewed and accepted for
-accumulation integration.**
+Status: **Complete; Tier-3 reviewed and fast-forward integrated at
+`f4ff80faa4e58dff968e9004a4e18d37c247fc8c`.**
 
 Branch/base: exact clean pushed accumulation checkpoint
 `f495391434879d90691775bb984ede79a6b3897d`.
@@ -17437,9 +17436,9 @@ because they share legacy status; their risks and operational owners differ.
 
 Design status: **P11.1–P11.4 completed the container contract, doctor,
 recovery jobs, live engine proof, Mac archive import, and development bot
-lifecycle. P11.5A now provides the locally validated and Tier-3 reviewed
-`./polybot` operator interface on `codex/p11-5a-container-interface`;
-integration and a live Linux exercise remain. P11.5B is still required only for first-ever
+lifecycle. P11.5A now provides the locally validated, Tier-3 reviewed, and
+integrated `./polybot` operator interface; a live Linux exercise remains.
+P11.5B is still required only for first-ever
 trusted-guild bootstrap on a fresh schema. All production adoption remains a
 separately approved gate.**
 
@@ -17502,6 +17501,23 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5A reviewed and integrated
+
+- Accepted the complete seven-commit unit diff after the documented Tier-3
+  corrections and validation, then fast-forwarded clean accumulation branch
+  `codex/database-slash-modernization` from exact pushed checkpoint `f495391`
+  to reviewed unit checkpoint `f4ff80f`. No merge conflict or unrelated
+  worktree change was present.
+- The integration changed tracked source, tests, contract, and documentation
+  only. It did not rewrite ignored deployment inputs, replace or restart the
+  running beta, mutate PostgreSQL, synchronize Discord commands, access an
+  external/production service, or announce to testers. The accumulation branch
+  remains local and unpushed pending a separate push request.
+- P11.5B remains the separate first-ever trusted-guild bootstrap for a truly
+  fresh empty deployment. The imported Mac database already has trusted guild
+  `478571892832206869`; real Linux-engine execution remains the one unexercised
+  cross-platform evidence path.
 
 ### 2026-08-12 — P11.5A Tier-3 review passed
 
