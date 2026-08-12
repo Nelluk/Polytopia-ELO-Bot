@@ -91,12 +91,13 @@ offline discovery.
 
 ### R-002 — Build one release candidate
 
-Status: In progress through P9.24. Exact source candidate
-`acf706fed8d51a061383e7caba2a4c210ec61981` is frozen; its strict non-secret
-record validates, cutover review passes, and the complete stopped-writer
-development PostgreSQL gate passes. Final readiness is correctly blocked by
-the missing-DuckDB offline cases and remains pending for the concise tester
-matrix and separately approved redacted production-configuration proof.
+Status: In progress through P9.26. The P9.24 source candidate
+`acf706fed8d51a061383e7caba2a4c210ec61981` and RC1 record are historical:
+they predate N3–N7 and the post-P11 accumulation source. P9.26 freezes a new
+exact candidate, requires every N3–N7 resolution checkpoint, and refreshes
+candidate-bound offline, stopped-writer development PostgreSQL, cutover, and
+beta evidence. Separately approved redacted production-configuration proof
+remains required before readiness can pass.
 
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable
@@ -297,6 +298,7 @@ boundaries.
 
 ## Next action
 
-Perform M7/R-002 against one exact release candidate. Its release record must
-verify each production guild's `staff_help_channel` and first helper role.
-Production execution remains separately approval-gated.
+Complete P9.26/M7-R-002 against the exact refreshed candidate. Its RC2 record
+must verify N3–N7 as well as the prior findings and retain each production
+guild's reviewed `staff_help_channel` and first helper role. Production
+configuration access and execution remain separately approval-gated.

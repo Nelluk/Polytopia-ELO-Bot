@@ -33,7 +33,7 @@ REQUIRED_FINDINGS = (
     'B1', 'B2', 'B3',
     'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8',
     'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
-    'L1', 'N1', 'N2',
+    'L1', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7',
 )
 REQUIRED_GATES = (
     'cutover_review',

@@ -80,7 +80,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P11.8 current-accumulation Mac beta refresh',
+            'Current active unit: **P9.26/M7-R-002 release-candidate refresh',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)
@@ -110,6 +110,8 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
             '| N2 production identity/password literal fallback | Medium |',
             review,
         )
+        for finding in ('N3', 'N4', 'N5', 'N6', 'N7'):
+            self.assertRegex(review, rf'(?m)^\| {finding} \| Resolved \|')
         self.assertIn('Status: **Resolved by P9.19.**', review)
 
         cutover = _read('docs/MODERNIZATION_PRODUCTION_CUTOVER.md')

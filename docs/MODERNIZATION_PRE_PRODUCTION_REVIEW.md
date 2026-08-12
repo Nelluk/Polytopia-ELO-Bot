@@ -63,6 +63,17 @@ fresh isolated `polytopia_restore_verify` container database with exact digest,
 schema, ownership, and bounded source/restore data agreement. A repeated
 restore refused the non-fresh volume. No production or host restore occurred.
 
+N5 is resolved by the P11.5C implementation checkpoint `3928b16` and
+quarantine-precedence correction `15c46e7`. A newly bootstrapped guild remains
+dispatch-blocked until a distinct, confirmed owner activation publishes the
+next revision; quarantine continues to outrank the narrow pending-bootstrap
+owner recovery allowlist.
+
+N6 and N7 are resolved together by P11.5D checkpoint `f5cd39d`. Native writer
+census now respects Darwin and verified local-Linux PID namespace boundaries,
+and backup restoration traps are armed before service mutation, idempotent,
+status-preserving, and explicit about cleanup failure and SIGKILL limits.
+
 ## Recommendation
 
 The reviewed source blockers are resolved. B1–B3, H1–H8, M1–M6, L1, and the
@@ -91,10 +102,13 @@ release-candidate evidence gate after those bounded pre-freeze units.
 | H8 | Resolved | P9.11 identity-before-startup-effects ordering |
 | M1–M5 | Resolved | P9.17 interaction boundaries and P9.18 backup lifecycle/provenance |
 | M6 | Resolved | P9.20 direct per-guild production relay and all-guild capability policy |
-| M7 | In progress | P9.24/R-002 exact release-candidate evidence |
+| M7 | In progress | P9.26/R-002 refresh against the post-P11 exact candidate |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
 | N3 | Resolved | P10.10 implementation `f33b14b`, evidence/integration `2fd16f7`, pushed/deployed runtime `791f6ab` |
 | N4 | Resolved | P11.4B1 accurate backup semantics and isolated real host-development import at `d27d6c8` |
+| N5 | Resolved | P11.5C bootstrap-pending dispatch latch at `3928b16`, with quarantine precedence corrected at `15c46e7` |
+| N6 | Resolved | P11.5D platform- and namespace-correct writer census at `f5cd39d` |
+| N7 | Resolved | P11.5D idempotent, status-preserving restoration cleanup at `f5cd39d` |
 
 ## Blocker
 
@@ -572,7 +586,7 @@ Status: **Resolved by P9.20.**
 
 ### M7 — No final-HEAD release-candidate evidence exists
 
-Status: **In progress through P9.24/R-002 after all preceding corrections.**
+Status: **In progress through P9.26/R-002 after all preceding corrections.**
 
 - **Location:** required gates at
   `docs/DATABASE_AND_SLASH_MODERNIZATION.md:11699`, audit R-002 at
@@ -594,6 +608,10 @@ Status: **In progress through P9.24/R-002 after all preceding corrections.**
   missing-DuckDB failures, the concise tester matrix has not been delivered,
   and redacted production-configuration verification retains its separate
   approval boundary. The validator's `require-ready` mode rejects that state.
+- **P9.26 refresh:** RC1 predates N3–N7 and the P11 source corrections. The
+  refreshed validator requires those findings and a new RC2 record bound to
+  one post-P11 candidate. RC1 remains historical and must not be promoted as
+  current release evidence.
 
 ## Low / documentation
 

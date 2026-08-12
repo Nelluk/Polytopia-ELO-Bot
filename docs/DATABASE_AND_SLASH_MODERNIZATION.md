@@ -526,18 +526,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.8 current-accumulation Mac beta refresh and card
-acceptance is complete and locally fast-forward integrated at `170e460`. The sole
-`polybot-mac-beta` bot runs exact pushed source `1cb3ad6` as development
-application `479029527553638401`; PostgreSQL and the trusted database guild
-snapshot remain healthy, command roots are unchanged, and Nelluk accepted the
-P11.6 cards after a bounded visual check. No command synchronization, tester
-announcement, external database, RackNerd runtime, or production action
-occurred. GitHub publication remains pending its explicit external-push
-approval.** P11.5C is integrated
-and pushed at `aa936c6`; its two required read-only development-database gates
-passed against the stopped-writer development identity. P11.5D is integrated
-with its reviewed evidence at `57efbbe`.
+Current active unit: **P9.26/M7-R-002 release-candidate refresh is in progress
+from exact clean pushed accumulation checkpoint
+`cf4dbfe1b1dfe7d6a27555ed3e845e9b09bdd3bb`.** RC1 remains historical because
+its `acf706f` candidate predates the resolved N3–N7 findings and post-P11
+source. P9.26 expands the strict finding inventory, freezes a new exact source
+candidate, and reruns its cutover, offline, stopped-writer development-
+database, and bounded-beta gates. Production configuration remains a separate
+read/approval boundary. P11.8 is complete, integrated, and pushed at
+`cf4dbfe`; the sole Mac beta still runs exact source `1cb3ad6`, the 12
+development-guild roots remain unchanged, and Nelluk accepted the P11.6 cards.
+P11.5C is integrated and pushed at `aa936c6`; P11.5D is integrated and pushed
+at `57efbbe`.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16338,8 +16338,7 @@ new cases remain part of future stopped-writer database validation windows.
 
 ### P11.8 — Current-accumulation Mac beta refresh and card acceptance
 
-Status: **Complete and locally fast-forward integrated at `170e460`; GitHub
-publication pending explicit external-push approval.**
+Status: **Complete, fast-forward integrated, and pushed at `cf4dbfe`.**
 
 Branch/base: `codex/p11-8-mac-beta-refresh`, exact clean pushed base
 `1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`.
@@ -16381,6 +16380,32 @@ post-P11 exact accumulation candidate, refresh the stale RC1 source/digests,
 and rerun the candidate-bound offline, stopped-writer database, cutover-review,
 and bounded-beta gates before separately approved production-configuration
 verification.
+
+### P9.26 — M7/R-002 post-P11 release-candidate refresh
+
+Status: **In progress; candidate source correction under review before exact
+SHA freeze.**
+
+Branch/base: `codex/p9-26-release-candidate-refresh`, exact clean pushed
+accumulation checkpoint `cf4dbfe1b1dfe7d6a27555ed3e845e9b09bdd3bb`.
+
+Risk tier: **Tier 3 release evidence and development runtime/database gate.**
+Production configuration, database, service, command apply, and deployment are
+out of scope without separate approval.
+
+RC1's frozen `acf706f` source predates the post-candidate N3–N7 adversarial
+findings and all P11 corrections. P9.26 preserves RC1 as historical evidence,
+extends the strict validator to require N3–N7, and creates a separate RC2
+record for one exact post-P11 candidate. The candidate and evidence commits
+remain distinct so source digests and gate evidence are not self-referential.
+
+The exact-candidate gates are cutover-critical review, complete offline
+discovery, the stopped-writer `development` / `polytopia_dev` / `polybot_dev`
+suite, and bounded Mac beta evidence. The beta refresh must retain the empty
+global command tree and may inspect but not apply guild commands. Human card
+acceptance from P11.8 can be carried forward only as that bounded visual item;
+it does not silently complete the remaining tester matrix. The production-
+configuration gate remains pending until separately approved redacted access.
 
 ## Standard work-unit template
 

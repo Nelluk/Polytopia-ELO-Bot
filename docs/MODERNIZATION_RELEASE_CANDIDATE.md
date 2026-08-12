@@ -26,13 +26,13 @@ Use only a manifest directly under `release-candidate-manifests/`:
 
 ```bash
 .venv/bin/python scripts/manage_release_candidate.py \
-  --manifest release-candidate-manifests/modernization-rc1.json inspect
+  --manifest release-candidate-manifests/modernization-rc2.json inspect
 
 .venv/bin/python scripts/manage_release_candidate.py \
-  --manifest release-candidate-manifests/modernization-rc1.json validate
+  --manifest release-candidate-manifests/modernization-rc2.json validate
 
 .venv/bin/python scripts/manage_release_candidate.py \
-  --manifest release-candidate-manifests/modernization-rc1.json require-ready
+  --manifest release-candidate-manifests/modernization-rc2.json require-ready
 ```
 
 `inspect` validates the bounded JSON schema without invoking Git. `validate`
@@ -53,6 +53,10 @@ A known dependency limitation, pending human test, omitted gate, mismatched
 SHA, stale digest, wrong production route, or unresolved review item blocks
 readiness. Do not relabel it as a pass. The release record contains no token,
 password, cookie, private key, database DSN, or production-config contents.
+
+The current validator requires the original B1–B3, H1–H8, M1–M6, L1, and
+N1–N2 findings plus the post-RC1 N3–N7 corrections. RC1 remains historical
+evidence for its older candidate; it cannot certify a post-P11 source tree.
 
 ## Tester-message boundary
 

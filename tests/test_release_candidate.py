@@ -35,7 +35,7 @@ def manifest_value(*, gate_status='pending'):
     }
     return {
         'schema_version': 1,
-        'release_id': 'modernization-rc1',
+        'release_id': 'modernization-rc2',
         'candidate_sha': CANDIDATE,
         'rollback_sha': release_candidate.ROLLBACK_SHA,
         'branch': release_candidate.BRANCH,
@@ -74,6 +74,13 @@ def manifest_value(*, gate_status='pending'):
 
 
 class ReleaseCandidateTests(unittest.TestCase):
+    def test_later_adversarial_findings_are_release_required(self):
+        self.assertTrue(
+            {'N3', 'N4', 'N5', 'N6', 'N7'}.issubset(
+                release_candidate.REQUIRED_FINDINGS
+            )
+        )
+
     def test_complete_pass_record_is_ready(self):
         manifest = release_candidate.validate(manifest_value(gate_status='pass'))
 
