@@ -417,9 +417,10 @@ check:
 - P11.5C bootstrap-pending dispatch latch implementation checkpoint:
   `3928b16` on `codex/p11-5c-bootstrap-pending-dispatch`, from exact clean
   base `c2241330b47152271fb6194c75adc72beec63fe5`
-- P11.5C branch validation: 2,099 offline tests passed with 91 intentional
-  skips; query-dependent development gates were invoked and skipped under
-  their unchanged opt-in flags
+- P11.5C quarantine-precedence correction checkpoint: `15c46e7`; branch
+  validation: 2,101 offline tests passed with 91 intentional skips;
+  query-dependent development gates were invoked and skipped under their
+  unchanged opt-in flags
 - current combined offline result: 2,081 tests passed with 91 intentional
   development-database gates skipped
 - current stopped-writer development-database result: all 79 cases passed
@@ -516,15 +517,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.5C bootstrap-pending dispatch latch is implemented,
-locally validated, and Tier-3 self-reviewed at `3928b16` on
-`codex/p11-5c-bootstrap-pending-dispatch`, from exact clean base
-`c2241330b47152271fb6194c75adc72beec63fe5`; integration into the accumulation
-branch remains pending.** The existing sole local bot continues running the
-prior reviewed `de5ad77` image under project `polybot-mac-beta` as development
-application `479029527553638401`; it has not been restarted or recreated for
-this unit. No application-command synchronization, tester announcement,
-external database, or production action occurred.
+Current active unit: **P11.5A cross-platform container deployment interface is
+complete: implemented, locally validated, Tier-3 reviewed, and fast-forward
+integrated at `f4ff80faa4e58dff968e9004a4e18d37c247fc8c` from exact pushed base
+`f495391434879d90691775bb984ede79a6b3897d`. The existing sole local bot
+continues running the prior reviewed `de5ad77` image under project
+`polybot-mac-beta` as development application `479029527553638401`; it has
+not been restarted or recreated for this unit. No application-command
+synchronization, tester announcement, external database, or production action
+occurred.** The current local branch carries the separately scoped P11.5C
+bootstrap-pending dispatch latch, which remains pending integration into the
+accumulation branch.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16146,8 +16149,9 @@ command synchronization, or tester announcement.
 
 ### P11.5C — Bootstrap-pending dispatch latch
 
-Status: **Implemented; Tier-3 self-reviewed at `3928b16`; accumulation
-integration and any beta acceptance remain pending.**
+Status: **Implemented; Tier-3 self-reviewed at `3928b16`, with the
+quarantine-precedence correction at `15c46e7`; accumulation integration and any
+beta acceptance remain pending.**
 
 Branch/base: `codex/p11-5c-bootstrap-pending-dispatch`, exact clean base
 `c2241330b47152271fb6194c75adc72beec63fe5`.
@@ -16179,16 +16183,20 @@ interactions are admitted only for the exact configured owner and these exact
 paths: `/guild edit`, `/operator guild list`, `/operator guild settings`,
 `/operator guild validate`, `/operator guild history`, `/operator guild edit`,
 `/operator guild commands`, and `/operator bot restart`; unrelated and
-non-owner paths are denied before handlers. Startup logs pending state and suppresses
-nonessential pending-guild persona and League startup mutation while retaining
-the minimum owner configuration/recovery surface.
+non-owner paths are denied before handlers. Quarantine is evaluated before
+that pending allowlist, so a pending-and-quarantined guild retains only the
+existing exact owner `/operator bot restart` recovery path. Startup logs
+pending state and suppresses nonessential pending-guild persona and League
+startup mutation while retaining the minimum owner configuration/recovery
+surface.
 
-Evidence: the new focused P11.5C module passed 10 tests; the combined focused
-bootstrap/runtime/shadow/operator/startup/League set passed 90 tests; complete
-offline discovery passed 2,099 tests with 91 intentional skips; compilation,
-cached diff checks, and the unchanged query-dependent development gates passed
-or skipped as designed. No production service, live Discord, database write,
-restart, command sync, deploy, merge, push, or announcement was performed.
+Evidence: the new focused P11.5C module passed 11 tests; the combined focused
+bootstrap/runtime/shadow/operator/startup/League set passed 91 tests; complete
+offline discovery passed 2,101 tests with 91 intentional skips; compilation
+and diff checks passed. The unchanged query-dependent development gates were
+not enabled and therefore skipped as designed. No production service, live
+Discord, database write, restart, command sync, deploy, merge, push, or
+announcement was performed.
 
 ### P11.5D — Writer census and restoration cleanup queue (N6/N7)
 
@@ -17777,6 +17785,25 @@ deferred into this post-modernization backlog.
 - No production, service restart, live Discord, database mutation, command
   synchronization, deployment, merge, push, or tester announcement occurred.
   N6/N7 are queued as P11.5D for separate implementation.
+
+### 2026-08-12 — P11.5C quarantine-precedence correction
+
+- Tier-3 integration review found that pending interaction admission ran before
+  quarantine recovery gating. Moved the existing quarantine gate ahead of the
+  pending allowlist so a combined pending/quarantined state denies every
+  pending owner path except the exact configured-owner `/operator bot restart`
+  recovery path; ordinary pending, unknown-guild, non-owner, prefix, and
+  listener behavior remain fail-closed as specified.
+- Added a real pending-publication plus installed-quarantine regression for
+  owner `/operator guild edit`, all other non-restart pending allowlist paths,
+  exact owner restart, impostor restart, prefix resolution, and raw/message
+  dispatch.
+- Correction checkpoint: `15c46e7`. Focused P11.5C coverage passed 11 tests;
+  the combined focused set passed 91; complete offline discovery passed 2,101
+  tests with 91 intentional skips. Compilation and diff checks passed.
+- No production, service restart, live Discord, database mutation, command
+  synchronization, deployment, merge, push, or tester announcement occurred.
+  N6/N7 remain queued as P11.5D.
 
 ### 2026-08-12 — P11.5B first trusted-guild bootstrap reviewed and integrated
 
