@@ -39,6 +39,7 @@ Usage: ./polybot COMMAND [ARGUMENT]
 
 Commands:
   setup                 Prepare private inputs, image, and an empty database
+  bootstrap-guild ID    Activate the first configured guild on a fresh database
   import-backup PATH    Import one fresh-volume-verified development archive
   start                 Start the sole development bot and database
   status                Report concise deployment and writer state
@@ -518,6 +519,11 @@ schema_plan() {
   compose --profile tools run --rm schema
 }
 
+first_guild_plan() {
+  compose --profile tools run --rm --no-deps \
+    guild-bootstrap plan --guild-id "$1"
+}
+
 command_setup() {
   require_engine
   validate_project_name
@@ -550,11 +556,54 @@ command_setup() {
   fi
   guild_state=$(trusted_guild_state)
   if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
-    echo 'Trusted guild: not bootstrapped. P11.5B is required before ./polybot start.'
+    echo 'Trusted guild: not bootstrapped. Run ./polybot bootstrap-guild GUILD_ID before start.'
   else
     echo "Trusted active guilds: $guild_state"
   fi
   echo 'Setup complete. No Discord bot was started and no commands were synchronized.'
+}
+
+command_bootstrap_guild() {
+  [ "$#" -eq 1 ] || fail 'Usage: ./polybot bootstrap-guild GUILD_ID'
+  guild_id=$1
+  case "$guild_id" in
+    ''|*[!0-9]*|0) fail 'GUILD_ID must be one positive Discord guild ID.' ;;
+  esac
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  host_private_input_probe
+  host_checkpoint=$(git_checkpoint)
+  [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
+    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
+  run_immutable_doctor
+  live_bind_probe
+  bot_id=$(bot_container_id)
+  container_running "$bot_id" \
+    && fail 'Stop the development bot before first-guild bootstrap.'
+  assert_single_writer_startable
+  compose up -d postgres
+  wait_for_postgres
+  guild_state=$(trusted_guild_state)
+  if [ "$guild_state" != P11.5B_REQUIRED ] && [ "$guild_state" != NONE ]; then
+    fail "A trusted guild already exists: $guild_state"
+  fi
+  compose --profile tools run --rm --no-deps \
+    guild-bootstrap snapshot --guild-id "$guild_id"
+  plan=$(first_guild_plan "$guild_id")
+  printf '%s\n' "$plan"
+  confirmation=$(printf '%s\n' "$plan" \
+    | sed -n 's/^confirmation: //p' | tail -n 1)
+  [ -n "$confirmation" ] \
+    || fail 'First-guild plan did not emit its exact confirmation.'
+  confirm_exact "$confirmation"
+  compose --profile tools run --rm \
+    guild-bootstrap apply --guild-id "$guild_id" --confirm "$confirmation"
+  guild_state=$(trusted_guild_state)
+  [ "$guild_state" = "$guild_id" ] \
+    || fail 'The committed first guild was not visible in the exact registry state.'
+  echo 'First trusted guild is ready. No Discord application commands were synchronized.'
+  echo 'Next: start the bot, then use the explicit development-guild command plan/apply.'
 }
 
 require_prepared_inputs() {
@@ -579,7 +628,7 @@ command_start() {
   wait_for_postgres
   guild_state=$(trusted_guild_state)
   if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
-    fail 'No active trusted guild exists. Complete P11.5B or import a verified database before start.'
+    fail 'No active trusted guild exists. Run bootstrap-guild or import a verified database before start.'
   fi
   compose up -d bot
   echo 'Development bot start requested; automatic Discord command synchronization remains disabled.'
@@ -882,6 +931,7 @@ main() {
   [ "$#" -gt 0 ] && shift || true
   case "$command" in
     setup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot setup'; command_setup ;;
+    bootstrap-guild) command_bootstrap_guild "$@" ;;
     import-backup) command_import_backup "$@" ;;
     start) [ "$#" -eq 0 ] || fail 'Usage: ./polybot start'; command_start ;;
     status) [ "$#" -eq 0 ] || fail 'Usage: ./polybot status'; command_status ;;

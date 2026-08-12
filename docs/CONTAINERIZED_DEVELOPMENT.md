@@ -125,6 +125,7 @@ development project is `polybot-mac-beta` on both platforms:
 
 ```bash
 ./polybot setup
+./polybot bootstrap-guild GUILD_ID
 ./polybot import-backup PATH
 ./polybot start
 ./polybot status
@@ -156,11 +157,25 @@ application schema; pressing Enter leaves the target relation-empty for
 `import-backup`. Repeated setup preserves existing data and reports that it
 was not overwritten.
 
-A first-ever fresh schema does not yet contain a trusted guild-configuration
-registry. `start` therefore refuses it with a P11.5B message. P11.5B remains
-the separately reviewed first trusted-guild bootstrap. A verified imported
-database already contains its trusted guild configuration and can proceed to
-start after the normal identity checks.
+A first-ever fresh schema does not yet contain a trusted guild configuration.
+After `setup` creates the empty application schema, run
+`./polybot bootstrap-guild GUILD_ID`, using the sole guild ID already declared
+in `server_settings_dev.py`. The command refuses a running bot or any host or
+other-container writer, logs into Discord only to capture the exact configured
+application/guild/role/channel identity, prints a database-free digest-bound
+plan, and requires its exact confirmation. Apply is fixed to
+`development` / `polytopia_dev` / `polybot_dev`, requires every ordinary
+application table to be empty, and atomically creates the base, draft, and
+delegation configuration schemas plus one active revision and audit row.
+
+The initial document is deliberately conservative: `$` prefix, ordinary
+levels 1–3 available through `@everyone`, no staff roles, Teams, global
+leaderboard, or special channels, and only the `operator` command capability.
+No Discord write or application-command synchronization occurs. Start the bot
+afterward, then use the existing explicit development-guild command plan/apply
+to register the operator surface; `/guild edit` and the other owner controls
+can finish configuration from Discord. A verified imported database already
+contains its trusted guild authority and must not run this bootstrap.
 
 `verify-backup PATH` requires an adjacent `.sha256` sidecar, shows the existing
 connection-free restore plan, requires its exact digest-bound confirmation,
@@ -530,9 +545,9 @@ never use `latest`.
   occurred.
 - Linux decision paths and strict owner enforcement are tested offline; no
   live Linux engine was available in this Mac unit. Docker Desktop ownership
-  remapping remains explicitly host-checked and live-probed. First-ever
-  trusted-guild bootstrap remains P11.5B, while the imported current database
-  already contains that authority.
+  remapping remains explicitly host-checked and live-probed. P11.5B later
+  added the guarded first trusted-guild bootstrap; the imported current
+  database already contains that authority and does not use it.
 - Tier-3 review corrected descendant-process writer detection under Compose
   `init`, made platform overrides test-only, required verified receipts at the
   raw generalized-import boundary, bound immutable-doctor mode to a Git-free

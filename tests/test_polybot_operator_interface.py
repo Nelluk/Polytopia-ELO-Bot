@@ -40,8 +40,9 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         for command in (
-            'setup', 'import-backup PATH', 'start', 'status', 'logs [--follow]',
-            'restart', 'stop', 'backup', 'verify-backup PATH',
+            'setup', 'bootstrap-guild ID', 'import-backup PATH', 'start',
+            'status', 'logs [--follow]', 'restart', 'stop', 'backup',
+            'verify-backup PATH',
         ):
             self.assertIn(command, result.stdout)
         self.assertNotIn('--profile', result.stdout)
@@ -92,6 +93,19 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         self.assertIn('accepted', accepted.stdout)
         self.assertEqual(refused.returncode, 2)
         self.assertIn('did not match', refused.stderr)
+
+    def test_bootstrap_rejects_invalid_guild_before_docker(self):
+        result = subprocess.run(
+            [self.script, 'bootstrap-guild', 'not-a-guild'],
+            cwd=self.source_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('positive Discord guild ID', result.stderr)
+        self.assertNotIn('Docker', result.stderr)
 
     def test_linux_writer_audit_excludes_container_descendants(self):
         result = subprocess.run(
@@ -167,10 +181,14 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         source = self.script.read_text(encoding='utf-8')
         for service in (
             'database-provision', 'schema', 'database-import',
-            'database-backup', 'database-restore-drill',
+            'database-backup', 'database-restore-drill', 'guild-bootstrap',
         ):
             self.assertIn(service, source)
-        self.assertIn('P11.5B', source)
+        self.assertIn('bootstrap-guild GUILD_ID', source)
+        self.assertIn('guild-bootstrap snapshot', source)
+        self.assertIn('guild-bootstrap apply', source)
+        self.assertIn('assert_single_writer_startable', source)
+        self.assertIn('No Discord application commands were synchronized', source)
         self.assertIn('VERIFIED %s %s %s', source)
         self.assertNotIn('POLYBOT_IMPORT_EXPECTED_COUNTS', source)
         self.assertIn('PROJECT_NAME=polybot-mac-beta', source)

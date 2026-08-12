@@ -201,6 +201,16 @@ services:
     command: []
     restart: "no"
 
+  guild-bootstrap:
+    <<: *bot-service
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["python", "scripts/bootstrap_first_guild_configuration.py"]
+    command: []
+    restart: "no"
+
   bot:
     <<: *bot-service
     depends_on:

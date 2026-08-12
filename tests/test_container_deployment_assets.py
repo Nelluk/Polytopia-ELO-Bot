@@ -128,6 +128,8 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('database-backup:', compose)
         self.assertIn('database-restore-drill:', compose)
         self.assertIn('database-import:', compose)
+        self.assertIn('guild-bootstrap:', compose)
+        self.assertIn('bootstrap_first_guild_configuration.py', compose)
         self.assertIn('restore-postgres:', compose)
         self.assertIn('postgres_restore_data:/var/lib/postgresql', compose)
         self.assertIn('./backups:/backups', compose)
