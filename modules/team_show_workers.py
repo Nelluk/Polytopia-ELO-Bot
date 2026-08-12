@@ -521,7 +521,7 @@ def _load_team_show_data(request: TeamShowRequest) -> _TeamShowLoadedData:
             player = player_by_discord_id.get(int(member_id))
             if player is None:
                 display_name = (
-                    member.name
+                    member.display_name
                     if member is not None
                     else f'user-{int(member_id)}'
                 )
@@ -540,7 +540,11 @@ def _load_team_show_data(request: TeamShowRequest) -> _TeamShowLoadedData:
             roster_rows.append(
                 TeamShowRosterRow(
                     discord_id=int(member_id),
-                    name=str(player.discord_member.name),
+                    name=str(
+                        member.display_name
+                        if member is not None
+                        else player.discord_member.name
+                    ),
                     elo=int(player.elo_moonrise),
                     rank=rank_by_player.get(int(player.id)),
                     recent_games=recent_counts.get(int(player.id), 0),

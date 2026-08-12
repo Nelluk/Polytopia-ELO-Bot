@@ -327,7 +327,7 @@ class TeamShowWorkerTests(unittest.TestCase):
         self.assertEqual(loaded.external_server, 987654)
         self.assertEqual(
             [row.name for row in loaded.roster_rows],
-            ['Alpha DB', 'Beta DB'],
+            ['Alpha Display', 'Beta Display'],
         )
         self.assertEqual(loaded.leaders, ('<@101>',))
         self.assertEqual(loaded.coleaders, ('<@202>',))
@@ -469,8 +469,12 @@ class TeamShowPresentationTests(unittest.TestCase):
         completed = service.render_embed(card, completed=True)
         self.assertEqual(recent.title, 'Team card for **Ronin** ⚔️\nHouse Ninjas 🥷')
         self.assertEqual(recent.fields[0].name, 'Results')
-        self.assertIn('Recent Games', recent.description)
+        self.assertIn('Games in last 30 days', recent.description)
         self.assertIn('Completed Games', completed.description)
+        self.assertIn(
+            ('League tier', 'Gold'),
+            {(field.name, field.value) for field in recent.fields},
+        )
         self.assertIn('**House Leader**', {field.name for field in recent.fields})
         self.assertIn('**Recent games**', {field.name for field in recent.fields})
         self.assertEqual(

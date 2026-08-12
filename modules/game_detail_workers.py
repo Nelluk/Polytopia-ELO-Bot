@@ -8,6 +8,8 @@ import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
+from peewee import JOIN
+
 import settings
 from modules import exceptions, models
 
@@ -54,6 +56,7 @@ class GameDetailLineup:
     tribe_emoji: str
     elo_label: str
     platform_name: str = ''
+    team_emoji: str = ''
 
 
 @dataclass(frozen=True)
@@ -121,6 +124,7 @@ class GameDetailSnapshot:
     pending_creator_name: str = ''
     pending_creator_discord_id: int | None = None
     pending_draft_order: tuple[GameDetailDraftPick, ...] = ()
+    league_tier_name: str | None = None
 
     @property
     def channel_ids(self) -> tuple[int, ...]:
@@ -205,7 +209,7 @@ def _squad_elo_label(side) -> str:
     return str(value)
 
 
-def _lineup_snapshot(lineup, game) -> GameDetailLineup:
+def _lineup_snapshot(lineup, game, player_team_emojis) -> GameDetailLineup:
     player = lineup.player
     discord_member = player.discord_member
     tribe = getattr(lineup, 'tribe', None)
@@ -231,7 +235,17 @@ def _lineup_snapshot(lineup, game) -> GameDetailLineup:
                 or ''
             )
         ),
+        team_emoji=str(player_team_emojis.get(int(player.id), '') or ''),
     )
+
+
+def _league_tier_name(tier: int | None) -> str | None:
+    if tier is None:
+        return None
+    try:
+        return str(settings.tier_lookup(int(tier))[1])
+    except (AttributeError, TypeError, ValueError, exceptions.NoMatches):
+        return None
 
 
 def _ordered_lineups(side):
@@ -254,9 +268,12 @@ def _side_name(side, lineups) -> str:
     return str(getattr(side, 'sidename', '') or 'Unknown Team')
 
 
-def _side_snapshot(side, game) -> GameDetailSide:
+def _side_snapshot(side, game, player_team_emojis) -> GameDetailSide:
     raw_lineups = _ordered_lineups(side)
-    lineups = tuple(_lineup_snapshot(lineup, game) for lineup in raw_lineups)
+    lineups = tuple(
+        _lineup_snapshot(lineup, game, player_team_emojis)
+        for lineup in raw_lineups
+    )
     team = getattr(side, 'team', None)
     team_id = int(team.id) if team is not None else None
     return GameDetailSide(
@@ -418,18 +435,52 @@ def _pending_metadata(game, sides):
     )
 
 
+def _player_team_emojis(raw_sides) -> dict[int, str]:
+    """Load every pending-card player Team emoji in one worker-local query."""
+
+    player_ids = tuple(sorted({
+        int(lineup.player.id)
+        for side in raw_sides
+        for lineup in _ordered_lineups(side)
+    }))
+    if not player_ids:
+        return {}
+    query = (
+        models.Player
+        .select(
+            models.Player.id,
+            models.Team.emoji.alias('team_emoji'),
+        )
+        .join(models.Team, JOIN.LEFT_OUTER)
+        .where(models.Player.id.in_(player_ids))
+    )
+    return {
+        int(player.id): str(getattr(player, 'team_emoji', '') or '')
+        for player in query
+    }
+
+
 def _snapshot_from_game(
     game,
     *,
     request: GameDetailRequest,
     inferred_from_channel: bool,
 ) -> GameDetailSnapshot:
-    sides = tuple(
-        _side_snapshot(side, game)
-        for side in sorted(
+    raw_sides = tuple(sorted(
             list(getattr(game, 'gamesides', ()) or ()),
             key=lambda side: int(getattr(side, 'position', 0)),
-        )
+    ))
+    # Only the legacy pending-game roster displays each participant's current
+    # team emoji. Avoid adding this read to completed-result publication
+    # snapshots, which intentionally retain their existing bounded graph.
+    player_team_emojis = (
+        _player_team_emojis(raw_sides)
+        if bool(getattr(game, 'is_pending', False))
+        else {}
+    )
+    sides = tuple(
+        _side_snapshot(side, game, player_team_emojis)
+        for side in raw_sides
     )
     status_label, result_label = _status_and_result(game, sides)
     (
@@ -492,6 +543,11 @@ def _snapshot_from_game(
         pending_creator_name=pending_creator_name,
         pending_creator_discord_id=pending_creator_discord_id,
         pending_draft_order=pending_draft_order,
+        league_tier_name=_league_tier_name(
+            int(game.league_tier)
+            if getattr(game, 'league_tier', None) is not None
+            else None
+        ),
     )
 
 

@@ -354,11 +354,13 @@ def _classic_headline(snapshot) -> str:
 def _classic_season_label(snapshot) -> str:
     if snapshot.league_season is None:
         return ''
-    tier = (
-        f' Tier {snapshot.league_tier}'
-        if snapshot.league_tier is not None
-        else ''
-    )
+    if snapshot.league_tier_name:
+        playoff = 'playoff game' if snapshot.league_playoff else 'game'
+        return (
+            f' - PolyChampions {snapshot.league_tier_name} Tier '
+            f'Season {snapshot.league_season} {playoff}'
+        )
+    tier = f' Tier {snapshot.league_tier}' if snapshot.league_tier is not None else ''
     playoff = ' playoff game' if snapshot.league_playoff else ' game'
     return f' - Season {snapshot.league_season}{tier}{playoff}'
 
@@ -549,7 +551,7 @@ def _classic_pending_embed(display: GameDetailDisplay) -> ClassicGameDetailRende
         player_lines = []
         for lineup in side.lineups:
             tribe = f' {lineup.tribe_emoji}' if lineup.tribe_emoji else ''
-            team = f' {side.team_emoji}' if side.team_emoji else ''
+            team = f' {lineup.team_emoji}' if lineup.team_emoji else ''
             platform_name = (
                 f'\n`{lineup.platform_name}`'
                 if lineup.platform_name and len(side.lineups) < 10

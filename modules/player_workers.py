@@ -103,6 +103,10 @@ class PlayerWorkspaceSnapshot:
     local_losses: int
     global_wins: int
     global_losses: int
+    local_all_time_wins: int
+    local_all_time_losses: int
+    global_all_time_wins: int
+    global_all_time_losses: int
     local_rank: int | None
     local_ranked_count: int
     global_rank: int | None
@@ -295,6 +299,12 @@ def load_player_workspace(
         member = player.discord_member
         local_wins, local_losses = player.get_record()
         global_wins, global_losses = member.get_record()
+        local_all_time_wins, local_all_time_losses = player.get_record(
+            version='alltime',
+        )
+        global_all_time_wins, global_all_time_losses = member.get_record(
+            version='alltime',
+        )
         local_rank, local_count = player.leaderboard_rank(settings.date_cutoff)
         global_rank, global_count = member.leaderboard_rank(
             settings.date_cutoff
@@ -384,6 +394,10 @@ def load_player_workspace(
             local_losses=int(local_losses),
             global_wins=int(global_wins),
             global_losses=int(global_losses),
+            local_all_time_wins=int(local_all_time_wins),
+            local_all_time_losses=int(local_all_time_losses),
+            global_all_time_wins=int(global_all_time_wins),
+            global_all_time_losses=int(global_all_time_losses),
             local_rank=int(local_rank) if local_rank is not None else None,
             local_ranked_count=int(local_count),
             global_rank=int(global_rank) if global_rank is not None else None,

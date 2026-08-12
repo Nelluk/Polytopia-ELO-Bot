@@ -265,13 +265,19 @@ def render_embed(
         ),
         inline=False,
     )
+    if result.tier_name:
+        embed.add_field(
+            name='League tier',
+            value=_escape(result.tier_name),
+            inline=True,
+        )
 
     if result.team_role_found:
         roster_rows = _sorted_roster_rows(result, completed=bool(completed))
         header = (
             '__Player - ELO - Ranking - Completed Games__'
             if completed
-            else '__Player - ELO - Ranking - Recent Games__'
+            else '__Player - ELO - Ranking - Games in last 30 days__'
         )
         members = '\n'.join(
             _roster_line(row, completed=bool(completed))
