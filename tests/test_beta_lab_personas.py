@@ -2,12 +2,14 @@
 
 import copy
 import contextlib
+import io
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from tests.test_newgame_worker import import_offline_runtime
+from scripts import manage_beta_lab_personas
 
 
 personas = import_offline_runtime('modules.beta_lab_personas')
@@ -257,6 +259,30 @@ class PersonaRoleTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersonaDatabaseTests(unittest.TestCase):
+    def test_cli_reports_shared_writer_refusal_without_traceback(self):
+        refusal = personas.beta_wider_setup.WiderBetaSetupSafetyError(
+            'durable writer is active',
+        )
+        with mock.patch.object(
+                manage_beta_lab_personas.beta_operations,
+                'assert_operator_context',
+        ), mock.patch.object(
+                manage_beta_lab_personas,
+                '_profile',
+                return_value=object(),
+        ), mock.patch.object(
+                manage_beta_lab_personas.beta_lab_personas,
+                'reconcile_pending_database',
+                side_effect=refusal,
+        ), contextlib.redirect_stderr(io.StringIO()) as stderr:
+            result = manage_beta_lab_personas.main([
+                'database-reconcile',
+                '--confirm',
+                manage_beta_lab_personas.RECONCILE_CONFIRMATION,
+            ])
+        self.assertEqual(result, 2)
+        self.assertIn('durable writer is active', stderr.getvalue())
+
     def test_database_adoption_requires_one_exact_pristine_unused_pair(self):
         policy = SimpleNamespace(
             guild_id=300,

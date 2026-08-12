@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from modules import beta_lab_personas, beta_operations  # noqa: E402
+from modules import beta_lab_personas, beta_operations, beta_wider_setup  # noqa: E402
 from runtime_config import RuntimeConfigurationError, load_runtime_profile  # noqa: E402
 
 
@@ -132,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         RuntimeConfigurationError,
         beta_operations.BetaOperationsError,
         beta_lab_personas.BetaLabPersonaError,
+        beta_wider_setup.WiderBetaSetupError,
     ) as exc:
         print(json.dumps({'error': str(exc)}) if args.json else f'Error: {exc}', file=sys.stderr)
         return 2
