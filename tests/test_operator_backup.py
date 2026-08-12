@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import FrozenInstanceError
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -58,6 +59,9 @@ def artifact(label='Full database'):
 
 
 def make_release_runtime(directory: str):
+    git = shutil.which('git')
+    if git is None:
+        raise unittest.SkipTest('Git CLI is not installed in this runtime image.')
     root = Path(directory)
     (root / 'scripts').mkdir()
     (root / '.venv/bin').mkdir(parents=True)
@@ -73,11 +77,11 @@ def make_release_runtime(directory: str):
     deployed.chmod(0o700)
     exporter.chmod(0o600)
     python.chmod(0o700)
-    subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
-    subprocess.run(['git', 'add', 'scripts'], cwd=root, check=True)
+    subprocess.run([git, 'init', '-q'], cwd=root, check=True)
+    subprocess.run([git, 'add', 'scripts'], cwd=root, check=True)
     subprocess.run(
         [
-            'git', '-c', 'user.name=PolyBot Test',
+            git, '-c', 'user.name=PolyBot Test',
             '-c', 'user.email=polybot@example.invalid',
             'commit', '-qm', 'reviewed release',
         ],
@@ -85,7 +89,7 @@ def make_release_runtime(directory: str):
         check=True,
     )
     checkpoint = subprocess.run(
-        ['git', 'rev-parse', 'HEAD'],
+        [git, 'rev-parse', 'HEAD'],
         cwd=root,
         check=True,
         capture_output=True,

@@ -267,6 +267,14 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                     run_development_beta.os,
                     'execv',
                     side_effect=lambda python, argv: executed.append((python, argv)),
+                ), mock.patch.object(
+                    run_development_beta.Path,
+                    'is_file',
+                    return_value=True,
+                ), mock.patch.object(
+                    run_development_beta.os.path,
+                    'samefile',
+                    return_value=True,
                 ):
             with mock.patch.object(
                     run_development_beta,
