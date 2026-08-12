@@ -525,9 +525,11 @@ compilation, lockfile, and diff checks pass. Tier-3 review corrected external-
 mode leakage, directory ownership, exact sidecar shape, credential argument
 exposure, complete source-session detection, fresh-cluster role inventory,
 administrative identity verification, and contract versioning. No actionable
-finding remains. No Docker/Podman executable was exposed on `PATH`; no image,
-container, volume, PostgreSQL, Discord, service, dependency, tester, or
-production mutation occurred. The unchanged host beta remains healthy on
+finding remains. No Docker/Podman executable was exposed during implementation;
+after the pushed close-out, `/usr/bin/docker` appeared on `PATH` but was not
+invoked and its Compose plugin remains unverified. No image, container, volume,
+PostgreSQL, Discord, service, dependency, tester, or production mutation
+occurred. The unchanged host beta remains healthy on
 `7fc73cf` as the only development writer with all five Beta Lab packs ready;
 no restart is warranted for inactive container recovery tooling. Next
 recommended: P11.4 live-engine development proof if Docker and Compose are
@@ -15757,8 +15759,10 @@ and contract-version evolution. No actionable finding remains.
 
 Implementation checkpoint:
 `d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`. No Docker/Podman executable was
-exposed on `PATH`, and no image pull/build, container/volume/database/Discord,
-service, dependency, tester-announcement, or production operation occurred.
+available during implementation. After the pushed close-out, `/usr/bin/docker`
+appeared on `PATH`; it was not invoked and Compose remains unverified. No image
+pull/build, container/volume/database/Discord, service, dependency, tester-
+announcement, or production operation occurred.
 Evidence and exact fast-forward integration checkpoint:
 `70bb734cb7396e3357f6a51d47090ed8a5c29d11`. Read-only post-integration
 inspection found the unchanged user service active/running as PID `292880`
@@ -17135,8 +17139,9 @@ because they share legacy status; their risks and operational owners differ.
 Design status: **P11.1 development proof is complete and integrated at
 `309c222`; P11.2's approved read-only deployment doctor is complete at
 `7fc73cf`; P11.3 guarded logical backup and isolated fresh-volume restore is
-complete and integrated at `70bb734`. No container engine was available to this
-unit, so live proof and all production adoption remain deferred gates.**
+complete and integrated at `70bb734`. Docker appeared only after P11.3's
+pushed close-out and remains uninvoked; live proof, Compose verification, and
+all production adoption remain deferred gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17236,6 +17241,8 @@ deferred into this post-modernization backlog.
   authenticated local control path responds; and all five Beta Lab packs are
   ready. No beta restart, PostgreSQL gate, Discord command apply, checklist
   change, or announcement is warranted for inactive container recovery assets.
+  `/usr/bin/docker` appeared on `PATH` only after this pushed close-out; no
+  Docker command was invoked and Compose availability remains unverified.
   Next recommended: P11.4 exact-image live-engine development proof once Docker
   and its Compose plugin are available; otherwise take the independent
   development feedback retention/redaction lifecycle.
