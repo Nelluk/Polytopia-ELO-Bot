@@ -141,7 +141,7 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                     ephemeral=True,
                 )
             return False
-        guild_id = interaction.guild_id
+        guild_id = getattr(interaction, 'guild_id', None)
         if guild_id is not None and int(guild_id) not in settings.config:
             message = (
                 'This server is quarantined and has not been enrolled by the '
