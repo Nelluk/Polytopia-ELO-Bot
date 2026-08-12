@@ -491,7 +491,7 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P9.25 legacy ELO calculation characterization is
-implemented, reviewed, and development-database gated on
+complete, integrated, pushed, and beta-restored from
 `codex/p9-25-elo-characterization`, based on exact clean pushed accumulation
 checkpoint `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`. Nine compact offline tests
 now invoke the actual legacy model methods and lock down logistic win chances,
@@ -504,14 +504,17 @@ PostgreSQL cases pass through the unchanged `development` / `polytopia_dev` /
 semantics on a real ranked graph; the other proves two ordered results replay
 to byte-for-byte-equivalent rating/snapshot evidence through
 `recalculate_elo_since`. Both use the established outer rollback scope and
-leave no fixture state. Implementation checkpoint: `2e6b950`. The unit changes
-no formula or runtime code, command surface, schema, dependency, configuration,
-Discord state, or production state. The durable beta was stopped only for the
-real-schema window and remains to be restored after integration. Next:
-fast-forward the accepted unit into accumulation, push a clean close-out, and
-restart the unchanged beta runtime. After that, P10.6c coordinated command-
-capability activation remains recommended; P10.7 quarantined onboarding is
-also ready.**
+leave no fixture state. Implementation checkpoint: `2e6b950`; evidence and
+exact fast-forward integration checkpoint:
+`414deda973e680df7f4444c2491c8fd736f9e86b`. The unit changes no formula or
+runtime code, command surface, schema, dependency, configuration, Discord
+state, or production state. The durable beta was stopped only for the
+real-schema window and now runs exact checkpoint `414deda` as PID `251835`,
+authenticated as development application `479029527553638401`, with database
+authority generation 1, zero restart churn, and exactly one host-wide
+development writer. No command plan/apply, tester checklist, or announcement
+was warranted. Next recommended: P10.6c coordinated command-capability
+activation; P10.7 quarantined onboarding is also ready.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -14588,8 +14591,7 @@ candidate's evidence as covering new runtime code.
 
 ### P9.25 — Legacy ELO calculation characterization
 
-Status: **Implemented, complete-diff reviewed, and development-database gated;
-accepted for accumulation integration.**
+Status: **Complete, integrated, pushed, and beta-restored.**
 
 Branch/base: `codex/p9-25-elo-characterization`, exact clean pushed
 accumulation checkpoint `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`.
@@ -14635,9 +14637,16 @@ coordinator/lifecycle tests rather than being run against all development
 data. No command registration, beta-facing behavior, schema, dependency,
 configuration, production access, or tester announcement is warranted.
 
-Next action: integrate and push this test-only unit, restore and verify the
-unchanged durable beta, then return to P10.6c coordinated command-capability
-activation. P10.7 quarantined onboarding remains the useful alternative.
+Exact fast-forward integration and running code checkpoint:
+`414deda973e680df7f4444c2491c8fd736f9e86b`. The durable beta is healthy as
+PID `251835`, authenticated as development application
+`479029527553638401`, with database authority generation 1, zero restart
+churn, and exactly one host-wide development writer. No command shape changed,
+so no command plan/apply occurred. No tester-facing behavior changed, so no
+checklist update or announcement was warranted.
+
+Next action: return to P10.6c coordinated command-capability activation. P10.7
+quarantined onboarding remains the useful alternative.
 
 ### P10.1 — Dynamic guild configuration architecture
 
@@ -16643,6 +16652,18 @@ deferred into this post-modernization backlog.
   run a destructive full-data recalculation. Next: integrate and push the
   accepted test-only unit, then restore and verify the unchanged beta runtime.
   P10.6c remains recommended afterward; P10.7 is also ready.
+- Fast-forwarded implementation `2e6b950` and evidence `414deda` into the
+  accumulation branch, then pushed exact integration checkpoint
+  `414deda973e680df7f4444c2491c8fd736f9e86b` to GitHub.
+- Restarted only the guarded durable beta from that clean pushed checkpoint.
+  PID `251835` authenticated as development application
+  `479029527553638401`; startup schema preflight verified `polytopia_dev` /
+  `polybot_dev`, database configuration authority loaded generation 1, the
+  service reports active/running with zero restarts, and host-wide audit shows
+  exactly one development writer. No command apply, tester checklist, release
+  manifest, or announcement was warranted for a test-only change.
+- P9.25 is complete. Next recommended: P10.6c coordinated command-capability
+  activation. P10.7 quarantined onboarding is also ready.
 
 ### 2026-08-11 — P10.6b3 rollback implemented, reviewed, and database-gated
 
