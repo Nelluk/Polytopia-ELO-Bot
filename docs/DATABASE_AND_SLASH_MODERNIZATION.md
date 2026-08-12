@@ -408,6 +408,20 @@ base of the modernization accumulation branch. At the latest repository
 check:
 
 - accumulation branch: `codex/database-slash-modernization`
+- P11.6 card-parity implementation checkpoint: `0a40340`; reviewed
+  accumulation merge checkpoint: `30f2257`
+- P11.7 persisted 2v2 ELO-graph checkpoints: `6be4e09`, `2f6f121`;
+  fast-forward accumulation checkpoint: `2f6f121`
+- current combined offline result: 2,073 tests passed with 91 intentional
+  development-database gates skipped
+- current stopped-writer development-database result: all 79 cases passed
+  with one intentional retained-fixture skip; the three P11.6 read paths and
+  both new P11.7 mutation/replay cases passed
+- deployment disposition: RackNerd remains stopped and the sole Mac container
+  beta remains on its prior reviewed `de5ad77` image. P11.6 needs a Mac image
+  rebuild plus human desktop/mobile card smoke; P11.7 is test-only. Neither
+  unit changes the Discord command tree, so no command synchronization or
+  tester announcement is warranted before that smoke.
 - preserved pilot checkpoint branch: `codex/slash-async-unwin-pilot`
 - implementation checkpoint: `a9375b3`
 - development-guild sync fix: `9a64ce1`
@@ -16050,6 +16064,103 @@ host metadata check plus live non-root bind probe. First-ever trusted-guild
 bootstrap remains P11.5B; the imported current database already has its
 trusted-guild authority.
 
+### P11.6 — Player, team, and game card parity polish
+
+Status: **Complete; Tier-2 reviewed and integrated at `30f2257`.**
+
+Branch/base: `codex/p11-6-card-polish`, from exact pushed accumulation
+checkpoint `7a0040faab8076bf9cb02f4e6ef2ab4dc44e680f`.
+
+Objective: restore useful information and familiar production wording that
+was lost or obscured during the player, team, and game presentation
+modernization, without changing command shapes, permissions, mutations, or
+Discord destinations.
+
+Player profiles now use a compact current Discord-avatar thumbnail, identify
+the account-wide canonical Polytopia name as copyable inline text, show
+all-time local/global records beside all-time ratings, point profile actions
+to `/player register` and `/player timezone` while accurately naming retained
+prefix compatibility, and distinguish stored Team membership from recent and
+historical squad context. The team card prefers the captured live guild
+display name, labels its 30-day activity column precisely, and shows the
+PolyChampions league tier as a separate field. Pending game cards use each
+participant's current Team emoji rather than the side Team emoji, and named
+season tiers retain the familiar `PolyChampions Gold Tier Season N game`
+wording with the existing numeric fallback when no configured tier name can be
+resolved.
+
+All Discord and database boundaries remain model-free after snapshot return.
+Avatar data is frozen from the guild cache before worker submission. Pending
+game participant Team emojis use one worker-local Player-to-Team query for the
+bounded lineup and are skipped entirely for completed-result publication, so
+P9.7's confirmed and ordinary result snapshot graph is unchanged.
+
+Complete-diff review corrected a full-width avatar gallery to a compact
+Components v2 Thumbnail, separated league tier from the Results line, restored
+stock season wording, removed an overclaim that stored Team is necessarily
+current, replaced per-player lazy Team access with the bounded lookup, and
+kept that lookup out of completed-result publication. No actionable finding
+remains.
+
+Implementation checkpoint: `0a40340382fc2ec2d6c29dc1cd15bee9073019f9`.
+Focused player/team/game validation passes 66 tests. The isolated branch
+passes all 2,071 available offline tests with 89 intentional database gates
+skipped. The real-schema game-detail, player-workspace, and team-show reads all
+pass under the unchanged `development` / `polytopia_dev` / `polybot_dev` gate.
+The combined accumulation passes 2,073 offline tests with 91 intentional
+skips. Compilation and diff checks pass.
+
+The unit is not yet deployed. RackNerd remains inactive with no development
+writer, while the sole Mac Compose beta remains healthy on its prior reviewed
+`de5ad77` image. The next deployment action is to rebuild and start the Mac
+beta from the pushed accumulation checkpoint, verify its sole-writer and
+identity checks, then human-smoke representative player, team, pending-game,
+and completed PolyChampions game cards on desktop and mobile. No command sync
+is required, and no tester announcement should precede that owner smoke.
+
+### P11.7 — Persisted team/squad ELO graph coverage
+
+Status: **Complete; reviewed test-only unit fast-forward integrated through
+`2f6f121`.**
+
+Branch/base: `codex/p11-7-elo-graph-coverage`, from exact pushed accumulation
+checkpoint `7a0040faab8076bf9cb02f4e6ef2ab4dc44e680f`.
+
+Risk classification: Tier 2 test-only change with Tier-3-style rollback-scoped
+mutation validation. No runtime formula, transaction, command, schema, or
+deployment behavior changed.
+
+The prior P9.25 integration coverage characterized persisted ranked 1v1
+win/reversal/replay, while formula-vector and serialized-worker suites covered
+the isolated calculation and transaction mechanics. The consequential missing
+graph was a real ranked 2v2 spanning Player, DiscordMember, Team, Squad,
+SquadMember, GameSide, and Lineup persistence. P11.7 adds two strictly gated,
+outer-rollback cases: exact first-result and reversal invariants for every
+rating/snapshot branch, and deterministic two-result
+`recalculate_elo_since` replay across the same graph.
+
+The first primary database run correctly rejected an incomplete expected
+vector: the retained provisional low-ELO boost turns the first equal-side
+player/member deltas into `+53/-23`, then the reversed second result into
+`-33/+66`; Team and Squad branches retain their separate factors. The corrected
+expectations were derived independently and remained exact rather than being
+weakened. Review also confirmed unique owned markers, far-future completion
+ordering, unchanged safety gates, and complete outer rollback. FFA persistence
+was deliberately not duplicated: multiside normalization already has focused
+formula coverage, while the 2v2 case uniquely exercises the otherwise missing
+Team/Squad persistence graph.
+
+Implementation checkpoints: `6be4e09fbb95c5810870794621eb1b4e4281b7a6`
+and correction `2f6f1211fa815092603af4bdd699280231652006`.
+Both focused new PostgreSQL cases pass. The complete stopped-writer development
+database module passes all 79 cases with one intentional retained-fixture
+skip. Existing focused ELO calculation/job coverage passes 59 tests, ordinary
+offline discovery skips the gated cases as designed, and the combined
+accumulation passes all 2,073 offline tests with 91 intentional skips.
+
+P11.7 requires no beta restart, command synchronization, or announcement. Its
+new cases remain part of future stopped-writer database validation windows.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -17501,6 +17612,29 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.6 card parity and P11.7 ELO graph coverage integrated
+
+- Reconciled the primary checkout and GitHub at exact clean P11.5A checkpoint
+  `7a0040faab8076bf9cb02f4e6ef2ab4dc44e680f`, created two isolated
+  development worktrees, and retained the unchanged development-only runtime
+  gates. RackNerd's service remained inactive with no host writer; the Mac
+  Compose beta was not accessed or changed.
+- Accepted P11.7's exact persisted ranked-2v2 coverage after the first real
+  database run exposed omitted provisional low-ELO boosts. Corrected vectors
+  passed both new rollback cases and the complete 79-case stopped-writer
+  database module with one intentional retained-fixture skip. The two test
+  commits fast-forwarded accumulation through `2f6f121`.
+- Accepted P11.6 after complete-diff review replaced the full-width avatar,
+  separated tier information, restored stock season wording, clarified Team
+  versus squad meaning, batched pending-player Team emoji reads, and kept that
+  extra query out of completed-result publication. Sixty-six focused tests,
+  three real-schema read cases, and the isolated 2,071-test suite passed.
+  Implementation `0a40340` merged at `30f2257`.
+- Combined accumulation passes all 2,073 offline tests with 91 intentional
+  database-gated skips; compilation and diff checks pass. Neither unit changes
+  application-command shape. P11.7 is test-only; P11.6 awaits a rebuilt Mac
+  image and owner desktop/mobile card smoke before any wider tester notice.
 
 ### 2026-08-12 — P11.5A reviewed and integrated
 
