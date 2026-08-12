@@ -92,6 +92,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         for excluded in (
             '.git', '.venv', 'config.ini', 'config.development.ini',
             'server_settings.py', 'server_settings_dev.py',
+            'deploy/container/.env',
             'deploy/container/secrets/*.txt',
         ):
             self.assertIn(excluded, ignore)
