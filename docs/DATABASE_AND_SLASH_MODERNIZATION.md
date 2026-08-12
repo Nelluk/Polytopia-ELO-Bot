@@ -538,8 +538,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28R3 universal database-writer exclusion is offline-
-validated at `843dfff` and awaiting final Mac beta evidence.** A follow-up
+Current active unit: **P9.28R3 universal database-writer exclusion is complete
+and live-validated at `50d46af`.** A follow-up
 adversarial review correctly reopened N8-R1 and N9-R2 because a mounted log path
 does not prove one shared lock inode across Compose projects, volumes, and the
 supported host-systemd mode. The durable launcher now owns a dedicated
@@ -549,11 +549,17 @@ persona mutation obtains the same database lock inside its existing filesystem
 guard and holds it through final baseline proof and evidence publication.
 Contract version 9 and focused fault injection cover refusal, ordering, and
 session-loss termination. Exact source-image validation passed 132 focused
-tests and all 2,140 offline tests with 98 intentional skips. No command sync,
-tester announcement, production, RackNerd, schema, or database-row mutation
-occurred. Next: refresh the Mac beta and prove that an exact alternate container
-with a different mounted log volume cannot acquire the same database lock;
-then perform stopped/restarted one-shot recovery and record final evidence.
+tests and all 2,140 offline tests with 98 intentional skips. The final arm64
+image `sha256:4ba82091f643af7a0a25ddc5997500f9f32ef772aa14d0fa3fdffd278fa19af6`
+authenticated as the expected application with all five packs ready. An exact
+alternate container with a different mounted log volume was refused by the
+database lock. Running reconcile refused; bot-only stop yielded 0/0/0 and
+allowed the exact no-op reconciliation; restart restored 1/0/0 and one exact
+advisory-lock holder. N8-R1 and N9-R2 are closed at the database identity.
+No command sync, tester announcement, production, RackNerd, schema, or
+database-row mutation occurred. Next recommended: one narrow GPT-Pro
+verification of this exact checkpoint, then P9.29 bounded human acceptance if
+green.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16672,7 +16678,7 @@ bounded human acceptance. No command sync or tester announcement occurred.
 
 ### P9.28R3 — Database-scoped universal writer exclusion
 
-Status: **Offline-complete at `843dfff`; final Mac beta evidence pending.**
+Status: **Complete and Mac beta-validated at `50d46af`.**
 
 Branch/base: `codex/p9-28r3-database-writer-lock`, exact clean pushed base
 `57952ecdb3f8f986ad41d26d51253871eb383924`; implementation checkpoint
@@ -16715,12 +16721,20 @@ discovery passed all 2,140 tests with 98 intentional skips. Compilation and
 exact-code containers and different named log volumes proved the second
 database lock was refused; no database row or schema changed.
 
-Final acceptance requires the docs-inclusive Mac beta to hold the lock, an
-alternate exact container with a different log volume to be refused, running
-one-shot reconciliation to fail, bot-only stop to release both locks and allow
-the no-op reconciliation, and restart to restore one healthy writer. No
+Final Mac acceptance passed at docs-inclusive checkpoint
+`50d46af74b340840dfb1d106d1fa3296c0578f52`, exact arm64 image
+`sha256:4ba82091f643af7a0a25ddc5997500f9f32ef772aa14d0fa3fdffd278fa19af6`.
+The bot authenticated as application `479029527553638401`, all five packs were
+ready, and the writer census was 1/0/0. A second exact-image container mounted
+a different named volume at `/app/logs/development`, reached the same database,
+and was refused by `BetaDatabaseWriterLock`; its temporary empty volume was
+removed. Normal running reconciliation also exited 2. Bot-only stop yielded
+0/0/0; stopped-writer reconciliation returned exact House 256/Team 802 ready;
+restart restored 1/0/0. A read-only `pg_locks`/`pg_stat_activity` query found
+exactly one granted lock for the fixed key and keeper application name. No
 command synchronization, tester announcement, production, or RackNerd action
-is part of this unit.
+occurred. N8-R1 and N9-R2 are now closed by a database-identity boundary rather
+than a filesystem assumption.
 
 ## Standard work-unit template
 
@@ -18174,7 +18188,7 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
-### 2026-08-12 — P9.28R3 database-scoped writer exclusion offline-validated
+### 2026-08-12 — P9.28R3 database-scoped writer exclusion validated
 
 - Accepted the follow-up adversarial finding that filesystem mount checks do
   not create a universal lock namespace across alternate Compose volumes and
@@ -18189,9 +18203,18 @@ deferred into this post-modernization backlog.
 - A non-mutating live PostgreSQL probe used two temporary exact-code containers
   with different named log volumes; the first acquired the database lock and
   the second was refused. Both temporary resources were removed afterward.
-- Final Mac refresh, canonical alternate-volume refusal, stopped reconciliation,
-  restart recovery, and final evidence recording remain. No command sync,
-  tester announcement, production, or RackNerd action occurred.
+- Exact docs-inclusive checkpoint `50d46af` built arm64 image
+  `sha256:4ba82091f643af7a0a25ddc5997500f9f32ef772aa14d0fa3fdffd278fa19af6`.
+  It authenticated as the expected application with all five packs ready.
+- The canonical bot refused both normal running reconciliation and an exact
+  alternate-image database-lock acquisition using a different mounted log
+  volume. Bot-only stop yielded census 0/0/0 and allowed exact House 256/Team
+  802 no-op reconciliation; restart restored 1/0/0 and one read-only-catalog-
+  verified advisory-lock holder.
+- N8-R1 and N9-R2 are closed at the shared database identity. No command sync,
+  tester announcement, production, or RackNerd action occurred. Next
+  recommended: one narrow GPT-Pro verification of the exact final checkpoint,
+  then P9.29 bounded human acceptance if green.
 
 ### 2026-08-12 — P9.28R2 adversarial blockers corrected
 
