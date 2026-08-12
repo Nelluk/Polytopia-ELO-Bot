@@ -37,6 +37,8 @@ _ALLOWED_ENV_KEYS = frozenset({
     'POLYBOT_BOT_CPU_LIMIT',
     'POLYBOT_POSTGRES_MEMORY_LIMIT',
     'POLYBOT_POSTGRES_CPU_LIMIT',
+    'POLYBOT_RECOVERY_UID',
+    'POLYBOT_RECOVERY_GID',
 })
 
 
@@ -145,6 +147,10 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'database_name',
         'database_user',
         'bundled_database_host',
+        'backup_directory',
+        'backup_archive_prefix',
+        'restore_database_name',
+        'restore_database_host',
     )
     required_integers = (
         'contract_version',
@@ -174,7 +180,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 1
+            value.get('contract_version') != 2
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -198,6 +204,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         ],
         'persistent_volumes': [
             'postgres_data',
+            'postgres_restore_data',
             'polybot_images',
             'polybot_logs',
         ],
@@ -219,6 +226,10 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'database_user': 'polybot_dev',
         'bundled_database_host': 'postgres',
         'database_port': 5432,
+        'backup_directory': 'deploy/container/backups',
+        'backup_archive_prefix': 'polybot-polytopia_dev',
+        'restore_database_name': 'polytopia_restore_verify',
+        'restore_database_host': 'restore-postgres',
     }
     for key, expected in exact_scalars.items():
         if value.get(key) != expected:
@@ -346,6 +357,40 @@ def _secret_value(path: Path, label: str) -> tuple[Finding, str | None]:
             f'Secret must contain at least 16 characters: {path}',
         ), None
     return finding, value
+
+
+def _backup_directory(path: Path, *, uid: int, gid: int) -> Finding:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return _finding(
+            'backup-directory',
+            BLOCK,
+            f'Required off-volume backup directory is missing: {path}',
+        )
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        return _finding(
+            'backup-directory',
+            BLOCK,
+            f'Backup path must be one non-symlink directory: {path}',
+        )
+    permissions = stat.S_IMODE(metadata.st_mode)
+    safe = (
+        metadata.st_uid == uid
+        and metadata.st_gid == gid
+        and permissions == 0o700
+    )
+    return _finding(
+        'backup-directory',
+        PASS if safe else BLOCK,
+        (
+            'Off-volume backup directory has the exact recovery owner and '
+            f'mode 0700: {path}'
+            if safe else
+            'Off-volume backup directory must match the configured recovery '
+            f'UID/GID and mode 0700: {path}'
+        ),
+    )
 
 
 def _read_config(path: Path) -> tuple[Finding, configparser.SectionProxy | None]:
@@ -536,10 +581,19 @@ def _validate_assets(
     try:
         dockerfile = (assets / 'Dockerfile').read_text(encoding='utf-8')
         compose = (assets / compose_name).read_text(encoding='utf-8')
+        backup_script = (
+            (assets / 'backup-development-database.sh').read_text(encoding='utf-8')
+            if mode == 'bundled' else ''
+        )
+        restore_script = (
+            (assets / 'restore-development-database.sh').read_text(encoding='utf-8')
+            if mode == 'bundled' else ''
+        )
     except (OSError, UnicodeError):
         return _finding(
             'repository-assets', BLOCK,
-            'Dockerfile or selected Compose definition is missing/unreadable.',
+            'Dockerfile, selected Compose definition, or recovery asset is '
+            'missing/unreadable.',
         )
     required_dockerfile = (
         f"ARG PYTHON_IMAGE={contract['python_image']}",
@@ -569,9 +623,28 @@ def _validate_assets(
             'database-provision:',
             'profiles: ["tools"]',
             'postgres_data:/var/lib/postgresql',
+            'database-backup:',
+            'database-restore-drill:',
+            'profiles: ["recovery"]',
+            './backups:/backups',
+            'restore-postgres:',
+            'postgres_restore_data:/var/lib/postgresql',
         ):
             if value not in compose:
                 missing.append(value)
+        required_recovery_script = (
+            'POLYBOT_ENV must be development.',
+            str(contract['backup_archive_prefix']),
+            str(contract['restore_database_name']),
+            'pg_restore --list',
+        )
+        joined_recovery_scripts = backup_script + restore_script
+        missing.extend(
+            value for value in required_recovery_script
+            if value not in joined_recovery_scripts
+        )
+        if str(contract['restore_database_host']) not in restore_script:
+            missing.append(str(contract['restore_database_host']))
     else:
         for forbidden in ('\n  postgres:', 'postgres_data', 'database-provision'):
             if forbidden in compose:
@@ -596,7 +669,12 @@ def _validate_assets(
     return _finding(
         'repository-assets',
         PASS,
-        f'Dockerfile and {compose_name} match the reviewed static contract.',
+        (
+            f'Dockerfile, {compose_name}, and recovery assets match the '
+            'reviewed static contract.'
+            if mode == 'bundled' else
+            f'Dockerfile and {compose_name} match the reviewed static contract.'
+        ),
     )
 
 
@@ -713,6 +791,11 @@ def run_doctor(
         checkpoint = env_values.get('POLYBOT_SOURCE_CHECKPOINT', '')
         if checkpoint != git_state.checkpoint or not _CHECKPOINT.fullmatch(checkpoint):
             mismatched.append('POLYBOT_SOURCE_CHECKPOINT')
+        if mode == 'bundled':
+            for key in ('POLYBOT_RECOVERY_UID', 'POLYBOT_RECOVERY_GID'):
+                value = env_values.get(key, '')
+                if not value.isdigit() or int(value) <= 0:
+                    mismatched.append(key)
         findings.append(_finding(
             'compose-env',
             BLOCK if mismatched else PASS,
@@ -724,6 +807,22 @@ def run_doctor(
                 'Git checkpoint.'
             ),
         ))
+        if mode == 'bundled':
+            recovery_uid = env_values.get('POLYBOT_RECOVERY_UID', '')
+            recovery_gid = env_values.get('POLYBOT_RECOVERY_GID', '')
+            if recovery_uid.isdigit() and recovery_gid.isdigit():
+                findings.append(_backup_directory(
+                    root / str(contract['backup_directory']),
+                    uid=int(recovery_uid),
+                    gid=int(recovery_gid),
+                ))
+            else:
+                findings.append(_finding(
+                    'backup-directory',
+                    BLOCK,
+                    'Backup directory ownership cannot be checked until the '
+                    'recovery UID/GID are valid.',
+                ))
 
     config_path = root / 'deploy/container/config.development.ini'
     config_finding, defaults = _read_config(config_path)

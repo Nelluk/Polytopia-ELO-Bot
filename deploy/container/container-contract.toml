@@ -1,4 +1,4 @@
-contract_version = 1
+contract_version = 2
 environment = "development"
 python_image = "python:3.12.13-slim-bookworm"
 uv_image = "ghcr.io/astral-sh/uv:0.11.32"
@@ -16,6 +16,10 @@ database_name = "polytopia_dev"
 database_user = "polybot_dev"
 bundled_database_host = "postgres"
 database_port = 5432
+backup_directory = "deploy/container/backups"
+backup_archive_prefix = "polybot-polytopia_dev"
+restore_database_name = "polytopia_restore_verify"
+restore_database_host = "restore-postgres"
 
 required_bind_files = [
   "deploy/container/config.development.ini",
@@ -29,6 +33,7 @@ required_secret_files = [
 
 persistent_volumes = [
   "postgres_data",
+  "postgres_restore_data",
   "polybot_images",
   "polybot_logs",
 ]

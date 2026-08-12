@@ -10,14 +10,16 @@ keeps the bot image replaceable, gives PostgreSQL its own pinned-major service
 and persistent volume, and removes host PostgreSQL role/database setup from the
 ordinary development path. The repository now contains a build definition,
 bundled-database Compose definition, external-database variant, explicit
-database provisioner, and machine-readable contract.
+database provisioner, plan-first backup and isolated restore-drill jobs, and a
+machine-readable contract.
 
-This checkpoint is deliberately not a claim that an image has been built or
-that Discord has been reached from a container. The current development host
-has neither Docker nor Podman installed. The proof is therefore limited to
-offline contract, shell-syntax, lockfile, and application tests. A supported
-container deployment still needs a later, explicitly authorized machine with
-a container engine to build, inspect, start, and smoke the exact images.
+This checkpoint is deliberately not a claim that an image has been built,
+that a recovery job has run, or that Discord has been reached from a
+container. At the P11.2/P11.3 offline checks, the development host exposed no
+Docker or Podman executable. The proof is therefore limited to offline
+contract, shell-syntax, lockfile, and application tests. A supported container
+deployment still needs a later live-engine unit to build, inspect, start, and
+smoke the exact images and recovery path.
 
 ## Reviewed architecture
 
@@ -43,6 +45,10 @@ a container engine to build, inspect, start, and smoke the exact images.
   identity and ready log line remain the actual gateway-readiness evidence.
 - The external-database Compose file omits PostgreSQL and provisioning. Its
   mounted config must name a separately managed development host.
+- `database-backup` writes only to the ignored bind-mounted `backups`
+  directory. `database-restore-drill` can connect only to `restore-postgres`,
+  whose `postgres_restore_data` volume is separate from the ordinary database
+  volume. Neither job is part of normal startup.
 
 The immutable contract is
 `deploy/container/container-contract.toml`. Version changes to its images,
@@ -137,6 +143,106 @@ config's `psql_host` to the real development endpoint, and omit the bundled
 provisioning step. The database must already satisfy the same application-role
 and schema gates.
 
+## Backup and fresh-volume restore flow
+
+This flow is for the bundled development database only. An external database
+operator must use that provider's independently reviewed logical recovery
+procedure; this Compose project does not acquire external administrative
+credentials.
+
+Set `POLYBOT_RECOVERY_UID` and `POLYBOT_RECOVERY_GID` in the ignored `.env` to
+the positive host UID/GID that owns `deploy/container/backups`. Recovery jobs
+run with that identity, a read-only root filesystem, dropped capabilities, and
+no Docker socket. Use this base command below, or paste the full equivalent:
+
+```bash
+COMPOSE='docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml'
+```
+
+1. Stop only the containerized bot and prove it is stopped. Do not stop the
+   host beta unless it actually uses this same container database.
+
+   ```bash
+   $COMPOSE stop bot
+   $COMPOSE ps bot postgres
+   ```
+
+2. Preview the backup without starting a dependency. This reads no secret,
+   opens no database connection, and writes no file. Copy its exact
+   confirmation.
+
+   ```bash
+   $COMPOSE --profile recovery run --rm --no-deps database-backup
+   ```
+
+3. Apply that exact plan. The job requires PostgreSQL 18, the fixed
+   `postgres`/`polytopia_dev`/`polybot_dev` identities, enough free destination
+   space for the current uncompressed database size plus 64 MiB, and zero
+   other source-database sessions before and after `pg_dump`. It validates a
+   private temporary custom archive with `pg_restore --list`, computes its
+   SHA-256, then atomically publishes the archive and digest sidecar.
+
+   ```bash
+   $COMPOSE --profile recovery run --rm \
+     -e 'POLYBOT_BACKUP_CONFIRMATION=BACKUP polytopia_dev EXACT_40_HEX_CHECKPOINT' \
+     database-backup
+   ```
+
+   A role session appearing during the dump prevents publication. A
+   `.polybot-backup.lock` left by an abrupt container kill must be investigated
+   before it is manually removed.
+
+4. Restart and recheck the bot if it was previously running. Backup completion
+   is not a restore proof.
+
+   ```bash
+   $COMPOSE up -d bot
+   $COMPOSE logs --tail 100 bot
+   ```
+
+5. Select the exact archive basename from `deploy/container/backups`, then
+   validate and preview it without starting the recovery database. The plan
+   recomputes the digest, requires an exact sidecar, and checks the archive
+   catalog locally.
+
+   ```bash
+   $COMPOSE --profile recovery run --rm --no-deps \
+     -e 'POLYBOT_BACKUP_ARCHIVE=EXACT_ARCHIVE_BASENAME.dump' \
+     database-restore-drill
+   ```
+
+6. Start only the isolated recovery PostgreSQL service and apply the exact
+   digest-bound confirmation from the plan.
+
+   ```bash
+   $COMPOSE --profile recovery up -d restore-postgres
+   $COMPOSE --profile recovery run --rm \
+     -e 'POLYBOT_BACKUP_ARCHIVE=EXACT_ARCHIVE_BASENAME.dump' \
+     -e 'POLYBOT_RESTORE_CONFIRMATION=RESTORE polytopia_restore_verify EXACT_SHA256' \
+     database-restore-drill
+   ```
+
+   Apply refuses a recovery volume that already contains the application role
+   or a non-default database. It creates only `polybot_dev` and
+   `polytopia_restore_verify`, restores in one transaction as the application
+   role, then verifies all required application tables, the
+   `game.winner_id -> gameside.id` foreign key, and table/sequence ownership.
+   The normal `postgres_data` volume and `polytopia_dev` database are never
+   restore targets.
+
+7. Retain the recovery volume for inspection. Before another drill, stop and
+   remove only `restore-postgres`, then explicitly remove only
+   `polybot-development_postgres_restore_data`. That final volume removal is a
+   destructive operator action and is intentionally never automatic.
+
+The repository does not automatically delete backups. Keep at least two
+checksum-paired archives, keep one copy outside this checkout and host, and
+retain the newest archive until a newer one passes this fresh-volume restore
+drill. Delete an older pair only after reviewing the exact filenames, free
+space, surviving verified generations, and off-host copy. This conservative
+manual policy avoids a retention bug silently erasing the only recoverable
+generation.
+
 ## Restart and shutdown behavior
 
 Docker sends `SIGINT` and allows 45 seconds, matching the reviewed bot cleanup
@@ -164,11 +270,12 @@ verified PostgreSQL archives written to an operator-controlled off-volume
 destination such as `deploy/container/backups`; copying a live volume is not a
 backup or host-move procedure.
 
-A later operational unit should provide digest-bound `pg_dump` and
-`pg_restore --list` jobs, stopped-writer restore verification into a fresh
-volume, free-space reporting, retention, and a restore drill. PostgreSQL major
-upgrades require a separate dump/restore or `pg_upgrade` plan. Never point a
-new major image at the existing volume and never use `latest`.
+The recovery profile now provides digest-bound `pg_dump` and
+`pg_restore --list` jobs, stopped-writer checks, free-space reporting, and a
+fresh-volume restore drill. Recovery artifacts remain outside the database
+volume. PostgreSQL major upgrades require a separate dump/restore or
+`pg_upgrade` plan. Never point a new major image at the existing volume and
+never use `latest`.
 
 ## Remaining gates before supported use
 
@@ -180,7 +287,8 @@ new major image at the existing volume and never use `latest`.
 3. Exercise fresh-volume provision, repeated provision, schema plan/apply,
    volume persistence, resource ceilings, SIGINT, exit-75 restart, database
    unavailability/recovery, and an actual development Discord login.
-4. Add the logical backup/restore drill and cross-runtime single-writer audit.
+4. Execute the logical backup/restore drill and cross-runtime single-writer
+   audit with the exact built images.
 5. Only after those development results, design a separately approved
    production migration, secret/volume ownership, rollback, and monitoring
    plan. No production database, service, or command registration is

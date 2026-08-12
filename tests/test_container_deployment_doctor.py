@@ -55,6 +55,9 @@ class ContainerDeploymentDoctorTests(unittest.TestCase):
             'REPLACE_WITH_EXACT_CLEAN_GIT_HEAD', CHECKPOINT
         )
         (self.root / 'deploy/container/.env').write_text(env, encoding='utf-8')
+        backup_directory = self.root / 'deploy/container/backups'
+        backup_directory.mkdir()
+        backup_directory.chmod(0o700)
 
     def _write_private(self, relative: str, value: str) -> Path:
         path = self.root / relative
@@ -117,6 +120,8 @@ log_root = logs/development
         self.assertIn('[WARN] compose-plugin', rendered)
         self.assertIn('--env-file deploy/container/.env', rendered)
         self.assertIn('database-provision', rendered)
+        self.assertIn('recovery assets match the reviewed', rendered)
+        self.assertIn('Off-volume backup directory', rendered)
         with self.assertRaises(FrozenInstanceError):
             report.mode = 'external'
 
@@ -176,6 +181,14 @@ log_root = logs/development
             self._config(host='db.internal.example'),
         )
         shutil.rmtree(self.root / 'deploy/container/secrets')
+        env_path = self.root / 'deploy/container/.env'
+        env_path.write_text(
+            '\n'.join(
+                line for line in env_path.read_text(encoding='utf-8').splitlines()
+                if not line.startswith(('POLYBOT_RECOVERY_UID=', 'POLYBOT_RECOVERY_GID='))
+            ) + '\n',
+            encoding='utf-8',
+        )
         report = doctor.run_doctor(
             self.root,
             mode='external',
@@ -239,6 +252,44 @@ log_root = logs/development
         self.assertIn('repository-assets', blocked)
         self.assertIn('compose-env', blocked)
         self.assertIn('server-settings', blocked)
+
+    def test_recovery_uid_and_gid_must_be_positive_integers(self):
+        env_path = self.root / 'deploy/container/.env'
+        env_path.write_text(
+            env_path.read_text(encoding='utf-8').replace(
+                'POLYBOT_RECOVERY_UID=1000',
+                'POLYBOT_RECOVERY_UID=0',
+            ).replace(
+                'POLYBOT_RECOVERY_GID=1000',
+                'POLYBOT_RECOVERY_GID=operator',
+            ),
+            encoding='utf-8',
+        )
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+        )
+        self.assertFalse(report.ready)
+        finding = next(item for item in report.findings if item.key == 'compose-env')
+        self.assertIn('POLYBOT_RECOVERY_UID', finding.message)
+        self.assertIn('POLYBOT_RECOVERY_GID', finding.message)
+
+    def test_backup_directory_must_match_recovery_identity_and_mode(self):
+        backup_directory = self.root / 'deploy/container/backups'
+        backup_directory.chmod(0o755)
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+        )
+        finding = next(
+            item for item in report.findings if item.key == 'backup-directory'
+        )
+        self.assertEqual(finding.status, doctor.BLOCK)
+        self.assertNotIn(str(backup_directory.resolve()), '\n'.join(report.commands))
 
     def test_invalid_contract_refuses_before_any_engine_probe(self):
         contract = self.root / 'deploy/container/container-contract.toml'

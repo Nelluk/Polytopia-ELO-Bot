@@ -78,6 +78,88 @@ services:
     entrypoint: ["/bin/sh", "/usr/local/bin/provision-development-database"]
     restart: "no"
 
+  database-backup:
+    image: ${POLYBOT_POSTGRES_IMAGE:-postgres:18.4-bookworm}
+    profiles: ["recovery"]
+    user: "${POLYBOT_RECOVERY_UID:-1000}:${POLYBOT_RECOVERY_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      POLYBOT_ENV: development
+      POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Run the deployment doctor and set the exact Git checkpoint}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGUSER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    secrets:
+      - postgres_admin_password
+    volumes:
+      - ./backups:/backups
+      - ./backup-development-database.sh:/usr/local/bin/backup-development-database:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-development-database"]
+    restart: "no"
+
+  restore-postgres:
+    image: ${POLYBOT_POSTGRES_IMAGE:-postgres:18.4-bookworm}
+    profiles: ["recovery"]
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+      PGDATA: /var/lib/postgresql/18/docker
+    secrets:
+      - postgres_admin_password
+    volumes:
+      - postgres_restore_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: "no"
+    stop_grace_period: 60s
+    pids_limit: 256
+    mem_limit: ${POLYBOT_POSTGRES_MEMORY_LIMIT:-768m}
+    cpus: ${POLYBOT_POSTGRES_CPU_LIMIT:-1.0}
+
+  database-restore-drill:
+    image: ${POLYBOT_POSTGRES_IMAGE:-postgres:18.4-bookworm}
+    profiles: ["recovery"]
+    user: "${POLYBOT_RECOVERY_UID:-1000}:${POLYBOT_RECOVERY_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      POLYBOT_ENV: development
+      PGHOST: restore-postgres
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGUSER: postgres
+    depends_on:
+      restore-postgres:
+        condition: service_healthy
+    secrets:
+      - postgres_admin_password
+      - polybot_database_password
+    volumes:
+      - ./backups:/backups:ro
+      - ./restore-development-database.sh:/usr/local/bin/restore-development-database:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/restore-development-database"]
+    restart: "no"
+
   schema:
     <<: *bot-service
     profiles: ["tools"]
@@ -98,6 +180,7 @@ services:
 
 volumes:
   postgres_data:
+  postgres_restore_data:
   polybot_images:
   polybot_logs:
 
