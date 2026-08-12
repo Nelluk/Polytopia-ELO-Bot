@@ -526,18 +526,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.26/M7-R-002 release-candidate refresh is implemented
-and candidate-validated from exact source
-`8e79dc295c024340fd55f9678d507e6e214469b4`; RC2 evidence is recorded but
-readiness remains blocked by three bounded-beta checks and all three separately
-approved production-configuration checks.** RC1 remains historical. The exact
-candidate passes the cutover review, all 2,110 offline tests with 98 intentional
-skips, and all 79 stopped-writer development-database cases with one intentional
-skip. The sole Mac beta runs exact candidate `8e79dc2`, restart count zero;
-read-only inspection found zero global commands and all 12 guild roots
-unchanged. No command synchronization, tester announcement, RackNerd runtime,
-production configuration, production database, or production service action
-occurred.
+Current active unit: **P9.27 container Beta Lab control parity is in progress
+from exact clean pushed checkpoint
+`4787138c4918457ba76ef71f71e7508e8bf2dd39`.** P9.26 and RC2 are pushed and
+retain valid evidence for frozen candidate `8e79dc2`, but live P9.27 audit found
+that both Compose definitions omitted the fail-closed Beta Lab control
+environment used by the systemd beta. The Mac bot was healthy, while Beta Lab,
+readiness, and release-status requests correctly refused because no local
+control socket existed. P9.27 adds that exact application/guild/database/role
+and source-checkpoint binding without enabling startup command sync or a host
+network listener. Because this is a new runtime-source correction, RC2 cannot
+be promoted as evidence for the eventual successor candidate.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16427,6 +16426,42 @@ the remaining command, retained-prefix parity, and visibility checks are not.
 The production-configuration gate is pending at zero of three because no
 production read was authorized or performed. `require-ready` must therefore
 continue to fail.
+
+### P9.27 — Container Beta Lab control parity
+
+Status: **In progress; source correction focused tests pass, live exact-source
+verification pending.**
+
+Branch/base: `codex/p9-27-bounded-beta-acceptance`, exact clean pushed
+accumulation checkpoint `4787138c4918457ba76ef71f71e7508e8bf2dd39`.
+
+Risk tier: **Tier 3 local control, identity, and beta lifecycle boundary.** No
+production, command synchronization, tester announcement, or external database
+scope.
+
+The P9.27 read-only inventory first proved the Mac beta and development
+database were healthy, including all three Beta Lab games and the retained
+leaderboard showcase. It also proved the Beta Lab/readiness/release socket was
+absent. Compose launched `bot.py` with only the restart-supervisor environment,
+while the reviewed systemd service supplies seven additional fail-closed beta
+control and identity values. The bot therefore deliberately did not construct
+`BetaReleaseControl`.
+
+Both bundled and external-database Compose definitions now bind the local
+control to `enabled`, keep startup sync `disabled`, repeat exact development
+application `479029527553638401`, guild `478571892832206869`, database
+`polytopia_dev`, and role `polybot_dev`, and derive
+`POLYBOT_BETA_CHECKPOINT` from the required exact source checkpoint. The
+mode-0600 Unix socket remains inside the private persistent log volume with no
+host network publication. Contract version 6 and the deployment doctor require
+all values, so drift fails setup before launch.
+
+Focused container/doctor/beta/startup coverage passes 87 tests, and both
+bundled and external Compose definitions render successfully. The source must
+next be frozen, rebuilt, and started; live Beta Lab, readiness, release status,
+writer census, command-tree, and complete offline checks remain required.
+RC2 stays historical after this runtime correction; a successor candidate
+record must be generated only after the corrected source proves healthy.
 
 ## Standard work-unit template
 

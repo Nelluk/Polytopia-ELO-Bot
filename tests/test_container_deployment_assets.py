@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 5)
+        self.assertEqual(contract['contract_version'], 6)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -58,6 +58,20 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
             contract['restart_supervisor_environment'],
             'POLYBOT_RESTART_SUPERVISOR=compose',
         )
+        self.assertEqual(
+            contract['beta_control_environment'],
+            'POLYBOT_BETA_CONTROL=enabled',
+        )
+        self.assertEqual(
+            contract['beta_startup_sync_environment'],
+            'POLYBOT_BETA_STARTUP_SYNC=disabled',
+        )
+        self.assertEqual(
+            contract['beta_checkpoint_environment'],
+            'POLYBOT_BETA_CHECKPOINT',
+        )
+        self.assertEqual(contract['beta_application_id'], 479029527553638401)
+        self.assertEqual(contract['beta_guild_id'], 478571892832206869)
         self.assertEqual(contract['bot_stop_signal'], 'SIGINT')
         self.assertEqual(contract['bot_stop_grace_seconds'], 45)
         self.assertEqual(
@@ -145,6 +159,15 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('stop_grace_period: 45s', compose)
         self.assertIn('restart: "on-failure:5"', compose)
         self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
+        self.assertIn('POLYBOT_BETA_CONTROL: enabled', compose)
+        self.assertIn('POLYBOT_BETA_STARTUP_SYNC: disabled', compose)
+        self.assertIn(
+            'POLYBOT_BETA_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?', compose
+        )
+        self.assertIn('POLYBOT_BETA_APPLICATION_ID: "479029527553638401"', compose)
+        self.assertIn('POLYBOT_BETA_GUILD_ID: "478571892832206869"', compose)
+        self.assertIn('POLYBOT_BETA_DATABASE: polytopia_dev', compose)
+        self.assertIn('POLYBOT_BETA_DATABASE_ROLE: polybot_dev', compose)
         self.assertIn('POLYBOT_SOURCE_CHECKPOINT:', compose)
         self.assertNotIn('manage_application_commands.py', compose)
         self.assertNotIn('manage_dev_fixtures.py', compose)

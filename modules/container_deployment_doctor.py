@@ -144,6 +144,9 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'uv_image',
         'postgres_image',
         'restart_supervisor_environment',
+        'beta_control_environment',
+        'beta_startup_sync_environment',
+        'beta_checkpoint_environment',
         'image_checkpoint_environment',
         'source_checkpoint_environment',
         'bot_uid_environment',
@@ -167,6 +170,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'restart_exit_status',
         'bot_stop_grace_seconds',
         'database_port',
+        'beta_application_id',
+        'beta_guild_id',
     )
     invalid = [
         key for key in required_strings
@@ -187,7 +192,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 5
+            value.get('contract_version') != 6
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -225,6 +230,11 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'bot_gid_environment': 'POLYBOT_RUNTIME_GID',
         'restart_exit_status': 75,
         'restart_supervisor_environment': 'POLYBOT_RESTART_SUPERVISOR=compose',
+        'beta_control_environment': 'POLYBOT_BETA_CONTROL=enabled',
+        'beta_startup_sync_environment': 'POLYBOT_BETA_STARTUP_SYNC=disabled',
+        'beta_checkpoint_environment': 'POLYBOT_BETA_CHECKPOINT',
+        'beta_application_id': 479029527553638401,
+        'beta_guild_id': 478571892832206869,
         'image_checkpoint_environment': 'POLYBOT_IMAGE_CHECKPOINT',
         'source_checkpoint_environment': 'POLYBOT_SOURCE_CHECKPOINT',
         'bot_stop_signal': 'SIGINT',
@@ -706,6 +716,13 @@ def _validate_assets(
         'POLYBOT_RUNTIME_UID: ${POLYBOT_RUNTIME_UID:?',
         'POLYBOT_RUNTIME_GID: ${POLYBOT_RUNTIME_GID:?',
         'POLYBOT_RESTART_SUPERVISOR: compose',
+        'POLYBOT_BETA_CONTROL: enabled',
+        'POLYBOT_BETA_STARTUP_SYNC: disabled',
+        'POLYBOT_BETA_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?',
+        f'POLYBOT_BETA_APPLICATION_ID: "{contract["beta_application_id"]}"',
+        f'POLYBOT_BETA_GUILD_ID: "{contract["beta_guild_id"]}"',
+        f'POLYBOT_BETA_DATABASE: {contract["database_name"]}',
+        f'POLYBOT_BETA_DATABASE_ROLE: {contract["database_user"]}',
         'read_only: true',
         'user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"',
         f'stop_signal: {contract["bot_stop_signal"]}',

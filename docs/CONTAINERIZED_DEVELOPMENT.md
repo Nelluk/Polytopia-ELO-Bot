@@ -62,6 +62,13 @@ operationally clean on this host.
   readiness is not reduced to a misleading local HTTP probe: container
   running state and logs prove process liveness, while the authenticated bot
   identity and ready log line remain the actual gateway-readiness evidence.
+- Both development Compose modes provide the same fail-closed Beta Lab control
+  identity as the reviewed systemd beta: control enabled, startup command sync
+  disabled, exact application/guild/database/role values, and a startup
+  checkpoint bound to the exact image source. The authenticated bot owns a
+  mode-0600 Unix socket inside the persistent private log volume. Readiness,
+  Beta Lab, and release-status CLIs may use that local socket; it is not
+  published to the host network and exposes no command-sync operation.
 - The external-database Compose file omits PostgreSQL and provisioning. Its
   mounted config must name a separately managed development host.
 - `database-backup` writes only to the ignored bind-mounted `backups`
@@ -80,7 +87,8 @@ operationally clean on this host.
   normal startup.
 
 The immutable contract is
-`deploy/container/container-contract.toml`. Version changes to its images,
+`deploy/container/container-contract.toml`. Contract version 6 includes the
+container Beta Lab control/checkpoint identity. Version changes to its images,
 identity, persistence, or startup-effect policy require review together with
 the Compose and Dockerfile changes.
 

@@ -14,6 +14,13 @@ x-bot-service: &bot-service
   environment:
     POLYBOT_ENV: development
     POLYBOT_RESTART_SUPERVISOR: compose
+    POLYBOT_BETA_CONTROL: enabled
+    POLYBOT_BETA_STARTUP_SYNC: disabled
+    POLYBOT_BETA_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Run the deployment doctor and set the exact Git checkpoint}
+    POLYBOT_BETA_APPLICATION_ID: "479029527553638401"
+    POLYBOT_BETA_GUILD_ID: "478571892832206869"
+    POLYBOT_BETA_DATABASE: polytopia_dev
+    POLYBOT_BETA_DATABASE_ROLE: polybot_dev
   init: true
   user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"
   read_only: true
