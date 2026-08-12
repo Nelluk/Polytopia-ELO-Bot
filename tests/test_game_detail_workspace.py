@@ -1,6 +1,7 @@
 """Focused offline coverage for the bounded game-detail read and card."""
 
 import asyncio
+import dataclasses
 from contextlib import contextmanager
 from dataclasses import FrozenInstanceError
 import datetime
@@ -75,6 +76,8 @@ def fake_game(
         image_url=None,
         elo_alltime=1190,
     )
+    player_one.team = team_two
+    player_two.team = team_one
     side_one = SimpleNamespace(
         id=41,
         position=1,
@@ -214,11 +217,16 @@ def snapshot(
         requester_discord_id=900,
         game_id=game.id,
     )
-    return workers._snapshot_from_game(
-        game,
-        request=request,
-        inferred_from_channel=False,
-    )
+    with mock.patch.object(
+        workers,
+        '_player_team_emojis',
+        return_value={11: '✈️', 22: '🏠'},
+    ):
+        return workers._snapshot_from_game(
+            game,
+            request=request,
+            inferred_from_channel=False,
+        )
 
 
 class GameDetailRegistrationTests(unittest.TestCase):
@@ -244,6 +252,25 @@ class GameDetailRegistrationTests(unittest.TestCase):
 
 
 class GameDetailWorkerTests(unittest.TestCase):
+    def test_snapshot_uses_one_team_emoji_map_without_player_team_access(self):
+        game = fake_game(pending=True, completed=False)
+        for side in game.gamesides:
+            for lineup in side.lineup:
+                del lineup.player.team
+        request = workers.GameDetailRequest(10, 702, 900, game.id)
+        with mock.patch.object(
+            workers,
+            '_player_team_emojis',
+            return_value={11: '✈️', 22: '🏠'},
+        ) as emoji_map:
+            result = workers._snapshot_from_game(
+                game,
+                request=request,
+                inferred_from_channel=False,
+            )
+        emoji_map.assert_called_once()
+        self.assertEqual(result.sides[0].lineups[0].team_emoji, '✈️')
+
     def test_request_and_snapshot_are_immutable(self):
         request = workers.GameDetailRequest(10, 702, 900, 7)
         with self.assertRaises(FrozenInstanceError):
@@ -280,6 +307,11 @@ class GameDetailWorkerTests(unittest.TestCase):
                 'load_full_game',
                 return_value=game,
             ) as load_full,
+            mock.patch.object(
+                workers,
+                '_player_team_emojis',
+                return_value={11: '✈️', 22: '🏠'},
+            ),
         ):
             result = workers.load_game_detail(
                 workers.GameDetailRequest(10, 702, 900)
@@ -355,6 +387,11 @@ class GameDetailWorkerTests(unittest.TestCase):
                 workers.models.Game,
                 'load_full_game',
                 return_value=game,
+            ),
+            mock.patch.object(
+                workers,
+                '_player_team_emojis',
+                return_value={11: '✈️', 22: '🏠'},
             ),
         ):
             result = workers.load_game_detail(
@@ -539,6 +576,32 @@ class GameDetailViewTests(unittest.TestCase):
         self.assertIn('__`$codes 7`__', full_rendered.content)
         self.assertIn('Balanced Draft Order', full_rendered.content)
         self.assertIn('Side Home', full_rendered.content)
+
+    def test_pending_uses_each_players_team_emoji_and_named_season_tier(self):
+        pending = dataclasses.replace(
+            snapshot(pending=True, completed=False),
+            league_tier_name='Gold',
+        )
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        pending_rendered = views.render_classic_game_detail(
+            views.resolve_display(pending, guild=guild)
+        )
+        self.assertIn('🏠', pending_rendered.embed.fields[-1].value)
+        self.assertNotIn('✈️', pending_rendered.embed.fields[-1].value)
+        completed = dataclasses.replace(snapshot(), league_tier_name='Gold')
+        completed_rendered = views.render_classic_game_detail(
+            views.resolve_display(completed, guild=guild)
+        )
+        self.assertIn(
+            'PolyChampions Gold Tier Season 8 playoff game',
+            completed_rendered.embed.footer.text,
+        )
+        self.assertNotIn('Tier 2', completed_rendered.embed.footer.text)
 
     def test_native_pending_renderer_uses_slash_guidance_only(self):
         guild = SimpleNamespace(

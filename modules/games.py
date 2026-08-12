@@ -2422,6 +2422,20 @@ class polygames(commands.Cog):
         view.message = await ctx.send(view=view)
         return True
 
+    @staticmethod
+    def _player_avatar_url(guild, discord_id: int) -> str:
+        """Freeze the current guild avatar URL without crossing into a worker."""
+
+        get_member = getattr(guild, 'get_member', None)
+        member = get_member(int(discord_id)) if callable(get_member) else None
+        avatar = getattr(member, 'display_avatar', None) if member else None
+        if avatar is None:
+            return ''
+        try:
+            return str(avatar.replace(size=512, format='webp'))
+        except (AttributeError, TypeError, ValueError):
+            return str(avatar)
+
     async def _send_player_workspace(
         self,
         ctx,
@@ -2447,6 +2461,7 @@ class polygames(commands.Cog):
                 ctx.author.id == snapshot.discord_id
                 or settings.is_staff(ctx.author)
             ),
+            avatar_url=self._player_avatar_url(ctx.guild, snapshot.discord_id),
         )
         view.message = await ctx.send(view=view)
         return True
@@ -2491,6 +2506,10 @@ class polygames(commands.Cog):
             can_edit=(
                 interaction.user.id == snapshot.discord_id
                 or settings.is_staff(interaction.user)
+            ),
+            avatar_url=self._player_avatar_url(
+                interaction.guild,
+                snapshot.discord_id,
             ),
         )
         view.message = await interaction.edit_original_response(view=view)
@@ -3962,6 +3981,10 @@ class polygames(commands.Cog):
                         ctx.author.id == snapshot.discord_id
                         or settings.is_staff(ctx.author)
                     ),
+                    avatar_url=self._player_avatar_url(
+                        ctx.guild,
+                        snapshot.discord_id,
+                    ),
                 )
                 view.message = await ctx.send(view=view)
                 return
@@ -4012,6 +4035,10 @@ class polygames(commands.Cog):
                 can_edit=(
                     ctx.author.id == snapshot.discord_id
                     or settings.is_staff(ctx.author)
+                ),
+                avatar_url=self._player_avatar_url(
+                    ctx.guild,
+                    snapshot.discord_id,
                 ),
             )
             view.message = await ctx.send(view=view)
@@ -4065,6 +4092,10 @@ class polygames(commands.Cog):
                 can_edit=(
                     ctx.author.id == snapshot.discord_id
                     or settings.is_staff(ctx.author)
+                ),
+                avatar_url=self._player_avatar_url(
+                    ctx.guild,
+                    snapshot.discord_id,
                 ),
             )
             view.message = await ctx.send(view=view)

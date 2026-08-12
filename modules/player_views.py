@@ -1,4 +1,4 @@
-"""Components v2 presentation for immutable player workspace snapshots."""
+"""Components v2 presentation for immutable player profile snapshots."""
 
 from __future__ import annotations
 
@@ -92,6 +92,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         initial_section: str = 'overview',
         completed_filter: str = 'all',
         can_edit: bool = False,
+        avatar_url: str = '',
         history_graph_loader: Callable[
             [
                 player_workers.PlayerWorkspaceSnapshot,
@@ -107,6 +108,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.completed_filter = completed_filter
         self.season_filter = 'all'
         self.can_edit = can_edit
+        self.avatar_url = str(avatar_url or '')
         self.history_era = 'current'
         self.history_graph_loader = history_graph_loader
         self.history_graphs: dict[str, player_workers.PlayerHistoryGraph] = {}
@@ -233,8 +235,8 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
     async def _profile_actions(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             'Profile editing remains available through the permission-checked '
-            '`/player register` (or `$setname`) and `settime` commands while '
-            'the remaining native edit workflows are modernized. The '
+            '`/player register` and `/player timezone` commands. `$setname` '
+            'and `$settime` remain available for compatibility. The '
             'registered Polytopia name is account-wide.',
             ephemeral=True,
         )
@@ -248,15 +250,12 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             )
             timezone = snapshot.timezone or 'Not set'
             if snapshot.polytopia_name:
-                polytopia_name = discord.utils.escape_markdown(
-                    player_registration_workers.safe_public_name(
-                        snapshot.polytopia_name
-                    ),
-                    as_needed=True,
+                polytopia_name = player_registration_workers.safe_public_name(
+                    snapshot.polytopia_name
                 )
                 polytopia_name_line = (
                     '**Canonical Polytopia name (account-wide):** '
-                    f'{polytopia_name}'
+                    f'`{polytopia_name.replace("`", "ˋ")}`'
                 )
             else:
                 polytopia_name_line = (
@@ -288,9 +287,13 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'**Global:** `{snapshot.global_elo}` current · '
                 f'`{snapshot.global_peak}` peak · {global_rank}\n'
                 f'**All-time local:** `{snapshot.local_all_time}` · '
-                f'`{snapshot.local_all_time_peak}` peak\n'
+                f'`{snapshot.local_all_time_peak}` peak · '
+                f'{snapshot.local_all_time_wins}W–'
+                f'{snapshot.local_all_time_losses}L\n'
                 f'**All-time global:** `{snapshot.global_all_time}` · '
-                f'`{snapshot.global_all_time_peak}` peak'
+                f'`{snapshot.global_all_time_peak}` peak · '
+                f'{snapshot.global_all_time_wins}W–'
+                f'{snapshot.global_all_time_losses}L'
             )
         if self.section == 'analytics':
             if snapshot.discord_id == self.requester_id:
@@ -349,7 +352,12 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'{snapshot.team_emoji} {snapshot.team_name}'.strip()
                 if snapshot.team_name else 'No team'
             )
-            return f'## Team\n{team}\n\n## Squads\n{squads}'
+            return (
+                f'## Team\n{team}\n\n'
+                f'## Recent and historical squad context\n{squads}\n'
+                '-# Squads summarize games played together; they do not '
+                'establish current team membership.'
+            )
         page_rows, _, _ = components_v2.page_slice(
             self.rows,
             self.page_index,
@@ -379,13 +387,31 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             ],
         )
         self.section_select.callback = self._select_section
+        heading = (
+            f'# 👤 {self.snapshot.display_name}\n'
+            f'-# Player profile'
+        )
+        if self.section == 'overview' and self.avatar_url:
+            profile_content = discord.ui.Section(
+                discord.ui.TextDisplay(heading),
+                discord.ui.TextDisplay(self._body()),
+                accessory=discord.ui.Thumbnail(
+                    self.avatar_url,
+                    description='Current Discord avatar',
+                ),
+            )
+        else:
+            profile_content = discord.ui.TextDisplay(heading)
         components = [
-            discord.ui.TextDisplay(
-                f'# 👤 {self.snapshot.display_name}\n'
-                f'-# Player workspace'
+            profile_content,
+            *(
+                () if self.section == 'overview' and self.avatar_url else (
+                    discord.ui.Separator(
+                        spacing=discord.SeparatorSpacing.small,
+                    ),
+                    discord.ui.TextDisplay(self._body()),
+                )
             ),
-            discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(self._body()),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(self.section_select),
         ]

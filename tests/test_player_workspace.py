@@ -67,6 +67,10 @@ def snapshot(discord_id=100):
         local_losses=4,
         global_wins=9,
         global_losses=5,
+        local_all_time_wins=18,
+        local_all_time_losses=14,
+        global_all_time_wins=19,
+        global_all_time_losses=15,
         local_rank=3,
         local_ranked_count=30,
         global_rank=8,
@@ -146,6 +150,45 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Canonical Polytopia name (account-wide)', body)
         self.assertIn('Not set', body)
         self.assertNotIn('Nelluk Poly', body)
+
+    def test_profile_surfaces_copyable_name_avatar_and_all_time_records(self):
+        view = self.make_view(avatar_url='https://example.test/avatar.webp')
+        self.assertIn('`Nelluk Poly`', view._body())
+        ratings = self.make_view(initial_section='ratings')._body()
+        self.assertIn('18W–14L', ratings)
+        teams = self.make_view(initial_section='teams')._body()
+        self.assertIn('Recent and historical squad context', teams)
+        self.assertIn('do not establish current team membership', teams)
+        self.assertIn('Player profile', str(view.to_components()))
+        self.assertIn('https://example.test/avatar.webp', str(view.to_components()))
+        self.assertNotIn('media_gallery', str(view.to_components()).lower())
+
+    async def test_profile_actions_prefer_native_register_and_timezone(self):
+        view = self.make_view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        await view._profile_actions(interaction)
+        message = interaction.response.send_message.await_args.args[0]
+        self.assertIn('/player register', message)
+        self.assertIn('/player timezone', message)
+        self.assertIn('$setname', message)
+        self.assertIn('$settime', message)
+
+    def test_avatar_url_is_captured_from_the_current_guild_member(self):
+        avatar = SimpleNamespace(
+            replace=mock.Mock(return_value='https://example.test/avatar.webp'),
+        )
+        guild = SimpleNamespace(
+            get_member=mock.Mock(
+                return_value=SimpleNamespace(display_avatar=avatar),
+            ),
+        )
+        self.assertEqual(
+            games.polygames._player_avatar_url(guild, 100),
+            'https://example.test/avatar.webp',
+        )
+        guild.get_member.assert_called_once_with(100)
 
     async def test_section_filter_and_pagination_are_cached(self):
         view = self.make_view(initial_section='completed')
@@ -273,7 +316,7 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
                 elo_max_moonrise=1550,
                 elo_alltime=1520,
                 elo_max_alltime=1600,
-                get_record=lambda: (9, 5),
+                get_record=lambda version=None: (9, 5),
                 leaderboard_rank=lambda cutoff: (8, 100),
             ),
             team=None,
@@ -281,7 +324,7 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             elo_max_moonrise=1510,
             elo_alltime=1490,
             elo_max_alltime=1570,
-            get_record=lambda: (8, 4),
+            get_record=lambda version=None: (8, 4),
             leaderboard_rank=lambda cutoff: (3, 30),
         )
         with (
@@ -318,6 +361,14 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
         self.assertTrue(dataclasses.is_dataclass(result))
+        self.assertEqual(
+            (result.local_all_time_wins, result.local_all_time_losses),
+            (8, 4),
+        )
+        self.assertEqual(
+            (result.global_all_time_wins, result.global_all_time_losses),
+            (9, 5),
+        )
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.local_elo = 1
         connection.__enter__.assert_called_once()
