@@ -408,11 +408,13 @@ base of the modernization accumulation branch. At the latest repository
 check:
 
 - accumulation branch: `codex/database-slash-modernization`
+- P11.5B first trusted-guild bootstrap implementation checkpoint: `0e2775b`;
+  reviewed and ready for accumulation integration
 - P11.6 card-parity implementation checkpoint: `0a40340`; reviewed
   accumulation merge checkpoint: `30f2257`
 - P11.7 persisted 2v2 ELO-graph checkpoints: `6be4e09`, `2f6f121`;
   fast-forward accumulation checkpoint: `2f6f121`
-- current combined offline result: 2,073 tests passed with 91 intentional
+- current combined offline result: 2,081 tests passed with 91 intentional
   development-database gates skipped
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
@@ -421,7 +423,9 @@ check:
   beta remains on its prior reviewed `de5ad77` image. P11.6 needs a Mac image
   rebuild plus human desktop/mobile card smoke; P11.7 is test-only. Neither
   unit changes the Discord command tree, so no command synchronization or
-  tester announcement is warranted before that smoke.
+  tester announcement is warranted before that smoke. P11.5B is needed only
+  for a genuinely fresh database and does not alter the already-bootstrapped
+  Mac beta.
 - preserved pilot checkpoint branch: `codex/slash-async-unwin-pilot`
 - implementation checkpoint: `a9375b3`
 - development-guild sync fix: `9a64ce1`
@@ -16064,6 +16068,63 @@ host metadata check plus live non-root bind probe. First-ever trusted-guild
 bootstrap remains P11.5B; the imported current database already has its
 trusted-guild authority.
 
+### P11.5B — First trusted-guild bootstrap
+
+Status: **Implemented; Tier-3 reviewed and ready for accumulation
+integration.**
+
+Branch/base: `codex/p11-5b-first-guild-bootstrap`, from exact clean pushed
+accumulation checkpoint
+`5d5ea9cbb68af3b64e121df696b62e663cce1d30`.
+
+Risk tier: **Tier 3 operational/database authority boundary.**
+
+Objective: close the one day-zero gap in `./polybot` for a genuinely fresh
+deployment. `./polybot bootstrap-guild GUILD_ID` now captures one exact
+read-only Discord guild snapshot, prints a database-free digest-bound plan,
+and requires its exact confirmation before one atomic development-database
+transaction creates the base, draft, and delegation configuration schemas and
+activates revision 1/generation 1.
+
+The bootstrap is fixed to `development`, `polytopia_dev`, `polybot_dev`, the
+development beta application, and exactly one configured guild. It requires a
+complete relation-empty application schema, validates the winner foreign key,
+refuses partial or nonempty configuration storage, holds a transaction-scoped
+advisory lock, and exactly verifies the active revision and audit before
+commit. Any failure rolls back schema creation and activation together.
+
+The initial document is deliberately least-authority: `$` prefix, @everyone
+levels 1–3, no staff roles or special channels, teams disabled, no global
+leaderboard inclusion, and only the `operator` capability (which exposes the
+`guild` and `operator` roots). Discord capture is read-only. The bootstrap
+does not start the bot, synchronize application commands, create Discord
+roles/channels, or infer ordinary guild policy. After the bot starts, the
+owner explicitly registers the development-guild operator surface and uses
+`/guild edit` to configure and activate the desired ordinary capabilities.
+
+Implementation checkpoint:
+`0e2775b2c25fdc10d67f4c24dbf7c39f073685b3`. Focused bootstrap/operator/
+container validation passes 24 tests; shell parsing, compilation, and diff
+checks pass. Complete offline discovery passes all 2,081 tests with 91
+intentional development-database gates skipped. Complete-diff review found no
+remaining actionable issue. Runtime startup compatibility was independently
+checked: database authority loads the new active document directly, validates
+its Discord references, and does not require equality with static settings.
+
+The real Linux proof reached a successful exact-image build and unpack, but
+Compose could not write its final temporary metadata file because RackNerd's
+22 GiB filesystem reached 100%. No PostgreSQL image, container, volume,
+database connection, Discord snapshot, or Discord write was created. The
+exact failed image and all build cache created by the exercise were removed,
+restoring 1.5 GiB free/94% usage; the prior exited hello-world container is
+the only remaining Docker object. A live Linux fresh-volume apply therefore
+remains environmental validation after safe disk headroom is available, not
+a known product failure.
+
+The imported Mac beta already has active trusted guild
+`478571892832206869`, so P11.5B requires no Mac beta restart, schema apply,
+command synchronization, or tester announcement.
+
 ### P11.6 — Player, team, and game card parity polish
 
 Status: **Complete; Tier-2 reviewed and integrated at `30f2257`.**
@@ -17612,6 +17673,33 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5B first trusted-guild bootstrap reviewed
+
+- Created `codex/p11-5b-first-guild-bootstrap` from exact clean pushed
+  accumulation checkpoint `5d5ea9c`, added the bounded `./polybot
+  bootstrap-guild GUILD_ID` operator flow, and committed implementation/tests/
+  runbook as `0e2775b`.
+- The new operation captures one exact read-only Discord guild inventory,
+  prints a database-free digest-bound plan, and requires exact confirmation
+  for one serializable transaction that accepts only the complete empty
+  development application schema, creates all three configuration-storage
+  layers, and activates one least-authority operator-only document. It starts
+  no bot and performs no application-command or other Discord write.
+- Tier-3 complete-diff review confirmed rollback, target/schema/digest,
+  connection ownership, first-guild inventory, runtime publication, and
+  writer-stop boundaries. Twenty-four focused tests and all 2,081 offline
+  tests with 91 intentional database-gated skips passed; shell, compilation,
+  and diff checks passed.
+- The real Linux image built and unpacked, but Compose's final metadata write
+  failed when RackNerd reached 100% disk usage. Removed only that exact image
+  and its build cache, leaving no new container or volume and restoring 1.5
+  GiB free/94% usage. No database connection, Discord snapshot, beta change,
+  command synchronization, production access, or announcement occurred.
+- The Mac beta already contains its trusted guild and remains the sole
+  development writer on its prior reviewed image. A live Linux fresh-volume
+  bootstrap should be rerun after safe disk headroom is available; it is not
+  required to deploy or visually smoke P11.6.
 
 ### 2026-08-12 — P11.6 card parity and P11.7 ELO graph coverage integrated
 
