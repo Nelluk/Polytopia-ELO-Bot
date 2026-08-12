@@ -136,6 +136,49 @@ class PersonaRoleTests(unittest.IsolatedAsyncioTestCase):
                 await personas.setup_roles(self.profile, guild)
         guild.created[0][0].delete.assert_awaited_once()
 
+    async def test_reconcile_adopts_only_one_exact_unused_role_pair(self):
+        team = FakeRole(900, self.policy.team_name)
+        staff = FakeRole(901, self.policy.staff_role_name)
+        guild = FakeGuild((team, staff))
+        state = {}
+
+        def read(_profile, _filename):
+            return state or None
+
+        def write(_profile, _filename, value):
+            state.update(value)
+
+        with mock.patch.object(personas, 'manifest', return_value=self.policy), \
+                mock.patch.object(personas.beta_operations, 'assert_beta_profile'), \
+                mock.patch.object(personas, '_read_state', side_effect=read), \
+                mock.patch.object(personas, '_write_state', side_effect=write):
+            result = await personas.reconcile_roles(self.profile, guild)
+
+        self.assertEqual((result.team_role_id, result.staff_role_id), (900, 901))
+        self.assertEqual(guild.created, [])
+
+    async def test_reconcile_refuses_duplicate_changed_or_used_roles(self):
+        cases = []
+        cases.append(FakeGuild((
+            FakeRole(900, self.policy.team_name),
+            FakeRole(902, self.policy.team_name),
+            FakeRole(901, self.policy.staff_role_name),
+        )))
+        changed = FakeRole(900, self.policy.team_name)
+        changed.permissions.value = 1
+        cases.append(FakeGuild((changed, FakeRole(901, self.policy.staff_role_name))))
+        used = FakeRole(900, self.policy.team_name)
+        used.members.append(FakeMember(10, (used,)))
+        cases.append(FakeGuild((used, FakeRole(901, self.policy.staff_role_name))))
+
+        for guild in cases:
+            with self.subTest(roles=[role.name for role in guild.roles]), \
+                    mock.patch.object(personas, 'manifest', return_value=self.policy), \
+                    mock.patch.object(personas.beta_operations, 'assert_beta_profile'), \
+                    mock.patch.object(personas, '_read_state', return_value=None):
+                with self.assertRaises(personas.BetaLabPersonaError):
+                    await personas.reconcile_roles(self.profile, guild)
+
     async def test_member_assignment_and_orphan_reconciliation_are_exact(self):
         team = FakeRole(900, self.policy.team_name)
         staff = FakeRole(901, self.policy.staff_role_name)

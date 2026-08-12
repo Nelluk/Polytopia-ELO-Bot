@@ -42,6 +42,8 @@ def _parser() -> argparse.ArgumentParser:
     operations.add_parser('roles-status')
     role_setup = operations.add_parser('roles-setup')
     role_setup.add_argument('--confirm', required=True)
+    role_reconcile = operations.add_parser('roles-reconcile')
+    role_reconcile.add_argument('--confirm', required=True)
     operations.add_parser('database-status')
     database_seed = operations.add_parser('database-seed')
     database_seed.add_argument('--confirm', required=True)
@@ -88,6 +90,19 @@ def main(argv: list[str] | None = None) -> int:
                 profile,
                 {
                     'operation': 'beta-lab-persona-setup',
+                    'confirm': args.confirm,
+                },
+            ))
+        elif args.operation == 'roles-reconcile':
+            if args.confirm != RECONCILE_CONFIRMATION:
+                raise beta_lab_personas.BetaLabPersonaError(
+                    f'Role reconciliation requires --confirm '
+                    f'{RECONCILE_CONFIRMATION}.'
+                )
+            result = asyncio.run(beta_operations.send_control_request(
+                profile,
+                {
+                    'operation': 'beta-lab-persona-reconcile',
                     'confirm': args.confirm,
                 },
             ))

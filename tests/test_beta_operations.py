@@ -740,6 +740,38 @@ class ReleaseControlAndSeparationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['staff_role_id'], 701)
         setup.assert_awaited_once_with(control.profile, guild)
 
+    async def test_persona_role_reconcile_requires_exact_control_confirmation(self):
+        control = beta_operations.BetaReleaseControl.__new__(
+            beta_operations.BetaReleaseControl
+        )
+        guild = object()
+        control.profile = object()
+        control.service = SimpleNamespace(
+            _assert_authenticated_identity=mock.Mock(),
+            _guild=mock.Mock(return_value=guild),
+        )
+        with mock.patch.object(
+            beta_lab_personas,
+            'reconcile_roles',
+            new=mock.AsyncMock(return_value=beta_lab_personas.PersonaRoleBinding(
+                700, 701,
+            )),
+        ) as reconcile:
+            with self.assertRaises(beta_operations.BetaOperationsError):
+                await control._dispatch({
+                    'operation': 'beta-lab-persona-reconcile',
+                    'confirm': 'wrong',
+                })
+            reconcile.assert_not_awaited()
+            result = await control._dispatch({
+                'operation': 'beta-lab-persona-reconcile',
+                'confirm': 'RECONCILE-BETA-LAB-PERSONAS',
+            })
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['team_role_id'], 700)
+        self.assertEqual(result['staff_role_id'], 701)
+        reconcile.assert_awaited_once_with(control.profile, guild)
+
     async def test_unix_control_socket_is_local_and_status_is_read_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

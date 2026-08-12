@@ -137,6 +137,22 @@ POLYBOT_ENV=development .venv/bin/python \
   --confirm PREPARE-BETA-LAB-PERSONAS
 ```
 
+Role setup refuses to adopt a matching name without ownership evidence. If a
+prior setup created both roles but lost its private state publication, do not
+delete or recreate them. After reviewing that there is exactly one role for
+each manifest name and both are unmanaged, assignable, zero-permission,
+unhoisted, unmentionable, and have no members, reconcile only their ownership
+record:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_beta_lab_personas.py roles-reconcile \
+  --confirm RECONCILE-BETA-LAB-PERSONAS
+```
+
+Reconciliation performs no Discord mutation and refuses duplicates, changed
+permissions/flags, unassignable roles, or any member assignment.
+
 Then stop the durable beta, verify the writer gate is clear, and seed only the
 owned House/Team rows:
 

@@ -526,18 +526,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.27 container Beta Lab control parity is implemented,
-live-validated, and locally fast-forwarded from exact clean pushed checkpoint
-`4787138c4918457ba76ef71f71e7508e8bf2dd39`.** Exact source `162f1bf` runs in
-arm64 image `sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`
-with restart count zero, one project writer, and no host/other-container
-writer. Its private mode-0600 control socket successfully serves Beta Lab and
-release status. Complete discovery passes all 2,110 tests with 98 intentional
-skips; read-only command inspection finds zero globals and all 12 guild roots
-unchanged. Readiness now reports its true blockers: incomplete server
-structure, an unprepared guided persona, and an unpinned tester role. No
-fixture, role, channel, database, command-tree, or production mutation was
-performed. RC2 remains historical after this runtime-source correction.
+Current active unit: **P9.28 bounded Beta Lab readiness repair is in progress
+from exact clean pushed checkpoint `9c3f6a0`.** The existing tester role is now
+privately pinned. Read-only inventory found one exact unused, unmanaged,
+zero-permission, unhoisted, and unmentionable role for each guided-persona
+name, but their private ownership record was absent. The source correction
+adds an explicit fail-closed reconciliation operation that records only such
+a unique exact pair and performs no Discord mutation; duplicate, changed,
+unassignable, or used roles are refused. Focused exact-image coverage passes
+83 tests. Live reconciliation, the approved stopped-writer development seed,
+restart, complete validation, and evidence integration remain in progress.
+No command synchronization, tester announcement, production, RackNerd, or
+external-database action is in scope. RC2 remains historical.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16475,6 +16475,34 @@ resources can mutate the development database and Discord roles/channels, so
 it is not folded into this source unit. RC2 stays historical after this runtime
 correction; a successor candidate record must follow the separately approved
 readiness repair and human checks.
+
+### P9.28 — Bounded Beta Lab readiness repair
+
+Status: **In progress: tester role pinned; fail-closed stale persona-role
+ownership reconciliation implemented and focused tests pass.**
+
+Branch/base: `codex/p9-28-beta-lab-readiness-repair`, exact clean pushed
+accumulation checkpoint `9c3f6a0`.
+
+Risk tier: **Tier 3 Discord role ownership, development-database fixture, and
+single-writer lifecycle boundary.** No command synchronization, tester
+announcement, production, RackNerd, or external database scope.
+
+The existing tester role is pinned in the private readiness state. The two
+intended guided-persona roles also already exist exactly once in Beta Lab with
+zero permissions, no members, and safe unmanaged/unhoisted/unmentionable
+flags, but their private ownership publication is absent. Ordinary setup
+correctly refuses to adopt names without evidence. A new separately confirmed
+reconciliation operation may publish ownership only after rechecking that
+exact unique and unused shape; it makes no Discord mutation and fails closed
+on duplicates, changed permissions or flags, unassignable roles, or members.
+
+Focused exact-image persona, control, Beta Lab, and readiness coverage passes
+83 tests. The remaining approved sequence is to deploy the correction,
+reconcile the role pair, stop the bot and prove the writer gate clear, seed
+only the compatible Beta Lab structure and owned guided-persona House/Team,
+restart, and verify all five packs plus command-tree immutability. Evidence and
+complete offline results will be recorded before P9.28 is complete.
 
 ## Standard work-unit template
 

@@ -1399,7 +1399,11 @@ class BetaReleaseControl:
             return dict(self.service.status())
         if operation == 'readiness-inventory':
             return dict(await self.service.readiness_inventory())
-        if operation in {'beta-lab-persona-status', 'beta-lab-persona-setup'}:
+        if operation in {
+                'beta-lab-persona-status',
+                'beta-lab-persona-setup',
+                'beta-lab-persona-reconcile',
+        }:
             from modules import beta_lab_personas
             self.service._assert_authenticated_identity()
             guild = self.service._guild()
@@ -1410,6 +1414,22 @@ class BetaReleaseControl:
                             'Persona setup requires the exact confirmation token.'
                         )
                     binding = await beta_lab_personas.setup_roles(self.profile, guild)
+                    status = beta_lab_personas.PersonaStatus(
+                        True,
+                        'The dedicated zero-permission Team and staff-persona roles are ready.',
+                        binding.team_role_id,
+                        binding.staff_role_id,
+                    )
+                elif operation == 'beta-lab-persona-reconcile':
+                    if request.get('confirm') != 'RECONCILE-BETA-LAB-PERSONAS':
+                        raise BetaOperationsError(
+                            'Persona role reconciliation requires the exact '
+                            'confirmation token.'
+                        )
+                    binding = await beta_lab_personas.reconcile_roles(
+                        self.profile,
+                        guild,
+                    )
                     status = beta_lab_personas.PersonaStatus(
                         True,
                         'The dedicated zero-permission Team and staff-persona roles are ready.',

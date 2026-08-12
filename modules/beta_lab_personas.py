@@ -311,6 +311,56 @@ async def setup_roles(profile: Any, guild: Any) -> PersonaRoleBinding:
         raise BetaLabPersonaError('The owned persona roles could not be prepared.' + detail) from exc
 
 
+async def reconcile_roles(profile: Any, guild: Any) -> PersonaRoleBinding:
+    """Adopt only one exact unused zero-permission pair after explicit review."""
+
+    policy = manifest()
+    beta_operations.assert_beta_profile(
+        profile,
+        require_service_environment=False,
+    )
+    if int(getattr(guild, 'id', 0)) != policy.guild_id:
+        raise BetaLabPersonaError('The persona role reconciliation targets another guild.')
+    if _read_state(profile, ROLE_STATE_FILENAME) is not None:
+        return load_role_binding(profile, guild)
+
+    roles = tuple(getattr(guild, 'roles', ()) or ())
+    selected: list[Any] = []
+    for name in (policy.team_name, policy.staff_role_name):
+        matches = tuple(
+            role for role in roles
+            if str(getattr(role, 'name', '')) == name
+        )
+        if len(matches) != 1:
+            raise BetaLabPersonaError(
+                f'Persona role reconciliation requires exactly one {name!r} role.'
+            )
+        role = matches[0]
+        if (
+                not _role_matches(role, role_id=int(role.id), name=name)
+                or not _role_is_assignable(role)):
+            raise BetaLabPersonaError(
+                f'The existing {name!r} role is not an assignable '
+                'zero-permission persona role.'
+            )
+        if tuple(getattr(role, 'members', ()) or ()):
+            raise BetaLabPersonaError(
+                f'The existing {name!r} role has members and cannot be adopted.'
+            )
+        selected.append(role)
+
+    value = {
+        'schema_version': 1,
+        'guild_id': policy.guild_id,
+        'team_role_id': int(selected[0].id),
+        'team_role_name': policy.team_name,
+        'staff_role_id': int(selected[1].id),
+        'staff_role_name': policy.staff_role_name,
+    }
+    _write_state(profile, ROLE_STATE_FILENAME, value)
+    return load_role_binding(profile, guild)
+
+
 def _roles(binding: PersonaRoleBinding, guild: Any) -> tuple[Any, Any]:
     return (
         _role_by_id(guild, binding.team_role_id),
