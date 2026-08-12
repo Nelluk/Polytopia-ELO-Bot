@@ -491,7 +491,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.7 quarantined development-guild onboarding is
-implemented, Tier-3 reviewed, and database-gated on
+complete, integrated, pushed, development-guild registered, and beta-deployed
+from
 `codex/p10-7-quarantined-onboarding`, based on exact clean pushed accumulation
 checkpoint `96b92ce0a57c5575eb68c0fe488a454d72d1cb55`. Unknown guilds now remain
 connected without creating a database row while bot-level dispatch drops their
@@ -509,12 +510,18 @@ database case skipped behind its gate; compilation and diff checks pass. The
 stopped-writer `development` / `polytopia_dev` / `polybot_dev` gate ran 78
 tests: 77 passed and the established operator-fixture round trip skipped. The
 new PostgreSQL enrollment graph was verified and fully outer-transaction
-rolled back. The durable beta is intentionally stopped pending integration,
-the development-guild-only command plan/apply, and restart from the clean
-pushed checkpoint. No schema, retained database state, global synchronization,
-tester communication, dependency, or production action occurred. Next after
-P10.7 close-out: P10.6c coordinated command-capability activation; delegated
-local editing is also ready.**
+rolled back. Exact fast-forward integration and pushed code checkpoint:
+`e38f44d9ddd9693905fd9f66b21d2d9234054ea9`. The offline and remote command
+plans found exactly one update to the existing development-guild `operator`
+root and an empty global tree; guild-only apply converged all 11 roots. The
+durable beta runs that exact checkpoint as PID `258874`, authenticated as
+development application `479029527553638401`, with database authority
+generation 1, zero restart churn, and exactly one host-wide development
+writer. No real enrollment was attempted without an approved target. No
+schema, retained database state, global synchronization, tester communication,
+dependency, or production action occurred. Next recommended: P10.6c
+coordinated command-capability activation; delegated local editing is also
+ready.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15281,8 +15288,8 @@ runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
 ### P10.7 — Quarantined development-guild onboarding
 
-Status: **Implemented, Tier-3 reviewed, and development-database gated; pending
-accumulation integration/deployment**
+Status: **Complete; integrated, pushed, development-guild registered, and
+beta-deployed**
 
 Unknown guilds no longer trigger an automatic leave and never receive an
 implicit configuration row. A bot-level dispatch boundary drops all
@@ -15325,6 +15332,13 @@ fixture preservation skip; its new first-revision/audit graph rolled back in
 full and left no retained row. Complete-diff review corrected listener-level
 quarantine, dynamic active-inventory facade use, exact current digest binding,
 and terminal committed-state publication. No actionable finding remains.
+
+Exact fast-forward integration/pushed code checkpoint: `e38f44d`. The guarded
+beta runs that checkpoint with one active database-authority guild at generation
+1. The development-guild-only command apply changed only the existing
+`operator` root and repeat inspection reports all 11 roots unchanged with no
+global roots. Live enrollment acceptance awaits a real owner-approved target;
+that absence is not grounds to manufacture or persist a second guild.
 
 ## Standard work-unit template
 
@@ -16728,6 +16742,23 @@ deferred into this post-modernization backlog.
   occurred. Next: commit this evidence, fast-forward into accumulation, push,
   apply only the reviewed development-guild operator-root update, and restart
   the durable beta from that clean checkpoint.
+- Fast-forwarded all P10.7 checkpoints into
+  `codex/database-slash-modernization` and pushed exact code/evidence checkpoint
+  `e38f44d9ddd9693905fd9f66b21d2d9234054ea9` to GitHub. Offline planning was
+  bounded to guild `478571892832206869`; remote inspection proved the global
+  tree empty and exactly one update to the existing `operator` root. Guild-only
+  apply succeeded and repeat inspection reports all 11 roots unchanged.
+- Started only the guarded durable beta from exact checkpoint `e38f44d`. PID
+  `258874` authenticated as application `479029527553638401`; startup schema
+  preflight verified `polytopia_dev` / `polybot_dev`, the complete active graph
+  loaded guild `478571892832206869` at generation 1, automatic synchronization
+  remained disabled, systemd reports active/running with zero restarts, and
+  host-wide audit reports exactly one development writer.
+- No target guild was available or authorized for a real enrollment, so no
+  synthetic retained row was created. No tester checklist or announcement was
+  warranted for this owner-only control plane. P10.7 is complete. Next
+  recommended: P10.6c coordinated command-capability activation; delegated
+  local editing is the useful alternative.
 
 ### 2026-08-11 — P9.25 legacy ELO behavior characterized and database-gated
 
