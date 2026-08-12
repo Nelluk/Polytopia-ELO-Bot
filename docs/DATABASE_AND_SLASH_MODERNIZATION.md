@@ -492,7 +492,39 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.4B2 Mac transfer import and portability proof is
+Current active unit: **P11.4B3 Mac container bot lifecycle proof is complete
+and development-validated from exact code/image checkpoint
+`de5ad771fe98404e25696ea246a9c0a8b80e2a87`. The sole local bot is running
+under project `polybot-mac-beta` as development application
+`479029527553638401`; the RackNerd development beta remains inactive and its
+host-wide writer audit is clear. No application-command synchronization,
+tester announcement, external database, or production action occurred.**
+
+The copied ignored runtime profiles matched the RackNerd source files byte for
+byte and retained mode 0600. Container-only corrections fixed `psql_host` to
+`postgres`, disabled Bullet, and aligned only the local application database
+password with the already-provisioned secret; the deployment doctor then
+reported READY. A live Docker Desktop probe presented both binds readably as
+`1000:1000`. The exact arm64 image is
+`sha256:1219ca87cc10732f0d66ad5a0e1ffea043f47f08aced65a68c634030c87b1ffa`,
+non-root `1000:1000`, read-only-root, and free of private runtime inputs.
+
+Startup verified PostgreSQL 18.4 `polytopia_dev`/`polybot_dev`, 17 tables, the
+winner FK, active database guild configuration only for
+`478571892832206869`, disabled Bullet, `--skip_tasks`, an empty API log, and
+disabled automatic command synchronization. Runtime limits are 1 GiB, one
+CPU, and 256 PIDs with `SIGINT` and `on-failure:5`. A Compose stop exited zero;
+the persistent log grew from 3,438 to 6,876 bytes after restart and later from
+10,590 to 14,028 bytes across forced container replacement while retaining
+the same named volume. A deliberate PostgreSQL outage caused one failed bot
+startup and one supervised restart; the bot then recovered automatically and
+republished the exact guild snapshot after PostgreSQL returned. Thirty focused
+restart/container tests passed. A disposable project-labeled process exited
+75 and reached exactly five `on-failure:5` retries; it was removed afterward.
+The final state has exactly one local bot, one healthy bundled PostgreSQL
+service, one application database session, and no host-published port.
+
+Previous completed infrastructure unit: **P11.4B2 Mac transfer import and portability proof is
 complete and Tier-3 reviewed on `codex/p11-4b2-mac-container-import`, based on
 exact clean accumulation checkpoint
 `4d7b5dfdf202c82aa9f21ea5da6d1d2bc34bac40`. Risk tier: Tier 3 operational
@@ -558,14 +590,11 @@ bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
 
-Next recommended after P11.4B2: **P11.4B3 container bot lifecycle proof**, only
-after the user confirms the VPS beta is stopped and the reviewed ignored local
-runtime profiles are present: perform the cross-runtime single-writer audit,
-build or select the exact reviewed checkpoint,
-exercise persistent image/log volumes, resource ceilings, SIGINT and exit-75
-restart behavior, database outage/recovery, exact single-writer exclusion, and
-one controlled development Discord login. Also ready: the independent
-development feedback retention/redaction lifecycle.
+Next recommended after P11.4B3: retain the sole local beta for bounded operator
+acceptance and observation without announcing to testers unless separately
+requested. Any production-container design, migration, or cutover remains a
+separately approved unit. Also ready: the independent development feedback
+retention/redaction lifecycle.
 
 Previous completed infrastructure unit: **P11.4A exact-image and isolated-
 database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from
@@ -17389,6 +17418,36 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.4B3 Mac container bot lifecycle proof passed
+
+- Confirmed the RackNerd user service inactive and reran its read-only
+  host-wide audit with no development writer. Copied only
+  `config.development.ini` and `server_settings_dev.py` from the remote
+  development checkout; local and remote SHA-256 values matched without
+  displaying contents. Both local files are owner-only mode 0600.
+- Adapted only ignored local container inputs: bundled host `postgres`, Bullet
+  disabled, local provisioned database secret agreement, and exact
+  `de5ad771fe98404e25696ea246a9c0a8b80e2a87` source/image pin. The deployment
+  doctor reported READY and the actual Docker Desktop binds were readable as
+  `1000:1000`.
+- Built arm64 image
+  `sha256:1219ca87cc10732f0d66ad5a0e1ffea043f47f08aced65a68c634030c87b1ffa`
+  and confirmed non-root/read-only/resource policy plus absent private inputs.
+  Exactly one bot authenticated as application `479029527553638401`, verified
+  `polytopia_dev`/`polybot_dev`, loaded only guild `478571892832206869`, and
+  logged disabled Bullet and automatic command synchronization. `--skip_tasks`
+  and the empty API log confirm the remaining development effects stayed off.
+- Compose SIGINT stop exited zero. Persistent logs survived a start and a
+  forced container replacement. A bounded PostgreSQL outage caused one bot
+  restart and automatic recovery after database health returned. Thirty
+  focused restart/container tests passed; a project-owned exit-75 probe
+  completed exactly five `on-failure:5` retries and was removed.
+- Final writer evidence: RackNerd audit clear and service inactive, Mac host
+  audit clear, exactly one running local bot container, one healthy bundled
+  PostgreSQL container, and one `polybot_dev` application session. No command
+  sync, tester announcement, production/external database action, push, or PR
+  occurred. The sole local beta remains running for operator acceptance.
 
 ### 2026-08-12 — P11.4B2 Mac transfer import and portability proof passed
 

@@ -475,28 +475,58 @@ never use `latest`.
   ordinary and retained recovery volumes remain; only the ordinary service is
   running, with internal `5432/tcp` and no host publication.
 
-The database is ready for the separately gated bot lifecycle unit. The bot is
-not ready to start until the user confirms the VPS beta is stopped, the
-cross-runtime writer audit is clear, and the ignored reviewed local container
-configuration files are provided. Docker Desktop's remapped bind ownership is
-a remaining platform behavior that must be live-probed on every startup; it is
-not treated as equivalent to Linux host ownership.
+At the P11.4B2 checkpoint, the database was ready but bot startup remained
+gated on the user's VPS-beta confirmation, a clear cross-runtime writer audit,
+and the ignored reviewed local container profiles. Docker Desktop's remapped
+bind ownership remains a platform behavior that must be live-probed on every
+startup; it is not treated as equivalent to Linux host ownership.
+
+## P11.4B3 Mac bot lifecycle evidence
+
+- The user confirmed the RackNerd development beta stopped. Its user service
+  was inactive and the remote host-wide audit found no writer. Both ignored
+  development profiles were copied from `/home/nelluk/PolyBot39-dev`, retained
+  mode 0600, and matched their source SHA-256 values. Only ignored local
+  container settings were adapted for bundled `postgres`, disabled Bullet,
+  local database-secret agreement, and the exact image checkpoint.
+- The deployment doctor reported READY. A live bind probe showed both actual
+  profiles readable as `1000:1000`. Exact image checkpoint
+  `de5ad771fe98404e25696ea246a9c0a8b80e2a87` is local image
+  `sha256:1219ca87cc10732f0d66ad5a0e1ffea043f47f08aced65a68c634030c87b1ffa`.
+  It is arm64, non-root `1000:1000`, read-only-root, and contains no private
+  runtime input.
+- Exactly one bot authenticated as development application
+  `479029527553638401`. Startup verified PostgreSQL 18.4
+  `polytopia_dev`/`polybot_dev`, 17 tables, the winner FK, and active database
+  guild configuration only for `478571892832206869`. The runtime command is
+  `python bot.py --skip_tasks`; Bullet and automatic command synchronization
+  are logged disabled, and `api.log` remains zero bytes.
+- Runtime inspection confirmed 1 GiB memory, one CPU, 256 PIDs, `SIGINT`, and
+  `on-failure:5`. SIGINT stop exited zero. The named log volume survived both
+  restart and forced container replacement and grew from 3,438 to 14,028
+  bytes. A PostgreSQL outage produced one failed startup/restart; the bot
+  recovered automatically when PostgreSQL returned and republished the exact
+  guild snapshot.
+- Thirty focused restart/container tests passed. A disposable project-labeled
+  exit-75 probe reached exactly five `on-failure:5` retries and was removed.
+  Combined with the focused in-process restart tests, this validates the
+  exit-75/Compose supervisor boundary without fabricating a Discord owner
+  interaction.
+
+Final state: RackNerd writer audit clear and service inactive; Mac host writer
+audit clear; exactly one local bot and one healthy bundled PostgreSQL
+container; one `polybot_dev` session; no host port, command sync, tester
+announcement, external database, or production action. The local beta remains
+running for bounded operator acceptance.
 
 ## Remaining gates before supported use
 
-1. Provide enough build headroom for Compose to exit cleanly, or use a
-   reviewed remote build/registry workflow. The original VPS remained limited
-   to about 2.3 GB free; the 2026-08-12 Mac audit had about 516 GiB available.
-   Review vulnerability results for the exact images; P11.4A reviewed image
+1. Review vulnerability results for the exact images; P11.4A reviewed image
    history and locked packages but did not install a scanner.
-2. Exercise persistent bot image/log volumes, runtime resource ceilings,
-   SIGINT shutdown, exit-75 restart, database unavailability/recovery, and an
-   actual development Discord login using a separately authorized token/writer
-   window.
-3. Perform a cross-runtime single-writer audit immediately before any
-   container bot login. P11.4A deliberately left the healthy host beta as the
-   only development writer and never started the container bot.
-4. Only after those development results, design a separately approved
+2. Retain single-writer monitoring and obtain bounded operator acceptance of
+   the local beta. Tester announcement remains separate and is not implied by
+   this infrastructure proof.
+3. Only after those development results, design a separately approved
    production migration, secret/volume ownership, rollback, and monitoring
    plan. No production database, service, or command registration is
    authorized by this document.
