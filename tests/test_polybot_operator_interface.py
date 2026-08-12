@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -127,7 +129,12 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
                 host_writer_count
             '''],
             cwd=self.source_root,
-            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            env={
+                **os.environ,
+                'POLYBOT_SOURCE_ONLY': '1',
+                'POLYBOT_PLATFORM_OVERRIDE': 'Linux',
+                'DOCKER_HOST': 'unix:///var/run/docker.sock',
+            },
             capture_output=True,
             text=True,
             check=False,
@@ -135,6 +142,278 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), '1')
+
+    def test_darwin_writer_audit_never_compares_docker_vm_pids(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', '''
+                . ./polybot
+                docker() {
+                  if [ "$1" = ps ]; then echo vm-container; else echo 200; fi
+                }
+                ps() { printf '%s\n' '200 1 python bot.py --skip_tasks'; }
+                host_writer_count
+            '''],
+            cwd=self.source_root,
+            env={
+                **os.environ,
+                'POLYBOT_SOURCE_ONLY': '1',
+                'POLYBOT_PLATFORM_OVERRIDE': 'Darwin',
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
+    def test_remote_linux_writer_audit_never_compares_remote_pids(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', '''
+                . ./polybot
+                docker() {
+                  if [ "$1" = ps ]; then echo remote-container; else echo 200; fi
+                }
+                ps() { printf '%s\n' '200 1 python bot.py --skip_tasks'; }
+                host_writer_count
+            '''],
+            cwd=self.source_root,
+            env={
+                **os.environ,
+                'POLYBOT_SOURCE_ONLY': '1',
+                'POLYBOT_PLATFORM_OVERRIDE': 'Linux',
+                'DOCKER_HOST': 'ssh://remote-engine',
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
+    def test_ambiguous_linux_docker_endpoint_counts_native_writer(self):
+        environment = {
+            **os.environ,
+            'POLYBOT_SOURCE_ONLY': '1',
+            'POLYBOT_PLATFORM_OVERRIDE': 'Linux',
+        }
+        environment.pop('DOCKER_HOST', None)
+        result = subprocess.run(
+            ['/bin/sh', '-c', '''
+                . ./polybot
+                docker() { return 1; }
+                ps() { printf '%s\n' '200 1 python bot.py --skip_tasks'; }
+                host_writer_count
+            '''],
+            cwd=self.source_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
+    def test_custom_linux_unix_socket_is_not_pid_namespace_proof(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', '''
+                . ./polybot
+                docker() {
+                  if [ "$1" = ps ]; then echo proxied-container; else echo 200; fi
+                }
+                ps() { printf '%s\n' '200 1 python bot.py --skip_tasks'; }
+                host_writer_count
+            '''],
+            cwd=self.source_root,
+            env={
+                **os.environ,
+                'POLYBOT_SOURCE_ONLY': '1',
+                'POLYBOT_PLATFORM_OVERRIDE': 'Linux',
+                'DOCKER_HOST': 'unix:///tmp/proxied-docker.sock',
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
+    def _backup_process(
+        self,
+        directory: Path,
+        *,
+        bot_running: bool,
+        database_running: bool,
+        mode: str,
+        cleanup_failure: str = '',
+    ) -> subprocess.Popen:
+        state = directory / 'state'
+        state.mkdir()
+        (state / 'bot').write_text(
+            str(bot_running).lower(), encoding='utf-8'
+        )
+        (state / 'postgres').write_text(
+            str(database_running).lower(), encoding='utf-8'
+        )
+        environment = {
+            **os.environ,
+            'POLYBOT_SOURCE_ONLY': '1',
+            'BACKUP_TEST_STATE': str(state),
+            'BACKUP_TEST_MARKER': str(directory / 'backup-started'),
+            'BACKUP_TEST_MODE': mode,
+            'BACKUP_TEST_CLEANUP_FAILURE': cleanup_failure,
+        }
+        command = r'''
+            . ./polybot
+            require_engine() { :; }
+            validate_project_name() { :; }
+            require_prepared_inputs() { :; }
+            host_private_input_probe() { :; }
+            confirm_exact() { :; }
+            configured_checkpoint() { printf '%040d\n' 0 | tr 0 a; }
+            bot_container_id() { echo bot; }
+            postgres_container_id() { echo postgres; }
+            container_running() {
+              [ -f "$BACKUP_TEST_STATE/$1" ] \
+                && [ "$(sed -n '1p' "$BACKUP_TEST_STATE/$1")" = true ]
+            }
+            docker() {
+              if [ "$1" = exec ]; then printf '%040d\n' 0 | tr 0 a; fi
+            }
+            compose() {
+              case " $* " in
+                *" --no-deps "*)
+                  echo 'confirmation: CONFIRM'
+                  return 0
+                  ;;
+                *" POLYBOT_BACKUP_CONFIRMATION=CONFIRM "*)
+                  echo true >"$BACKUP_TEST_STATE/postgres"
+                  : >"$BACKUP_TEST_MARKER"
+                  case "$BACKUP_TEST_MODE" in
+                    block) while :; do sleep 1; done ;;
+                    fail) return 37 ;;
+                    success) return 0 ;;
+                  esac
+                  ;;
+                *" start postgres "*)
+                  echo true >"$BACKUP_TEST_STATE/postgres"
+                  ;;
+                *" stop postgres "*)
+                  echo false >"$BACKUP_TEST_STATE/postgres"
+                  ;;
+                *" start bot "*)
+                  if [ "$BACKUP_TEST_CLEANUP_FAILURE" = bot ]; then
+                    return 55
+                  fi
+                  echo true >"$BACKUP_TEST_STATE/bot"
+                  ;;
+                *" stop bot "*)
+                  echo false >"$BACKUP_TEST_STATE/bot"
+                  ;;
+              esac
+            }
+            command_backup
+        '''
+        return subprocess.Popen(
+            ['/bin/sh', '-c', command],
+            cwd=self.source_root,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def test_interrupted_backup_restores_running_and_stopped_states(self):
+        for bot_running, database_running in (
+            (True, True),
+            (False, True),
+            (False, False),
+        ):
+            with self.subTest(
+                bot_running=bot_running,
+                database_running=database_running,
+            ), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                process = self._backup_process(
+                    root,
+                    bot_running=bot_running,
+                    database_running=database_running,
+                    mode='block',
+                )
+                marker = root / 'backup-started'
+                deadline = time.monotonic() + 5
+                while not marker.exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(marker.exists(), 'backup never reached blocking job')
+                process.send_signal(signal.SIGTERM)
+                stdout, stderr = process.communicate(timeout=10)
+
+                self.assertEqual(process.returncode, 143, (stdout, stderr))
+                self.assertEqual(
+                    (root / 'state/bot').read_text(encoding='utf-8').strip(),
+                    str(bot_running).lower(),
+                )
+                self.assertEqual(
+                    (root / 'state/postgres').read_text(encoding='utf-8').strip(),
+                    str(database_running).lower(),
+                )
+
+    def test_backup_preserves_failure_status_after_successful_restoration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            process = self._backup_process(
+                root,
+                bot_running=True,
+                database_running=True,
+                mode='fail',
+            )
+            stdout, stderr = process.communicate(timeout=10)
+
+            self.assertEqual(process.returncode, 37, (stdout, stderr))
+            self.assertEqual(
+                (root / 'state/bot').read_text(encoding='utf-8').strip(),
+                'true',
+            )
+            self.assertEqual(
+                (root / 'state/postgres').read_text(encoding='utf-8').strip(),
+                'true',
+            )
+            self.assertIn('prior bot and database state was restored', stderr)
+
+    def test_backup_cleanup_failure_is_distinct_and_never_claims_restoration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            process = self._backup_process(
+                root,
+                bot_running=True,
+                database_running=True,
+                mode='success',
+                cleanup_failure='bot',
+            )
+            stdout, stderr = process.communicate(timeout=10)
+
+            self.assertEqual(process.returncode, 3, (stdout, stderr))
+            self.assertIn('prior service state was not fully restored', stderr)
+            self.assertNotIn('state was restored', stdout)
+
+    def test_backup_failure_status_wins_when_cleanup_also_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            process = self._backup_process(
+                root,
+                bot_running=True,
+                database_running=True,
+                mode='fail',
+                cleanup_failure='bot',
+            )
+            stdout, stderr = process.communicate(timeout=10)
+
+            self.assertEqual(process.returncode, 37, (stdout, stderr))
+            self.assertIn('prior service state was not fully restored', stderr)
+            self.assertNotIn('state was restored', stdout)
 
     def test_archive_staging_never_replaces_a_different_pair(self):
         with tempfile.TemporaryDirectory() as directory:

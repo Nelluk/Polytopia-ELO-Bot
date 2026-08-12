@@ -405,13 +405,37 @@ container_running() {
 
 host_writer_count() {
   container_roots=,
-  for candidate in $(docker ps -q); do
-    candidate_pid=$(docker inspect "$candidate" --format '{{.State.Pid}}' 2>/dev/null || true)
-    case "$candidate_pid" in
-      ''|*[!0-9]*) ;;
-      *) container_roots=${container_roots}${candidate_pid}, ;;
+  compare_container_pids=false
+  if [ "$(platform_name)" = linux ]; then
+    if [ -n "${DOCKER_HOST:-}" ]; then
+      docker_endpoint=$DOCKER_HOST
+    else
+      docker_endpoint=$(docker context inspect \
+        --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
+    fi
+    case "$docker_endpoint" in
+      unix:///var/run/docker.sock|unix:///run/docker.sock)
+        compare_container_pids=true
+        ;;
+      unix:///run/user/*/docker.sock)
+        rootless_uid=${docker_endpoint#unix:///run/user/}
+        rootless_uid=${rootless_uid%/docker.sock}
+        case "$rootless_uid" in
+          ''|*[!0-9]*) ;;
+          *) compare_container_pids=true ;;
+        esac
+        ;;
     esac
-  done
+  fi
+  if [ "$compare_container_pids" = true ]; then
+    for candidate in $(docker ps -q); do
+      candidate_pid=$(docker inspect "$candidate" --format '{{.State.Pid}}' 2>/dev/null || true)
+      case "$candidate_pid" in
+        ''|*[!0-9]*) ;;
+        *) container_roots=${container_roots}${candidate_pid}, ;;
+      esac
+    done
+  fi
   ps -axo pid=,ppid=,command= 2>/dev/null \
     | awk -v container_roots="$container_roots" '
         {
@@ -434,6 +458,87 @@ host_writer_count() {
           print count + 0
         }
       '
+}
+
+backup_restore_armed=false
+backup_restore_in_progress=false
+backup_bot_was_running=false
+backup_database_was_running=false
+backup_child_pid=
+
+restore_backup_service_state() {
+  [ "$backup_restore_armed" = true ] || return 0
+  [ "$backup_restore_in_progress" = false ] || return 0
+  backup_restore_in_progress=true
+  # Once restoration starts, finish it without a second signal interrupting a
+  # partially restored state. SIGKILL and host failure remain uncatchable.
+  trap '' HUP INT TERM
+  cleanup_failed=false
+
+  current_postgres_id=$(postgres_container_id)
+  if [ "$backup_database_was_running" = true ] \
+      && ! container_running "$current_postgres_id"; then
+    if ! compose start postgres; then
+      echo 'Backup cleanup failed while restarting PostgreSQL.' >&2
+      cleanup_failed=true
+    fi
+  fi
+
+  current_bot_id=$(bot_container_id)
+  if [ "$backup_bot_was_running" = true ]; then
+    if ! container_running "$current_bot_id"; then
+      if ! compose start bot; then
+        echo 'Backup cleanup failed while restarting the bot.' >&2
+        cleanup_failed=true
+      fi
+    fi
+  elif container_running "$current_bot_id"; then
+    if ! compose stop bot; then
+      echo 'Backup cleanup failed while stopping the previously stopped bot.' >&2
+      cleanup_failed=true
+    fi
+  fi
+
+  current_postgres_id=$(postgres_container_id)
+  if [ "$backup_database_was_running" = false ] \
+      && container_running "$current_postgres_id"; then
+    if ! compose stop postgres; then
+      echo 'Backup cleanup failed while stopping the previously stopped PostgreSQL.' >&2
+      cleanup_failed=true
+    fi
+  fi
+
+  backup_restore_armed=false
+  backup_restore_in_progress=false
+  [ "$cleanup_failed" = false ]
+}
+
+backup_exit_cleanup() {
+  original_status=$?
+  trap - EXIT
+  set +e
+  restore_backup_service_state
+  cleanup_status=$?
+  set -e
+  trap - HUP INT TERM
+  if [ "$cleanup_status" -ne 0 ]; then
+    echo 'Backup exited before the prior service state could be fully restored.' >&2
+    [ "$original_status" -ne 0 ] || original_status=3
+  fi
+  exit "$original_status"
+}
+
+backup_signal_exit() {
+  signal_status=$1
+  trap '' HUP INT TERM
+  set +e
+  if [ -n "$backup_child_pid" ]; then
+    kill -TERM "$backup_child_pid" 2>/dev/null
+    wait "$backup_child_pid" 2>/dev/null
+    backup_child_pid=
+  fi
+  set -e
+  exit "$signal_status"
 }
 
 other_container_writers() {
@@ -899,30 +1004,47 @@ command_backup() {
   [ -n "$confirmation" ] || fail 'Backup plan did not emit its checkpoint confirmation.'
   confirm_exact "$confirmation"
   postgres_id=$(postgres_container_id)
-  was_running=false
-  database_was_running=false
+  backup_bot_was_running=false
+  backup_database_was_running=false
   if container_running "$bot_id"; then
-    was_running=true
-    compose stop bot
+    backup_bot_was_running=true
   fi
   if container_running "$postgres_id"; then
-    database_was_running=true
+    backup_database_was_running=true
+  fi
+  backup_restore_armed=true
+  backup_restore_in_progress=false
+  backup_child_pid=
+  trap backup_exit_cleanup EXIT
+  trap 'backup_signal_exit 129' HUP
+  trap 'backup_signal_exit 130' INT
+  trap 'backup_signal_exit 143' TERM
+  if [ "$backup_bot_was_running" = true ]; then
+    compose stop bot
   fi
   set +e
   compose --profile recovery run --rm \
     -e "POLYBOT_SOURCE_CHECKPOINT=$backup_checkpoint" \
     -e "POLYBOT_BACKUP_CONFIRMATION=$confirmation" \
-    database-backup
+    database-backup &
+  backup_child_pid=$!
+  wait "$backup_child_pid"
   result=$?
+  backup_child_pid=
+  restore_backup_service_state
+  cleanup_result=$?
   set -e
-  if [ "$was_running" = true ]; then
-    compose start bot
+  trap - EXIT HUP INT TERM
+  if [ "$cleanup_result" -ne 0 ]; then
+    echo 'Backup cleanup failed; the prior service state was not fully restored.' >&2
+    [ "$result" -ne 0 ] && return "$result"
+    return 3
   fi
-  if [ "$database_was_running" = false ] && [ "$was_running" = false ]; then
-    compose stop postgres
+  if [ "$result" -ne 0 ]; then
+    echo 'Backup failed; the prior bot and database state was restored.' >&2
+    return "$result"
   fi
-  [ "$result" -eq 0 ] || fail 'Backup failed; the prior bot state was restored.'
-  echo 'Backup complete; the prior bot running state was restored.'
+  echo 'Backup complete; the prior bot and database state was restored.'
 }
 
 main() {
