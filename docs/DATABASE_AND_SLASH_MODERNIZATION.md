@@ -492,37 +492,43 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.2 read-only container deployment doctor is
-complete, integrated, pushed, and loaded by the development beta from
-`codex/p11-2-container-deployment-doctor`, based on exact clean pushed P11.1
-accumulation checkpoint `c2c823dd6e22831894308ef1e4165cf1036cd212`, at
-implementation/integration checkpoint
-`7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe`.
-It validates a clean exact Git checkpoint, the static contract against the
-selected Dockerfile/Compose assets, container-only config and server-settings
-shape, development/production identity separation, disabled development
-effects, private secret file safety, application-password agreement, and
-exact image/checkpoint pins. Bundled and external database modes print their
-ordered reviewed commands. The doctor detects Docker/standalone-Compose
-executables through `PATH` only; it never invokes either, connects to an
-external system, or creates/fixes inputs.
+Current active unit: **P11.3 guarded container database recovery is complete
+and Tier-3 reviewed on `codex/p11-3-container-recovery`, based on exact clean
+pushed accumulation checkpoint
+`c09292803c16f6c8a5184e9c1f9c17896856a500`, at implementation checkpoint
+`d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`; integration is pending.
 
-Focused doctor/assets validation passes 16 tests; complete offline discovery
-passes all 2,014 tests with 89 intentional database gates skipped. The real
-clean exact-checkpoint invocation truthfully passes Git/assets and blocks on
-absent ignored container inputs and the host's absent Docker CLI while still
-printing the reviewed commands;
-it discloses no credentials. Tier-2 review corrected implicit Compose `.env`
-discovery, added exact development CLI and bounded-file gates, strengthened
-contract scalar/security checks, and kept unused PostgreSQL pins optional in
-external mode. No actionable finding remains. Commit, integration, push, and
-the batched beta restart succeeded: PID `292880`, exact checkpoint `7fc73cf`,
-zero service restarts, one host-wide development writer, correct development
-identity, and all five Beta Lab packs ready. No PostgreSQL, command-tree,
-container, dependency, tester-announcement, or production mutation occurred.
-Next recommended: scope P11.3 logical container backup/restore and live-proof
-gates without installing an engine; also ready is the separate development
-feedback retention/redaction lifecycle.**
+The bundled Compose recovery profile now has an explicit, plan-first logical
+backup job and a digest-bound restore drill that can address only a second
+PostgreSQL 18 service on its own `postgres_restore_data` volume. Backup apply
+requires exact checkpoint confirmation, the fixed development database/role,
+the exact administrative maintenance identity, sufficient off-volume free
+space, and zero competing source-database sessions before and after the dump.
+It validates a private custom archive with `pg_restore --list`, writes an
+exact SHA-256 sidecar, and publishes the pair atomically. Restore planning
+checks the exact archive/digest locally without a database connection; apply
+requires exact digest confirmation, a genuinely fresh isolated cluster,
+single-transaction restore as `polybot_dev`, and required-table, winner-FK,
+and object-owner verification. It cannot target `polytopia_dev` or an external
+database. Recovery-volume cleanup and archive deletion remain explicit human
+actions, never automatic.
+
+The contract is version 2. The read-only doctor now validates recovery assets,
+positive recovery UID/GID values, and an exact owner/GID/mode-0700 off-volume
+directory in bundled mode while leaving those unused inputs optional in
+external mode. Focused recovery/assets/doctor validation passes 25 tests;
+complete offline discovery passes all 2,023 tests with 89 intentional database
+gates skipped. The first full command without `POLYBOT_ENV` was correctly
+refused at import and was rerun with the exact development gate. Shell syntax,
+compilation, lockfile, and diff checks pass. Tier-3 review corrected external-
+mode leakage, directory ownership, exact sidecar shape, credential argument
+exposure, complete source-session detection, fresh-cluster role inventory,
+administrative identity verification, and contract versioning. No actionable
+finding remains. No Docker/Podman executable was exposed on `PATH`; no image,
+container, volume, PostgreSQL, Discord, service, dependency, tester, or
+production mutation occurred. Next recommended after integration: P11.4 live-
+engine development proof if Docker and Compose are available; also ready is
+the separate development feedback retention/redaction lifecycle.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15685,6 +15691,71 @@ writer, and all five Beta Lab packs are ready. P11.2 changes no bot command
 tree or database behavior, so no command apply, stopped-writer database gate,
 checklist change, or tester announcement was warranted.
 
+### P11.3 — Guarded container database recovery
+
+Status: **Complete and Tier-3 reviewed on the unit branch; integration pending**
+
+Branch/base: `codex/p11-3-container-recovery`, exact clean pushed accumulation
+checkpoint `c09292803c16f6c8a5184e9c1f9c17896856a500`.
+
+Risk tier: **Tier 3 operational/database boundary, with no live container or
+database operation in this unit.**
+
+The bundled Compose file adds a `recovery` profile with three explicit
+services. `database-backup` runs the pinned PostgreSQL 18 client as the
+configured host recovery UID/GID, with a read-only root and dropped
+capabilities, and writes only to ignored `deploy/container/backups`.
+No-confirmation execution is plan-only before secret, filesystem, or database
+access. Exact apply is tied to the 40-character reviewed checkpoint and checks
+the fixed `postgres` maintenance identity, `polytopia_dev` ownership by
+`polybot_dev`, destination headroom, and zero other source-database sessions
+both before and after `pg_dump`. A private custom-format temporary dump must
+pass `pg_restore --list`; only then are the archive and exact SHA-256 sidecar
+published by same-filesystem rename under a single-flight directory lock.
+
+`restore-postgres` uses its own `postgres_restore_data` volume and has no host
+port. `database-restore-drill` mounts backups read-only and has a fixed
+`restore-postgres` host plus fixed `polytopia_restore_verify` target. Its plan
+accepts only the checkpoint-bearing archive basename, exact one-line digest
+sidecar, and readable archive catalog; it makes no database connection.
+Digest-confirmed apply requires the `postgres:postgres` identity on PostgreSQL
+18 and refuses any non-default database or custom role. It creates the
+restricted application role and isolated database, restores as that role in
+one transaction with no archived ownership/ACL, then verifies all required
+tables, `game.winner_id -> gameside.id`, and public table/sequence ownership.
+It neither names nor can address `polytopia_dev`, an external database, or any
+production database. The recovery volume remains for diagnosis/inspection and
+must be explicitly destroyed before a new fresh-volume drill.
+
+Contract version 2 records the backup path/prefix, isolated restore identity,
+and recovery volume. The existing read-only deployment doctor checks both
+scripts against that contract, requires positive recovery UID/GID settings,
+and verifies the ignored off-volume directory has their exact ownership and
+mode 0700. External-database mode neither requires nor acts on recovery
+settings. Archive cleanup is intentionally manual: keep at least two verified
+pairs, one off-host copy, and the newest pair until a newer fresh-volume drill
+passes. This prevents automatic retention from deleting the only recoverable
+generation.
+
+Focused recovery/assets/doctor validation passes 25 tests, including
+connection-free/writeless plans, wrong confirmations, atomic no-overwrite
+publication, post-dump session-race refusal, exact digest shape, fresh-target
+refusal, verification sequencing, private output, asset/contract drift, and
+external-mode separation. Complete offline discovery passes all 2,023 tests
+with 89 intentional database gates skipped. The first discovery invocation
+without `POLYBOT_ENV` was refused at import as designed; the corrected exact
+development invocation is the passing result. Shell parsing, compilation,
+lockfile, and diff checks pass. Tier-3 complete-diff review corrected recovery
+identity leakage into external mode, off-volume directory ownership/mode,
+credential argument exposure, all-session writer exclusion, exact digest
+sidecars, truly fresh custom-role inventory, explicit administrative identity,
+and contract-version evolution. No actionable finding remains.
+
+Implementation checkpoint:
+`d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`. No Docker/Podman executable was
+exposed on `PATH`, and no image pull/build, container/volume/database/Discord,
+service, dependency, tester-announcement, or production operation occurred.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -17050,8 +17121,9 @@ because they share legacy status; their risks and operational owners differ.
 
 Design status: **P11.1 development proof is complete and integrated at
 `309c222`; P11.2's approved read-only deployment doctor is complete at
-`7fc73cf`. No container engine is installed on the current host, so live proof
-and all production adoption remain deferred gates.**
+`7fc73cf`; P11.3 guarded logical backup and isolated fresh-volume restore is
+complete and reviewed at `d7553c7`. No container engine was available to this
+unit, so live proof and all production adoption remain deferred gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17112,6 +17184,37 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.3 guarded container recovery implemented and reviewed
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `c09292803c16f6c8a5184e9c1f9c17896856a500`, created isolated branch/worktree
+  `codex/p11-3-container-recovery`, and ran the required development setup with
+  exact `development` / `polytopia_dev` / `polybot_dev` identity and disabled
+  tasks/API/Bullet.
+- Added plan-first checkpoint-confirmed logical backup with complete source-
+  session exclusion, free-space proof, private single-flight temporary
+  artifacts, `pg_restore --list`, exact SHA-256 pairing, and atomic
+  publication. Added a digest-confirmed restore job that can reach only a
+  separate PostgreSQL 18 service/fresh volume and verifies required schema,
+  winner FK, and application ownership after one-transaction restore.
+- Advanced the static contract to version 2 and extended the read-only doctor
+  with recovery asset, UID/GID, and exact off-volume-directory checks without
+  imposing bundled inputs on external mode. Documented an explicit recovery
+  sequence and conservative manual retention policy; no automatic deletion or
+  recovery-volume cleanup exists.
+- Focused validation passes 25 tests and complete development-gated offline
+  discovery passes all 2,023 tests with 89 intentional database gates skipped.
+  The initial discovery command missing `POLYBOT_ENV` was refused at import and
+  is not counted as validation. Shell syntax, compilation, lockfile, and diff
+  checks pass. Tier-3 review corrected external-mode leakage, ownership/mode,
+  secret argument exposure, exact digest shape, source session coverage,
+  fresh-cluster role inventory, administrative identity, and contract
+  versioning. No actionable finding remains. Implementation checkpoint:
+  `d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`. No Docker, database, Discord,
+  service, dependency, tester, or production effect occurred. Next: integrate
+  and push P11.3, inspect the unchanged host beta, and take P11.4 live-engine
+  proof only if Docker/Compose are actually available.
 
 ### 2026-08-11 — P11.2 read-only deployment doctor implemented
 
