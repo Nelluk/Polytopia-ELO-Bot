@@ -490,37 +490,28 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6b3 monotonic rollback-to-revision is complete,
-integrated, pushed, development-guild registered, and deployed from
-`codex/p10-6b3-guild-config-rollback`, based on
-exact clean pushed accumulation checkpoint
-`174bbb7424d9594e7cb7ff64ce3dda3d696389ef`. The new private owner-only
-`/operator guild rollback revision:<number>` preview binds an earlier
-same-guild document's full digest to the exact current revision, generation,
-and digest, then requires `ROLLBACK <revision> <full-digest>`. Commit clones
-that document into a new complete immutable revision, advances generation,
-and records source/prior/changed-path evidence without deleting history or
-consuming a draft. No-op and command-capability-drift targets fail closed.
-After commit, the existing complete worker reload and exact event-loop
-publication boundary reconcile runtime state; cancellation and presentation
-failures preserve truthful committed-state reporting. Focused validation
-passes 103 tests; complete offline discovery passes all 1,897 tests with 83
-intentional gated skips. Complete-diff review corrected stale-active preview
-binding, cancellation-after-commit truth, and committed panel-failure
-fallback. The stopped-writer PostgreSQL gate runs 83 tests: 82 pass and only
-the established operator-managed fixture round trip skips; the rollback graph
-is fully outer-transaction rolled back. Implementation/evidence checkpoint is
-`f506883`; evidence checkpoint is `5fc3ac7`, which is also the exact
-fast-forward integration checkpoint. Clean pushed close-out and running code
-checkpoint is `acbfd6e861bb0889e9a48e9123fd12a2744e2856`. The guild-only apply
-updated only the existing `operator` root; repeat inspection shows all 11 roots
-unchanged and the global tree empty. PID `248922` authenticated as development
-application `479029527553638401`, loaded database generation 1, and has zero
-restart churn with exactly one host-wide development writer. Owner interaction
-acceptance is pending. No tester checklist or announcement was warranted. No
-schema, enrollment, delegation, global sync, production authority, or
-production operation occurred. Next recommended: P10.6c coordinated command-
-capability activation; P10.7 quarantined onboarding is also ready.**
+Current active unit: **P9.25 legacy ELO calculation characterization is
+implemented, reviewed, and development-database gated on
+`codex/p9-25-elo-characterization`, based on exact clean pushed accumulation
+checkpoint `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`. Nine compact offline tests
+now invoke the actual legacy model methods and lock down logistic win chances,
+uneven-side formula versions, multi-side normalization, team and squad deltas,
+player provisional factors, low-rating boosts, era-field selection, global-
+guild exclusion, and the bot-account exception. Complete offline discovery
+passes all 1,908 tests with 85 intentional gated skips. Two new stopped-writer
+PostgreSQL cases pass through the unchanged `development` / `polytopia_dev` /
+`polybot_dev` gate: one proves exact post-Moonrise 1v1 deltas and reversal
+semantics on a real ranked graph; the other proves two ordered results replay
+to byte-for-byte-equivalent rating/snapshot evidence through
+`recalculate_elo_since`. Both use the established outer rollback scope and
+leave no fixture state. Implementation checkpoint: `2e6b950`. The unit changes
+no formula or runtime code, command surface, schema, dependency, configuration,
+Discord state, or production state. The durable beta was stopped only for the
+real-schema window and remains to be restored after integration. Next:
+fast-forward the accepted unit into accumulation, push a clean close-out, and
+restart the unchanged beta runtime. After that, P10.6c coordinated command-
+capability activation remains recommended; P10.7 quarantined onboarding is
+also ready.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -14595,6 +14586,59 @@ bounded unit. Before production use, update the candidate pointer/digests as
 needed and rerun the gates affected by that change; do not represent an older
 candidate's evidence as covering new runtime code.
 
+### P9.25 — Legacy ELO calculation characterization
+
+Status: **Implemented, complete-diff reviewed, and development-database gated;
+accepted for accumulation integration.**
+
+Branch/base: `codex/p9-25-elo-characterization`, exact clean pushed
+accumulation checkpoint `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`.
+
+Risk tier: **Tier 2 behavior-preserving test hardening with a stopped-writer
+ranked mutation verifier.** No production formula or runtime path changes.
+
+Nine compact offline tests directly exercise the retained implementations in
+`modules/models.py`. Table-driven vectors lock down two-side logistic
+probabilities, version-one and version-two uneven-side handicaps, legacy
+three-side strongest-opponent normalization, the constant team factor, the
+squad provisional boundary, player 75/50/32 provisional factors, the low-ELO
+winner/loser boost, Air/all-time/Moonrise field selection, global-guild
+exclusion, and the bot-account exception. The tests use lightweight records
+only to isolate method inputs and writes; the formulas under test are the
+actual model methods rather than reimplemented helpers.
+
+Two permanent cases in the existing strict PostgreSQL integration suite build
+real ranked Game/GameSide/Lineup/Player/DiscordMember graphs. The first proves
+the retained post-Moonrise solo-host adjustment and exact `(44, -20)` local
+deltas, stored after-game snapshots, configured global inclusion behavior,
+rating restoration, delta clearing, and the deliberate retention of historical
+maximum ELO after reversal. The second records two ordered opposing results,
+captures current/max ratings plus per-game deltas/snapshots/winners/timestamps,
+and proves `Game.recalculate_elo_since()` reproduces the complete captured
+graph. Future-only completion timestamps isolate the bounded replay query, and
+the established outer transaction rollback leaves no development fixture.
+
+Focused offline validation passes 9/9. Complete offline discovery passes all
+1,908 tests with 85 intentional gated skips. With the durable beta stopped and
+the host-wide writer audit clear, both new cases pass the unchanged exact
+`development` / `polytopia_dev` / `polybot_dev` gate in 1.541 seconds. Compile
+through discovery and `git diff --check` pass. Complete-diff review found no
+runtime behavior change or remaining actionable issue. Implementation
+checkpoint: `2e6b950`.
+
+Limitations are deliberate and explicit: this unit characterizes existing
+results rather than judging or redesigning ELO balance; the real-schema graph
+is the highest-value 1v1 local/global/reversal/replay path, while team and squad
+delta functions are locked offline rather than constructing a larger league
+fixture; and full-database recalculation remains covered by its existing
+coordinator/lifecycle tests rather than being run against all development
+data. No command registration, beta-facing behavior, schema, dependency,
+configuration, production access, or tester announcement is warranted.
+
+Next action: integrate and push this test-only unit, restore and verify the
+unchanged durable beta, then return to P10.6c coordinated command-capability
+activation. P10.7 quarantined onboarding remains the useful alternative.
+
 ### P10.1 — Dynamic guild configuration architecture
 
 Status: **Design and current-state inventory complete; implementation
@@ -16572,6 +16616,33 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P9.25 legacy ELO behavior characterized and database-gated
+
+- Reconciled clean accumulation/GitHub checkpoint
+  `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`, created isolated branch/worktree
+  `codex/p9-25-elo-characterization`, and ran the required development setup
+  with exact development database/role and disabled task/API evidence.
+- Implementation checkpoint `2e6b950` adds nine direct-model offline tests for
+  the numerical win-chance, handicap, normalization, team/squad delta,
+  provisional-factor, low-ELO boost, era-field, global-exclusion, and bot-user
+  rules. It changes no formula or runtime code.
+- Added two permanent rollback-isolated real-schema cases for exact ranked 1v1
+  declaration/reversal and deterministic two-game `recalculate_elo_since`
+  replay. The cases verify current/max ratings, per-game deltas and snapshots,
+  winner/completion evidence, and configured global behavior.
+- Focused validation passes 9/9. Complete offline discovery passes all 1,908
+  tests with 85 intentional gated skips; diff checks pass.
+- Inspected the healthy durable beta at checkpoint `acbfd6e`, PID `248922`,
+  with zero restarts and exactly one host-wide development writer. Stopped only
+  that service and verified the host-wide writer audit clear. Both new cases
+  then passed the unchanged exact `development` / `polytopia_dev` /
+  `polybot_dev` gate in 1.541 seconds and rolled back all temporary data.
+- Complete-diff review found no remaining actionable issue. The scope does not
+  judge or change ELO balance, build a larger team/squad database fixture, or
+  run a destructive full-data recalculation. Next: integrate and push the
+  accepted test-only unit, then restore and verify the unchanged beta runtime.
+  P10.6c remains recommended afterward; P10.7 is also ready.
 
 ### 2026-08-11 — P10.6b3 rollback implemented, reviewed, and database-gated
 
