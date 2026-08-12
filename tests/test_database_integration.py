@@ -7040,6 +7040,269 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.GameLog.message.contains(marker)
                 ).execute()
 
+    def _create_p925_elo_players(self, *, guild_id, marker):
+        id_base = 8_700_000_000_000_000_000 + (
+            uuid.uuid4().int % 100_000_000
+        )
+        players = []
+        for index, label in enumerate(('Alpha', 'Bravo')):
+            member = self.models.DiscordMember.create(
+                discord_id=id_base + index,
+                name=f'{marker}-{label}',
+                polytopia_name=f'{marker}{label}',
+            )
+            players.append(self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            ))
+        return tuple(players)
+
+    def _create_p925_ranked_game(
+            self, *, guild_id, marker, players, completed_ts):
+        game = self.models.Game.create(
+            guild_id=guild_id,
+            host=players[0],
+            name=marker,
+            notes=marker,
+            date=datetime.date(2026, 8, 11),
+            completed_ts=completed_ts,
+            is_pending=False,
+            is_completed=False,
+            is_confirmed=False,
+            is_ranked=True,
+            is_mobile=True,
+            size=[1, 1],
+        )
+        sides = []
+        for position, player in enumerate(players, start=1):
+            side = self.models.GameSide.create(
+                game=game,
+                position=position,
+                sidename=f'{marker}-{position}',
+                size=1,
+            )
+            sides.append(side)
+            self.models.Lineup.create(
+                game=game,
+                gameside=side,
+                player=player,
+            )
+        return game, tuple(sides)
+
+    def test_p925_ranked_win_and_reverse_use_exact_legacy_deltas(self):
+        """Characterize a real ranked graph and its retained reversal rules."""
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        marker = f'P9.25-ranked-{uuid.uuid4().hex[:10]}'
+        completed_ts = datetime.datetime(2500, 1, 1) + datetime.timedelta(
+            seconds=uuid.uuid4().int % 20_000_000
+        )
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.completed_ts >= completed_ts
+            ).count(),
+            0,
+        )
+
+        with self.rollback_scope():
+            players = self._create_p925_elo_players(
+                guild_id=guild_id,
+                marker=marker,
+            )
+            game, sides = self._create_p925_ranked_game(
+                guild_id=guild_id,
+                marker=marker,
+                players=players,
+                completed_ts=completed_ts,
+            )
+            full_game = self.models.Game.load_full_game(game.id)
+            winning_side = self.models.GameSide.get_by_id(sides[0].id)
+            full_game.declare_winner(winning_side=winning_side, confirm=True)
+
+            refreshed_players = tuple(
+                self.models.Player.get_by_id(player.id) for player in players
+            )
+            self.assertEqual(
+                tuple(player.elo_moonrise for player in refreshed_players),
+                (1044, 980),
+            )
+            self.assertEqual(
+                tuple(player.elo_alltime for player in refreshed_players),
+                (1044, 980),
+            )
+            lineups = tuple(
+                self.models.Lineup.select()
+                .where(self.models.Lineup.game == game.id)
+                .order_by(self.models.Lineup.id)
+            )
+            self.assertEqual(
+                tuple(row.elo_change_player_moonrise for row in lineups),
+                (44, -20),
+            )
+            self.assertEqual(
+                tuple(row.elo_after_game_moonrise for row in lineups),
+                (1044, 980),
+            )
+
+            global_enabled = (
+                guild_id in self.settings.servers_included_in_global_lb()
+            )
+            members = tuple(
+                self.models.DiscordMember.get_by_id(
+                    player.discord_member_id
+                )
+                for player in players
+            )
+            self.assertEqual(
+                tuple(member.elo_moonrise for member in members),
+                (1044, 980) if global_enabled else (1000, 1000),
+            )
+
+            self.models.Game.load_full_game(game.id).reverse_elo_changes()
+            reversed_players = tuple(
+                self.models.Player.get_by_id(player.id) for player in players
+            )
+            self.assertEqual(
+                tuple(player.elo_moonrise for player in reversed_players),
+                (1000, 1000),
+            )
+            # Reversal restores current ratings and clears per-game snapshots,
+            # while intentionally retaining the historical maximum reached.
+            self.assertEqual(
+                tuple(player.elo_max_moonrise for player in reversed_players),
+                (1044, 1000),
+            )
+            reversed_lineups = tuple(
+                self.models.Lineup.select()
+                .where(self.models.Lineup.game == game.id)
+                .order_by(self.models.Lineup.id)
+            )
+            self.assertEqual(
+                tuple(row.elo_change_player_moonrise
+                      for row in reversed_lineups),
+                (0, 0),
+            )
+            self.assertEqual(
+                tuple(row.elo_after_game_moonrise
+                      for row in reversed_lineups),
+                (None, None),
+            )
+
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.notes == marker
+            ).count(),
+            0,
+        )
+
+    def test_p925_recalculation_replays_ranked_graph_deterministically(self):
+        """Two ranked results reproduce the same ratings and snapshots."""
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        marker = f'P9.25-replay-{uuid.uuid4().hex[:10]}'
+        completed_ts = datetime.datetime(2501, 1, 1) + datetime.timedelta(
+            seconds=uuid.uuid4().int % 20_000_000
+        )
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.completed_ts >= completed_ts
+            ).count(),
+            0,
+        )
+
+        with self.rollback_scope():
+            players = self._create_p925_elo_players(
+                guild_id=guild_id,
+                marker=marker,
+            )
+            first_game, first_sides = self._create_p925_ranked_game(
+                guild_id=guild_id,
+                marker=f'{marker}-one',
+                players=players,
+                completed_ts=completed_ts,
+            )
+            second_game, second_sides = self._create_p925_ranked_game(
+                guild_id=guild_id,
+                marker=f'{marker}-two',
+                players=players,
+                completed_ts=completed_ts + datetime.timedelta(seconds=1),
+            )
+            self.models.Game.load_full_game(first_game.id).declare_winner(
+                winning_side=self.models.GameSide.get_by_id(
+                    first_sides[0].id
+                ),
+                confirm=True,
+            )
+            self.models.Game.load_full_game(second_game.id).declare_winner(
+                winning_side=self.models.GameSide.get_by_id(
+                    second_sides[1].id
+                ),
+                confirm=True,
+            )
+
+            def graph_snapshot():
+                player_rows = tuple(
+                    self.models.Player.select()
+                    .where(self.models.Player.id.in_(
+                        tuple(player.id for player in players)
+                    ))
+                    .order_by(self.models.Player.id)
+                )
+                lineup_rows = tuple(
+                    self.models.Lineup.select()
+                    .where(self.models.Lineup.game.in_((
+                        first_game.id,
+                        second_game.id,
+                    )))
+                    .order_by(
+                        self.models.Lineup.game,
+                        self.models.Lineup.id,
+                    )
+                )
+                game_rows = tuple(
+                    self.models.Game.select()
+                    .where(self.models.Game.id.in_((
+                        first_game.id,
+                        second_game.id,
+                    )))
+                    .order_by(self.models.Game.completed_ts)
+                )
+                return (
+                    tuple(
+                        (row.elo_moonrise, row.elo_max_moonrise,
+                         row.elo_alltime, row.elo_max_alltime)
+                        for row in player_rows
+                    ),
+                    tuple(
+                        (row.elo_change_player_moonrise,
+                         row.elo_after_game_moonrise,
+                         row.elo_change_player_alltime,
+                         row.elo_after_game_alltime)
+                        for row in lineup_rows
+                    ),
+                    tuple(
+                        (row.is_completed, row.is_confirmed,
+                         row.winner_id, row.completed_ts)
+                        for row in game_rows
+                    ),
+                )
+
+            before_replay = graph_snapshot()
+            self.assertEqual(
+                tuple(row[0] for row in before_replay[0]),
+                (1010, 1050),
+            )
+            self.models.Game.recalculate_elo_since(completed_ts)
+            self.assertEqual(graph_snapshot(), before_replay)
+
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.notes.contains(marker)
+            ).count(),
+            0,
+        )
+
     def test_p97f_champion_plan_and_audit_use_real_schema(self):
         """Exercise champion discovery and audit on development PostgreSQL."""
 
