@@ -493,8 +493,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.8 owner-only guild suspend/resume lifecycle is
-implemented, Tier-3 reviewed, and development-database gated on
-`codex/p10-8-guild-suspend-resume`, from
+complete, integrated, pushed, development-guild registered, and beta-deployed
+from `codex/p10-8-guild-suspend-resume`, based on
 exact clean pushed accumulation checkpoint
 `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`. The selected contract requires a
 different active control guild, preserves the active revision, drafts, and
@@ -507,9 +507,16 @@ startup synchronization, and global synchronization remain excluded.
 Implementation checkpoint `763fe28` passes 97 focused tests, complete offline
 discovery of 1,969 tests with 88 intentional gates skipped, and the 78-test
 stopped-writer PostgreSQL gate with only the established retained-fixture skip.
-The lifecycle transition and protected audit were fully outer-transaction
-rolled back. Next: exact integration/push, development-guild-only registration,
-and guarded beta deployment.**
+rolled back. Exact fast-forward integration/pushed code checkpoint is
+`f5a1c79174e5c2425558f3ee92f20fcc26a0341a`. Remote inspection found an empty
+global tree and exactly one update to the development-guild `operator` root;
+guild-only apply converged all 11 roots. The healthy guarded beta runs that
+checkpoint as PID `274913`, authenticated as development application
+`479029527553638401`, with database authority generation 1, zero restarts, one
+host-wide development writer, and all five Beta Lab packs ready. No second
+enrollment was manufactured for destructive live acceptance. Next recommended:
+P10.9 additive delegation policy plus opt-in same-guild ordinary-manager
+editing. Also ready: scope the separate soft-retirement lifecycle contract.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15431,8 +15438,8 @@ that absence is not grounds to manufacture or persist a second guild.
 
 ### P10.8 — Owner-only guild suspend/resume lifecycle
 
-Status: **Implemented, Tier-3 reviewed, and development-database gated;
-integration and beta deployment pending**
+Status: **Complete; integrated, pushed, development-guild registered, and
+beta-deployed**
 
 Branch/base: `codex/p10-8-guild-suspend-resume`, exact clean pushed
 accumulation checkpoint `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`.
@@ -16936,6 +16943,27 @@ deferred into this post-modernization backlog.
 - Implementation/runbook checkpoint: `763fe28`. Next: commit this evidence,
   fast-forward the unit into accumulation, push, plan/inspect/apply only the
   configured development-guild `operator` root, and restart the durable beta.
+- Fast-forwarded checkpoints `763fe28` and `f5a1c79` into
+  `codex/database-slash-modernization` and pushed exact code/evidence checkpoint
+  `f5a1c79174e5c2425558f3ee92f20fcc26a0341a` to GitHub. Remote inspection
+  proved the global tree empty and exactly one update to the existing
+  development-guild `operator` root. Exact guild-only apply succeeded; repeat
+  inspection reports all 11 roots unchanged and no global roots.
+- Started only the guarded durable beta from exact clean pushed checkpoint
+  `f5a1c79`. PID `274913` authenticated as development application
+  `479029527553638401`, published the complete database-authority graph for
+  guild `478571892832206869` at generation 1, retained disabled startup
+  synchronization, has zero restarts, is the sole host-wide development
+  writer, and reports all five protected Beta Lab packs ready.
+- The database currently has only one active guild, so a retained live suspend/
+  resume would violate the required separate-control-guild rule. No synthetic
+  enrollment or lifecycle mutation was manufactured. The owner can verify the
+  prominent active state through `/operator guild list`; full live transition
+  acceptance waits for an intended second enrollment. This owner-only release
+  changes no tester workflow, so `BETA_WHAT_TO_TEST.md` is unchanged and no
+  announcement or tester ping was sent. P10.8 is complete. Next recommended:
+  P10.9 additive delegation policy plus opt-in same-guild ordinary-manager
+  editing. Also ready: scope the separate soft-retirement lifecycle contract.
 
 ### 2026-08-11 — P10.6c command-capability activation reviewed and database-gated
 
