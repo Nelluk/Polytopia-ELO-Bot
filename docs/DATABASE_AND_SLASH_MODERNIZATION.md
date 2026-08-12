@@ -501,8 +501,8 @@ complete offline discovery passes all 2,038 tests with 89 intentional database
 gates skipped; and the complete stopped-writer development PostgreSQL gate
 passes 88 of 89 tests with only the established owned-fixture round trip
 skipped. Unit integration checkpoint: `2fd16f7a5026b5bdecc9e20704350b8ed52d6741`;
-the accumulation close-out is this evidence commit. Push and beta restart/
-verification are in progress.**
+pushed accumulation/deployed runtime checkpoint:
+`791f6abc661f49c389c5f2e8482062e5906ca2e0`.**
 
 The accepted fail-fast process-wide claim spans final revalidation, database
 commit, complete graph reload, immutable runtime publication, exact one-guild
@@ -15622,8 +15622,8 @@ was granted. Owner-first command acceptance remains available through
 
 ### P10.10 — Global guild-authority mutation coordinator (N3)
 
-Status: **Complete, Tier-3 reviewed, development-database gated, and
-fast-forward integrated; push/deployment in progress**
+Status: **Complete, Tier-3 reviewed, development-database gated, integrated,
+pushed, and development-beta deployed**
 
 Branch/base: `codex/p10-10-guild-mutation-coordinator`, exact clean pushed
 accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
@@ -15688,6 +15688,18 @@ container, production, or tester-facing change is part of N3. The active bot
 runtime must be restarted from the clean pushed accumulation checkpoint after
 integration because N3 changes live dispatch and recovery behavior; no command
 registration apply or tester announcement is warranted.
+
+Pushed accumulation/deployed runtime checkpoint:
+`791f6abc661f49c389c5f2e8482062e5906ca2e0`. The guarded beta runs it as PID
+`341064`, authenticated as development application `479029527553638401`, with
+the database-authority graph active-loaded for guild `478571892832206869` at
+generation 1, exactly one host-wide development writer, and all five Beta Lab
+packs ready. Read-only remote inspection reports all 12 development-guild roots
+unchanged and the global tree empty, so no command apply occurred. Acceptance
+route is no announcement: N3 changes owner/control-plane concurrency and
+failure containment but gives human testers no new ordinary workflow. The
+running `WHAT TO TEST` checklist is therefore unchanged and no tester ping or
+release message was sent.
 
 ### P11.1 — Containerized development feasibility and static proof
 
@@ -17360,9 +17372,20 @@ deferred into this post-modernization backlog.
   88 passed and only the established owned-fixture round trip skipped. No
   retained database mutation occurred. The reviewed two-commit unit was then
   fast-forward integrated at `2fd16f7a5026b5bdecc9e20704350b8ed52d6741`.
-  Next: commit/push this accumulation close-out, then start and verify the
-  guarded beta from the exact clean checkpoint without command apply or tester
-  announcement.
+  The accumulation close-out was pushed as
+  `791f6abc661f49c389c5f2e8482062e5906ca2e0` with exact local/tracking/GitHub
+  reconciliation.
+- The guarded beta started from that exact checkpoint as PID `341064`,
+  authenticated as development application `479029527553638401`, active-loaded
+  the database graph at generation 1, and is the sole host-wide development
+  writer with all five Beta Lab packs ready.
+- Offline desired-tree planning and read-only remote inspection report the same
+  12 development-guild roots, no create/update/removal, and an empty global
+  tree; no command apply occurred. Acceptance route is no announcement because
+  this owner/control-plane safety unit changes no ordinary tester workflow.
+  `BETA_WHAT_TO_TEST.md` is unchanged and no Discord message or tester ping was
+  sent. P10.10/N3 is complete. Next: P11.4B1 local host-development-database
+  import/rehearsal plus the N4 accurate backup-semantics correction.
 
 ### 2026-08-12 — P11.4A live-engine infrastructure proof completed
 
