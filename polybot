@@ -55,7 +55,10 @@ require_command() {
 }
 
 platform_name() {
-  detected=${POLYBOT_PLATFORM_OVERRIDE:-$(uname -s)}
+  detected=$(uname -s)
+  if [ "${POLYBOT_SOURCE_ONLY:-0}" = 1 ] && [ -n "${POLYBOT_PLATFORM_OVERRIDE:-}" ]; then
+    detected=$POLYBOT_PLATFORM_OVERRIDE
+  fi
   case "$detected" in
     Darwin|darwin) echo darwin ;;
     Linux|linux) echo linux ;;
@@ -400,19 +403,35 @@ container_running() {
 }
 
 host_writer_count() {
-  container_pids=,
+  container_roots=,
   for candidate in $(docker ps -q); do
     candidate_pid=$(docker inspect "$candidate" --format '{{.State.Pid}}' 2>/dev/null || true)
     case "$candidate_pid" in
       ''|*[!0-9]*) ;;
-      *) container_pids=${container_pids}${candidate_pid}, ;;
+      *) container_roots=${container_roots}${candidate_pid}, ;;
     esac
   done
-  ps -axo pid=,command= 2>/dev/null \
-    | awk -v container_pids="$container_pids" '
-        $0 ~ /[b]ot\.py/ && $0 ~ /--skip_tasks/ \
-          && index(container_pids, "," $1 ",") == 0 {count++}
-        END {print count + 0}
+  ps -axo pid=,ppid=,command= 2>/dev/null \
+    | awk -v container_roots="$container_roots" '
+        {
+          parent[$1] = $2
+          if ($0 ~ /[b]ot\.py/ && $0 ~ /--skip_tasks/) bots[$1] = 1
+        }
+        END {
+          for (pid in bots) {
+            current = pid
+            contained = 0
+            for (depth = 0; current != "" && current != 0 && depth < 1024; depth++) {
+              if (index(container_roots, "," current ",") != 0) {
+                contained = 1
+                break
+              }
+              current = parent[current]
+            }
+            if (!contained) count++
+          }
+          print count + 0
+        }
       '
 }
 
@@ -573,10 +592,16 @@ command_status() {
   echo 'PolyBot development container status'
   echo "project: $PROJECT_NAME"
   echo "platform: $(platform_name)"
+  expected_application=unknown
   if [ -f "$ENV_FILE" ]; then
-    echo "configured checkpoint: $(configured_checkpoint)"
+    configured_checkpoint_value=$(configured_checkpoint)
+    configured_image_value=$(configured_image)
+    configured_architecture=$(docker image inspect "$configured_image_value" --format '{{.Architecture}}' 2>/dev/null || echo unavailable)
+    expected_application=$(sed -n 's/^[[:space:]]*expected_bot_id[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" 2>/dev/null | tail -n 1)
+    [ -n "$expected_application" ] || expected_application=unknown
+    echo "configured: checkpoint=$configured_checkpoint_value; application=$expected_application; image=$configured_image_value; architecture=$configured_architecture"
   else
-    echo 'configured checkpoint: not set up'
+    echo 'configured: not set up'
   fi
   bot_id=$(bot_container_id)
   postgres_id=$(postgres_container_id)
@@ -589,8 +614,6 @@ command_status() {
       | sed -n 's/.*Logged in as: .* - \([0-9][0-9]*\).*/\1/p' \
       | tail -n 1)
     [ -n "$observed_application" ] || observed_application=not-yet-observed
-    expected_application=$(sed -n 's/^[[:space:]]*expected_bot_id[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" 2>/dev/null | tail -n 1)
-    [ -n "$expected_application" ] || expected_application=unknown
     echo "bot: running; application=$observed_application; expected_application=$expected_application; checkpoint=$runtime_checkpoint; architecture=$architecture"
   else
     bot_state=stopped
@@ -601,7 +624,9 @@ command_status() {
     db_identity=$(docker exec --user postgres "$postgres_id" \
       psql -X -At -d polytopia_dev -c "SELECT current_database() || '/' || pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()" 2>/dev/null || echo unavailable)
     guild_state=$(trusted_guild_state)
-    echo "database: running; health=$db_health; identity=$db_identity; trusted_guilds=$guild_state"
+    published_ports=$(docker port "$postgres_id" 5432/tcp 2>/dev/null || true)
+    [ -n "$published_ports" ] && exposure="published:$published_ports" || exposure=internal-only
+    echo "database: running; health=$db_health; identity=$db_identity; trusted_guilds=$guild_state; exposure=$exposure"
   else
     echo 'database: stopped'
   fi
@@ -798,7 +823,6 @@ command_import_backup() {
   compose --profile recovery run --rm \
     -e "POLYBOT_BACKUP_ARCHIVE=$STAGED_ARCHIVE_NAME" \
     -e "POLYBOT_IMPORT_CONFIRMATION=$confirmation" \
-    -e "POLYBOT_IMPORT_EXPECTED_COUNTS=$expected_counts" \
     database-import
   echo 'Verified archive imported. Run ./polybot start after reviewing status.'
 }
@@ -808,12 +832,23 @@ command_backup() {
   validate_project_name
   require_prepared_inputs
   host_private_input_probe
-  plan=$(compose --profile recovery run --rm --no-deps database-backup)
+  bot_id=$(bot_container_id)
+  backup_checkpoint=$(configured_checkpoint)
+  if container_running "$bot_id"; then
+    backup_checkpoint=$(docker exec "$bot_id" /bin/sh -c 'printf %s "$POLYBOT_IMAGE_CHECKPOINT"' 2>/dev/null || true)
+  fi
+  case "$backup_checkpoint" in
+    ''|*[!0-9a-f]*) fail 'Could not establish the exact backup source checkpoint.' ;;
+  esac
+  [ "${#backup_checkpoint}" -eq 40 ] \
+    || fail 'Could not establish the exact backup source checkpoint.'
+  plan=$(compose --profile recovery run --rm --no-deps \
+    -e "POLYBOT_SOURCE_CHECKPOINT=$backup_checkpoint" \
+    database-backup)
   printf '%s\n' "$plan"
   confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)
   [ -n "$confirmation" ] || fail 'Backup plan did not emit its checkpoint confirmation.'
   confirm_exact "$confirmation"
-  bot_id=$(bot_container_id)
   postgres_id=$(postgres_container_id)
   was_running=false
   database_was_running=false
@@ -826,6 +861,7 @@ command_backup() {
   fi
   set +e
   compose --profile recovery run --rm \
+    -e "POLYBOT_SOURCE_CHECKPOINT=$backup_checkpoint" \
     -e "POLYBOT_BACKUP_CONFIRMATION=$confirmation" \
     database-backup
   result=$?

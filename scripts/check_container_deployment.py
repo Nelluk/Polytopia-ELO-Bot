@@ -70,6 +70,7 @@ def main(argv=None) -> int:
             ).strip()
             if (
                     os.environ.get('POLYBOT_DEPLOYMENT_CLI_INTERNAL') != '1'
+                    or (PROJECT_ROOT / '.git').exists()
                     or args.immutable_image_checkpoint != image_checkpoint
                     or len(image_checkpoint) != 40
                     or any(

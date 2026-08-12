@@ -15,6 +15,7 @@ BACKUP_ROOT=/backups
 ADMIN_SECRET=/run/secrets/postgres_admin_password
 APPLICATION_SECRET=/run/secrets/polybot_database_password
 EXPECTED_ARCHIVE_PREFIX=polybot-polytopia_dev
+VERIFIED_SUFFIX=.verified
 LEGACY_ARCHIVE=polybot-polytopia_dev-20260812T123355Z-d27d6c83508ad00ef4e28d4eabad5fcddcf3189f.dump
 LEGACY_DIGEST=a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b
 LEGACY_COUNTS='71|4|44|15|3|48|24'
@@ -84,16 +85,23 @@ fi
 [ "$provided_confirmation" = "$confirmation" ] \
   || fail 'Import confirmation does not match the exact target and archive digest.'
 
-expected_counts=${POLYBOT_IMPORT_EXPECTED_COUNTS:-}
 if [ "$archive_name" = "$LEGACY_ARCHIVE" ] && [ "$archive_digest" = "$LEGACY_DIGEST" ]; then
-  [ -z "$expected_counts" ] || [ "$expected_counts" = "$LEGACY_COUNTS" ] \
-    || fail 'Expected counts do not match the reviewed transferred archive.'
   expected_counts=$LEGACY_COUNTS
   count_scope='reviewed transferred fixture counts'
 else
+  receipt_path=${archive_path}${VERIFIED_SUFFIX}
+  [ -f "$receipt_path" ] && [ ! -L "$receipt_path" ] \
+    || fail 'A non-legacy archive requires one fresh-volume verification receipt.'
+  receipt_value=$(cat "$receipt_path") \
+    || fail 'Could not read the fresh-volume verification receipt.'
+  receipt_prefix="VERIFIED $archive_digest $archive_name "
+  case "$receipt_value" in
+    "$receipt_prefix"*) expected_counts=${receipt_value#"$receipt_prefix"} ;;
+    *) fail 'Fresh-volume verification receipt does not match the archive name and digest.' ;;
+  esac
   printf '%s\n' "$expected_counts" \
     | grep -Eq '^[0-9]+(\|[0-9]+){6}$' \
-    || fail 'A verified archive must supply seven digest-bound expected counts.'
+    || fail 'Fresh-volume verification receipt must contain seven bounded counts.'
   count_scope='fresh-volume-verified bounded archive counts'
 fi
 

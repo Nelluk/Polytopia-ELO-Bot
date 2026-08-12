@@ -468,6 +468,8 @@ log_root = logs/development
             'POLYBOT_DEPLOYMENT_CLI_INTERNAL': '1',
         }
         with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            cli, 'PROJECT_ROOT', self.root
+        ), mock.patch.object(
             cli, 'run_doctor', return_value=report
         ) as run_doctor, mock.patch('sys.stdout', new_callable=io.StringIO):
             self.assertEqual(cli.main([
@@ -493,6 +495,29 @@ log_root = logs/development
             'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
         }
         with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            cli, 'run_doctor'
+        ) as run_doctor, mock.patch(
+            'sys.stderr', new_callable=io.StringIO
+        ) as stderr:
+            self.assertEqual(cli.main([
+                '--mode', 'bundled',
+                '--immutable-image-checkpoint', CHECKPOINT,
+                '--host-platform', 'linux',
+                '--host-uid', '1000',
+            ]), 2)
+        run_doctor.assert_not_called()
+        self.assertIn('invalid', stderr.getvalue())
+
+    def test_cli_rejects_internal_image_mode_from_git_checkout(self):
+        (self.root / '.git').mkdir()
+        environment = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
+            'POLYBOT_DEPLOYMENT_CLI_INTERNAL': '1',
+        }
+        with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            cli, 'PROJECT_ROOT', self.root
+        ), mock.patch.object(
             cli, 'run_doctor'
         ) as run_doctor, mock.patch(
             'sys.stderr', new_callable=io.StringIO

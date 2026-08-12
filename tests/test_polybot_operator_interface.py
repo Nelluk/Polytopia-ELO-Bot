@@ -93,6 +93,35 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         self.assertEqual(refused.returncode, 2)
         self.assertIn('did not match', refused.stderr)
 
+    def test_linux_writer_audit_excludes_container_descendants(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', '''
+                . ./polybot
+                docker() {
+                  if [ "$1" = ps ]; then
+                    echo owned-container
+                  else
+                    echo 100
+                  fi
+                }
+                ps() {
+                  printf '%s\n' \
+                    '100 1 /sbin/docker-init --' \
+                    '101 100 python bot.py --skip_tasks' \
+                    '200 1 python bot.py --skip_tasks'
+                }
+                host_writer_count
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '1')
+
     def test_archive_staging_never_replaces_a_different_pair(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -143,12 +172,15 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
             self.assertIn(service, source)
         self.assertIn('P11.5B', source)
         self.assertIn('VERIFIED %s %s %s', source)
-        self.assertIn('POLYBOT_IMPORT_EXPECTED_COUNTS', source)
+        self.assertNotIn('POLYBOT_IMPORT_EXPECTED_COUNTS', source)
         self.assertIn('PROJECT_NAME=polybot-mac-beta', source)
         self.assertIn("'{{.State.Pid}}'", source)
         self.assertIn('host_private_input_probe', source)
         self.assertIn("stat -f '%u'", source)
         self.assertIn("stat -c '%u'", source)
+        self.assertIn('container_roots', source)
+        self.assertIn('exposure=internal-only', source)
+        self.assertIn('backup_checkpoint=$(docker exec', source)
         self.assertNotIn('manage_application_commands.py', source)
         self.assertNotIn('polytopia2', source)
         self.assertNotIn('config.ini', source)

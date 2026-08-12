@@ -67,6 +67,12 @@ class ContainerDatabaseRecoveryTests(unittest.TestCase):
             f'{self.import_digest}  {IMPORT_ARCHIVE_NAME}\n',
             encoding='utf-8',
         )
+        self.import_receipt = import_archive.with_suffix('.dump.verified')
+        self.import_receipt.write_text(
+            f'VERIFIED {self.import_digest} {IMPORT_ARCHIVE_NAME} '
+            '71|4|44|15|3|48|24\n',
+            encoding='utf-8',
+        )
         self.import_script = self._copy_script(
             'import-development-database.sh',
             {
@@ -331,7 +337,6 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
-            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
         )
         self.assertEqual(applied.returncode, 0, applied.stderr)
         self.assertIn(
@@ -357,6 +362,7 @@ esac
         self.assertFalse(self.restore_marker.exists())
 
     def test_import_apply_requires_fresh_volume_verified_counts(self):
+        self.import_receipt.unlink()
         self.psql_marker.unlink(missing_ok=True)
         result = self._run(
             self.import_script,
@@ -367,18 +373,22 @@ esac
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn('seven digest-bound expected counts', result.stderr)
+        self.assertIn('fresh-volume verification receipt', result.stderr)
         self.assertFalse(self.psql_marker.exists())
         self.assertFalse(self.restore_marker.exists())
 
     def test_import_refuses_counts_that_differ_from_verified_restore(self):
+        self.import_receipt.write_text(
+            f'VERIFIED {self.import_digest} {IMPORT_ARCHIVE_NAME} '
+            '0|0|0|0|0|0|0\n',
+            encoding='utf-8',
+        )
         result = self._run(
             self.import_script,
             POLYBOT_BACKUP_ARCHIVE=IMPORT_ARCHIVE_NAME,
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
-            POLYBOT_IMPORT_EXPECTED_COUNTS='0|0|0|0|0|0|0',
         )
 
         self.assertEqual(result.returncode, 2)
@@ -405,7 +415,6 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
-            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
             FAKE_SESSION_COUNTER=str(self.session_counter),
         )
 
@@ -423,7 +432,6 @@ esac
                     POLYBOT_IMPORT_CONFIRMATION=(
                         f'IMPORT polytopia_dev {self.import_digest}'
                     ),
-                    POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
                     **{variable: '0'},
                 )
                 self.assertEqual(result.returncode, 2)
@@ -437,7 +445,6 @@ esac
             POLYBOT_IMPORT_CONFIRMATION=(
                 f'IMPORT polytopia_dev {self.import_digest}'
             ),
-            POLYBOT_IMPORT_EXPECTED_COUNTS='71|4|44|15|3|48|24',
             FAKE_PUBLIC_RELATIONS='1',
         )
 
