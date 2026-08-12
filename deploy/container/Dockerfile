@@ -44,4 +44,4 @@ RUN test "${#POLYBOT_SOURCE_CHECKPOINT}" -eq 40 \
 USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}
 STOPSIGNAL SIGINT
 
-CMD ["python", "bot.py", "--skip_tasks"]
+CMD ["python", "scripts/run_development_beta.py", "--skip_tasks"]

@@ -223,7 +223,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["python", "bot.py", "--skip_tasks"]
+    command: ["python", "scripts/run_development_beta.py", "--skip_tasks"]
     restart: "on-failure:5"
 
 volumes:

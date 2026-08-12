@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Guarded entry point for the durable development beta service.
 
-The user-level systemd unit invokes this script rather than ``bot.py``
-directly.  It validates the exact development profile, requires a clean
-reviewed checkout, holds the single-writer lock across ``exec``, and then
-starts the bot with the only supported runtime flag.
+The user-level systemd unit and reviewed Compose bot invoke this script rather
+than ``bot.py`` directly. It validates the exact development profile and
+source provenance, holds the shared single-writer lock across ``exec``, and
+then starts the bot with the only supported runtime flag.
 """
 
 from __future__ import annotations
@@ -52,12 +52,13 @@ def main(argv: list[str] | None = None) -> int:
         writer_lock.acquire()
         os.environ['POLYBOT_BETA_CHECKPOINT'] = checkpoint
         # Preserve the venv entry-point path across exec. Resolving this
-        # symlink selects the base interpreter and loses the venv's
-        # site-packages (including discord.py).
-        # The app-managed worktree intentionally has no copied venv.  The
-        # durable service is fixed to the one reviewed development interpreter
-        # shared by the primary development checkout.
-        python = SHARED_DEVELOPMENT_PYTHON
+        # symlink selects the base interpreter and loses its site-packages.
+        supervisor = os.environ.get('POLYBOT_RESTART_SUPERVISOR', '').strip()
+        python = (
+            PROJECT_ROOT / '.venv/bin/python'
+            if supervisor == 'compose'
+            else SHARED_DEVELOPMENT_PYTHON
+        )
         if not python.is_file() or not os.path.samefile(sys.executable, python):
             raise RuntimeError(
                 'The durable beta must run with the reviewed development venv.'

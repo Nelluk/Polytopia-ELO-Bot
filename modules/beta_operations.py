@@ -485,7 +485,7 @@ def validate_beta_launch(
         argv: Sequence[str],
         *,
         environ: Mapping[str, str] | None = None) -> str:
-    """Validate launcher arguments/profile and return the clean HEAD SHA."""
+    """Validate launcher arguments/profile and return its exact source SHA."""
 
     if tuple(argv) != ('--skip_tasks',):
         raise BetaRuntimeInvariantError(
@@ -501,6 +501,25 @@ def validate_beta_launch(
     if bot_path != project_root / 'bot.py' or not bot_path.is_file():
         raise BetaRuntimeInvariantError(
             'The durable beta bot target must be bot.py inside the development checkout.'
+        )
+    environment = os.environ if environ is None else environ
+    supervisor = _environment_value(environment, 'POLYBOT_RESTART_SUPERVISOR')
+    if supervisor == 'compose':
+        image_checkpoint = _environment_value(
+            environment,
+            'POLYBOT_IMAGE_CHECKPOINT',
+        )
+        beta_checkpoint = _environment_value(environment, BETA_CHECKPOINT_ENV)
+        if (
+                not _CHECKPOINT.fullmatch(image_checkpoint)
+                or image_checkpoint != beta_checkpoint):
+            raise BetaRuntimeInvariantError(
+                'The Compose beta image and configured checkpoints must match exactly.'
+            )
+        return image_checkpoint
+    if supervisor not in {'', 'systemd'}:
+        raise BetaRuntimeInvariantError(
+            'The durable beta launch supervisor is not reviewed.'
         )
     _assert_clean_checkout(project_root)
     return current_checkpoint(project_root)

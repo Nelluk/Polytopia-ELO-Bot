@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 6)
+        self.assertEqual(contract['contract_version'], 7)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -117,7 +117,10 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('STOPSIGNAL SIGINT', dockerfile)
         self.assertIn('POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
         self.assertIn('org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
-        self.assertIn('["python", "bot.py", "--skip_tasks"]', dockerfile)
+        self.assertIn(
+            '["python", "scripts/run_development_beta.py", "--skip_tasks"]',
+            dockerfile,
+        )
         self.assertNotIn('config.development.ini', dockerfile)
         for excluded in (
             '.git', '.venv', 'config.ini', 'config.development.ini',
@@ -168,6 +171,10 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('POLYBOT_BETA_GUILD_ID: "478571892832206869"', compose)
         self.assertIn('POLYBOT_BETA_DATABASE: polytopia_dev', compose)
         self.assertIn('POLYBOT_BETA_DATABASE_ROLE: polybot_dev', compose)
+        self.assertIn(
+            '["python", "scripts/run_development_beta.py", "--skip_tasks"]',
+            compose,
+        )
         self.assertIn('POLYBOT_SOURCE_CHECKPOINT:', compose)
         self.assertNotIn('manage_application_commands.py', compose)
         self.assertNotIn('manage_dev_fixtures.py', compose)

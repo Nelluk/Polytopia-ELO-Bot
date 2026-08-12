@@ -229,6 +229,43 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         second.acquire()
         second.release()
 
+    def test_compose_launch_uses_image_provenance_without_git_metadata(self):
+        (self.root / 'bot.py').touch()
+        selected_profile = profile(self.root)
+        environment = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_RESTART_SUPERVISOR': 'compose',
+            'POLYBOT_BETA_CONTROL': 'enabled',
+            'POLYBOT_BETA_STARTUP_SYNC': 'disabled',
+            'POLYBOT_BETA_APPLICATION_ID': str(beta_operations.BETA_APPLICATION_ID),
+            'POLYBOT_BETA_GUILD_ID': str(beta_operations.BETA_GUILD_ID),
+            'POLYBOT_BETA_DATABASE': beta_operations.BETA_DATABASE_NAME,
+            'POLYBOT_BETA_DATABASE_ROLE': beta_operations.BETA_DATABASE_ROLE,
+            'POLYBOT_BETA_CHECKPOINT': CHECKPOINT,
+            'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
+        }
+        with mock.patch.object(beta_operations, '_assert_clean_checkout') as clean:
+            self.assertEqual(
+                beta_operations.validate_beta_launch(
+                    selected_profile,
+                    ('--skip_tasks',),
+                    environ=environment,
+                ),
+                CHECKPOINT,
+            )
+        clean.assert_not_called()
+
+        environment['POLYBOT_IMAGE_CHECKPOINT'] = 'b' * 40
+        with self.assertRaisesRegex(
+            beta_operations.BetaRuntimeInvariantError,
+            'checkpoints must match',
+        ):
+            beta_operations.validate_beta_launch(
+                selected_profile,
+                ('--skip_tasks',),
+                environ=environment,
+            )
+
     def test_state_root_and_writer_lock_are_restricted(self):
         paths = beta_operations.operation_paths(profile(self.root), create=True)
         self.assertEqual(stat.S_IMODE(paths.state_root.stat().st_mode), 0o700)
@@ -316,6 +353,36 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         )
         self.assertEqual(executed[0][1][0], executed[0][0])
         self.assertEqual(executed[0][1][-1], '--skip_tasks')
+
+    def test_compose_launcher_holds_shared_writer_lock_across_exec(self):
+        selected_profile = profile(self.root)
+        paths = beta_operations.operation_paths(selected_profile, create=True)
+        environment = {'POLYBOT_RESTART_SUPERVISOR': 'compose'}
+        executed = []
+
+        def execv(python, argv):
+            executed.append((python, argv))
+            competing = beta_operations.BetaWriterLock(paths.writer_lock)
+            with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
+                competing.acquire()
+
+        with mock.patch.dict(os.environ, environment, clear=False), \
+                mock.patch.object(run_development_beta, 'load_runtime_profile', return_value=selected_profile), \
+                mock.patch.object(run_development_beta, 'validate_beta_launch', return_value=CHECKPOINT), \
+                mock.patch.object(run_development_beta, 'assert_beta_profile'), \
+                mock.patch.object(run_development_beta, 'operation_paths', return_value=paths), \
+                mock.patch.object(run_development_beta.os, 'execv', side_effect=execv), \
+                mock.patch.object(run_development_beta.Path, 'is_file', return_value=True), \
+                mock.patch.object(run_development_beta.os.path, 'samefile', return_value=True):
+            self.assertEqual(run_development_beta.main(['--skip_tasks']), 0)
+
+        self.assertEqual(
+            executed[0][0],
+            str(run_development_beta.PROJECT_ROOT / '.venv/bin/python'),
+        )
+        released = beta_operations.BetaWriterLock(paths.writer_lock)
+        released.acquire()
+        released.release()
 
     def test_launcher_rejects_any_other_runtime_argument(self):
         selected_profile = profile(self.root)

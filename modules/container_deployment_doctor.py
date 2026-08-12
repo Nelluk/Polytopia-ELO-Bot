@@ -192,7 +192,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 6
+            value.get('contract_version') != 7
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -707,7 +707,7 @@ def _validate_assets(
         'COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .',
         'USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}',
         f"STOPSIGNAL {contract['bot_stop_signal']}",
-        '["python", "bot.py", "--skip_tasks"]',
+        '["python", "scripts/run_development_beta.py", "--skip_tasks"]',
     )
     required_compose = (
         str(contract['python_image']),
@@ -723,6 +723,7 @@ def _validate_assets(
         f'POLYBOT_BETA_GUILD_ID: "{contract["beta_guild_id"]}"',
         f'POLYBOT_BETA_DATABASE: {contract["database_name"]}',
         f'POLYBOT_BETA_DATABASE_ROLE: {contract["database_user"]}',
+        '["python", "scripts/run_development_beta.py", "--skip_tasks"]',
         'read_only: true',
         'user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"',
         f'stop_signal: {contract["bot_stop_signal"]}',
