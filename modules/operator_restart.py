@@ -12,6 +12,7 @@ import re
 
 RESTART_EXIT_STATUS = 75
 FORCE_CONFIRMATION = 'RESTART NOW'
+COMPOSE_SUPERVISOR = 'compose'
 _CHECKPOINT = re.compile(r'^[0-9a-f]{40}$')
 
 
@@ -56,6 +57,7 @@ class RestartActivitySnapshot:
 class RestartCheckoutSnapshot:
     running_checkpoint: str
     desired_checkpoint: str
+    supervisor: str = 'systemd'
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,14 +101,33 @@ def assert_authorized(request: RestartRequest) -> None:
             )
 
 
+def _supervisor_kind(environ: Mapping[str, str]) -> str:
+    configured = str(environ.get('POLYBOT_RESTART_SUPERVISOR', ''))
+    if configured:
+        image_checkpoint = str(
+            environ.get('POLYBOT_IMAGE_CHECKPOINT', '')
+        ).strip()
+        if (
+                configured == COMPOSE_SUPERVISOR
+                and _CHECKPOINT.fullmatch(image_checkpoint)):
+            return COMPOSE_SUPERVISOR
+        raise RestartSupervisionError(
+            'The configured restart supervisor or immutable image checkpoint '
+            'is invalid, so restart was refused without stopping the bot.'
+        )
+    invocation_id = str(environ.get('INVOCATION_ID', ''))
+    if re.fullmatch(r'[0-9a-f]{32}', invocation_id):
+        return 'systemd'
+    raise RestartSupervisionError(
+        'This bot process is not running under a reviewed systemd or '
+        'immutable Compose supervisor, so restart was refused without '
+        'stopping it.'
+    )
+
+
 def assert_supervised(environ: Mapping[str, str] | None = None) -> None:
     environment = os.environ if environ is None else environ
-    invocation_id = str(environment.get('INVOCATION_ID', ''))
-    if not re.fullmatch(r'[0-9a-f]{32}', invocation_id):
-        raise RestartSupervisionError(
-            'This bot process is not running under the reviewed systemd '
-            'service, so restart was refused without stopping it.'
-        )
+    _supervisor_kind(environment)
 
 
 async def _git_output(project_root: Path, *arguments: str) -> str:
@@ -159,6 +180,20 @@ async def inspect_checkout(
     *,
     environ: Mapping[str, str] | None = None,
 ) -> RestartCheckoutSnapshot:
+    environment = os.environ if environ is None else environ
+    supervisor = (
+        _supervisor_kind(environment)
+        if environment.get('POLYBOT_RESTART_SUPERVISOR')
+        else 'systemd'
+    )
+    if supervisor == COMPOSE_SUPERVISOR:
+        checkpoint = str(environment['POLYBOT_IMAGE_CHECKPOINT']).strip()
+        return RestartCheckoutSnapshot(
+            running_checkpoint=checkpoint,
+            desired_checkpoint=checkpoint,
+            supervisor=supervisor,
+        )
+
     project_root = Path(project_root).resolve()
     status = await _git_output(
         project_root,
@@ -181,13 +216,13 @@ async def inspect_checkout(
         raise RestartCheckoutError(
             'The bot checkout checkpoint is invalid; restart was refused.'
         )
-    environment = os.environ if environ is None else environ
     running = str(environment.get('POLYBOT_BETA_CHECKPOINT', '')).strip()
     if not _CHECKPOINT.fullmatch(running):
         running = 'not recorded'
     return RestartCheckoutSnapshot(
         running_checkpoint=running,
         desired_checkpoint=desired,
+        supervisor=supervisor,
     )
 
 

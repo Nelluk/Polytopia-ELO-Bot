@@ -22,6 +22,10 @@ bot_module = import_offline_runtime('bot')
 CHECKPOINT = '1' * 40
 NEXT_CHECKPOINT = '2' * 40
 SYSTEMD_ENV = {'INVOCATION_ID': 'a' * 32}
+COMPOSE_ENV = {
+    'POLYBOT_RESTART_SUPERVISOR': service.COMPOSE_SUPERVISOR,
+    'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
+}
 
 
 def request(**overrides):
@@ -99,11 +103,35 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
             )
 
     def test_unsupervised_process_is_refused(self):
-        for environment in ({}, {'INVOCATION_ID': 'not-systemd'}):
+        for environment in (
+            {},
+            {'INVOCATION_ID': 'not-systemd'},
+            {'POLYBOT_RESTART_SUPERVISOR': 'compose'},
+            {
+                'POLYBOT_RESTART_SUPERVISOR': 'unknown',
+                'INVOCATION_ID': 'a' * 32,
+            },
+        ):
             with self.subTest(environment=environment):
                 with self.assertRaises(service.RestartSupervisionError):
                     service.assert_supervised(environment)
         service.assert_supervised(SYSTEMD_ENV)
+        service.assert_supervised(COMPOSE_ENV)
+
+    async def test_compose_restart_uses_immutable_image_without_git(self):
+        with mock.patch.object(
+            service,
+            '_git_output',
+            new=mock.AsyncMock(),
+        ) as git_output:
+            result = await service.inspect_checkout(
+                Path('/app'),
+                environ=COMPOSE_ENV,
+            )
+        git_output.assert_not_awaited()
+        self.assertEqual(result.running_checkpoint, CHECKPOINT)
+        self.assertEqual(result.desired_checkpoint, CHECKPOINT)
+        self.assertEqual(result.supervisor, service.COMPOSE_SUPERVISOR)
 
     async def test_checkout_must_be_clean_and_returns_both_checkpoints(self):
         with mock.patch.object(
@@ -328,6 +356,23 @@ class RestartViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(modal.confirmation.placeholder, service.FORCE_CONFIRMATION)
         self.assertIn('OWNER FORCE', str(view.to_components()))
         self.assertIn('will not wait', str(view.to_components()))
+
+    async def test_compose_panel_says_same_immutable_image(self):
+        runner = mock.AsyncMock()
+        compose_preview = preview(checkout=service.RestartCheckoutSnapshot(
+            CHECKPOINT,
+            CHECKPOINT,
+            service.COMPOSE_SUPERVISOR,
+        ))
+        view = views.RestartConfirmationView(
+            preview=compose_preview,
+            runner=runner,
+        )
+        panel = str(view.to_components())
+        self.assertIn('Docker Compose (same immutable image)', panel)
+        interaction = self._interaction()
+        await view._confirm(interaction)
+        self.assertIn('same reviewed immutable image', str(view.to_components()))
 
 
 class RestartAdapterTests(unittest.IsolatedAsyncioTestCase):

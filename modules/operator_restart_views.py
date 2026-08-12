@@ -127,8 +127,13 @@ class RestartConfirmationView(discord.ui.LayoutView):
     def mark_accepted(self) -> None:
         self.terminal = True
         self.busy = False
+        runtime = (
+            'same reviewed immutable image'
+            if self.preview.checkout.supervisor == service.COMPOSE_SUPERVISOR
+            else 'reviewed checkout'
+        )
         self.status = (
-            'Restart accepted. The supervisor will start the reviewed checkout. '
+            f'Restart accepted. The supervisor will start the {runtime}. '
             'Discord may keep showing the bot as online during this brief '
             'restart, and this panel cannot update after the current process '
             'shuts down. Allow about 10–20 seconds before using the bot again.'
@@ -160,6 +165,11 @@ class RestartConfirmationView(discord.ui.LayoutView):
             if preview.activity.descriptions else '- None detected'
         )
         mode = 'OWNER FORCE' if preview.force else 'normal'
+        supervisor = (
+            'Docker Compose (same immutable image)'
+            if preview.checkout.supervisor == service.COMPOSE_SUPERVISOR
+            else 'systemd (current reviewed checkout)'
+        )
         warning = (
             '\n**Warning:** force mode will not wait for the active work listed '
             'above.'
@@ -181,9 +191,10 @@ class RestartConfirmationView(discord.ui.LayoutView):
             discord.ui.TextDisplay(
                 '# Supervised bot restart\n'
                 f'**Mode:** `{mode}`\n'
+                f'**Supervisor:** {supervisor}\n'
                 f'**Running checkpoint:** '
                 f'`{preview.checkout.running_checkpoint}`\n'
-                f'**Checkpoint to load:** '
+                f'**Checkpoint after restart:** '
                 f'`{preview.checkout.desired_checkpoint}`\n'
                 f'**Known active work:**\n{active}{warning}\n\n'
                 f'-# {self.status}'

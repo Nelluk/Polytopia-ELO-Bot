@@ -1,0 +1,50 @@
+name: polybot-development-external-db
+
+x-bot-service: &bot-service
+  build:
+    context: ../..
+    dockerfile: deploy/container/Dockerfile
+    args:
+      PYTHON_IMAGE: ${POLYBOT_PYTHON_IMAGE:-python:3.12.13-slim-bookworm}
+      UV_IMAGE: ${POLYBOT_UV_IMAGE:-ghcr.io/astral-sh/uv:0.11.32}
+      POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Run the deployment doctor and set the exact Git checkpoint}
+  image: ${POLYBOT_BOT_IMAGE:-polybot-development:local}
+  environment:
+    POLYBOT_ENV: development
+    POLYBOT_RESTART_SUPERVISOR: compose
+  init: true
+  user: "10001:10001"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  volumes:
+    - ./config.development.ini:/app/config.development.ini:ro
+    - ./server_settings_dev.py:/app/server_settings_dev.py:ro
+    - polybot_images:/app/data/development/images
+    - polybot_logs:/app/logs/development
+  stop_signal: SIGINT
+  stop_grace_period: 45s
+  pids_limit: 256
+  mem_limit: ${POLYBOT_BOT_MEMORY_LIMIT:-1g}
+  cpus: ${POLYBOT_BOT_CPU_LIMIT:-1.0}
+
+services:
+  schema:
+    <<: *bot-service
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/bootstrap_development_database.py"]
+    command: []
+    restart: "no"
+
+  bot:
+    <<: *bot-service
+    command: ["python", "bot.py", "--skip_tasks"]
+    restart: "on-failure:5"
+
+volumes:
+  polybot_images:
+  polybot_logs:

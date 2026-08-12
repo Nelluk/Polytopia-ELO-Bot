@@ -1,0 +1,43 @@
+contract_version = 1
+environment = "development"
+python_image = "python:3.12.13-slim-bookworm"
+uv_image = "ghcr.io/astral-sh/uv:0.11.32"
+postgres_image = "postgres:18.4-bookworm"
+postgres_major = 18
+bot_uid = 10001
+bot_gid = 10001
+restart_exit_status = 75
+restart_supervisor_environment = "POLYBOT_RESTART_SUPERVISOR=compose"
+image_checkpoint_environment = "POLYBOT_IMAGE_CHECKPOINT"
+source_checkpoint_environment = "POLYBOT_SOURCE_CHECKPOINT"
+bot_stop_signal = "SIGINT"
+bot_stop_grace_seconds = 45
+database_name = "polytopia_dev"
+database_user = "polybot_dev"
+bundled_database_host = "postgres"
+database_port = 5432
+
+required_bind_files = [
+  "deploy/container/config.development.ini",
+  "deploy/container/server_settings_dev.py",
+]
+
+required_secret_files = [
+  "deploy/container/secrets/postgres-admin-password.txt",
+  "deploy/container/secrets/polybot-database-password.txt",
+]
+
+persistent_volumes = [
+  "postgres_data",
+  "polybot_images",
+  "polybot_logs",
+]
+
+[runtime_policy]
+background_tasks_enabled = false
+api_enabled = false
+bullet_enabled = false
+startup_schema_changes = false
+startup_fixture_changes = false
+startup_discord_sync = false
+global_discord_sync = false

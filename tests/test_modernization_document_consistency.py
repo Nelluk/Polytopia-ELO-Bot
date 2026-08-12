@@ -80,7 +80,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P10.9 additive guild-configuration delegation',
+            'Current active unit: **P11.1 containerized development feasibility',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)

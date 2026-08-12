@@ -492,43 +492,27 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.9 additive guild-configuration delegation is
-complete, integrated, pushed, development-guild registered, and beta-deployed
-from `codex/p10-9-guild-delegation`, based on exact clean pushed accumulation
-checkpoint `6f676e903d9936c881d93394d9d7ec39a5fc552f`. The owner controls one
-versioned policy per active guild through `/operator guild delegation`, with
-explicit assignable role IDs, activation delegation off by default, full-plan
-digest confirmation, and a protected audit event. Authorized managers use the
-separate `/guild edit` entry only in their current guild. The UI exposes only
-ordinary settings and the worker independently reloads the database policy,
-rechecks the request's current role evidence, and rejects protected drafts or
-changes on every operation. `/guild` has no administrator-default permission
-or operator commands; the existing default-deny `operator` capability deploys
-the `guild` and `operator` roots together.
+Current active unit: **P11.1 containerized development feasibility and static
+proof is implemented and offline-validated on
+`codex/p11-1-container-development-proof`, based on exact clean pushed
+accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`.
+It defines separate pinned-version bot and PostgreSQL 18 containers, a
+non-root/read-only bot boundary, independent persistent volumes, explicit
+development database provisioning and schema jobs, an external-database
+variant, and a machine-readable safety contract. Normal startup never changes
+application schema or fixtures and never synchronizes Discord commands.
 
-The additive development table is present at exact schema digest
-`e1750b4d18672b4a267976d892335917c132b71bdd14323aa5c8a1a7d86604b0`.
-Focused validation passes 156 tests; complete offline discovery passes all
-1,996 tests with 89 intentional gated skips. The complete stopped-writer
-PostgreSQL gate passes 87 of 88 tests with only the established retained-
-fixture round trip skipped; the P10.9 policy/audit proof fully rolls back and
-retains no policy. Implementation/review checkpoint `c2951c3`. Tier-3 review
-corrected strict role-ID normalization, no-op mutation rejection, role-snapshot
-filtering, rollback evidence, and a
-future-state-dependent real-schema fixture. No actionable finding remains.
-Exact fast-forward integration and pushed code/evidence checkpoint is
-`18bec1eea46b6d20b6a6e014e5dd367595a29e07`. Remote inspection found an empty
-global tree, one new `guild` root, and one `operator` update; exact guild-only
-apply converged all 12 roots. The guarded beta runs that exact checkpoint as
-PID `283074`, authenticated as development application
-`479029527553638401`, with zero restarts, one host-wide development writer,
-and all five protected Beta Lab packs ready. No manager policy was fabricated,
-and this owner/security release required no tester announcement. Production
-authority, lifecycle retirement, global/startup synchronization, and real
-policy grants remain excluded. Next recommended: a larger P10.10 development
-offboarding/recovery unit combining non-destructive retirement, explicit
-retired-to-suspended recovery, command-tree reconciliation, delegation
-dormancy safeguards, and guarded redacted configuration export/verification.**
+The current host has neither Docker nor Podman, so no image, container,
+volume, database, or Discord operation was attempted. Static asset/shell tests
+pass 6 tests; complete offline discovery passes all 2,004 tests with 89
+intentional gates skipped; lockfile and diff checks pass. Review corrected
+runtime image exclusions that would have omitted the Beta Lab manifests and
+wordmark assets, moved application-role privilege validation ahead of database
+creation, and added exact immutable-image supervision because the existing
+restart command accepted only systemd plus a Git checkout. Existing systemd
+services and the durable beta remain unchanged. Next: commit and integrate
+P11.1, then take the already approved
+P11.2 read-only container deployment doctor as a separate bounded unit.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15572,6 +15556,59 @@ writer, and all five protected Beta Lab packs ready. No real delegation policy
 was granted. Owner-first command acceptance remains available through
 `/operator guild delegation` and an unconfigured `/guild edit` denial.
 
+### P11.1 — Containerized development feasibility and static proof
+
+Status: **Implemented and offline-validated; integration pending**
+
+Branch/base: `codex/p11-1-container-development-proof`, exact clean pushed
+accumulation checkpoint `5862305be0d0323e2be68a6bb78c7bf32e54daa2`.
+
+Risk tier: **Tier 3 operational/database boundary, with no live operation in
+this unit.**
+
+The approved proof uses a separate locked bot image and PostgreSQL 18.4
+service in one development Compose project. The bot runs as fixed non-root
+UID/GID 10001 with a read-only filesystem, dropped capabilities, resource
+ceilings, persistent image/log roots, SIGINT plus the existing 45-second grace
+period, and `on-failure:5` so owner-confirmed exit status 75 retains supervised
+restart semantics. PostgreSQL has an independent persistent volume and health
+gate. A tools-profile provisioner alone creates or verifies the fixed
+non-superuser `polybot_dev` role and `polytopia_dev` database; the existing
+development schema tool remains connection-free plan by default and exact-
+confirmation apply. The bot starts with `--skip_tasks`; no startup path
+migrates schema, seeds fixtures, restores data, or synchronizes Discord.
+
+The ignored container config and server-settings mounts are separate from the
+host beta's active ignored files. PostgreSQL admin/application secrets are
+ignored read-only mounts; until runtime config gains optional `_FILE` support,
+the application password is also present in the ignored INI and P11.2 must
+compare both values without disclosure. The external-database variant omits
+the database service and provisioner. Logical stopped-writer backup/restore,
+exact image digests, live image build/inspection, containerized offline tests,
+fresh/repeated initialization, signal/restart/persistence/database-outage
+tests, cross-runtime single-writer inventory, and a development Discord login
+remain explicit later live-engine gates.
+
+The current headless development host exposes no Docker or Podman executable.
+Accordingly this unit performs no dependency installation, image pull/build,
+container/volume/database/Discord mutation, beta restart, or production
+operation. Focused assets/shell validation passes 6 tests. Complete offline
+discovery passes all 2,004 tests with 89 intentional database gates skipped;
+lockfile, shell syntax, compilation, and diff checks pass. Complete-diff review
+corrected exclusions of tracked Beta Lab JSON and wordmark assets, application
+role privilege ordering, password argument exposure, and the initial false
+assumption that exit-75 restart would work unchanged without systemd or `.git`.
+The resulting exact Compose supervisor/image-checkpoint path restarts only the
+same reviewed immutable image and leaves systemd behavior unchanged. No
+actionable finding remains.
+
+Operational design and limitations are in
+`docs/CONTAINERIZED_DEVELOPMENT.md`; the exact policy is
+`deploy/container/container-contract.toml`. P11.2 is the separately committed
+read-only doctor that validates engine/Compose availability, ignored inputs,
+secret/config agreement, and contract-to-asset consistency, then prints the
+next commands without invoking Docker or any external system.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16935,6 +16972,11 @@ because they share legacy status; their risks and operational owners differ.
 
 ### 7. Containerized deployment feasibility
 
+Design status: **P11.1 development proof implemented and offline-validated;
+integration and the approved P11.2 read-only deployment doctor remain. No
+container engine is installed on the current host, so live proof and all
+production adoption remain deferred gates.**
+
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
 the reviewed production service. The primary goal is a genuinely easy,
@@ -16994,6 +17036,35 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P11.1 container-development proof implemented offline
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `5862305be0d0323e2be68a6bb78c7bf32e54daa2`, created isolated branch/worktree
+  `codex/p11-1-container-development-proof`, and ran the required development
+  setup with exact `development` / `polytopia_dev` / `polybot_dev` identity
+  and background tasks/API/Bullet disabled.
+- Verified that the host lacks Docker and Podman, while the locked runtime is
+  CPython 3.12 and the authorized development database reports PostgreSQL
+  18.4. Added pinned version-tag bot/PostgreSQL definitions, separate bundled
+  and external database Compose contracts, non-root/read-only bot controls,
+  persistent database/image/log volumes, explicit restricted database
+  provisioning, plan-default schema tooling, ignored configs/secrets, and a
+  detailed feasibility/remaining-gates runbook. Version tags remain mutable;
+  exact official registry digests are a live-engine provenance gate.
+- Tier-3 complete-diff review corrected Docker exclusions that would have
+  omitted tracked Beta Lab manifests and wordmark assets, validates every
+  dangerous application-role attribute before database creation, and keeps
+  the application password out of process arguments. It also corrected the
+  initial false assumption that the systemd/Git-only restart guard transferred
+  automatically: Compose now supplies an exact baked image checkpoint, the
+  command avoids `.git`, and its panel says it restarts the same immutable
+  image rather than deploying source. Focused container/restart validation
+  passes 27 tests; complete offline discovery passes all 2,004 tests with 89
+  intentional gates skipped. Shell syntax, lockfile, compilation, and diff
+  checks pass. No image/container/volume/database/Discord/beta/production
+  operation occurred. Next: integrate/push P11.1, then implement the approved
+  read-only P11.2 deployment doctor in a fresh unit worktree.
 
 ### 2026-08-11 — P10.9 delegation implemented and database-gated
 
