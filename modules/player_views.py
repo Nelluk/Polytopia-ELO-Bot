@@ -248,24 +248,25 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'{snapshot.team_emoji} {snapshot.team_name}'.strip()
                 if snapshot.team_name else 'No team'
             )
-            timezone = snapshot.timezone or 'Not set'
+            timezone_line = (
+                f'**Timezone:** {snapshot.timezone}\n'
+                if snapshot.timezone else ''
+            )
             if snapshot.polytopia_name:
                 polytopia_name = player_registration_workers.safe_public_name(
                     snapshot.polytopia_name
                 )
                 polytopia_name_line = (
-                    '**Canonical Polytopia name (account-wide):** '
+                    '**Polytopia name:** '
                     f'`{polytopia_name.replace("`", "ˋ")}`'
                 )
             else:
-                polytopia_name_line = (
-                    '**Canonical Polytopia name (account-wide):** *Not set*'
-                )
+                polytopia_name_line = '**Polytopia name:** *Not set*'
             return (
                 f'## <@{snapshot.discord_id}>\n'
                 f'{polytopia_name_line}\n'
                 f'**Team:** {team}\n'
-                f'**Timezone:** {timezone}\n\n'
+                f'{timezone_line}\n'
                 f'**Local:** `{snapshot.local_elo} ELO` · '
                 f'{snapshot.local_wins}W–{snapshot.local_losses}L\n'
                 f'**Global:** `{snapshot.global_elo} ELO` · '

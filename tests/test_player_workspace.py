@@ -139,7 +139,7 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
             {key for key, _ in player_views.SECTIONS},
         )
 
-    def test_unset_canonical_name_is_explicit_and_not_player_display_label(self):
+    def test_unset_polytopia_name_is_explicit_and_not_player_display_label(self):
         unset = snapshot()
         unset = dataclasses.replace(unset, polytopia_name=None)
         view = player_views.PlayerWorkspace(
@@ -147,9 +147,20 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
             snapshot=unset,
         )
         body = view._body()
-        self.assertIn('Canonical Polytopia name (account-wide)', body)
+        self.assertIn('**Polytopia name:**', body)
+        self.assertNotIn('Canonical Polytopia name (account-wide)', body)
         self.assertIn('Not set', body)
         self.assertNotIn('Nelluk Poly', body)
+
+    def test_timezone_is_only_displayed_when_set(self):
+        self.assertIn('**Timezone:** UTC-4', self.make_view()._body())
+
+        unset = dataclasses.replace(snapshot(), timezone=None)
+        body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=unset,
+        )._body()
+        self.assertNotIn('**Timezone:**', body)
 
     def test_profile_surfaces_copyable_name_avatar_and_all_time_records(self):
         view = self.make_view(avatar_url='https://example.test/avatar.webp')
