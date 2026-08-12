@@ -66,9 +66,10 @@ therefore `require-ready` intentionally returns nonzero.
 
 P9.27 subsequently corrected the container Beta Lab control boundary, so RC2
 is historical for the current source even though its record remains valid for
-`8e79dc2`. Do not carry RC2 gates forward to a successor candidate. The
-working control path reports incomplete Beta Lab structure/personas and an
-unpinned tester role; repair and human acceptance remain separate gates.
+`8e79dc2`. Do not carry RC2 gates forward to a successor candidate. P9.28 then
+made all five protected Beta Lab packs ready at exact source `da7b204` without
+command synchronization. Human command, retained-prefix, and public/private
+visibility acceptance remain separate gates before a successor freeze.
 
 ## Tester-message boundary
 

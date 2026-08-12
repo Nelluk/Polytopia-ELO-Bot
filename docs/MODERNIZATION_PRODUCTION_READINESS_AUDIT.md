@@ -99,11 +99,13 @@ resolution checkpoint, and passes candidate-bound cutover review, 2,110-case
 offline discovery, and 79-case stopped-writer development PostgreSQL discovery.
 RC2 remains correctly not ready: three bounded-beta items and all three
 separately approved redacted production-configuration checks are pending.
-P9.27 then found and corrected a container-only Beta Lab control omission.
-That runtime-source change makes RC2 historical for the current accumulation
-tip. Its live control now exposes incomplete server structure/personas and an
-unpinned tester role; those resources and the human matrix must be resolved
-before freezing the successor candidate.
+P9.27 then found and corrected a container-only Beta Lab control omission,
+making RC2 historical for the current accumulation tip. P9.28 repaired the
+exposed readiness state under the stopped-writer gate: all five protected
+packs are ready at exact source `da7b204`, complete discovery passes 2,116
+tests with 98 skips, and the global/12-root guild command tree is unchanged.
+The remaining human command, retained-prefix, and visibility matrix must be
+resolved before freezing the successor candidate.
 
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable

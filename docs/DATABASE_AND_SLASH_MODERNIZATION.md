@@ -430,16 +430,20 @@ check:
 - P9.27 container Beta Lab control checkpoint:
   `162f1bfd9fdc672d99137308ca3d8c24c5d19658`; exact arm64 image:
   `sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`
-- current combined offline result: exact-candidate complete discovery
-  succeeded across 2,110 tests with 98 intentional skips
+- P9.28 Beta Lab readiness repair source checkpoints: `f88e71f`, `c5886b3`,
+  and `da7b204`; exact arm64 image:
+  `sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`
+- current combined offline result: complete exact-image discovery succeeded
+  across 2,116 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
 - deployment disposition: RackNerd remains stopped and the sole Mac container
   beta runs exact local source `162f1bf` in the reviewed arm64 image above.
   P11.6 card parity received Nelluk's bounded visual acceptance; P11.7 is
-  test-only. The 12 development-guild roots are unchanged and the global tree
-  is empty, so no command synchronization or tester announcement occurred.
+  test-only. P9.28 reports all five protected Beta Lab packs ready. The 12
+  development-guild roots are unchanged and the global tree is empty, so no
+  command synchronization or tester announcement occurred.
   P11.5B is needed only for a genuinely fresh database and does not alter the
   already-bootstrapped Mac beta.
 - preserved pilot checkpoint branch: `codex/slash-async-unwin-pilot`
@@ -526,21 +530,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28 bounded Beta Lab readiness repair is in progress
-from exact clean pushed checkpoint `9c3f6a0`.** The existing tester role is now
-privately pinned. Read-only inventory found one exact unused, unmanaged,
-zero-permission, unhoisted, and unmentionable role for each guided-persona
-name, but their private ownership record was absent. The source correction
-adds an explicit fail-closed reconciliation operation that records only such
-a unique exact pair and performs no Discord mutation; duplicate, changed,
-unassignable, or used roles are refused. The stopped-writer seed then found
-the same stale-evidence condition for an exact unused persona House/Team pair;
-database reconciliation now permits only that pristine seed baseline and
-writes no database row. Focused exact-image coverage passes 85 tests. Live
-database reconciliation, restart, complete validation, and evidence
-integration remain in progress.
-No command synchronization, tester announcement, production, RackNerd, or
-external-database action is in scope. RC2 remains historical.
+Current active unit: **P9.28 bounded Beta Lab readiness repair is complete
+locally from exact clean pushed checkpoint `9c3f6a0`.** Source checkpoints are
+`f88e71f`, `c5886b3`, and `da7b204`. The tester role is privately pinned; the
+unique safe persona role pair and exact pristine unused persona House/Team
+pair were reconciled without Discord-role or database-row mutation. Compatible
+wider-structure rows remain explicitly non-cleanup-owned while valid published
+evidence makes their readiness visible. Exact arm64 image
+`sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`
+authenticated as the expected application with restart count zero and writer
+census 1/0/0. All five protected packs are ready; complete isolated discovery
+passes 2,116 tests with 98 intentional skips; zero global and all 12 guild
+roots remain unchanged. No command synchronization, tester announcement,
+production, RackNerd, or external-database action occurred. RC2 remains
+historical; the next recommended unit is P9.29 human command, retained-prefix,
+and public/private visibility acceptance against this ready Beta Lab.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16481,8 +16485,8 @@ readiness repair and human checks.
 
 ### P9.28 — Bounded Beta Lab readiness repair
 
-Status: **In progress: tester role pinned; fail-closed stale persona-role
-ownership reconciliation implemented and focused tests pass.**
+Status: **Complete locally: exact-image, stopped-writer, live readiness,
+command-tree, and complete offline validation pass.**
 
 Branch/base: `codex/p9-28-beta-lab-readiness-repair`, exact clean pushed
 accumulation checkpoint `9c3f6a0`.
@@ -16509,16 +16513,28 @@ unique, pristine, unused pair while the full writer guard is held. It writes
 private pending/published evidence only and does not mutate either row.
 
 Focused exact-image persona, control, Beta Lab, and readiness coverage passes
-85 tests. The compatible wider structure is now privately owned after the
-stopped-writer seed. A live check then exposed that the Beta Lab pack required
-all compatible pre-existing rows to be cleanup-owned even though the setup
-contract intentionally preserves and marks them non-owned. The readiness
-correction therefore requires valid published reconciliation evidence, no
-pending evidence or conflict, the exact row counts, and all reviewed role
-bindings; it does not misclassify preserved rows as cleanup-owned. The
-remaining approved sequence is to deploy that correction and verify all five
-packs plus command-tree immutability. Evidence and complete offline results
-will be recorded before P9.28 is complete.
+86 tests. The compatible wider structure has published reconciliation evidence
+after the stopped-writer seed. A live check then exposed that the Beta Lab pack
+required all compatible pre-existing rows to be cleanup-owned even though the
+setup contract intentionally preserves and marks them non-owned. The final
+correction requires valid published evidence, no pending evidence or conflict,
+exact row counts, and all reviewed role bindings. It does not misclassify
+preserved rows as cleanup-owned.
+
+Exact source `da7b204842c30cc0ea256450fe5c0dbeae4075e2` built arm64 image
+`sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`.
+The bot authenticated as application `479029527553638401`, restart count zero,
+non-root `1000:1000`, with one project writer and no host or other-container
+writer. All five protected packs report ready. The tester role, persona roles,
+persona database fixture, and wider structure pass their exact live checks.
+Complete isolated discovery passes all 2,116 tests with 98 intentional skips.
+Read-only command inspection finds zero globals and all 12 guild roots
+unchanged. No command sync, tester announcement, production, RackNerd, or
+external-database action occurred.
+
+Next action: P9.29 bounded human acceptance for the remaining release-candidate
+command, retained-prefix parity, and public/private visibility checks. Tester
+instructions or a tester ping remain separately approved terminal actions.
 
 ## Standard work-unit template
 
@@ -17971,6 +17987,29 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.28 Beta Lab readiness repaired
+
+- Pinned the one exact `testers` role in private state. The intended `Beta Lab
+  Team` and `Beta Lab Staff` roles already existed exactly once with zero
+  permissions, safe flags, and no members. A confirmed fail-closed operation
+  reconciled their ownership without creating, editing, or deleting a role.
+- Stopped only the bot and proved writer census 0/0/0 with healthy internal
+  PostgreSQL. The wider setup recorded compatible preserved rows. The persona
+  seed refused pre-existing names; read-only review proved one exact baseline
+  House/Team pair with no players, game sides, bids, preferences, or extra
+  teams, after which confirmed reconciliation published private evidence only.
+- Corrected server-structure readiness to accept published reconciliation of
+  compatible preserved rows without falsely granting cleanup ownership.
+  Focused exact-image coverage passed 86 tests.
+- Exact source `da7b204` built arm64/non-root image
+  `sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`.
+  The restored beta authenticated with restart count zero and writer census
+  1/0/0. All five packs are ready. Complete discovery passed 2,116 tests with
+  98 skips; zero globals and all 12 guild roots remain unchanged.
+- No command sync, tester announcement, production, RackNerd, or external-
+  database action occurred. Next recommended unit: P9.29 bounded human
+  command, retained-prefix, and public/private visibility acceptance.
 
 ### 2026-08-12 — P9.27 container Beta Lab control restored
 

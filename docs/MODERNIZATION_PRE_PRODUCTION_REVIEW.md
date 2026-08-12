@@ -618,8 +618,14 @@ Status: **In progress through P9.26/R-002 after all preceding corrections.**
   control identity and checkpoint environment. Exact source `162f1bf`
   restores the private local socket without startup sync. Live status then
   exposed incomplete server structure/personas and an unpinned tester role;
-  RC2 is historical for the corrected source and those beta resources remain
-  unresolved.
+  RC2 is historical for the corrected source.
+- **P9.28 follow-up:** exact source `da7b204` pins the tester role, reconciles
+  only unique safe persona roles and pristine unused persona database rows,
+  and records compatible structure without granting cleanup ownership. All
+  five packs are ready, complete exact-image discovery passes 2,116 tests with
+  98 skips, and zero global/all 12 guild roots remain unchanged. The remaining
+  release-candidate beta work is human command, retained-prefix, and
+  public/private visibility acceptance.
 
 ## Low / documentation
 
