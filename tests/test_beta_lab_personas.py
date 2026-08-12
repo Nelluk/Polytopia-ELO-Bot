@@ -256,6 +256,90 @@ class PersonaRoleTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersonaDatabaseTests(unittest.TestCase):
+    def test_database_adoption_requires_one_exact_pristine_unused_pair(self):
+        policy = SimpleNamespace(
+            guild_id=300,
+            house_name='Beta Lab House',
+            team_name='Beta Lab Team',
+        )
+        house = {
+            'id': 10, 'name': policy.house_name, 'emoji': '',
+            'image_url': None, 'league_tokens': 0,
+        }
+        team = {
+            'id': 20, 'name': policy.team_name, 'guild_id': policy.guild_id,
+            'house_id': 10, 'house_name': policy.house_name, 'hidden': False,
+            'archived': False, 'league_tier': 1, 'external_server': None,
+            'elo': 1000, 'elo_alltime': 1000, 'emoji': '',
+            'image_url': None, 'pro_league': True,
+        }
+        house_usage = {
+            'team_ids': [20], 'team_names': [policy.team_name],
+            'team_guild_ids': [policy.guild_id], 'preference_count': 0,
+            'bid_count': 0,
+        }
+        team_usage = {'player_count': 0, 'game_side_count': 0}
+
+        def inspect(*, houses=(house,), teams=(team,), h_usage=house_usage,
+                    t_usage=team_usage):
+            with mock.patch.object(personas.beta_wider_setup, '_house', return_value=list(houses)), \
+                    mock.patch.object(personas.beta_wider_setup, '_team', return_value=list(teams)), \
+                    mock.patch.object(personas.beta_wider_setup, '_house_usage', return_value=h_usage), \
+                    mock.patch.object(personas.beta_wider_setup, '_team_usage', return_value=t_usage):
+                return personas._database_adoption_evidence(object(), policy)
+
+        self.assertEqual(inspect()['team_id'], 20)
+        with self.assertRaises(personas.BetaLabPersonaError):
+            inspect(houses=(house, dict(house, id=11)))
+        with self.assertRaises(personas.BetaLabPersonaError):
+            inspect(teams=(dict(team, elo=1001),))
+        with self.assertRaises(personas.BetaLabPersonaError):
+            inspect(t_usage={'player_count': 1, 'game_side_count': 0})
+
+    def test_database_reconcile_adopts_only_reviewed_pair(self):
+        profile = object()
+        policy = SimpleNamespace(
+            guild_id=300,
+            house_name='Beta Lab House',
+            team_name='Beta Lab Team',
+        )
+        evidence = {
+            'schema_version': 1, 'guild_id': 300, 'house_id': 10,
+            'house_name': policy.house_name, 'team_id': 20,
+            'team_name': policy.team_name,
+        }
+        state = {}
+        database = SimpleNamespace(
+            connection_context=contextlib.nullcontext,
+            atomic=contextlib.nullcontext,
+            execute_sql=mock.Mock(),
+        )
+
+        def read(_profile, filename):
+            return state.get(filename)
+
+        def write(_profile, filename, value):
+            state[filename] = value
+
+        final = personas.PersonaDatabaseStatus(True, 'ready', 20, 10)
+        with mock.patch.object(personas, 'manifest', return_value=policy), \
+                mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
+                mock.patch.object(personas, '_role_state_for_database'), \
+                mock.patch.object(personas, '_read_state', side_effect=read), \
+                mock.patch.object(personas, '_write_state', side_effect=write), \
+                mock.patch.object(personas, '_publish_database_state') as publish, \
+                mock.patch.object(personas, 'database_status', return_value=final), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
+                mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
+                mock.patch.object(personas.beta_wider_setup, '_identity'), \
+                mock.patch.object(personas, '_database_adoption_evidence', return_value=evidence):
+            self.assertIs(personas.reconcile_pending_database(profile), final)
+
+        self.assertEqual(
+            state[personas.DATABASE_PENDING_STATE_FILENAME], evidence,
+        )
+        publish.assert_called_once_with(profile)
+
     def test_seed_requires_role_evidence_and_stopped_writer_scope(self):
         profile = object()
         with mock.patch.object(personas, 'manifest') as policy, \

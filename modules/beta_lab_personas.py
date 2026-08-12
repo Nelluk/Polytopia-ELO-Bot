@@ -443,6 +443,62 @@ def _database_rows(database: Any, policy: beta_lab_persona_manifest.BetaLabPerso
     return houses, teams
 
 
+def _database_adoption_evidence(
+    database: Any,
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+) -> dict[str, Any]:
+    """Return evidence only for one exact pristine and unused fixture pair."""
+
+    houses = beta_wider_setup._house(database, policy.house_name)
+    teams = beta_wider_setup._team(database, policy.guild_id, policy.team_name)
+    if len(houses) != 1 or len(teams) != 1:
+        raise BetaLabPersonaError(
+            'Database reconciliation requires exactly one persona House and Team.'
+        )
+    house = houses[0]
+    team = teams[0]
+    house_usage = beta_wider_setup._house_usage(database, house['id'])
+    team_usage = beta_wider_setup._team_usage(database, team['id'])
+    exact = bool(
+        house['name'] == policy.house_name
+        and house['emoji'] == ''
+        and house['image_url'] is None
+        and house['league_tokens'] == 0
+        and team['name'] == policy.team_name
+        and team['guild_id'] == policy.guild_id
+        and team['house_id'] == house['id']
+        and team['house_name'] == policy.house_name
+        and not team['hidden']
+        and not team['archived']
+        and team['league_tier'] == 1
+        and team['external_server'] is None
+        and team['elo'] == 1000
+        and team['elo_alltime'] == 1000
+        and team['emoji'] == ''
+        and team['image_url'] is None
+        and team['pro_league']
+        and house_usage['team_ids'] == [team['id']]
+        and house_usage['team_names'] == [policy.team_name]
+        and house_usage['team_guild_ids'] == [policy.guild_id]
+        and house_usage['preference_count'] == 0
+        and house_usage['bid_count'] == 0
+        and team_usage['player_count'] == 0
+        and team_usage['game_side_count'] == 0
+    )
+    if not exact:
+        raise BetaLabPersonaError(
+            'The existing persona database fixture is not exact, pristine, and unused.'
+        )
+    return {
+        'schema_version': 1,
+        'guild_id': policy.guild_id,
+        'house_id': house['id'],
+        'house_name': policy.house_name,
+        'team_id': team['id'],
+        'team_name': policy.team_name,
+    }
+
+
 def database_status(profile: Any) -> PersonaDatabaseStatus:
     policy = manifest()
     try:
@@ -590,10 +646,11 @@ def seed_database(profile: Any) -> PersonaDatabaseStatus:
 
 
 def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
-    """Resolve pending seed evidence after verifying the committed DB state."""
+    """Reconcile pending evidence or adopt one exact pristine unused pair."""
 
     policy = manifest()
     beta_readiness.validate_database_profile(profile, policy.guild_id)
+    _role_state_for_database(profile)
     with beta_wider_setup._mutation_writer_scope(profile):
         state = _read_state(profile, DATABASE_STATE_FILENAME)
         pending = _read_state(profile, DATABASE_PENDING_STATE_FILENAME)
@@ -602,16 +659,20 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
                 'Published persona ownership evidence already exists; pending '
                 'evidence cannot be reconciled automatically.'
             )
-        if pending is None:
-            raise BetaLabPersonaError(
-                'No pending persona database evidence exists to reconcile.'
-            )
         database = beta_wider_setup._default_database_factory(profile)
         with database.connection_context():
             with database.atomic():
                 database.execute_sql('SET TRANSACTION READ ONLY')
                 beta_wider_setup._identity(database)
-                houses, teams = _database_rows(database, policy)
+                if pending is None:
+                    pending = _database_adoption_evidence(database, policy)
+                    houses = teams = ()
+                else:
+                    houses, teams = _database_rows(database, policy)
+        if _read_state(profile, DATABASE_PENDING_STATE_FILENAME) is None:
+            _write_state(profile, DATABASE_PENDING_STATE_FILENAME, pending)
+            _publish_database_state(profile)
+            return database_status(profile)
         if not houses and not teams:
             _remove_state(profile, DATABASE_PENDING_STATE_FILENAME)
             return PersonaDatabaseStatus(

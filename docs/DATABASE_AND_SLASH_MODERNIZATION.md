@@ -533,9 +533,12 @@ zero-permission, unhoisted, and unmentionable role for each guided-persona
 name, but their private ownership record was absent. The source correction
 adds an explicit fail-closed reconciliation operation that records only such
 a unique exact pair and performs no Discord mutation; duplicate, changed,
-unassignable, or used roles are refused. Focused exact-image coverage passes
-83 tests. Live reconciliation, the approved stopped-writer development seed,
-restart, complete validation, and evidence integration remain in progress.
+unassignable, or used roles are refused. The stopped-writer seed then found
+the same stale-evidence condition for an exact unused persona House/Team pair;
+database reconciliation now permits only that pristine seed baseline and
+writes no database row. Focused exact-image coverage passes 85 tests. Live
+database reconciliation, restart, complete validation, and evidence
+integration remain in progress.
 No command synchronization, tester announcement, production, RackNerd, or
 external-database action is in scope. RC2 remains historical.
 
@@ -16497,12 +16500,20 @@ reconciliation operation may publish ownership only after rechecking that
 exact unique and unused shape; it makes no Discord mutation and fails closed
 on duplicates, changed permissions or flags, unassignable roles, or members.
 
+After role reconciliation, the stopped-writer database seed similarly found
+one pre-existing `Beta Lab House` / `Beta Lab Team` pair without private
+ownership evidence. Read-only inspection proved the exact seed baseline and
+zero players, game sides, bids, preferences, or additional House teams. The
+database reconciliation path now permits ownership recovery only for that
+unique, pristine, unused pair while the full writer guard is held. It writes
+private pending/published evidence only and does not mutate either row.
+
 Focused exact-image persona, control, Beta Lab, and readiness coverage passes
-83 tests. The remaining approved sequence is to deploy the correction,
-reconcile the role pair, stop the bot and prove the writer gate clear, seed
-only the compatible Beta Lab structure and owned guided-persona House/Team,
-restart, and verify all five packs plus command-tree immutability. Evidence and
-complete offline results will be recorded before P9.28 is complete.
+85 tests. The compatible wider structure is now privately owned after the
+stopped-writer seed. The remaining approved sequence is to deploy and execute
+the exact database reconciliation, restart, and verify all five packs plus
+command-tree immutability. Evidence and complete offline results will be
+recorded before P9.28 is complete.
 
 ## Standard work-unit template
 

@@ -171,7 +171,11 @@ unknown, do not retry seed. With the beta still stopped, use the exact
 `database-reconcile --confirm RECONCILE-BETA-LAB-PERSONAS` operation; it
 promotes evidence only for an exact committed match or removes it only when
 both candidate rows are absent. Partial or conflicting state requires manual
-review.
+review. The same reconciliation may recover missing ownership publication for
+one pre-existing pair only when the House and Team exactly match the seed
+baseline and are pristine: no players, game sides, bids, preferences, or
+additional House teams. That path writes private evidence only and makes no
+database-row mutation.
 
 ## Safety and remaining expansion boundary
 
