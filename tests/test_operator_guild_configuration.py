@@ -76,6 +76,9 @@ def registry_row(*, generation=1, digest=None, document=None):
         document_to_mapping(document),
         imported.document_digest if digest is None else digest,
         imported.source_digest,
+        None,
+        None,
+        None,
     )
 
 
@@ -446,7 +449,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             {command.name for command in self.guild_group.commands},
             {
                 'list', 'settings', 'validate', 'history', 'edit', 'rollback',
-                'enroll', 'commands',
+                'enroll', 'commands', 'suspend', 'resume',
             },
         )
         settings_command = self.guild_group.get_command('settings')

@@ -62,6 +62,9 @@ from modules import operator_guild_enrollment_views
 from modules import operator_guild_enrollment_workers
 from modules import operator_guild_command_capabilities
 from modules import operator_guild_command_capability_views
+from modules import operator_guild_lifecycle as operator_guild_lifecycle_service
+from modules import operator_guild_lifecycle_views
+from modules import operator_guild_lifecycle_workers
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -528,6 +531,191 @@ class administration(commands.Cog):
             apply=applied,
             committed_revision=activated.activation.revision,
             committed_generation=activated.activation.generation,
+        )
+
+    async def _operator_guild_lifecycle_operation(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: int,
+        action: str,
+        operation: str = operator_guild_lifecycle_workers.PREVIEW,
+        preview=None,
+        command_plan_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
+        current_snapshot = {
+            int(guild_id): (
+                record.revision,
+                record.generation,
+                record.document_digest,
+            )
+            for guild_id in settings.database_guild_ids()
+            if (record := settings.database_guild_configuration(guild_id))
+            is not None
+        }
+        request = operator_guild_lifecycle_service.build_request(
+            bot=self.bot,
+            interaction=interaction,
+            target_guild_id=target_guild_id,
+            action=action,
+            operation=operation,
+            expected_state=(None if preview is None else preview.current_state),
+            expected_revision=(None if preview is None else preview.revision),
+            expected_generation=(None if preview is None else preview.generation),
+            expected_document_digest=(
+                None if preview is None else preview.document_digest
+            ),
+            command_plan_digest=command_plan_digest,
+            confirmation_text=confirmation_text,
+        )
+        result = await operator_guild_lifecycle_workers.run_lifecycle(request)
+        if result.transition is not None:
+            transition = result.transition
+            if result.runtime_snapshot is None:
+                raise operator_guild_lifecycle_workers.OperatorGuildLifecycleCommitted(
+                    transition
+                )
+            try:
+                settings.reconcile_database_guild_lifecycle(
+                    result.runtime_snapshot,
+                    action=action,
+                    expected_current=current_snapshot,
+                    target_guild_id=target_guild_id,
+                    expected_previous=(
+                        result.preview.revision,
+                        result.preview.generation,
+                        result.preview.document_digest,
+                    ),
+                    expected_transition=(
+                        transition.revision,
+                        transition.generation,
+                        transition.document_digest,
+                    ),
+                )
+            except Exception as exc:
+                raise operator_guild_lifecycle_workers.OperatorGuildLifecycleCommitted(
+                    transition
+                ) from exc
+        return result
+
+    async def _operator_guild_lifecycle_plan(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: int,
+        action: str,
+    ):
+        result = await self._operator_guild_lifecycle_operation(
+            interaction,
+            target_guild_id=target_guild_id,
+            action=action,
+        )
+        preview = result.preview
+        planning_policy = operator_guild_lifecycle_service.planning_policy(preview)
+        current_capabilities = planning_policy.capabilities_for_guild(
+            target_guild_id
+        )
+        desired_capabilities = (
+            ()
+            if action == operator_guild_lifecycle_workers.SUSPEND
+            else preview.command_capabilities
+        )
+        plan = await operator_guild_command_capabilities.inspect_command_plan(
+            bot=self.bot,
+            policy=planning_policy,
+            guild_id=target_guild_id,
+            active_revision=preview.revision,
+            active_generation=preview.generation,
+            active_document_digest=preview.document_digest,
+            current_capabilities=current_capabilities,
+            desired_capabilities=desired_capabilities,
+            mode=operator_guild_command_capabilities.LIFECYCLE,
+        )
+        return preview, plan
+
+    async def _operator_apply_lifecycle_commands(
+        self,
+        *,
+        preview,
+        plan,
+        transition,
+    ):
+        policy = (
+            operator_guild_lifecycle_service.planning_policy(preview)
+            if preview.action == operator_guild_lifecycle_workers.SUSPEND
+            else settings.application_command_policy
+        )
+        task = asyncio.create_task(
+            operator_guild_command_capabilities.apply_command_plan(
+                bot=self.bot,
+                policy=policy,
+                plan=plan,
+            )
+        )
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError as exc:
+            try:
+                await task
+            except BaseException:
+                pass
+            if transition is not None:
+                raise operator_guild_lifecycle_workers.OperatorGuildLifecycleCommandUnverified(
+                    transition,
+                    'the interaction was cancelled after commit',
+                ) from exc
+            raise
+        except Exception as exc:
+            if transition is not None:
+                raise operator_guild_lifecycle_workers.OperatorGuildLifecycleCommandUnverified(
+                    transition,
+                    'Discord guild synchronization or verification failed',
+                ) from exc
+            raise
+
+    async def _operator_guild_lifecycle_commit(
+        self,
+        interaction: discord.Interaction,
+        preview,
+        plan,
+        confirmation_text: str,
+    ):
+        if confirmation_text != preview.confirmation(plan.plan_digest):
+            raise operator_guild_lifecycle_workers.OperatorGuildLifecycleConflict(
+                'The lifecycle confirmation did not match the preview.'
+            )
+        fresh_preview, fresh_plan = await self._operator_guild_lifecycle_plan(
+            interaction,
+            target_guild_id=preview.guild_id,
+            action=preview.action,
+        )
+        if fresh_preview != preview or fresh_plan != plan:
+            raise operator_guild_lifecycle_workers.OperatorGuildLifecycleConflict(
+                'Database or Discord lifecycle evidence changed after preview; '
+                'open a fresh plan.'
+            )
+        result = None
+        if preview.write_required:
+            result = await self._operator_guild_lifecycle_operation(
+                interaction,
+                target_guild_id=preview.guild_id,
+                action=preview.action,
+                operation=operator_guild_lifecycle_workers.COMMIT,
+                preview=preview,
+                command_plan_digest=plan.plan_digest,
+                confirmation_text=confirmation_text,
+            )
+        transition = None if result is None else result.transition
+        applied = await self._operator_apply_lifecycle_commands(
+            preview=preview,
+            plan=plan,
+            transition=transition,
+        )
+        return operator_guild_lifecycle_workers.GuildLifecycleCompletion(
+            preview=preview,
+            transition=transition,
+            command_apply=applied,
         )
 
     async def _publish_confirmed_game(
@@ -1598,6 +1786,101 @@ class administration(commands.Cog):
                 'quarantined and no configuration was changed.',
                 ephemeral=True,
             )
+
+    async def _operator_guild_lifecycle_slash(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: str,
+        action: str,
+    ):
+        access_error = operator_guild_lifecycle_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        try:
+            target = self._operator_target_guild_id(interaction, target_guild_id)
+        except ValueError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            preview, plan = await self._operator_guild_lifecycle_plan(
+                interaction,
+                target_guild_id=target,
+                action=action,
+            )
+            if not preview.write_required and not (
+                    plan.creates or plan.updates or plan.removals
+            ):
+                safe_name = discord.utils.escape_mentions(
+                    discord.utils.escape_markdown(preview.guild_name)
+                )
+                return await interaction.edit_original_response(
+                    content=(
+                        f'`{safe_name}` (`{target}`) is already '
+                        f'`{preview.desired_state}` and its command tree is '
+                        'converged. No database or Discord write was needed.'
+                    )
+                )
+            view = operator_guild_lifecycle_views.GuildLifecycleWorkspace(
+                requester_id=int(interaction.user.id),
+                preview=preview,
+                command_plan=plan,
+                runner=self._operator_guild_lifecycle_commit,
+            )
+            await operator_guild_lifecycle_views.publish_private(interaction, view)
+            return view
+        except (
+            operator_guild_lifecycle_workers.OperatorGuildLifecycleError,
+            operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
+        ) as exc:
+            return await interaction.edit_original_response(content=str(exc))
+        except Exception:
+            logger.exception('Unexpected operator guild-lifecycle planning failure')
+            return await interaction.edit_original_response(
+                content=(
+                    'Could not build a trustworthy guild-lifecycle plan. '
+                    'No configuration or Discord command tree was changed.'
+                )
+            )
+
+    @operator_guild_group.command(
+        name='suspend',
+        description='Suspend one active guild while preserving its configuration.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id='Exact active target server ID; must differ from this server.',
+    )
+    async def operator_guild_suspend_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str,
+    ):
+        return await self._operator_guild_lifecycle_slash(
+            interaction,
+            target_guild_id=target_guild_id,
+            action=operator_guild_lifecycle_workers.SUSPEND,
+        )
+
+    @operator_guild_group.command(
+        name='resume',
+        description='Resume one suspended guild after full live validation.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id='Exact suspended target server ID; must differ from this server.',
+    )
+    async def operator_guild_resume_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str,
+    ):
+        return await self._operator_guild_lifecycle_slash(
+            interaction,
+            target_guild_id=target_guild_id,
+            action=operator_guild_lifecycle_workers.RESUME,
+        )
 
     @operator_guild_group.command(
         name='commands',

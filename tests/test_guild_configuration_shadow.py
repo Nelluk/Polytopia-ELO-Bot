@@ -610,8 +610,8 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 None, interaction,
             ))
         interaction.response.send_message.assert_awaited_once_with(
-            'This server is quarantined and has not been enrolled by the bot '
-            'owner. No command was run.',
+            'This server is not active in the bot configuration. It may be '
+            'quarantined or suspended; no command was run.',
             ephemeral=True,
         )
         source = inspect.getsource(bot_module.init_bot)

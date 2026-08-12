@@ -150,8 +150,8 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
         guild_id = getattr(interaction, 'guild_id', None)
         if guild_id is not None and int(guild_id) not in settings.config:
             return await deny(
-                'This server is quarantined and has not been enrolled by the '
-                'bot owner. No command was run.'
+                'This server is not active in the bot configuration. It may '
+                'be quarantined or suspended; no command was run.'
             )
         if guild_id is not None:
             data = getattr(interaction, 'data', None) or {}

@@ -492,27 +492,25 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6c coordinated command-capability activation
-is complete, integrated, pushed, development-guild registered, and beta-
-deployed from exact clean pushed accumulation checkpoint
-`0497d071576b45290ada4e526a6b52635d181e42` on
-`codex/p10-6c-command-capability-activation`. The selected Tier-3 contract lets
-the configured owner target any active database guild from an already trusted
-operator context, validates a capability-changing complete draft, and binds
-its immutable activation evidence to an exact empty-global/guild-only Discord
-command plan. Commit publishes the new fail-closed runtime policy before the
-one-guild sync; active-policy reconciliation is separately repeatable without
-another database write. Unknown or stale remotely registered roots are denied
-again at runtime dispatch. Global synchronization, production, schema, and
-implicit startup apply remain excluded. Implementation checkpoint `1af74ca`
-and evidence checkpoint `10c51d6` pass the complete offline and stopped-writer
-PostgreSQL gates after Tier-3 review. The exact development-guild registration
-converged all 11 roots with an empty global tree, and the guarded beta runs
-exact code/evidence checkpoint `10c51d66eded26c1f0336a281dbf95d394f2d50a`
-as PID `268113`. No live capability revision was manufactured for acceptance.
-Next recommended: P10.8 owner-only suspend/resume lifecycle. Also ready:
-scope the additive delegation-policy storage and same-guild ordinary-manager
-boundary as a later P10.9 unit.**
+Current active unit: **P10.8 owner-only guild suspend/resume lifecycle is in
+Tier-3 implementation and review on `codex/p10-8-guild-suspend-resume`, from
+exact clean pushed accumulation checkpoint
+`f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`. The selected contract requires a
+different active control guild, preserves the active revision, drafts, and
+history, changes only registry lifecycle state plus one generation/audit, and
+publishes the fail-closed runtime graph before applying an exact target-guild
+command removal/restoration. Resume fully revalidates saved live Discord
+references. Repeating an already completed action is a Discord reconciliation
+with no database write. Retirement, delegation, production, schema work,
+startup synchronization, and global synchronization remain excluded. Next:
+complete offline and rolled-back development-PostgreSQL validation, Tier-3
+diff review, exact integration/push, and development-beta deployment.**
+
+Previous completed control-plane unit: **P10.6c coordinated command-capability
+activation is integrated, pushed, development-guild registered, and beta-
+deployed from checkpoint `10c51d66eded26c1f0336a281dbf95d394f2d50a`.
+It provides exact one-guild capability activation and repeatable active-policy
+reconciliation with fail-closed runtime publication before Discord sync.**
 
 Previous unit: **P10.7 quarantined development-guild onboarding is
 complete, integrated, pushed, development-guild registered, and beta-deployed
@@ -15426,6 +15424,57 @@ beta runs that checkpoint with one active database-authority guild at generation
 global roots. Live enrollment acceptance awaits a real owner-approved target;
 that absence is not grounds to manufacture or persist a second guild.
 
+### P10.8 — Owner-only guild suspend/resume lifecycle
+
+Status: **In progress; implementation complete, validation and integration
+pending**
+
+Branch/base: `codex/p10-8-guild-suspend-resume`, exact clean pushed
+accumulation checkpoint `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`.
+
+Risk tier: **Tier 3 authoritative lifecycle mutation, runtime dispatch, and
+remote Discord publication boundary.**
+
+The configured owner invokes `/operator guild suspend` or
+`/operator guild resume` from a different active trusted guild and supplies
+one exact visible target ID. Preview freezes the complete active runtime graph,
+the target's registry/revision/generation/document digest, current Discord
+identity and live references, exact target command fingerprints and diff, and
+an empty global tree. Full confirmation binds the action, target, unchanged
+document digest, and command-plan digest.
+
+Under the shared configuration lock, suspension or resumption changes only the
+registry lifecycle state, increments generation once, and appends one protected
+attributed audit containing the command-plan digest. It does not append, move,
+or delete a configuration revision and does not consume, rewrite, or delete an
+inactive draft. A complete worker-owned read-only reload produces a model-free
+immutable active graph. The event loop publishes that graph only when every
+unrelated revision/generation/digest remains exact and the target alone is
+removed or restored at the expected next generation.
+
+Runtime publication precedes the exact one-guild Discord apply. Suspension
+therefore denies prefix commands, application interactions, and listener
+dispatch before removing the target tree. Resume fully validates all saved
+role/channel references, restores the runtime policy, and then restores only
+the saved command capabilities. The bot remains connected to a suspended
+guild. A repeat action against the already desired registry state can repair
+the remote target tree with `SUSPEND SYNC ...` or `RESUME SYNC ...` and no new
+database write. Any global root is a hard refusal.
+
+Required evidence includes pre-commit rollback, revision/draft preservation,
+protected lifecycle audit binding, exact active-graph CAS, full resume live
+validation, immutable/model-free publication, committed post-commit failure
+truth, connection ownership, cancellation drainage, event-loop responsiveness,
+source/remote/global drift protection, exact target-guild apply, prefix/slash/
+listener fail-closed behavior, private terminal fallbacks, list state/audit
+visibility, command registration, complete offline discovery, and the gated
+outer-rolled-back development PostgreSQL transition. Operational procedure is
+`docs/DEVELOPMENT_GUILD_LIFECYCLE.md`.
+
+Out of scope: hard retirement/deletion, implicit leave, production lifecycle,
+schema changes, delegation, global or startup synchronization, and fabricating
+a retained second development enrollment solely for live acceptance.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16660,6 +16709,30 @@ policy through a fresh exact guild-only plan without another database write.
 Never add startup synchronization, a global fallback, or compensating database
 rollback for a remote Discord failure.
 
+### D-061 — Suspend reversibly from a retained trusted control guild
+
+Status: **Accepted by Nelluk; implemented by P10.8 in development**
+
+Suspension and resumption are owner-only exact-target operations invoked from a
+different active guild. The bot stays connected to the target, while suspended
+guilds are absent from the immutable runtime allowlist so prefix, slash, and
+listener dispatch fail closed. The last active guild cannot be suspended; a
+trusted Discord recovery context must remain.
+
+Preserve the active revision pointer, complete document, inactive draft,
+revision history, and prior audit history. Change only registry lifecycle state,
+increment generation once, and append one protected attributed lifecycle event
+bound to the exact command-plan digest. Resume must fully revalidate the saved
+Discord role and channel references. Hard retirement remains separate.
+
+Coordinate—but do not claim atomicity across—the database/runtime transition
+and P10.6c's exact one-guild command apply. Publish the fail-closed runtime
+state before remote removal or restoration. If remote convergence is unknown,
+retain committed truth and make the same lifecycle action a no-database-write
+reconciliation path. Keep the global tree empty and never add implicit startup
+or global synchronization. Registry listing must prominently expose lifecycle
+state and the newest suspension/resumption actor and timestamp.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16667,7 +16740,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.7, including P10.6c, are implemented in
+Design status: **P10.1 through P10.8, including P10.6c, are implemented in
 development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
@@ -16686,8 +16759,10 @@ ordinary-settings activation and exact runtime reconciliation while keeping
 command deployment separate; P10.6b3 adds monotonic rollback-to-revision;
 P10.7 adds no-row inert quarantine and digest-bound owner enrollment with one
 least-authority prefix template; P10.6c adds coordinated command-capability
-activation and exact one-guild reconciliation. Later units own suspension/
-retirement, delegation, production canary, and static retirement.
+activation and exact one-guild reconciliation; P10.8 adds reversible
+suspension/resumption with fail-closed runtime publication and exact one-guild
+command removal/restoration. Later units own retirement, delegation,
+production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16821,6 +16896,29 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.8 owner lifecycle implementation ready for validation
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`, created isolated branch/worktree
+  `codex/p10-8-guild-suspend-resume`, and ran the required development setup
+  with exact database authority, beta identity, and disabled tasks/API/Bullet.
+- Added private owner-only `/operator guild suspend` and `resume`, immutable
+  lifecycle/Discord plan evidence, exact full-digest confirmation, one-
+  transaction registry generation plus protected audit, complete post-commit
+  graph reload/publication, and exact one-guild command removal/restoration.
+  Repeating an already completed action is reconciliation-only and writes no
+  new database state. Registry list output now prominently reports lifecycle
+  state and latest lifecycle attribution.
+- The Tier-3 contract preserves active revision, drafts, and history, requires a
+  separate active control guild, fully live-validates resume references, and
+  retains truthful committed-state recovery for runtime or Discord failures.
+  Global/startup synchronization, schema, retirement, delegation, production,
+  and synthetic retained enrollment remain excluded.
+- Next: complete focused and full offline validation, run the explicit outer-
+  rolled-back stopped-writer development-PostgreSQL proof, finish complete-diff
+  review, record exact evidence, integrate/push, and deploy the two nested
+  command registrations to the development guild.
 
 ### 2026-08-11 — P10.6c command-capability activation reviewed and database-gated
 

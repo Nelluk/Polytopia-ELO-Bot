@@ -458,6 +458,95 @@ def reconcile_database_guild_enrollment(
     application_command_policy = snapshot.command_policy
 
 
+def reconcile_database_guild_lifecycle(
+    snapshot,
+    *,
+    action: str,
+    expected_current: dict[int, tuple[int, int, str]],
+    target_guild_id: int,
+    expected_previous: tuple[int, int, str],
+    expected_transition: tuple[int, int, str],
+) -> None:
+    """Publish one committed suspend/resume transition atomically."""
+
+    global _database_guild_configuration, config, application_command_policy
+    if guild_configuration_source != 'database':
+        raise RuntimeError(
+            'Database guild configuration was not selected before startup.'
+        )
+    current = _database_guild_configuration
+    if current is None:
+        raise RuntimeError('Database guild configuration is not published.')
+    if not isinstance(
+            snapshot,
+            guild_configuration_runtime.GuildConfigurationRuntimeSnapshot,
+    ):
+        raise TypeError('A validated database runtime snapshot is required.')
+    current_ids = set(current.guilds)
+    if set(expected_current) != current_ids:
+        raise RuntimeError('Expected runtime inventory is incomplete.')
+    if action == 'suspend':
+        if target_guild_id not in current_ids:
+            raise RuntimeError('The suspended guild is absent from current runtime.')
+        expected_ids = current_ids - {target_guild_id}
+        target = current.guilds[target_guild_id]
+        if (
+            target.revision,
+            target.generation,
+            target.document_digest,
+        ) != expected_previous:
+            raise RuntimeError(
+                'The suspended guild changed before runtime publication.'
+            )
+    elif action == 'resume':
+        if target_guild_id in current_ids:
+            raise RuntimeError('The resumed guild already exists at runtime.')
+        expected_ids = current_ids | {target_guild_id}
+    else:
+        raise RuntimeError('Unknown guild lifecycle action.')
+    if set(snapshot.guilds) != expected_ids:
+        raise RuntimeError(
+            'Lifecycle publication changed an unexpected runtime guild.'
+        )
+    for guild_id, value in current.guilds.items():
+        expected = expected_current[guild_id]
+        observed = (value.revision, value.generation, value.document_digest)
+        if observed != expected:
+            raise RuntimeError(
+                'Runtime configuration changed before lifecycle publication.'
+            )
+        if guild_id == target_guild_id and action == 'suspend':
+            continue
+        candidate = snapshot.guilds[guild_id]
+        if (
+            candidate.revision,
+            candidate.generation,
+            candidate.document_digest,
+        ) != observed:
+            raise RuntimeError(
+                'An unrelated guild changed during lifecycle reconciliation.'
+            )
+    if expected_transition[0] != expected_previous[0]:
+        raise RuntimeError('Lifecycle transition cannot change active revision.')
+    if expected_transition[1] != expected_previous[1] + 1:
+        raise RuntimeError('Lifecycle generation must advance exactly once.')
+    if expected_transition[2] != expected_previous[2]:
+        raise RuntimeError('Lifecycle transition cannot change document digest.')
+    if action == 'resume':
+        resumed = snapshot.guilds[target_guild_id]
+        if (
+            resumed.revision,
+            resumed.generation,
+            resumed.document_digest,
+        ) != expected_transition:
+            raise RuntimeError(
+                'Reloaded resume evidence differs from the committed transition.'
+            )
+    _database_guild_configuration = snapshot
+    config = snapshot.legacy_config
+    application_command_policy = snapshot.command_policy
+
+
 def configured_role_ids(guild_id: int, setting_name: str) -> tuple[int, ...]:
     """Return stable configured IDs when database authority is active."""
 

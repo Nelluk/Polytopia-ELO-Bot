@@ -1,4 +1,4 @@
-# Development guild-configuration owner reads
+# Development guild-configuration owner control plane
 
 P10.6a adds the first Discord control-plane surface for the already enrolled
 development guild. It is deliberately read-only: it creates no revision,
@@ -11,8 +11,9 @@ All commands are guild-only, owner-only, ephemeral, and available only while
 the process is running with exact `development` / `database` guild-
 configuration authority:
 
-- `/operator guild list` shows the bounded registry with enrollment state,
-  active revision, and generation;
+- `/operator guild list` shows the bounded registry with a prominent lifecycle
+  state, active revision, generation, and latest suspension/resumption actor
+  and timestamp when present;
 - `/operator guild settings` shows one compact section for the invocation
   guild: Overview, Permissions, Teams, Channels, Destinations, or Command
   capabilities;
@@ -45,10 +46,31 @@ category/channel type errors, malformed documents, digest drift, schema drift,
 database identity drift, and a stored revision newer than the running snapshot
 all fail visibly without changing configuration.
 
-P10.6a deliberately retains P10.5's startup requirement that the stored active
-document match the static rollback copy. It does not provide editing, drafts,
-activation, rollback, onboarding, suspension, delegation, runtime reload, or
-production authority. Those remain later separately reviewed units.
+P10.6a originally retained P10.5's startup requirement that the stored active
+document match the static rollback copy. Later P10 units add separately
+reviewed editing, activation, rollback, onboarding, command capability, and
+lifecycle boundaries. Delegation and production authority remain separate.
+
+## Suspension and resumption
+
+P10.8 adds owner-only `/operator guild suspend` and `/operator guild resume`.
+Both commands must be invoked from a *different* active guild, take one exact
+visible target guild ID, and show a private digest-bound plan. Suspension
+preserves the active revision, drafts, and complete history; it changes only
+the registry state, increments generation once, appends a protected lifecycle
+audit, publishes a fail-closed runtime graph, and then removes the exact
+target's application-command tree. The bot remains connected to the target,
+but prefix, application-command, and listener dispatch are inert there.
+
+Resume performs the reverse transition only after all saved role and channel
+references pass current Discord validation. It publishes the restored runtime
+policy before restoring only that guild's saved command capabilities. The
+global command tree must be empty throughout and neither command has any
+global synchronization path. Repeating an already completed action can repair
+the exact Discord tree without a database write. Retirement remains separate.
+
+The full operator and recovery procedure is in
+`docs/DEVELOPMENT_GUILD_LIFECYCLE.md`.
 
 ## Validation and deployment
 

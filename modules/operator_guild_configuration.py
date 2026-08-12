@@ -140,13 +140,26 @@ def _registry_embed(
         embed.description = 'No guilds are enrolled.'
         return embed
     lines = []
+    state_labels = {
+        'active': '🟢 active',
+        'suspended': '⏸️ suspended',
+        'pending': '🟡 pending',
+        'retired': '⛔ retired',
+    }
     for record in result.records[:MAX_LISTED_GUILDS]:
         revision = record.active_revision if record.active_revision is not None else '—'
-        lines.append(
+        line = (
             f'**{_safe(record.display_name)}** ({_inline(record.guild_id)}) — '
-            f'`{record.enrollment_state}` • revision `{revision}` • '
+            f'{state_labels[record.enrollment_state]} • revision `{revision}` • '
             f'generation `{record.generation}`'
         )
+        if record.last_lifecycle_event is not None:
+            line += (
+                f'\n-# Last lifecycle: `{record.last_lifecycle_event}` by '
+                f'`{_safe(record.last_lifecycle_actor)}` at '
+                f'`{_safe(record.last_lifecycle_at)}`'
+            )
+        lines.append(line)
     if len(result.records) > MAX_LISTED_GUILDS:
         lines.append(
             f'… {len(result.records) - MAX_LISTED_GUILDS} additional guild(s) omitted.'

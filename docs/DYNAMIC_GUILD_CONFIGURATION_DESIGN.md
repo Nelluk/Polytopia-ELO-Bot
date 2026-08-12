@@ -220,9 +220,13 @@ plan and tells the owner that a separate guild-scoped plan/apply is required.
 Startup, reconnect, enrollment, and ordinary configuration edits must never
 call global or guild synchronization automatically.
 
-Suspension is reversible and leaves application-command removal as a separate
-explicit deployment operation. Retirement likewise does not delete games,
-players, audits, or configuration history.
+Suspension is reversible. P10.8 coordinates two explicit, digest-bound effects:
+the registry/runtime transition first and then P10.6c's exact one-guild command
+removal or restoration. This is not a cross-system atomicity claim. A remote
+failure retains the committed fail-closed database/runtime truth and the same
+action becomes a no-database-write Discord reconciliation route. Retirement
+likewise does not delete games, players, audits, or configuration history and
+remains a separate lifecycle decision.
 
 ### 4. Discord-first control plane
 
@@ -399,13 +403,20 @@ Each step is a separate bounded unit with its own review and evidence.
    digest. One transaction creates active registry state, immutable revision
    1/generation 1, and audit event 1; a complete post-commit reload publishes
    exactly one additional runtime guild. Enrollment never synchronizes
-   commands. Suspension/retirement and production onboarding remain separate.
-8. **Delegated local editing.** Add opt-in same-guild ordinary-setting
+   commands. Retirement and production onboarding remain separate.
+8. **Owner lifecycle (complete in P10.8 for development).** Suspend from a
+   different active control guild, preserve the active revision/drafts/history,
+   increment registry generation once, publish the reduced fail-closed graph,
+   and then remove only the exact guild command tree. Resume fully validates
+   saved live references, restores the runtime graph, and restores only the
+   saved command capabilities. A repeat action reconciles Discord without a
+   database write; no global or startup synchronization is introduced.
+9. **Delegated local editing.** Add opt-in same-guild ordinary-setting
    delegation with the permission matrix above.
-9. **Production plan/apply/canary.** Separately approve production schema,
+10. **Production plan/apply/canary.** Separately approve production schema,
    import, shadow comparison, authority switch, and rollback. Do not combine
    this with the current modernization cutover merely for convenience.
-10. **Static retirement.** After stable operation, remove guild dictionaries
+11. **Static retirement.** After stable operation, remove guild dictionaries
     from ignored Python while retaining bootstrap/security configuration and
     reviewed export/recovery tooling.
 

@@ -76,6 +76,9 @@ class GuildConfigurationRecord:
     document_digest: str | None
     source_digest: str | None
     document: GuildConfigurationDocument | None = field(repr=False)
+    last_lifecycle_event: str | None = None
+    last_lifecycle_actor: str | None = None
+    last_lifecycle_at: str | None = None
 
     @property
     def display_name(self) -> str:
@@ -333,10 +336,15 @@ def _registry_records(cursor: Any) -> tuple[GuildConfigurationRecord, ...]:
         'registry.generation, registry.updated_at, revision.revision_number, '
         'revision.schema_version, revision.document, revision.document_digest, '
         'revision.source_digest '
+        ', lifecycle.event_type, lifecycle.actor, lifecycle.created_at '
         f'FROM "{storage.REGISTRY_TABLE}" AS registry '
         f'LEFT JOIN "{storage.REVISION_TABLE}" AS revision '
         'ON revision.guild_id = registry.guild_id '
         'AND revision.revision_number = registry.active_revision '
+        'LEFT JOIN LATERAL (SELECT event_type, actor, created_at FROM '
+        f'"{storage.AUDIT_TABLE}" WHERE guild_id = registry.guild_id '
+        "AND event_type IN ('suspension', 'resumption') "
+        'ORDER BY event_number DESC LIMIT 1) AS lifecycle ON TRUE '
         'ORDER BY registry.guild_id LIMIT %s',
         (MAX_REGISTRY_GUILDS + 1,),
     )
@@ -348,7 +356,7 @@ def _registry_records(cursor: Any) -> tuple[GuildConfigurationRecord, ...]:
     records = []
     seen: set[int] = set()
     for row in rows:
-        if len(row) != 11:
+        if len(row) != 14:
             raise OperatorGuildConfigurationValidationError(
                 'The guild-configuration registry row shape is invalid.'
             )
@@ -356,6 +364,7 @@ def _registry_records(cursor: Any) -> tuple[GuildConfigurationRecord, ...]:
             guild_id, storage_version, state, active_revision, generation,
             updated_at, revision_number, schema_version, document_value,
             stored_digest, source_digest,
+            lifecycle_event, lifecycle_actor, lifecycle_at,
         ) = row
         guild_id = _strict_positive(guild_id, 'Stored guild ID')
         if guild_id in seen:
@@ -404,6 +413,25 @@ def _registry_records(cursor: Any) -> tuple[GuildConfigurationRecord, ...]:
             raise OperatorGuildConfigurationValidationError(
                 f'Guild {guild_id} has no valid active configuration.'
             )
+        if lifecycle_event is None:
+            if lifecycle_actor is not None or lifecycle_at is not None:
+                raise OperatorGuildConfigurationValidationError(
+                    f'Guild {guild_id} has incomplete lifecycle evidence.'
+                )
+            rendered_lifecycle_at = None
+        else:
+            if (
+                    lifecycle_event not in {'suspension', 'resumption'}
+                    or not isinstance(lifecycle_actor, str)
+                    or not lifecycle_actor
+            ):
+                raise OperatorGuildConfigurationValidationError(
+                    f'Guild {guild_id} has invalid lifecycle evidence.'
+                )
+            rendered_lifecycle_at = _timestamp(
+                lifecycle_at,
+                'Lifecycle timestamp',
+            )
         records.append(GuildConfigurationRecord(
             guild_id=guild_id,
             storage_schema_version=storage_version,
@@ -413,6 +441,9 @@ def _registry_records(cursor: Any) -> tuple[GuildConfigurationRecord, ...]:
             updated_at=_timestamp(updated_at, 'Registry timestamp'),
             document_digest=stored_digest,
             source_digest=source_digest,
+            last_lifecycle_event=lifecycle_event,
+            last_lifecycle_actor=lifecycle_actor,
+            last_lifecycle_at=rendered_lifecycle_at,
             document=document,
         ))
     return tuple(records)

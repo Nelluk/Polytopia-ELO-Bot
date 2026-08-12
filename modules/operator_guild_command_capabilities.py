@@ -27,7 +27,8 @@ from modules.application_command_policy import (
 
 ACTIVATE = 'activate'
 RECONCILE = 'reconcile'
-MODES = frozenset({ACTIVATE, RECONCILE})
+LIFECYCLE = 'lifecycle'
+MODES = frozenset({ACTIVATE, RECONCILE, LIFECYCLE})
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -83,7 +84,9 @@ class GuildCommandCapabilityPlan:
                 f'ACTIVATE COMMANDS {self.draft_document_digest} '
                 f'{self.plan_digest}'
             )
-        return f'SYNC COMMANDS {self.plan_digest}'
+        if self.mode == RECONCILE:
+            return f'SYNC COMMANDS {self.plan_digest}'
+        return f'LIFECYCLE COMMANDS {self.plan_digest}'
 
 
 @dataclass(frozen=True)
@@ -250,7 +253,7 @@ async def inspect_command_plan(
             raise OperatorGuildCommandCapabilityError(
                 'The draft does not change command capabilities; use ordinary activation.'
             )
-    else:
+    elif mode == RECONCILE:
         if draft_version is not None or draft_document_digest is not None:
             raise OperatorGuildCommandCapabilityError(
                 'Command-tree reconciliation does not accept draft evidence.'
@@ -258,6 +261,11 @@ async def inspect_command_plan(
         if current_capabilities != desired_capabilities:
             raise OperatorGuildCommandCapabilityError(
                 'Reconciliation can apply only the already-active capability policy.'
+            )
+    else:
+        if draft_version is not None or draft_document_digest is not None:
+            raise OperatorGuildCommandCapabilityError(
+                'Guild lifecycle planning does not accept draft evidence.'
             )
 
     desired_policy = candidate_policy(
@@ -452,6 +460,7 @@ __all__ = [
     'GuildCommandCapabilityApplyResult',
     'GuildCommandCapabilityCompletion',
     'GuildCommandCapabilityPlan',
+    'LIFECYCLE',
     'apply_command_plan',
     'candidate_policy',
     'inspect_command_plan',
