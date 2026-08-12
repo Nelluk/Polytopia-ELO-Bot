@@ -16510,10 +16510,15 @@ private pending/published evidence only and does not mutate either row.
 
 Focused exact-image persona, control, Beta Lab, and readiness coverage passes
 85 tests. The compatible wider structure is now privately owned after the
-stopped-writer seed. The remaining approved sequence is to deploy and execute
-the exact database reconciliation, restart, and verify all five packs plus
-command-tree immutability. Evidence and complete offline results will be
-recorded before P9.28 is complete.
+stopped-writer seed. A live check then exposed that the Beta Lab pack required
+all compatible pre-existing rows to be cleanup-owned even though the setup
+contract intentionally preserves and marks them non-owned. The readiness
+correction therefore requires valid published reconciliation evidence, no
+pending evidence or conflict, the exact row counts, and all reviewed role
+bindings; it does not misclassify preserved rows as cleanup-owned. The
+remaining approved sequence is to deploy that correction and verify all five
+packs plus command-tree immutability. Evidence and complete offline results
+will be recorded before P9.28 is complete.
 
 ## Standard work-unit template
 

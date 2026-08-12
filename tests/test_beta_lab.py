@@ -28,6 +28,34 @@ def pack(key, state='ready'):
 
 
 class BetaLabWorkerTests(unittest.TestCase):
+    def test_structure_accepts_reconciled_compatible_rows_without_cleanup_ownership(self):
+        structure = {
+            'conflicts': [],
+            'state_file_present': True,
+            'pending_state_file_present': False,
+            'houses': [
+                {'name': 'Beta House Alpha', 'owned': False},
+                {'name': 'Beta House Beta', 'owned': False},
+            ],
+            'teams': [
+                {'name': 'The Ronin', 'owned': False, 'role_id': 10},
+                {'name': 'The Jets', 'owned': False, 'role_id': 11},
+                {'name': 'The Sparkies', 'owned': False, 'role_id': 12},
+            ],
+        }
+        with mock.patch.object(
+            lab.beta_readiness,
+            'load_json_path',
+            return_value={},
+        ), mock.patch.object(
+            lab.beta_wider_setup,
+            'status_wider_beta_setup',
+            return_value=structure,
+        ):
+            result = lab._structure_status(300)
+        self.assertEqual(result.state, 'ready')
+        self.assertIn('2 reconciled Houses', result.detail)
+
     def test_validation_requires_exact_beta_profile_and_guild(self):
         profile = SimpleNamespace(
             environment='development',

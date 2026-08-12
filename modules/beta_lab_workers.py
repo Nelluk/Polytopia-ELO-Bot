@@ -180,10 +180,10 @@ def _structure_status(guild_id: int) -> BetaLabPackStatus:
     teams = tuple(status.get('teams', ()))
     ready = (
         not conflicts
+        and bool(status.get('state_file_present'))
+        and not bool(status.get('pending_state_file_present'))
         and len(houses) == 2
         and len(teams) == 3
-        and all(bool(item.get('owned')) for item in houses)
-        and all(bool(item.get('owned')) for item in teams)
         and all(int(item.get('role_id', 0)) > 0 for item in teams)
     )
     return BetaLabPackStatus(
@@ -191,7 +191,7 @@ def _structure_status(guild_id: int) -> BetaLabPackStatus:
         title='PolyChamps-shaped server structure',
         state='ready' if ready else 'blocked',
         detail=(
-            f'{len(houses)} owned Houses and {len(teams)} showcase Teams '
+            f'{len(houses)} reconciled Houses and {len(teams)} showcase Teams '
             'are reconciled with their reviewed role bindings.'
             if ready else '; '.join(conflicts) or 'The exact structure is incomplete.'
         ),
