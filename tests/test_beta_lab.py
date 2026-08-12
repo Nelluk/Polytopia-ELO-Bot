@@ -118,7 +118,8 @@ class BetaLabWorkerTests(unittest.TestCase):
         self.assertEqual(status.overall, 'ready')
 
     def test_cli_refuses_wrong_confirmation_before_socket(self):
-        with mock.patch.object(manage_beta_lab, '_profile', return_value=object()), \
+        with mock.patch.object(manage_beta_lab, 'assert_operator_context'), \
+                mock.patch.object(manage_beta_lab, '_profile', return_value=object()), \
                 mock.patch.object(
                     manage_beta_lab,
                     'send_control_request',
@@ -136,7 +137,8 @@ class BetaLabWorkerTests(unittest.TestCase):
         request.assert_not_awaited()
 
     def test_cli_status_uses_protected_control_request(self):
-        with mock.patch.object(manage_beta_lab, '_profile', return_value=object()), \
+        with mock.patch.object(manage_beta_lab, 'assert_operator_context'), \
+                mock.patch.object(manage_beta_lab, '_profile', return_value=object()), \
                 mock.patch.object(
                     manage_beta_lab,
                     'send_control_request',
@@ -149,6 +151,14 @@ class BetaLabWorkerTests(unittest.TestCase):
             {'operation': 'beta-lab-status'},
             timeout=60.0,
         )
+
+    def test_direct_cli_requires_explicit_operator_context_before_profile(self):
+        with mock.patch.dict(manage_beta_lab.os.environ, {}, clear=True), \
+                mock.patch.object(manage_beta_lab, '_profile') as profile, \
+                contextlib.redirect_stderr(io.StringIO()):
+            result = manage_beta_lab.main(['--json', 'status'])
+        self.assertEqual(result, 2)
+        profile.assert_not_called()
 
 
 class BetaLabAsyncTests(unittest.IsolatedAsyncioTestCase):

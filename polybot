@@ -14,6 +14,7 @@ else
 fi
 ASSETS=$ROOT/deploy/container
 COMPOSE_FILE=$ASSETS/compose.development.yaml
+EXTERNAL_COMPOSE_FILE=$ASSETS/compose.development.external-db.yaml
 ENV_FILE=$ASSETS/.env
 CONFIG_FILE=$ASSETS/config.development.ini
 SERVER_SETTINGS_FILE=$ASSETS/server_settings_dev.py
@@ -48,6 +49,8 @@ Commands:
   stop                  Stop bot and database while retaining persistence
   backup                Create a confirmed logical development backup
   verify-backup PATH    Restore-test an archive in the isolated recovery volume
+  beta-lab [--mode bundled|external] OPERATION [ARGUMENTS]
+                        Run Beta Lab operations in the Compose namespace
 EOF
 }
 
@@ -103,6 +106,19 @@ compose() {
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     "$@"
+}
+
+beta_compose() {
+  case "${BETA_COMPOSE_MODE:-bundled}" in
+    bundled) compose "$@" ;;
+    external)
+      docker compose \
+        --env-file "$ENV_FILE" \
+        --file "$EXTERNAL_COMPOSE_FILE" \
+        "$@"
+      ;;
+    *) fail 'Beta Lab Compose mode must be bundled or external.' ;;
+  esac
 }
 
 require_engine() {
@@ -718,6 +734,86 @@ require_prepared_inputs() {
   done
 }
 
+require_beta_inputs() {
+  for target in "$ENV_FILE" "$CONFIG_FILE" "$SERVER_SETTINGS_FILE"; do
+    [ -f "$target" ] && [ ! -L "$target" ] \
+      || fail 'Beta Lab deployment inputs are incomplete; run ./polybot setup.'
+  done
+}
+
+require_exact_beta_image() {
+  require_engine
+  validate_project_name
+  require_beta_inputs
+  host_checkpoint=$(git_checkpoint)
+  beta_checkpoint=$(configured_checkpoint)
+  [ "$host_checkpoint" = "$beta_checkpoint" ] \
+    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
+  beta_image=$(configured_image)
+  [ -n "$beta_image" ] || fail 'The configured Beta Lab image is absent.'
+  image_checkpoint=$(docker image inspect "$beta_image" \
+    --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null) \
+    || fail 'The configured Beta Lab image is unavailable; rerun ./polybot setup.'
+  [ "$image_checkpoint" = "$beta_checkpoint" ] \
+    || fail 'The configured Beta Lab image has the wrong source checkpoint.'
+}
+
+require_running_beta_control() {
+  beta_bot_id=$(beta_compose ps -q bot 2>/dev/null || true)
+  container_running "$beta_bot_id" \
+    || fail 'The exact Compose beta bot must be running for this operation.'
+  running_checkpoint=$(beta_compose exec -T bot /bin/sh -c \
+    'printf %s "$POLYBOT_IMAGE_CHECKPOINT"' 2>/dev/null || true)
+  [ "$running_checkpoint" = "$(configured_checkpoint)" ] \
+    || fail 'The running Beta Lab bot has the wrong source checkpoint.'
+}
+
+beta_control_python() {
+  require_running_beta_control
+  beta_compose exec -T \
+    -e POLYBOT_BETA_OPERATOR_CONTEXT=compose \
+    bot python "$@"
+}
+
+beta_database_python() {
+  beta_compose run --rm --no-deps \
+    -e POLYBOT_BETA_OPERATOR_CONTEXT=compose \
+    --entrypoint python bot "$@"
+}
+
+command_beta_lab() {
+  BETA_COMPOSE_MODE=bundled
+  if [ "${1:-}" = --mode ]; then
+    [ "$#" -ge 3 ] || fail 'Usage: ./polybot beta-lab [--mode bundled|external] OPERATION [ARGUMENTS]'
+    BETA_COMPOSE_MODE=$2
+    shift 2
+  fi
+  case "$BETA_COMPOSE_MODE" in
+    bundled|external) : ;;
+    *) fail 'Beta Lab Compose mode must be bundled or external.' ;;
+  esac
+  operation=${1:-}
+  [ "$#" -gt 0 ] && shift || true
+  require_exact_beta_image
+  case "$operation" in
+    status|plan)
+      [ "$#" -eq 0 ] || fail "Usage: ./polybot beta-lab $operation"
+      beta_control_python scripts/manage_beta_lab.py --json "$operation"
+      ;;
+    refresh)
+      beta_control_python scripts/manage_beta_lab.py --json refresh "$@"
+      ;;
+    roles-status|roles-setup|roles-reconcile)
+      beta_control_python scripts/manage_beta_lab_personas.py --json "$operation" "$@"
+      ;;
+    database-status|database-seed|database-reconcile)
+      beta_database_python scripts/manage_beta_lab_personas.py --json "$operation" "$@"
+      ;;
+    '') fail 'A Beta Lab operation is required.' ;;
+    *) fail "Unknown Beta Lab operation: $operation" ;;
+  esac
+}
+
 command_start() {
   require_engine
   validate_project_name
@@ -1062,6 +1158,7 @@ main() {
     stop) [ "$#" -eq 0 ] || fail 'Usage: ./polybot stop'; command_stop ;;
     backup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot backup'; command_backup ;;
     verify-backup) command_verify_backup "$@" ;;
+    beta-lab) command_beta_lab "$@" ;;
     -h|--help|help|'') usage ;;
     *) usage >&2; fail "Unknown command: $command" ;;
   esac

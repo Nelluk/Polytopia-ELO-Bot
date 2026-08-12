@@ -75,6 +75,7 @@ def _database_value(
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        beta_operations.assert_operator_context(os.environ)
         profile = _profile()
         if args.operation == 'roles-status':
             result = asyncio.run(beta_operations.send_control_request(

@@ -50,6 +50,8 @@ BETA_CONTROL_SOCKET = 'release-control.sock'
 BETA_RELEASE_STATE = 'release-state.json'
 BETA_TESTER_ROLE_STATE = 'tester-role.json'
 BETA_WRITER_LOCK = 'beta-writer.lock'
+COMPOSE_OPERATOR_CONTEXT = 'compose'
+HOST_OPERATOR_CONTEXT = 'host-systemd'
 
 MANIFEST_SCHEMA_VERSION = 1
 RELEASE_STATE_SCHEMA_VERSION = 1
@@ -88,6 +90,23 @@ class BetaOperationsError(RuntimeError):
 
 class BetaRuntimeInvariantError(BetaOperationsError):
     """The durable service would not be operating in the approved profile."""
+
+
+def assert_operator_context(environ: Mapping[str, str] | None = None) -> None:
+    """Require an explicit supervisor/path pair for every operational CLI."""
+
+    selected = os.environ if environ is None else environ
+    supervisor = str(selected.get('POLYBOT_RESTART_SUPERVISOR', '')).strip()
+    context = str(selected.get('POLYBOT_BETA_OPERATOR_CONTEXT', '')).strip()
+    if (supervisor, context) in {
+        ('compose', COMPOSE_OPERATOR_CONTEXT),
+        ('systemd', HOST_OPERATOR_CONTEXT),
+    }:
+        return
+    raise BetaRuntimeInvariantError(
+        'Beta Lab operations require the ./polybot Compose interface or an '
+        'explicit reviewed host-systemd operator context.'
+    )
 
 
 class BetaPathError(BetaOperationsError):

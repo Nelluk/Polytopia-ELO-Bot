@@ -167,6 +167,33 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                         profile(self.root, **{field: value})
                     )
 
+    def test_compose_operator_context_is_explicit_and_fail_closed(self):
+        beta_operations.assert_operator_context({
+            'POLYBOT_RESTART_SUPERVISOR': 'compose',
+            'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
+        })
+        beta_operations.assert_operator_context({
+            'POLYBOT_RESTART_SUPERVISOR': 'systemd',
+            'POLYBOT_BETA_OPERATOR_CONTEXT': 'host-systemd',
+        })
+        for environ in (
+            {},
+            {'POLYBOT_RESTART_SUPERVISOR': 'compose'},
+            {'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose'},
+            {
+                'POLYBOT_RESTART_SUPERVISOR': 'systemd',
+                'POLYBOT_BETA_OPERATOR_CONTEXT': 'compose',
+            },
+            {
+                'POLYBOT_RESTART_SUPERVISOR': 'compose',
+                'POLYBOT_BETA_OPERATOR_CONTEXT': 'wrong',
+            },
+        ):
+            with self.subTest(environ=environ), self.assertRaises(
+                beta_operations.BetaRuntimeInvariantError
+            ):
+                beta_operations.assert_operator_context(environ)
+
     def test_service_environment_and_startup_flag_are_exact(self):
         good = {
             'POLYBOT_ENV': 'development',

@@ -44,12 +44,84 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         for command in (
             'setup', 'bootstrap-guild ID', 'import-backup PATH', 'start',
             'status', 'logs [--follow]', 'restart', 'stop', 'backup',
-            'verify-backup PATH',
+            'verify-backup PATH', 'beta-lab [--mode bundled|external]',
         ):
             self.assertIn(command, result.stdout)
         self.assertNotIn('--profile', result.stdout)
         self.assertNotIn('--project-name', result.stdout)
         self.assertNotIn('POLYBOT_', result.stdout)
+
+    def test_beta_lab_routes_control_and_database_into_compose_namespace(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                require_exact_beta_image() { :; }
+                beta_control_python() { printf 'control:%s\n' "$*"; }
+                beta_database_python() { printf 'database:%s\n' "$*"; }
+                command_beta_lab status
+                command_beta_lab roles-reconcile --confirm TOKEN
+                command_beta_lab database-reconcile --confirm TOKEN
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            'control:scripts/manage_beta_lab.py --json status', result.stdout,
+        )
+        self.assertIn(
+            'control:scripts/manage_beta_lab_personas.py --json roles-reconcile --confirm TOKEN',
+            result.stdout,
+        )
+        self.assertIn(
+            'database:scripts/manage_beta_lab_personas.py --json database-reconcile --confirm TOKEN',
+            result.stdout,
+        )
+
+    def test_beta_lab_external_mode_uses_the_external_compose_file(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                docker() { printf '%s\n' "$*"; }
+                BETA_COMPOSE_MODE=external
+                beta_compose ps -q bot
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('compose --env-file', result.stdout)
+        self.assertIn('compose.development.external-db.yaml ps -q bot', result.stdout)
+
+    def test_beta_lab_refuses_checkpoint_mismatch_before_compose_effect(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                require_engine() { :; }
+                require_beta_inputs() { :; }
+                git_checkpoint() { printf '%040d\n' 1; }
+                configured_checkpoint() { printf '%040d\n' 2; }
+                docker() { printf 'unexpected-docker-effect\n'; }
+                command_beta_lab status
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('differs from Git HEAD', result.stderr)
+        self.assertNotIn('unexpected-docker-effect', result.stdout)
 
     def test_darwin_and_linux_choose_the_reviewed_runtime_identities(self):
         darwin = self._source(

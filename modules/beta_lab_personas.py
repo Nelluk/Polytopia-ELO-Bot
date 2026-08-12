@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -20,6 +22,9 @@ from modules import (
 ROLE_STATE_FILENAME = 'beta-lab-persona-roles.json'
 DATABASE_STATE_FILENAME = 'beta-lab-persona-database.json'
 DATABASE_PENDING_STATE_FILENAME = 'beta-lab-persona-database.pending.json'
+DATABASE_EVIDENCE_SCHEMA_VERSION = 2
+DATABASE_EVIDENCE_KIND = 'beta_lab_persona_database'
+DATABASE_EVIDENCE_ORIGINS = frozenset({'created', 'adopted'})
 
 
 class BetaLabPersonaError(RuntimeError):
@@ -103,14 +108,29 @@ def _remove_state(profile: Any, filename: str) -> None:
         ) from exc
 
 
-def _publish_database_state(profile: Any) -> None:
+def _publish_database_state(
+    profile: Any,
+    *,
+    replace_state: Mapping[str, Any] | None = None,
+) -> None:
     pending_path = _state_path(
         profile, DATABASE_PENDING_STATE_FILENAME, create=False,
     )
     state_path = _state_path(profile, DATABASE_STATE_FILENAME, create=False)
-    if _read_state(profile, DATABASE_PENDING_STATE_FILENAME) is None:
+    pending = _read_state(profile, DATABASE_PENDING_STATE_FILENAME)
+    current = _read_state(profile, DATABASE_STATE_FILENAME)
+    if pending is None:
         raise BetaLabPersonaError(
             'The persona database transaction committed without pending ownership evidence.'
+        )
+    if replace_state is None and current is not None:
+        raise BetaLabPersonaError(
+            'Published and pending persona ownership evidence conflict; '
+            'automatic publication is refused.'
+        )
+    if replace_state is not None and current != replace_state:
+        raise BetaLabPersonaError(
+            'Published persona ownership evidence changed during reconciliation.'
         )
     try:
         os.replace(pending_path, state_path)
@@ -443,11 +463,21 @@ def _database_rows(database: Any, policy: beta_lab_persona_manifest.BetaLabPerso
     return houses, teams
 
 
-def _database_adoption_evidence(
+def _canonical_digest(value: Mapping[str, Any]) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=True,
+        separators=(',', ':'),
+        sort_keys=True,
+    ).encode('ascii')
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _database_baseline(
     database: Any,
     policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
 ) -> dict[str, Any]:
-    """Return evidence only for one exact pristine and unused fixture pair."""
+    """Read and validate the complete pristine and unused fixture state."""
 
     houses = beta_wider_setup._house(database, policy.house_name)
     teams = beta_wider_setup._team(database, policy.guild_id, policy.team_name)
@@ -459,44 +489,174 @@ def _database_adoption_evidence(
     team = teams[0]
     house_usage = beta_wider_setup._house_usage(database, house['id'])
     team_usage = beta_wider_setup._team_usage(database, team['id'])
-    exact = bool(
-        house['name'] == policy.house_name
-        and house['emoji'] == ''
-        and house['image_url'] is None
-        and house['league_tokens'] == 0
-        and team['name'] == policy.team_name
-        and team['guild_id'] == policy.guild_id
-        and team['house_id'] == house['id']
-        and team['house_name'] == policy.house_name
-        and not team['hidden']
-        and not team['archived']
-        and team['league_tier'] == 1
-        and team['external_server'] is None
-        and team['elo'] == 1000
-        and team['elo_alltime'] == 1000
-        and team['emoji'] == ''
-        and team['image_url'] is None
-        and team['pro_league']
-        and house_usage['team_ids'] == [team['id']]
-        and house_usage['team_names'] == [policy.team_name]
-        and house_usage['team_guild_ids'] == [policy.guild_id]
-        and house_usage['preference_count'] == 0
-        and house_usage['bid_count'] == 0
-        and team_usage['player_count'] == 0
-        and team_usage['game_side_count'] == 0
-    )
+    try:
+        exact = bool(
+            int(house['id']) > 0
+            and house['name'] == policy.house_name
+            and house['emoji'] == ''
+            and house['image_url'] is None
+            and house['league_tokens'] == 0
+            and int(team['id']) > 0
+            and team['name'] == policy.team_name
+            and team['guild_id'] == policy.guild_id
+            and team['house_id'] == house['id']
+            and team['house_name'] == policy.house_name
+            and not team['hidden']
+            and not team['archived']
+            and team['league_tier'] == 1
+            and team['external_server'] is None
+            and team['elo'] == 1000
+            and team['elo_alltime'] == 1000
+            and team['emoji'] == ''
+            and team['image_url'] is None
+            and team['pro_league']
+            and house_usage['team_ids'] == [team['id']]
+            and house_usage['team_names'] == [policy.team_name]
+            and house_usage['team_guild_ids'] == [policy.guild_id]
+            and house_usage['preference_count'] == 0
+            and house_usage['bid_count'] == 0
+            and team_usage['player_count'] == 0
+            and team_usage['game_side_count'] == 0
+        )
+    except (KeyError, TypeError, ValueError):
+        exact = False
     if not exact:
         raise BetaLabPersonaError(
             'The existing persona database fixture is not exact, pristine, and unused.'
         )
     return {
-        'schema_version': 1,
-        'guild_id': policy.guild_id,
-        'house_id': house['id'],
-        'house_name': policy.house_name,
-        'team_id': team['id'],
-        'team_name': policy.team_name,
+        'house': {
+            'id': int(house['id']),
+            'name': house['name'],
+            'emoji': house['emoji'],
+            'image_url': house['image_url'],
+            'league_tokens': int(house['league_tokens']),
+            'usage': {
+                'team_ids': [int(value) for value in house_usage['team_ids']],
+                'team_names': list(house_usage['team_names']),
+                'team_guild_ids': [
+                    int(value) for value in house_usage['team_guild_ids']
+                ],
+                'preference_count': int(house_usage['preference_count']),
+                'bid_count': int(house_usage['bid_count']),
+            },
+        },
+        'team': {
+            'id': int(team['id']),
+            'name': team['name'],
+            'guild_id': int(team['guild_id']),
+            'house_id': int(team['house_id']),
+            'house_name': team['house_name'],
+            'hidden': bool(team['hidden']),
+            'archived': bool(team['archived']),
+            'league_tier': int(team['league_tier']),
+            'external_server': team['external_server'],
+            'elo': int(team['elo']),
+            'elo_alltime': int(team['elo_alltime']),
+            'emoji': team['emoji'],
+            'image_url': team['image_url'],
+            'pro_league': bool(team['pro_league']),
+            'usage': {
+                'player_count': int(team_usage['player_count']),
+                'game_side_count': int(team_usage['game_side_count']),
+            },
+        },
     }
+
+
+def _evidence_from_baseline(
+    baseline: Mapping[str, Any],
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+    *,
+    origin: str,
+) -> dict[str, Any]:
+    if origin not in DATABASE_EVIDENCE_ORIGINS:
+        raise BetaLabPersonaError('The persona database evidence origin is invalid.')
+    copied = json.loads(json.dumps(baseline, sort_keys=True))
+    return {
+        'schema_version': DATABASE_EVIDENCE_SCHEMA_VERSION,
+        'kind': DATABASE_EVIDENCE_KIND,
+        'origin': origin,
+        'guild_id': policy.guild_id,
+        'house_id': int(copied['house']['id']),
+        'house_name': policy.house_name,
+        'team_id': int(copied['team']['id']),
+        'team_name': policy.team_name,
+        'baseline_sha256': _canonical_digest(copied),
+        'baseline': copied,
+    }
+
+
+def _database_evidence_matches(
+    evidence: Mapping[str, Any] | None,
+    baseline: Mapping[str, Any],
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+) -> bool:
+    try:
+        if not isinstance(evidence, Mapping):
+            return False
+        origin = evidence['origin']
+        if origin not in DATABASE_EVIDENCE_ORIGINS:
+            return False
+        return dict(evidence) == _evidence_from_baseline(
+            baseline,
+            policy,
+            origin=origin,
+        )
+    except (KeyError, TypeError, ValueError, BetaLabPersonaError):
+        return False
+
+
+def _legacy_database_evidence_matches(
+    evidence: Mapping[str, Any] | None,
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+    baseline: Mapping[str, Any] | None = None,
+) -> bool:
+    try:
+        valid = bool(
+            isinstance(evidence, Mapping)
+            and set(evidence) == {
+                'schema_version', 'guild_id', 'house_id', 'house_name',
+                'team_id', 'team_name',
+            }
+            and evidence['schema_version'] == 1
+            and evidence['guild_id'] == policy.guild_id
+            and evidence['house_name'] == policy.house_name
+            and evidence['team_name'] == policy.team_name
+            and int(evidence['house_id']) > 0
+            and int(evidence['team_id']) > 0
+        )
+        if valid and baseline is not None:
+            valid = bool(
+                int(evidence['house_id']) == int(baseline['house']['id'])
+                and int(evidence['team_id']) == int(baseline['team']['id'])
+            )
+        return valid
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def _read_only_database_baseline(
+    database: Any,
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+) -> dict[str, Any]:
+    with database.atomic():
+        database.execute_sql('SET TRANSACTION READ ONLY')
+        beta_wider_setup._identity(database)
+        return _database_baseline(database, policy)
+
+
+def _database_adoption_evidence(
+    database: Any,
+    policy: beta_lab_persona_manifest.BetaLabPersonaManifest,
+) -> dict[str, Any]:
+    """Return evidence only for one exact pristine and unused fixture pair."""
+
+    return _evidence_from_baseline(
+        _database_baseline(database, policy),
+        policy,
+        origin='adopted',
+    )
 
 
 def database_status(profile: Any) -> PersonaDatabaseStatus:
@@ -505,10 +665,30 @@ def database_status(profile: Any) -> PersonaDatabaseStatus:
         beta_readiness.validate_database_profile(profile, policy.guild_id)
         state = _read_state(profile, DATABASE_STATE_FILENAME)
         pending = _read_state(profile, DATABASE_PENDING_STATE_FILENAME)
+        if state is not None and pending is not None:
+            return PersonaDatabaseStatus(
+                False,
+                'Published and pending persona ownership evidence conflict.',
+                None,
+                None,
+            )
+        if pending is not None:
+            return PersonaDatabaseStatus(
+                False,
+                'Pending persona database evidence requires exact reconciliation.',
+                None,
+                None,
+            )
+        if state is None:
+            return PersonaDatabaseStatus(
+                False,
+                'The owned Beta Lab House/Team fixture is not prepared.',
+                None,
+                None,
+            )
         database = beta_wider_setup._default_database_factory(profile)
         with database.connection_context():
-            beta_wider_setup._identity(database)
-            houses, teams = _database_rows(database, policy)
+            baseline = _read_only_database_baseline(database, policy)
     except Exception as exc:
         if isinstance(exc, BetaLabPersonaError):
             return PersonaDatabaseStatus(False, str(exc), None, None)
@@ -518,53 +698,25 @@ def database_status(profile: Any) -> PersonaDatabaseStatus:
             None,
             None,
         )
-    if pending is not None:
+    if _legacy_database_evidence_matches(state, policy, baseline):
         return PersonaDatabaseStatus(
             False,
-            'Pending persona database evidence requires exact reconciliation.',
+            'Legacy persona database evidence requires explicit exact reconciliation.',
             None,
             None,
         )
-    if state is None or len(houses) != 1 or len(teams) != 1:
+    if not _database_evidence_matches(state, baseline, policy):
         return PersonaDatabaseStatus(
             False,
-            'The owned Beta Lab House/Team fixture is not prepared.',
+            'The owned Beta Lab House/Team fixture conflicts with its evidence.',
             None,
             None,
         )
-    try:
-        house_id = int(state['house_id'])
-        team_id = int(state['team_id'])
-    except (KeyError, TypeError, ValueError):
-        return PersonaDatabaseStatus(
-            False,
-            'The persona database ownership evidence is invalid.',
-            None,
-            None,
-        )
-    team = teams[0]
-    ready = bool(
-        set(state) == {'schema_version', 'guild_id', 'house_id', 'house_name', 'team_id', 'team_name'}
-        and state['schema_version'] == 1
-        and state['guild_id'] == policy.guild_id
-        and state['house_name'] == policy.house_name
-        and state['team_name'] == policy.team_name
-        and int(houses[0][0]) == house_id
-        and int(team[0]) == team_id
-        and int(team[2]) == policy.guild_id
-        and int(team[3]) == house_id
-        and not bool(team[4])
-        and not bool(team[5])
-        and int(team[6]) == 1
-    )
     return PersonaDatabaseStatus(
-        ready,
-        (
-            'The owned Beta Lab House/Team database fixture is ready.'
-            if ready else 'The owned Beta Lab House/Team fixture conflicts with its evidence.'
-        ),
-        team_id if ready else None,
-        house_id if ready else None,
+        True,
+        'The owned Beta Lab House/Team database fixture is ready.',
+        int(baseline['team']['id']),
+        int(baseline['house']['id']),
     )
 
 
@@ -591,36 +743,21 @@ def seed_database(profile: Any) -> PersonaDatabaseStatus:
                         'Persona fixture names already exist without ownership evidence; they will not be adopted.'
                     )
                 if prior is not None:
-                    try:
-                        matches = bool(
-                            set(prior) == {
-                                'schema_version', 'guild_id', 'house_id',
-                                'house_name', 'team_id', 'team_name',
-                            }
-                            and prior['schema_version'] == 1
-                            and prior['guild_id'] == policy.guild_id
-                            and prior['house_name'] == policy.house_name
-                            and prior['team_name'] == policy.team_name
-                            and len(houses) == 1
-                            and len(teams) == 1
-                            and int(houses[0][0]) == int(prior['house_id'])
-                            and int(teams[0][0]) == int(prior['team_id'])
-                            and int(teams[0][3]) == int(prior['house_id'])
-                            and not bool(teams[0][4])
-                            and not bool(teams[0][5])
-                            and int(teams[0][6]) == 1
+                    baseline = _database_baseline(database, policy)
+                    if _legacy_database_evidence_matches(prior, policy, baseline):
+                        raise BetaLabPersonaError(
+                            'Legacy persona database evidence requires reconciliation '
+                            'before seed can be retried.'
                         )
-                    except (KeyError, TypeError, ValueError):
-                        matches = False
-                    if not matches:
+                    if not _database_evidence_matches(prior, baseline, policy):
                         raise BetaLabPersonaError(
                             'The persona database fixture conflicts with its ownership evidence.'
                         )
                     return PersonaDatabaseStatus(
                         True,
                         'The owned Beta Lab House/Team database fixture is ready.',
-                        int(prior['team_id']),
-                        int(prior['house_id']),
+                        int(baseline['team']['id']),
+                        int(baseline['house']['id']),
                     )
                 house_id = beta_wider_setup._insert_house(database, policy.house_name)
                 team_id = beta_wider_setup._insert_team(
@@ -633,14 +770,22 @@ def seed_database(profile: Any) -> PersonaDatabaseStatus:
                     'UPDATE team SET league_tier = %s WHERE id = %s',
                     (1, team_id),
                 )
-                _write_state(profile, DATABASE_PENDING_STATE_FILENAME, {
-                    'schema_version': 1,
-                    'guild_id': policy.guild_id,
-                    'house_id': house_id,
-                    'house_name': policy.house_name,
-                    'team_id': team_id,
-                    'team_name': policy.team_name,
-                })
+                evidence = _evidence_from_baseline(
+                    _database_baseline(database, policy),
+                    policy,
+                    origin='created',
+                )
+                _write_state(
+                    profile,
+                    DATABASE_PENDING_STATE_FILENAME,
+                    evidence,
+                )
+            committed = _read_only_database_baseline(database, policy)
+            if not _database_evidence_matches(evidence, committed, policy):
+                raise BetaLabPersonaError(
+                    'The committed persona fixture changed before ownership '
+                    'evidence could be published.'
+                )
         _publish_database_state(profile)
     return database_status(profile)
 
@@ -654,59 +799,99 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
     with beta_wider_setup._mutation_writer_scope(profile):
         state = _read_state(profile, DATABASE_STATE_FILENAME)
         pending = _read_state(profile, DATABASE_PENDING_STATE_FILENAME)
-        if state is not None:
+        if state is not None and pending is not None:
             raise BetaLabPersonaError(
-                'Published persona ownership evidence already exists; pending '
-                'evidence cannot be reconciled automatically.'
+                'Published and pending persona ownership evidence conflict; '
+                'automatic reconciliation is refused.'
             )
         database = beta_wider_setup._default_database_factory(profile)
         with database.connection_context():
-            with database.atomic():
-                database.execute_sql('SET TRANSACTION READ ONLY')
-                beta_wider_setup._identity(database)
-                if pending is None:
-                    pending = _database_adoption_evidence(database, policy)
-                    houses = teams = ()
-                else:
+            replace_state = None
+            if state is not None:
+                baseline = _read_only_database_baseline(database, policy)
+                if _database_evidence_matches(state, baseline, policy):
+                    return PersonaDatabaseStatus(
+                        True,
+                        'The owned Beta Lab House/Team database fixture is ready.',
+                        int(baseline['team']['id']),
+                        int(baseline['house']['id']),
+                    )
+                if not _legacy_database_evidence_matches(state, policy, baseline):
+                    raise BetaLabPersonaError(
+                        'Published persona ownership evidence does not exactly '
+                        'match the database; manual review is required.'
+                    )
+                evidence = _evidence_from_baseline(
+                    baseline,
+                    policy,
+                    origin='adopted',
+                )
+                replace_state = state
+            elif pending is not None:
+                with database.atomic():
+                    database.execute_sql('SET TRANSACTION READ ONLY')
+                    beta_wider_setup._identity(database)
                     houses, teams = _database_rows(database, policy)
-        if _read_state(profile, DATABASE_PENDING_STATE_FILENAME) is None:
-            _write_state(profile, DATABASE_PENDING_STATE_FILENAME, pending)
-            _publish_database_state(profile)
-            return database_status(profile)
-        if not houses and not teams:
-            _remove_state(profile, DATABASE_PENDING_STATE_FILENAME)
-            return PersonaDatabaseStatus(
-                False,
-                'The rolled-back persona seed was reconciled; seed may be retried.',
-                None,
-                None,
-            )
-        try:
-            matches = bool(
-                set(pending) == {
-                    'schema_version', 'guild_id', 'house_id', 'house_name',
-                    'team_id', 'team_name',
-                }
-                and pending['schema_version'] == 1
-                and pending['guild_id'] == policy.guild_id
-                and pending['house_name'] == policy.house_name
-                and pending['team_name'] == policy.team_name
-                and len(houses) == 1
-                and len(teams) == 1
-                and int(houses[0][0]) == int(pending['house_id'])
-                and int(teams[0][0]) == int(pending['team_id'])
-                and int(teams[0][2]) == policy.guild_id
-                and int(teams[0][3]) == int(pending['house_id'])
-                and not bool(teams[0][4])
-                and not bool(teams[0][5])
-                and int(teams[0][6]) == 1
-            )
-        except (KeyError, TypeError, ValueError):
-            matches = False
-        if not matches:
-            raise BetaLabPersonaError(
-                'The pending persona evidence does not exactly match the database; '
-                'manual review is required.'
-            )
-        _publish_database_state(profile)
+                    if not houses and not teams:
+                        if (
+                            _legacy_database_evidence_matches(pending, policy)
+                            or (
+                                isinstance(pending, Mapping)
+                                and pending.get('origin') == 'created'
+                                and _database_evidence_matches(
+                                    pending,
+                                    pending.get('baseline', {}),
+                                    policy,
+                                )
+                            )
+                        ):
+                            _remove_state(
+                                profile,
+                                DATABASE_PENDING_STATE_FILENAME,
+                            )
+                            return PersonaDatabaseStatus(
+                                False,
+                                'The rolled-back persona seed was reconciled; '
+                                'seed may be retried.',
+                                None,
+                                None,
+                            )
+                        raise BetaLabPersonaError(
+                            'Pending adoption evidence has no exact database '
+                            'fixture; manual review is required.'
+                        )
+                    baseline = _database_baseline(database, policy)
+                if _database_evidence_matches(pending, baseline, policy):
+                    evidence = dict(pending)
+                elif _legacy_database_evidence_matches(pending, policy, baseline):
+                    evidence = _evidence_from_baseline(
+                        baseline,
+                        policy,
+                        origin='adopted',
+                    )
+                else:
+                    raise BetaLabPersonaError(
+                        'The pending persona evidence does not exactly match the '
+                        'database; manual review is required.'
+                    )
+            else:
+                evidence = _evidence_from_baseline(
+                    _read_only_database_baseline(database, policy),
+                    policy,
+                    origin='adopted',
+                )
+
+            if pending != evidence:
+                _write_state(
+                    profile,
+                    DATABASE_PENDING_STATE_FILENAME,
+                    evidence,
+                )
+            final_baseline = _read_only_database_baseline(database, policy)
+            if not _database_evidence_matches(evidence, final_baseline, policy):
+                raise BetaLabPersonaError(
+                    'The persona fixture changed between reconciliation proof '
+                    'and publication; pending evidence was retained.'
+                )
+        _publish_database_state(profile, replace_state=replace_state)
     return database_status(profile)

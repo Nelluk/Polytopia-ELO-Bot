@@ -88,16 +88,25 @@ publishers receive frozen primitive snapshots, never ORM models.
 
 ## Operator CLI
 
-The CLI connects only to the protected mode-0600 socket of the already running
-development beta. It never logs in a second Discord client:
+For either supported Compose deployment, use the repository-owned wrapper from
+the exact clean source checkpoint. It validates the configured image label and
+running-container checkpoint, then executes the control CLI inside the running
+bot so it reaches the protected mode-0600 socket in the persistent
+`polybot_logs` volume. It never logs in a second Discord client:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab.py --json status
-
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab.py --json plan
+./polybot beta-lab status
+./polybot beta-lab plan
 ```
+
+Pass `--mode external` immediately after `beta-lab` for the reviewed external-
+database Compose definition. Direct host invocation is intentionally refused
+when the profile selects the Compose supervisor because a host process sees a
+different socket and writer-lock inode. Direct Python invocation remains a
+legacy non-Compose/systemd path only and must explicitly set the reviewed
+`POLYBOT_RESTART_SUPERVISOR=systemd` and
+`POLYBOT_BETA_OPERATOR_CONTEXT=host-systemd` pair. Missing, mixed, or unknown
+context values fail before profile or socket/database access.
 
 `status` returns primitive pack DTOs. `plan` adds the bounded action for each
 pack and explicitly reports which live mutations are implemented. The
@@ -105,8 +114,7 @@ operator socket can refresh only `game-results`; `self-service-game-lanes` is
 applied only by authenticated tester interactions through the running bot:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab.py --json refresh \
+./polybot beta-lab refresh \
   --pack game-results \
   --confirm REFRESH-game-results
 ```
@@ -129,11 +137,8 @@ systems cannot share a transaction. With the reviewed beta running, inspect
 and create only the two owned roles through its authenticated local socket:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab_personas.py roles-status
-
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab_personas.py roles-setup \
+./polybot beta-lab roles-status
+./polybot beta-lab roles-setup \
   --confirm PREPARE-BETA-LAB-PERSONAS
 ```
 
@@ -145,8 +150,7 @@ unhoisted, unmentionable, and have no members, reconcile only their ownership
 record:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab_personas.py roles-reconcile \
+./polybot beta-lab roles-reconcile \
   --confirm RECONCILE-BETA-LAB-PERSONAS
 ```
 
@@ -157,25 +161,37 @@ Then stop the durable beta, verify the writer gate is clear, and seed only the
 owned House/Team rows:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab_personas.py database-status
-
-POLYBOT_ENV=development .venv/bin/python \
-  scripts/manage_beta_lab_personas.py database-seed \
+./polybot beta-lab database-status
+./polybot beta-lab database-seed \
   --confirm PREPARE-BETA-LAB-PERSONAS
 ```
 
-Seed writes private pending ownership evidence inside the database transaction
-and promotes it only after commit. If a commit or publication outcome is
-unknown, do not retry seed. With the beta still stopped, use the exact
-`database-reconcile --confirm RECONCILE-BETA-LAB-PERSONAS` operation; it
-promotes evidence only for an exact committed match or removes it only when
-both candidate rows are absent. Partial or conflicting state requires manual
-review. The same reconciliation may recover missing ownership publication for
-one pre-existing pair only when the House and Team exactly match the seed
-baseline and are pristine: no players, game sides, bids, preferences, or
-additional House teams. That path writes private evidence only and makes no
-database-row mutation.
+Database operations run in a one-shot bot service with the same persistent log
+volume and therefore the same writer-lock inode as the durable bot. Mutation
+still requires the durable beta to be stopped; a running bot makes the shared
+lock fail closed before database access. Seed writes schema-v2 private pending
+ownership evidence inside the database transaction. That evidence includes a
+canonical snapshot and SHA-256 digest of every House, Team, and usage field in
+the pristine predicate. After commit, and again during crash recovery or
+adoption, the operation rereads the full predicate under the same writer lock
+and publishes only an exact match.
+
+If a commit or publication outcome is unknown, do not retry seed. With the beta
+still stopped, use:
+
+```bash
+./polybot beta-lab database-reconcile \
+  --confirm RECONCILE-BETA-LAB-PERSONAS
+```
+
+Reconciliation promotes evidence only for an exact committed match or removes
+created pending evidence only when both candidate rows are absent. Published+
+pending conflicts, malformed/forged evidence, or any changed baseline or usage
+requires manual review. The same operation safely upgrades legacy schema-v1
+evidence or recovers missing ownership publication for one pre-existing pair
+only when the House and Team remain exact, pristine, and unused: no players,
+game sides, bids, preferences, or additional House teams. It writes private
+evidence only and makes no database-row mutation.
 
 ## Safety and remaining expansion boundary
 

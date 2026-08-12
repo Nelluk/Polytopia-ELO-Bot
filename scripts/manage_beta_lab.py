@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from modules.beta_operations import (  # noqa: E402
     BetaOperationsError,
+    assert_operator_context,
     send_control_request,
 )
 from runtime_config import RuntimeConfigurationError, load_runtime_profile  # noqa: E402
@@ -58,6 +59,7 @@ def _profile():
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        assert_operator_context(os.environ)
         profile = _profile()
         if args.operation == 'refresh':
             if args.confirm != REFRESH_CONFIRMATION:

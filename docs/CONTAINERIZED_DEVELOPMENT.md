@@ -142,6 +142,7 @@ development project is `polybot-mac-beta` on both platforms:
 ./polybot stop
 ./polybot backup
 ./polybot verify-backup PATH
+./polybot beta-lab status
 ```
 
 `setup` creates or updates only ignored deployment inputs. It copies an
@@ -214,6 +215,20 @@ custom-socket, and ambiguous contexts conservatively count every native
 match. `status` reports bot/database state, exact checkpoint, application ID,
 architecture, health, persistence, trusted guild state, and writer counts
 without printing a token or password.
+
+`beta-lab` is the canonical Beta Lab/owned-persona entrypoint for Compose.
+Status, plan, refresh, and role operations execute inside the exact running bot
+and use its private socket. Database status/seed/reconcile execute as a one-shot
+bot service which shares the same `polybot_logs` volume and writer-lock inode.
+The wrapper requires a clean source checkpoint equal to both the configured
+checkpoint and the image provenance label; socket operations additionally
+require the running bot to report that checkpoint. Database mutations still
+fail while the durable writer holds the shared lock. Use
+`./polybot beta-lab --mode external ...` for the reviewed external-database
+Compose definition. Do not invoke the Python Beta Lab CLIs directly on the host
+for a Compose deployment: host log paths are not the Compose volume namespace,
+and the CLIs refuse an explicitly selected Compose supervisor without the
+wrapper-provided container context.
 
 ## Advanced Compose troubleshooting and reference
 
