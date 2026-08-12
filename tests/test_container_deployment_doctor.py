@@ -28,6 +28,13 @@ class ContainerDeploymentDoctorTests(unittest.TestCase):
         shutil.copytree(
             self.source_root / 'deploy/container',
             self.root / 'deploy/container',
+            ignore=shutil.ignore_patterns(
+                '.env',
+                'backups',
+                'config.development.ini',
+                'secrets',
+                'server_settings_dev.py',
+            ),
         )
         self._write_private(
             'deploy/container/config.development.ini',
@@ -56,7 +63,7 @@ class ContainerDeploymentDoctorTests(unittest.TestCase):
         )
         (self.root / 'deploy/container/.env').write_text(env, encoding='utf-8')
         backup_directory = self.root / 'deploy/container/backups'
-        backup_directory.mkdir()
+        backup_directory.mkdir(exist_ok=True)
         backup_directory.chmod(0o700)
 
     def _write_private(self, relative: str, value: str) -> Path:

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-ARG PYTHON_IMAGE=python:3.12.13-slim-bookworm
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32
+ARG PYTHON_IMAGE=python:3.12.13-slim-bookworm@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c
 ARG POLYBOT_SOURCE_CHECKPOINT
 
 FROM ${UV_IMAGE} AS uv

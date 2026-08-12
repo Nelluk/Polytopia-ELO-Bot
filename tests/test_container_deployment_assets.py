@@ -14,9 +14,21 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
 
         self.assertEqual(contract['contract_version'], 2)
         self.assertEqual(contract['environment'], 'development')
-        self.assertEqual(contract['python_image'], 'python:3.12.13-slim-bookworm')
-        self.assertEqual(contract['uv_image'], 'ghcr.io/astral-sh/uv:0.11.32')
-        self.assertEqual(contract['postgres_image'], 'postgres:18.4-bookworm')
+        self.assertEqual(
+            contract['python_image'],
+            'python:3.12.13-slim-bookworm@sha256:'
+            '4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2',
+        )
+        self.assertEqual(
+            contract['uv_image'],
+            'ghcr.io/astral-sh/uv:0.11.32@sha256:'
+            'df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c',
+        )
+        self.assertEqual(
+            contract['postgres_image'],
+            'postgres:18.4-bookworm@sha256:'
+            '882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382',
+        )
         self.assertEqual(contract['postgres_major'], 18)
         self.assertEqual(contract['database_name'], 'polytopia_dev')
         self.assertEqual(contract['database_user'], 'polybot_dev')
@@ -58,8 +70,12 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         dockerfile = (self.assets / 'Dockerfile').read_text(encoding='utf-8')
         ignore = (self.root / '.dockerignore').read_text(encoding='utf-8')
 
-        self.assertIn('ARG PYTHON_IMAGE=python:3.12.13-slim-bookworm', dockerfile)
-        self.assertIn('ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32', dockerfile)
+        self.assertIn(
+            'ARG PYTHON_IMAGE=python:3.12.13-slim-bookworm@sha256:', dockerfile
+        )
+        self.assertIn(
+            'ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32@sha256:', dockerfile
+        )
         self.assertIn('uv sync --locked --no-dev --no-install-project', dockerfile)
         self.assertIn('USER 10001:10001', dockerfile)
         self.assertIn('STOPSIGNAL SIGINT', dockerfile)
@@ -79,7 +95,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
             self.assets / 'compose.development.yaml'
         ).read_text(encoding='utf-8')
 
-        self.assertIn('postgres:18.4-bookworm', compose)
+        self.assertIn('postgres:18.4-bookworm@sha256:', compose)
         self.assertIn('postgres_data:/var/lib/postgresql', compose)
         self.assertIn('polybot_images:/app/data/development/images', compose)
         self.assertIn('polybot_logs:/app/logs/development', compose)
