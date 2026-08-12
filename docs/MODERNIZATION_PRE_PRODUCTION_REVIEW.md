@@ -33,6 +33,34 @@ reconciliation. The external review itself performed no tests or live
 operations; P9.21's durable test, stopped-writer, and beta evidence is recorded
 in the roadmap and must later bind to the exact candidate.
 
+## 2026-08-12 post-candidate review supplement
+
+A later GitHub-only review was pinned to
+`77a60b46f6b91615a9b02a9f9a6b4321d67ccc87` and found two defects in work
+added after the frozen `acf706f` candidate. N3 (High) identified that
+independent guild-configuration mutation families could both commit and then
+reject each other's complete runtime publication. N4 (Medium) identified that
+the development-container backup's pre/post session samples cannot prove no
+transient session existed during `pg_dump`.
+
+N3 is resolved by P10.10 implementation checkpoint `f33b14b`: one process-wide
+claim spans final revalidation through commit, complete immutable publication,
+target Discord convergence, and repeated-cancellation drain. A committed
+publication/convergence uncertainty immediately quarantines the affected guild
+across ordinary command and event dispatch while preserving only exact owner
+restart and verified reconciliation recovery. Focused coverage passes 195
+tests, complete offline discovery passes 2,038 with 89 intentional skips, and
+the stopped-writer development PostgreSQL suite passes 88 of 89 cases with
+only the established retained-fixture skip. Integration and beta checkpoint
+evidence are recorded in the roadmap rather than inferred here.
+
+N4 remains open and is assigned to the next approved P11.4B1 local import and
+rehearsal unit. The selected correction is the smaller accurate-semantics
+route: retain stopped-writer operation and pre/post observations, but stop
+claiming they detect every transient session during a logically consistent
+dump. P11.4B1 must also rehearse a logical import of the host development data
+into a fresh isolated container database; it grants no production authority.
+
 ## Recommendation
 
 The reviewed source blockers are resolved. B1–B3, H1–H8, M1–M6, L1, and the
@@ -63,6 +91,8 @@ release-candidate evidence gate after those bounded pre-freeze units.
 | M6 | Resolved | P9.20 direct per-guild production relay and all-guild capability policy |
 | M7 | In progress | P9.24/R-002 exact release-candidate evidence |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
+| N3 | Resolved pending integration | P10.10 implementation `f33b14b`; roadmap owns final push/beta evidence |
+| N4 | Open | P11.4B1 accurate backup semantics plus isolated local import/rehearsal |
 
 ## Blocker
 

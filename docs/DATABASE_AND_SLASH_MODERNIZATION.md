@@ -492,8 +492,38 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.4A exact-image and isolated-database live-engine
-proof is complete, Tier-3 reviewed, and fast-forward integrated from
+Current active unit: **P10.10/N3 global guild-authority mutation coordination
+is implemented and Tier-3 reviewed on
+`codex/p10-10-guild-mutation-coordinator`, based on exact clean pushed
+accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
+Implementation checkpoint: `f33b14b`. Focused validation passes 195 tests;
+complete offline discovery passes all 2,038 tests with 89 intentional database
+gates skipped; and the complete stopped-writer development PostgreSQL gate
+passes 88 of 89 tests with only the established owned-fixture round trip
+skipped. Integration, push, and beta restart/verification are in progress.**
+
+The accepted fail-fast process-wide claim spans final revalidation, database
+commit, complete graph reload, immutable runtime publication, exact one-guild
+Discord synchronization/verification when required, and repeated-cancellation
+drain. It covers activation/rollback, coordinated capability activation and
+reconciliation, enrollment, lifecycle, and delegation authority changes while
+leaving inactive draft editing concurrent. A committed publication or remote-
+verification uncertainty quarantines the affected guild immediately across
+slash, prefix, listener/event, and shared modern component dispatch. Verified
+reconciliation or startup reload clears the latch; exact owner-only
+`/operator bot restart` remains the recovery path and is not broadened to an
+unknown guild.
+
+Next recommended after N3: **P11.4B1 local host-database import/rehearsal plus
+the N4 backup-guarantee semantics correction already selected by Nelluk.** It
+must retain a stopped host writer, import only into a fresh isolated container
+database, verify logical backup/restore identity and application behavior, and
+state accurately that pre/post session observations do not prove no transient
+session existed during `pg_dump`. No production or host-database restore is
+authorized.
+
+Previous completed infrastructure unit: **P11.4A exact-image and isolated-
+database live-engine proof is complete, Tier-3 reviewed, and fast-forward integrated from
 `codex/p11-4a-live-container-proof`, based on exact clean pushed accumulation
 checkpoint `77a60b46f6b91615a9b02a9f9a6b4321d67ccc87`. Implementation checkpoints:
 `b59525017bd3778a5239b53efd7fc4e19422ecd7`,
@@ -534,13 +564,13 @@ were untouched. All unit containers, network, four volumes, images, build
 cache, and synthetic archive pair were removed; the pre-existing
 `hello-world` resource remains and disk returned to 2.3 GB free.
 
-Remaining limitation: with only about 2.3 GB free, Docker publishes the 1.44
+Remaining P11.4A limitation: with only about 2.3 GB free, Docker publishes the 1.44
 GB on-disk bot image but Compose exits nonzero when its final small client
 metadata file encounters peak disk exhaustion. The verified image remains
 usable after unit-cache removal, but supported use needs more build headroom
 or a reviewed remote build/registry path. Vulnerability scanning and the
 container bot lifecycle/Discord writer window remain separate. Next
-recommended: P11.4B container bot lifecycle proof—persistent image/log
+recommended after P11.4B1: P11.4B container bot lifecycle proof—persistent image/log
 volumes, resource ceilings, SIGINT, exit-75, database outage/recovery, exact
 single-writer audit, and one development Discord login—only after resolving
 build headroom and choosing a controlled writer window. Also ready: the
@@ -15588,6 +15618,74 @@ writer, and all five protected Beta Lab packs ready. No real delegation policy
 was granted. Owner-first command acceptance remains available through
 `/operator guild delegation` and an unconfigured `/guild edit` denial.
 
+### P10.10 — Global guild-authority mutation coordinator (N3)
+
+Status: **Implemented, Tier-3 reviewed, and development-database gated;
+integration/deployment in progress**
+
+Branch/base: `codex/p10-10-guild-mutation-coordinator`, exact clean pushed
+accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
+
+Risk tier: **Tier 3 cross-family authorization mutation, immutable runtime
+publication, Discord convergence, cancellation, and fail-closed dispatch
+boundary.**
+
+One process-wide coordinator now owns every active-authority mutation from its
+final request snapshot until its worker, database commit, complete post-commit
+graph reload, event-loop publication, required target-guild command apply and
+verification, and repeated-cancellation drain are conclusively finished. Draft
+activation/rollback, command-capability activation and reconciliation,
+enrollment, suspend/resume, and delegation-policy application share this
+claim. Nested adapters are re-entrant only for the same owned task; an
+unrelated family or guild fails before its worker and reports the active
+operation. Inactive draft create/edit/discard remains outside the claim because
+it changes no active authority.
+
+If a database mutation commits but its runtime snapshot cannot be published,
+or committed runtime authority cannot be reconciled with the target Discord
+tree, the target guild is placed in an in-memory fail-closed quarantine.
+Ordinary application commands, prefix commands, messages, listener/event
+dispatch, and shared modern Components v2 workspaces are denied even though an
+older immutable snapshot still exists. A verified target reconciliation or a
+fully validated startup graph clears the latch. Exact configured-owner
+`/operator bot restart` remains available from a known or quarantined guild,
+including the defensive global-maintenance fallback; it is not available from
+an arbitrary unknown guild. Normal restart inventory also reports an active
+guild mutation and refuses non-forced restart under the existing policy.
+
+Tier-3 review found and corrected two initially missed terminal paths: a
+committed capability activation whose Discord apply is unverified, and a
+committed lifecycle transition whose Discord tree is unverified. Both now
+quarantine the target before surfacing truthful reconciliation errors. The
+shared coordinator remains connection-agnostic; existing workers continue to
+own their PostgreSQL connections and transaction/advisory-lock boundaries.
+
+Focused cross-family/runtime/restart validation passes 195 tests. It covers
+activation in guild A against suspension in guild B, capability activation
+against enrollment, rejection before the competing worker, same-task nested
+ownership, repeated cancellation and event-loop responsiveness, final
+database/runtime/remote convergence, publication and command-verification
+uncertainty, quarantine-install fallback, exact owner recovery, unknown-guild
+denial, and prefix/listener/component fail-closed behavior. Complete offline
+discovery passes all 2,038 tests with 89 intentional database gates skipped.
+Compilation and diff checks pass.
+
+The stopped-writer gate first verified the previous beta at checkpoint
+`7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe` as the sole development writer
+with all five Beta Lab packs ready, then stopped only its user service and
+required the host-wide audit to report clear. The complete explicitly gated
+`development` / `polytopia_dev` / `polybot_dev` suite ran 89 tests: 88 passed
+and only the established operator-managed fixture round trip skipped. Every
+P10.3–P10.9 schema path was included; transactional mutation cases rolled back
+and no retained development configuration, policy, lifecycle, or fixture
+change was made.
+
+Implementation/review checkpoint: `f33b14b`. No schema, command-tree,
+container, production, or tester-facing change is part of N3. The active bot
+runtime must be restarted from the clean pushed accumulation checkpoint after
+integration because N3 changes live dispatch and recovery behavior; no command
+registration apply or tester announcement is warranted.
+
 ### P11.1 — Containerized development feasibility and static proof
 
 Status: **Complete; integrated at `309c222`**
@@ -17041,6 +17139,26 @@ reconciliation path. Keep the global tree empty and never add implicit startup
 or global synchronization. Registry listing must prominently expose lifecycle
 state and the newest suspension/resumption actor and timestamp.
 
+### D-062 — Serialize active guild authority through publication and fail closed
+
+Status: **Accepted by Nelluk; implemented by P10.10/N3 in development**
+
+Use one fail-fast process-wide owner for every mutation that can change active
+guild authorization or its remotely registered command tree. Hold it through
+final evidence refresh, database work, immutable runtime publication, Discord
+apply/verification, and cancellation drain; do not release merely because the
+invoking interaction was cancelled. Permit re-entry only from the coordinator's
+same owned task so the capability/lifecycle orchestration layers can reuse the
+existing mutation adapters without deadlock.
+
+Do not globally mark every guild unavailable after one committed publication
+failure when the affected guild is known. Quarantine that target across
+ordinary command/event dispatch and shared modern configuration workspaces,
+while preserving exact owner-only restart and verified cross-guild
+reconciliation as recovery paths. Escalate to global maintenance only if the
+target latch itself cannot be installed. Startup may clear all latches only
+after rebuilding and validating the complete authoritative graph.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -17048,7 +17166,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.9, including P10.6c, are implemented in
+Design status: **P10.1 through P10.10, including P10.6c, are implemented in
 development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
@@ -17070,7 +17188,8 @@ least-authority prefix template; P10.6c adds coordinated command-capability
 activation and exact one-guild reconciliation; P10.8 adds reversible
 suspension/resumption with fail-closed runtime publication and exact one-guild
 command removal/restoration; P10.9 adds separately stored, owner-controlled
-same-guild ordinary-setting delegation. Later units own retirement, production
+same-guild ordinary-setting delegation; P10.10 serializes all active-authority
+families through publication and quarantines committed uncertainty. Later units own retirement, production
 canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
@@ -17212,6 +17331,33 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P10.10/N3 global guild mutation coordination validated
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`, created isolated
+  `codex/p10-10-guild-mutation-coordinator`, and ran the required development
+  setup with database authority and tasks/API/Bullet disabled.
+- Added one fail-fast, repeated-cancellation-safe process claim spanning every
+  active-authority family through runtime and target command-tree convergence.
+  Added target-guild quarantine across slash, prefix, event/listener, message,
+  and shared modern component dispatch, with exact owner restart and verified
+  reconciliation recovery. Inactive draft editing remains independent.
+- Complete-diff review found two omitted committed Discord-uncertainty paths
+  after the first green run. Capability activation and lifecycle command-tree
+  uncertainty now quarantine the target too; focused regressions prevent both
+  omissions and prevent the recovery exception from authorizing unknown
+  guilds. No actionable Tier-3 finding remains.
+- Implementation checkpoint `f33b14b`. Focused validation passes 195 tests;
+  complete offline discovery passes all 2,038 with 89 intentional database
+  gates skipped; compilation and diff checks pass.
+- Verified the prior beta at `7fc73cf` as the sole development writer with all
+  five packs ready, stopped only that user service, and required a clear host-
+  wide writer audit. The complete P10-aware PostgreSQL gate then ran 89 tests:
+  88 passed and only the established owned-fixture round trip skipped. No
+  retained database mutation occurred. Next: commit this evidence, integrate
+  and push N3, then start and verify the guarded beta from the exact clean
+  accumulation checkpoint without command apply or tester announcement.
 
 ### 2026-08-12 — P11.4A live-engine infrastructure proof completed
 
