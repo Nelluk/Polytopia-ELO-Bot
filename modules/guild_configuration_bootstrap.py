@@ -29,9 +29,9 @@ from modules.guild_configuration_schema import (
 
 
 BOOTSTRAP_SCHEMA_VERSION = 1
-BOOTSTRAP_ACTOR = 'container:p11.5b-first-guild-bootstrap'
-BOOTSTRAP_EVENT_TYPE = 'first_guild_bootstrap'
-BOOTSTRAP_TEMPLATE = 'operator-only'
+BOOTSTRAP_ACTOR = storage.FIRST_GUILD_BOOTSTRAP_ACTOR
+BOOTSTRAP_EVENT_TYPE = storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE
+BOOTSTRAP_TEMPLATE = storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE
 BOOTSTRAP_ADVISORY_LOCK_KEY = 0x50313135
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 

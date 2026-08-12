@@ -20,6 +20,18 @@ logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
 
 
+BOOTSTRAP_PENDING_INTERACTION_PATHS = frozenset({
+    ('guild', 'edit'),
+    ('operator', 'guild', 'list'),
+    ('operator', 'guild', 'settings'),
+    ('operator', 'guild', 'validate'),
+    ('operator', 'guild', 'history'),
+    ('operator', 'guild', 'edit'),
+    ('operator', 'guild', 'commands'),
+    ('operator', 'bot', 'restart'),
+})
+
+
 def prefix_error_reference() -> str:
     """Return a short, non-secret reference for one unexpected failure."""
 
@@ -164,6 +176,22 @@ def _is_owner_restart_recovery(interaction: discord.Interaction) -> bool:
     )
 
 
+def _is_bootstrap_pending_owner_path(interaction: discord.Interaction) -> bool:
+    """Allow only configured-owner first-configuration/recovery commands."""
+
+    try:
+        guild_id = int(interaction.guild_id)
+        requester_id = int(interaction.user.id)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return (
+        requester_id == int(settings.owner_id)
+        and settings.database_guild_configuration_bootstrap_pending(guild_id)
+        and _interaction_command_path(interaction)
+        in BOOTSTRAP_PENDING_INTERACTION_PATHS
+    )
+
+
 class PolyBotCommandTree(discord.app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         async def deny(message: str) -> bool:
@@ -186,6 +214,17 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                 'Try the command again in a moment.'
             )
         guild_id = getattr(interaction, 'guild_id', None)
+        if (
+                guild_id is not None
+                and settings.database_guild_configuration_bootstrap_pending(guild_id)
+        ):
+            if not _is_bootstrap_pending_owner_path(interaction):
+                return await deny(
+                    'This server is awaiting first configuration. Only the '
+                    'configured owner may use the approved configuration or '
+                    'recovery paths.'
+                )
+            return True
         quarantined = (
             guild_id is not None
             and settings.database_guild_configuration_quarantined(guild_id)
@@ -295,7 +334,7 @@ class MyBot(commands.Bot):
                 not settings.guild_configuration_allows_dispatch(guild_id)
             ):
                 logger.debug(
-                    'Dropping quarantined guild event %s for guild %s.',
+                    'Dropping unpublished or quarantined guild event %s for guild %s.',
                     event_name,
                     guild_id,
                 )
@@ -594,6 +633,15 @@ class MyBot(commands.Bot):
         async with self._beta_persona_reconciliation_lock:
             personas = importlib.import_module('modules.beta_lab_personas')
             policy = personas.manifest()
+            if settings.database_guild_configuration_bootstrap_pending(
+                    policy.guild_id
+            ):
+                logger.warning(
+                    'Suppressing Beta Lab startup mutation for bootstrap-pending '
+                    'guild %s.',
+                    policy.guild_id,
+                )
+                return 0
             guild = self.get_guild(policy.guild_id)
             if guild is None:
                 raise RuntimeError(
@@ -784,6 +832,13 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
+        if (
+                ctx.guild is not None
+                and not settings.guild_configuration_allows_dispatch(ctx.guild.id)
+        ):
+            raise commands.CheckFailure(
+                'Guild configuration is not published for command dispatch.'
+            )
         utilities = importlib.import_module('modules.utilities')
 
         utilities.connect()
@@ -855,6 +910,20 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             )
             await bot.close()
             raise
+
+        pending_guild_ids = tuple(
+            getattr(
+                bot.guild_configuration_shadow_result,
+                'bootstrap_pending_guild_ids',
+                (),
+            )
+        )
+        if pending_guild_ids:
+            logger.warning(
+                'Bootstrap-pending guilds=%s remain inert for ordinary dispatch; '
+                'only the configured owner allowlist is available.',
+                pending_guild_ids,
+            )
 
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print('Successfully logged in and booted...!')

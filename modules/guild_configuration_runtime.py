@@ -44,6 +44,10 @@ class RuntimeGuildConfiguration:
     legacy_settings: Mapping[str, Any]
     role_ids: Mapping[str, tuple[int, ...]]
     role_names: Mapping[str, tuple[str, ...]]
+    bootstrap_pending: bool = False
+    parent_revision: int | None = None
+    source_kind: str | None = None
+    actor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,16 @@ class GuildConfigurationRuntimeSnapshot:
     guilds: Mapping[int, RuntimeGuildConfiguration]
     legacy_config: Mapping[int, Mapping[str, Any]]
     command_policy: CapabilityPolicy
+
+    @property
+    def bootstrap_pending_guild_ids(self) -> tuple[int, ...]:
+        """Return the pending latch carried by the published snapshot."""
+
+        return tuple(
+            guild_id
+            for guild_id, value in self.guilds.items()
+            if value.bootstrap_pending
+        )
 
 
 def _role_identity_by_guild(
@@ -246,6 +260,7 @@ def build_runtime_snapshot_from_stored(
                 or stored.generation <= 0
                 or stored.document is None
                 or stored.document_digest is None
+                or not isinstance(stored.bootstrap_pending, bool)
         ):
             raise GuildConfigurationRuntimeError('stored_active_graph_invalid')
         try:
@@ -271,6 +286,10 @@ def build_runtime_snapshot_from_stored(
             legacy_settings=legacy,
             role_ids=role_ids,
             role_names=role_names,
+            bootstrap_pending=stored.bootstrap_pending,
+            parent_revision=stored.parent_revision,
+            source_kind=stored.source_kind,
+            actor=stored.actor,
         )
         runtime_values[guild_id] = runtime
         legacy_values[guild_id] = legacy

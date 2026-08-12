@@ -37,6 +37,12 @@ DEVELOPMENT_STAFF_HELP_CHANNEL_ID = 480078679930830849
 IMPORT_ACTOR = 'p10.3-development-static-import'
 IMPORT_SOURCE_KIND = 'legacy_static_import'
 IMPORT_EVENT_TYPE = 'initial_import'
+# P11.5C reads this existing immutable audit evidence; it deliberately does
+# not add a schema column or infer trust from the document's permissions.
+FIRST_GUILD_BOOTSTRAP_EVENT_TYPE = 'first_guild_bootstrap'
+FIRST_GUILD_BOOTSTRAP_ACTOR = 'container:p11.5b-first-guild-bootstrap'
+FIRST_GUILD_BOOTSTRAP_TEMPLATE = 'operator-only'
+FIRST_GUILD_BOOTSTRAP_MAX_RELEVANT_AUDITS = 4
 ADVISORY_LOCK_KEY = 0x50313033
 MAX_SNAPSHOT_ROLES = 250
 MAX_SNAPSHOT_CHANNELS = 500

@@ -194,6 +194,10 @@ class CacheAndCallerTests(unittest.IsolatedAsyncioTestCase):
             'server_ids',
             {'polychampions': 300, 'test': 301},
         ), mock.patch.object(
+            league.settings,
+            'guild_configuration_ready',
+            return_value=True,
+        ), mock.patch.object(
             league.league_free_agents_workers,
             'run_load_draft_state',
             side_effect=draft,

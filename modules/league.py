@@ -332,10 +332,20 @@ class league(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        utilities.connect()
         guild_id = settings.server_ids['polychampions']
         if self.bot.user.id == 479029527553638401:
             guild_id = settings.server_ids['test']
+        if (
+                not settings.guild_configuration_ready()
+                or settings.database_guild_configuration_bootstrap_pending(guild_id)
+        ):
+            logger.warning(
+                'Suppressing League startup mutation until guild %s has a '
+                'published, non-pending configuration.',
+                guild_id,
+            )
+            return
+        utilities.connect()
         draft_state = await league_free_agents_workers.run_load_draft_state(guild_id)
         self.announcement_message = draft_state.announcement_message_id
 

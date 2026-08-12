@@ -287,11 +287,15 @@ def guild_configuration_allows_dispatch(guild_id: int) -> bool:
         normalized = int(guild_id)
     except (TypeError, ValueError):
         return False
-    return (
-        guild_configuration_ready()
-        and normalized in config
-        and not database_guild_configuration_quarantined(normalized)
-    )
+    if not (
+            guild_configuration_ready()
+            and normalized in config
+            and not database_guild_configuration_quarantined(normalized)
+    ):
+        return False
+    if guild_configuration_source == 'database':
+        return not database_guild_configuration_bootstrap_pending(normalized)
+    return True
 
 
 def database_guild_configuration(guild_id: int):
@@ -307,6 +311,23 @@ def database_guild_configuration(guild_id: int):
     except (TypeError, ValueError):
         return None
     return _database_guild_configuration.guilds.get(normalized)
+
+
+def database_guild_configuration_bootstrap_pending(guild_id: int) -> bool:
+    """Return the immutable startup latch, failing closed if it is malformed."""
+
+    record = database_guild_configuration(guild_id)
+    if record is None:
+        return False
+    value = getattr(record, 'bootstrap_pending', None)
+    if not isinstance(value, bool):
+        logger.critical(
+            'Published guild configuration %s has malformed bootstrap-pending '
+            'state; dispatch remains disabled.',
+            guild_id,
+        )
+        return True
+    return value
 
 
 def database_guild_ids() -> tuple[int, ...]:
@@ -334,6 +355,11 @@ def activate_database_guild_configuration(snapshot) -> None:
             guild_configuration_runtime.GuildConfigurationRuntimeSnapshot,
     ):
         raise TypeError('A validated database runtime snapshot is required.')
+    if any(
+            not isinstance(getattr(value, 'bootstrap_pending', None), bool)
+            for value in snapshot.guilds.values()
+    ):
+        raise RuntimeError('Bootstrap-pending publication evidence is malformed.')
     if _database_guild_configuration is not None:
         if _database_guild_configuration != snapshot:
             raise RuntimeError(
@@ -431,6 +457,32 @@ def reconcile_database_guild_configuration(
                 'Runtime configuration changed before reconciliation.'
             )
         candidate = snapshot.guilds[guild_id]
+        if not isinstance(value.bootstrap_pending, bool) or not isinstance(
+                candidate.bootstrap_pending,
+                bool,
+        ):
+            raise RuntimeError('Bootstrap-pending publication evidence is malformed.')
+        if candidate.bootstrap_pending and not value.bootstrap_pending:
+            raise RuntimeError(
+                'Runtime reconciliation cannot introduce bootstrap-pending state.'
+            )
+        if value.bootstrap_pending:
+            if candidate.bootstrap_pending:
+                raise RuntimeError(
+                    'Bootstrap-pending state requires changed-document activation.'
+                )
+            if candidate.document_digest == value.document_digest:
+                raise RuntimeError(
+                    'Bootstrap-pending state cannot clear without a changed document.'
+                )
+            if (
+                    candidate.source_kind != 'owner_activation'
+                    or candidate.parent_revision != value.revision
+            ):
+                raise RuntimeError(
+                    'Bootstrap-pending state requires a confirmed changed-document '
+                    'activation.'
+                )
         candidate_evidence = (
             candidate.revision,
             candidate.generation,
@@ -502,6 +554,15 @@ def reconcile_database_guild_enrollment(
             raise RuntimeError(
                 'An existing guild changed during enrollment reconciliation.'
             )
+        if (
+                not isinstance(value.bootstrap_pending, bool)
+                or not isinstance(candidate.bootstrap_pending, bool)
+                or candidate.bootstrap_pending != value.bootstrap_pending
+        ):
+            raise RuntimeError(
+                'An existing guild changed bootstrap-pending state during '
+                'enrollment reconciliation.'
+            )
     enrolled = snapshot.guilds[enrolled_guild_id]
     if (
         enrolled.revision,
@@ -513,6 +574,8 @@ def reconcile_database_guild_enrollment(
         )
     if enrolled.revision != 1 or enrolled.generation != 1:
         raise RuntimeError('A new enrollment must begin at revision/generation 1.')
+    if not isinstance(enrolled.bootstrap_pending, bool) or enrolled.bootstrap_pending:
+        raise RuntimeError('Enrollment cannot publish bootstrap-pending runtime state.')
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy
@@ -580,6 +643,15 @@ def reconcile_database_guild_lifecycle(
             continue
         candidate = snapshot.guilds[guild_id]
         if (
+                not isinstance(value.bootstrap_pending, bool)
+                or not isinstance(candidate.bootstrap_pending, bool)
+                or candidate.bootstrap_pending != value.bootstrap_pending
+        ):
+            raise RuntimeError(
+                'An existing guild changed bootstrap-pending state during '
+                'lifecycle reconciliation.'
+            )
+        if (
             candidate.revision,
             candidate.generation,
             candidate.document_digest,
@@ -603,6 +675,8 @@ def reconcile_database_guild_lifecycle(
             raise RuntimeError(
                 'Reloaded resume evidence differs from the committed transition.'
             )
+        if not isinstance(resumed.bootstrap_pending, bool) or resumed.bootstrap_pending:
+            raise RuntimeError('A resumed guild cannot publish bootstrap-pending state.')
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy

@@ -78,6 +78,10 @@ class StoredGuildConfiguration:
     document: GuildConfigurationDocument | None
     document_digest: str | None
     source_digest: str | None
+    parent_revision: int | None = None
+    source_kind: str | None = None
+    actor: str | None = None
+    bootstrap_pending: bool = False
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,16 @@ class GuildConfigurationShadowResult:
     @property
     def promotion_ready(self) -> bool:
         return self.status == STATUS_MATCHED
+
+    @property
+    def bootstrap_pending_guild_ids(self) -> tuple[int, ...]:
+        """Return pending state carried by the validated stored graph."""
+
+        return tuple(
+            value.guild_id
+            for value in self.stored_configurations
+            if value.bootstrap_pending
+        )
 
 
 _executor = ThreadPoolExecutor(
@@ -520,7 +534,33 @@ def _load_rows(cursor: Any) -> tuple[tuple[Any, ...], ...]:
         'registry.enrollment_state, registry.active_revision, '
         'registry.generation, revision.revision_number, '
         'revision.schema_version, revision.document, '
-        'revision.document_digest, revision.source_digest '
+        'revision.document_digest, revision.source_digest, '
+        'revision.parent_revision, revision.source_kind, revision.actor, '
+        'jsonb_build_object( '
+        f"'total_count', (SELECT COUNT(*) FROM \"{storage.AUDIT_TABLE}\" "
+        'WHERE guild_id = registry.guild_id), '
+        "'max_event_number', COALESCE((SELECT MAX(event_number) "
+        f'FROM "{storage.AUDIT_TABLE}" WHERE guild_id = registry.guild_id), 0), '
+        "'relevant_count', (SELECT COUNT(*) FROM "
+        f'"{storage.AUDIT_TABLE}" WHERE guild_id = registry.guild_id '
+        "AND (event_number = 1 OR event_type = '"
+        f"{storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE}"
+        "')), "
+        "'relevant', COALESCE((SELECT jsonb_agg( "
+        'jsonb_build_array(relevant.event_number, relevant.event_type, '
+        'relevant.revision_number, relevant.generation, '
+        'relevant.document_digest, relevant.actor, relevant.details) '
+        'ORDER BY relevant.event_number) '
+        'FROM (SELECT event_number, event_type, revision_number, generation, '
+        'document_digest, actor, details '
+        f'FROM "{storage.AUDIT_TABLE}" '
+        'WHERE guild_id = registry.guild_id '
+        "AND (event_number = 1 OR event_type = '"
+        f"{storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE}"
+        "') ORDER BY event_number "
+        f'LIMIT {storage.FIRST_GUILD_BOOTSTRAP_MAX_RELEVANT_AUDITS}) AS relevant), '
+        "'[]'::jsonb)"
+        ') AS bootstrap_audit_evidence '
         f'FROM "{storage.REGISTRY_TABLE}" AS registry '
         f'LEFT JOIN "{storage.REVISION_TABLE}" AS revision '
         'ON revision.guild_id = registry.guild_id '
@@ -534,17 +574,228 @@ def _load_rows(cursor: Any) -> tuple[tuple[Any, ...], ...]:
     return rows
 
 
+def _audit_event(raw: Any) -> tuple[int, str, int | None, int, str | None, str, Mapping[str, Any]]:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 7:
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_event_shape_invalid')
+    (
+        event_number, event_type, revision_number, generation,
+        document_digest_value, actor, details,
+    ) = raw
+    if (
+        isinstance(event_number, bool)
+        or not isinstance(event_number, int)
+        or event_number <= 0
+        or not isinstance(event_type, str)
+        or not event_type
+        or (
+            revision_number is not None
+            and (
+                isinstance(revision_number, bool)
+                or not isinstance(revision_number, int)
+                or revision_number <= 0
+            )
+        )
+        or isinstance(generation, bool)
+        or not isinstance(generation, int)
+        or generation < 0
+        or (
+            document_digest_value is not None
+            and (
+                not isinstance(document_digest_value, str)
+                or not _HEX_DIGEST.fullmatch(document_digest_value)
+            )
+        )
+        or not isinstance(actor, str)
+        or not actor
+        or not isinstance(details, Mapping)
+    ):
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_event_invalid')
+    return (
+        event_number, event_type, revision_number, generation,
+        document_digest_value, actor, details,
+    )
+
+
+def _bootstrap_audit_summary(
+    value: Any,
+) -> tuple[int, int, tuple[tuple[int, str, int | None, int, str | None, str, Mapping[str, Any]], ...]]:
+    """Validate the bounded audit evidence returned by the storage query."""
+
+    if not isinstance(value, Mapping) or set(value) != {
+        'total_count', 'max_event_number', 'relevant_count', 'relevant',
+    }:
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_summary_invalid')
+    total_count = value['total_count']
+    max_event_number = value['max_event_number']
+    relevant_count = value['relevant_count']
+    if any(
+        isinstance(item, bool) or not isinstance(item, int) or item < 0
+        for item in (total_count, max_event_number, relevant_count)
+    ):
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_summary_invalid')
+    raw_relevant = value['relevant']
+    if not isinstance(raw_relevant, list):
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_summary_invalid')
+    if (
+        relevant_count != len(raw_relevant)
+        or relevant_count > storage.FIRST_GUILD_BOOTSTRAP_MAX_RELEVANT_AUDITS
+        or (total_count == 0 and (max_event_number != 0 or relevant_count != 0))
+        or (total_count > 0 and max_event_number <= 0)
+        or relevant_count > total_count
+    ):
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_summary_invalid')
+    events = tuple(_audit_event(item) for item in raw_relevant)
+    if total_count > 0 and not any(item[0] == 1 for item in events):
+        raise GuildConfigurationShadowMalformed('bootstrap_audit_first_event_missing')
+    return total_count, max_event_number, events
+
+
+def _validate_bootstrap_event(
+    event: tuple[int, str, int | None, int, str | None, str, Mapping[str, Any]],
+) -> None:
+    """Validate the immutable shape of a first-bootstrap audit event."""
+
+    if (
+        event[0] != 1
+        or event[2] != 1
+        or event[3] != 1
+        or event[4] is None
+        or event[5] != storage.FIRST_GUILD_BOOTSTRAP_ACTOR
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_current_revision_mismatch'
+        )
+    details = event[6]
+    if (
+        set(details) != {
+            'template',
+            'guild_name',
+            'source_digest',
+            'application_commands_synchronized',
+        }
+        or details.get('template') != storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE
+        or not isinstance(details.get('guild_name'), str)
+        or not details.get('guild_name')
+        or not isinstance(details.get('source_digest'), str)
+        or not _HEX_DIGEST.fullmatch(details['source_digest'])
+        or details.get('application_commands_synchronized') is not False
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_details_mismatch'
+        )
+
+
+def _derive_bootstrap_pending(
+    *,
+    guild_id: int,
+    state: str,
+    active_revision: int | None,
+    generation: int,
+    document: GuildConfigurationDocument | None,
+    stored_digest: str | None,
+    source_digest: str | None,
+    parent_revision: int | None,
+    source_kind: str | None,
+    actor: str | None,
+    audit_evidence: Any,
+) -> bool:
+    """Derive pending only from the exact persisted first-bootstrap graph."""
+
+    total_count, max_event_number, events = _bootstrap_audit_summary(
+        audit_evidence
+    )
+    if (
+        state == 'active'
+        and active_revision == 1
+        and generation == 1
+        and total_count != 1
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_current_revision_evidence_invalid'
+        )
+    bootstrap_events = tuple(
+        event for event in events
+        if event[1] == storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE
+    )
+    if not bootstrap_events:
+        if (
+            state == 'active'
+            and active_revision == 1
+            and generation == 1
+            and source_kind == 'owner_activation'
+            and actor == storage.FIRST_GUILD_BOOTSTRAP_ACTOR
+        ):
+            raise GuildConfigurationShadowMalformed(
+                'bootstrap_audit_evidence_missing'
+            )
+        return False
+    if len(bootstrap_events) != 1:
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_evidence_conflicting'
+        )
+    event = bootstrap_events[0]
+    if event[0] != 1:
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_event_number_invalid'
+        )
+    _validate_bootstrap_event(event)
+    # A later revision, suspension, or resume retains the historical event but
+    # is no longer the current first-bootstrap graph.
+    if not (
+        state == 'active'
+        and active_revision == 1
+        and generation == 1
+    ):
+        return False
+    if (
+        document is None
+        or stored_digest is None
+        or source_digest is None
+        or parent_revision is not None
+        or source_kind != 'owner_activation'
+        or actor != storage.FIRST_GUILD_BOOTSTRAP_ACTOR
+        or max_event_number != 1
+        or total_count != 1
+        or event[2] != active_revision
+        or event[3] != generation
+        or event[4] != stored_digest
+        or event[5] != storage.FIRST_GUILD_BOOTSTRAP_ACTOR
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_current_revision_mismatch'
+        )
+    expected_details = {
+        'template': storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE,
+        'guild_name': document.identity.display_name,
+        'source_digest': source_digest,
+        'application_commands_synchronized': False,
+    }
+    if event[6] != expected_details:
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_details_mismatch'
+        )
+    if event[4] != document_digest(document) or document.guild_id != guild_id:
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_document_mismatch'
+        )
+    return True
+
+
 def _stored_values(rows: Sequence[Sequence[Any]]) -> tuple[StoredGuildConfiguration, ...]:
     values = []
     seen: set[int] = set()
     for raw in rows:
-        if len(raw) != 10:
+        if len(raw) not in {10, 14}:
             raise GuildConfigurationShadowMalformed('stored_row_shape_invalid')
         (
             guild_id, storage_version, state, active_revision, generation,
             revision_number, schema_version, document_value, stored_digest,
             source_digest,
-        ) = raw
+        ) = raw[:10]
+        if len(raw) == 14:
+            parent_revision, source_kind, actor, audit_evidence = raw[10:]
+        else:
+            parent_revision = source_kind = actor = audit_evidence = None
         if (
             isinstance(guild_id, bool)
             or not isinstance(guild_id, int)
@@ -590,10 +841,45 @@ def _stored_values(rows: Sequence[Sequence[Any]]) -> tuple[StoredGuildConfigurat
                 raise GuildConfigurationShadowMalformed(
                     'stored_document_metadata_invalid'
                 )
+            if len(raw) == 14:
+                if (
+                    parent_revision is not None
+                    and (
+                        isinstance(parent_revision, bool)
+                        or not isinstance(parent_revision, int)
+                        or parent_revision <= 0
+                    )
+                ):
+                    raise GuildConfigurationShadowMalformed(
+                        'stored_revision_parent_invalid'
+                    )
+                if not isinstance(source_kind, str) or not source_kind:
+                    raise GuildConfigurationShadowMalformed(
+                        'stored_revision_source_invalid'
+                    )
+                if not isinstance(actor, str) or not actor:
+                    raise GuildConfigurationShadowMalformed(
+                        'stored_revision_actor_invalid'
+                    )
         if state == 'active' and (active_revision is None or document is None):
             raise GuildConfigurationShadowMalformed('active_document_missing')
         if state == 'active' and generation <= 0:
             raise GuildConfigurationShadowMalformed('active_generation_invalid')
+        bootstrap_pending = False
+        if len(raw) == 14:
+            bootstrap_pending = _derive_bootstrap_pending(
+                guild_id=guild_id,
+                state=state,
+                active_revision=active_revision,
+                generation=generation,
+                document=document,
+                stored_digest=stored_digest,
+                source_digest=source_digest,
+                parent_revision=parent_revision,
+                source_kind=source_kind,
+                actor=actor,
+                audit_evidence=audit_evidence,
+            )
         values.append(StoredGuildConfiguration(
             guild_id=guild_id,
             storage_schema_version=storage_version,
@@ -603,6 +889,10 @@ def _stored_values(rows: Sequence[Sequence[Any]]) -> tuple[StoredGuildConfigurat
             document=document,
             document_digest=stored_digest,
             source_digest=source_digest,
+            parent_revision=parent_revision,
+            source_kind=source_kind,
+            actor=actor,
+            bootstrap_pending=bootstrap_pending,
         ))
     return tuple(values)
 
