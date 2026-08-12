@@ -433,15 +433,18 @@ check:
 - P9.28 Beta Lab readiness repair source checkpoints: `f88e71f`, `c5886b3`,
   and `da7b204`; exact arm64 image:
   `sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`
+- P9.28R container safety-evidence repair checkpoints: `3e891d7`, `a51ecb7`,
+  and `c2dfc72`; validated exact arm64 image:
+  `sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`
 - current combined offline result: complete exact-image discovery succeeded
-  across 2,116 tests with 98 intentional skips
+  across 2,128 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
 - deployment disposition: RackNerd remains stopped and the sole Mac container
-  beta runs exact local source `162f1bf` in the reviewed arm64 image above.
+  beta runs the P9.28R Compose launcher and guarded writer lifecycle.
   P11.6 card parity received Nelluk's bounded visual acceptance; P11.7 is
-  test-only. P9.28 reports all five protected Beta Lab packs ready. The 12
+  test-only. P9.28R reports all five protected Beta Lab packs ready. The 12
   development-guild roots are unchanged and the global tree is empty, so no
   command synchronization or tester announcement occurred.
   P11.5B is needed only for a genuinely fresh database and does not alter the
@@ -530,21 +533,22 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28 bounded Beta Lab readiness repair is complete
-locally from exact clean pushed checkpoint `9c3f6a0`.** Source checkpoints are
-`f88e71f`, `c5886b3`, and `da7b204`. The tester role is privately pinned; the
-unique safe persona role pair and exact pristine unused persona House/Team
-pair were reconciled without Discord-role or database-row mutation. Compatible
-wider-structure rows remain explicitly non-cleanup-owned while valid published
-evidence makes their readiness visible. Exact arm64 image
-`sha256:b97f37ced4e854ea84d5cb1ddab5f626e588f85560713f0f65471585e303a65c`
-authenticated as the expected application with restart count zero and writer
-census 1/0/0. All five protected packs are ready; complete isolated discovery
-passes 2,116 tests with 98 intentional skips; zero global and all 12 guild
-roots remain unchanged. No command synchronization, tester announcement,
-production, RackNerd, or external-database action occurred. RC2 remains
-historical; the next recommended unit is P9.29 human command, retained-prefix,
-and public/private visibility acceptance against this ready Beta Lab.
+Current active unit: **P9.28R container Beta Lab lock/evidence repair is
+complete locally.** Checkpoints `3e891d7`, `a51ecb7`, and `c2dfc72` replace
+P9.28's release-basis evidence. Compose now starts the bot only through the
+guarded launcher, which proves the configured image/source checkpoint and
+holds the shared durable-writer lock for the process lifetime. Database repair
+evidence is schema v2: it binds the complete canonical House/Team baseline and
+all usage predicates to a digest and rechecks them through publication. Exact
+arm64 image
+`sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`
+passed 2,128 tests with 98 intentional skips. Live running-writer refusal and
+the complementary stopped-writer reconcile with byte-for-byte-equivalent
+pre/post database rows passed. All five protected packs are ready. No command
+synchronization, tester announcement, production, RackNerd, or external-
+database action occurred. RC2 remains historical; after a focused adversarial
+re-review of N8/N9, the next implementation/test unit is P9.29 human command,
+retained-prefix, and public/private visibility acceptance.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16536,6 +16540,78 @@ Next action: P9.29 bounded human acceptance for the remaining release-candidate
 command, retained-prefix parity, and public/private visibility checks. Tester
 instructions or a tester ping remain separately approved terminal actions.
 
+### P9.28R — Container Beta Lab lock/evidence repair
+
+Status: **Complete locally: exact-image tests, live writer exclusion, stopped-
+writer reconciliation, stale-checkpoint refusals, and readiness pass.** This
+unit supersedes P9.28's release-basis evidence; it does not invalidate the
+bounded role/database reconciliation outcome.
+
+Branch/base: implementation began on
+`codex/p9-28r-container-beta-evidence-repair` from exact clean pushed
+checkpoint `9e4b46d`; accumulation checkpoints are `3e891d7`, `a51ecb7`, and
+`c2dfc72`.
+
+Risk tier: **Tier 3 durable-writer lifecycle, container publication, and
+development-database repair-evidence boundary.** No command synchronization,
+tester announcement, production, RackNerd, or external database scope.
+
+N8 is closed by one canonical `polybot beta-lab` wrapper surface. It requires
+the configured source/image checkpoint and, for running-container operations,
+the exact running-bot checkpoint. Compose and the image default both invoke
+`scripts/run_development_beta.py`; that launcher validates the image checkpoint,
+uses the image interpreter, acquires the shared-volume `BetaWriterLock`, and
+holds it across the bot process lifetime. Database operations run as one-shot
+bot-service jobs against the same lock volume, so a running durable bot refuses
+them cleanly. Direct CLI use requires an exact reviewed operator-context pair.
+The container contract is version 7 and the deployment doctor requires the
+guarded launcher.
+
+N9 is closed by persona evidence schema v2. The record captures every canonical
+House and Team field plus exact usage counts/identities and a SHA-256 digest.
+Status, idempotent seed, adoption, pending recovery, and final publication all
+rerun the complete predicate. Conflicting state/pending records fail closed.
+Legacy v1 evidence can upgrade only during an explicit stopped-writer reconcile,
+and publication replacement is restricted to the exact captured legacy state.
+Mutation coverage changes each baseline dimension, forges the digest, inserts
+a between-proof write, exercises legacy upgrade, and checks evidence conflicts.
+
+The first live legacy-evidence reconcile completed while the old Compose bot
+was running and thereby exposed that the old container command did not hold the
+shared lock. It changed private evidence only; read-only comparison confirmed
+the canonical House/Team rows and usage relations were unchanged. The launcher
+correction followed before release evidence was accepted. With the corrected
+bot running, the database reconcile exits 2 with the expected active-writer
+refusal. With only the bot stopped, writer census was 0/0/0, PostgreSQL stayed
+healthy, reconcile succeeded, and exact pre/post canonical database JSON was
+identical. Restart restored one project writer and no host/other-container
+writer.
+
+Both stale gates were exercised: source/config mismatch refused before launch,
+and a new image/config paired with the old running bot refused the control
+operation. Both Compose modes render. Exact source `c2dfc72` built arm64,
+non-root image
+`sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`.
+It authenticated as application `479029527553638401`, restart count zero,
+against `development` / `polytopia_dev` / `polybot_dev`; all five protected
+packs and the pinned tester/persona resources report ready. Complete exact-
+image discovery passes all 2,128 tests with 98 intentional skips. Read-only
+Discord inspection finds zero global commands and all 12 expected guild roots
+unchanged.
+
+Repeated local image builds exhausted Docker Desktop storage and PostgreSQL
+temporarily entered recovery with `No space left on device`. The deployment
+gate refused startup because it could not read the trusted guild. Only
+unreferenced old PolyBot image tags and unused builder cache were removed; no
+volume, current image, container, backup, or database was deleted. PostgreSQL
+recovered automatically, accepted connections, retained the active guild row,
+and completed a checkpoint before testing resumed.
+
+Next action: focused adversarial re-review of N8/N9 against the P9.28R
+checkpoint. If green, proceed to P9.29 bounded human command, retained-prefix,
+and public/private visibility acceptance. Tester instructions or a tester ping
+remain separately approved terminal actions.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -17987,6 +18063,30 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.28R container lock/evidence boundary repaired
+
+- Replaced the unguarded Compose bot command with the checked development-beta
+  launcher and held the shared durable-writer lock for the bot lifetime. The
+  canonical wrapper now rejects stale source/image and running-bot checkpoints;
+  a running bot cleanly refuses one-shot database repair.
+- Replaced partial persona evidence with schema v2 full-row/usage evidence and
+  a canonical digest. All proof, recovery, adoption, and publication paths
+  recheck the complete predicate; legacy v1 upgrade is stopped-writer-only.
+- Live running-writer refusal and stopped-writer success both passed. Exact
+  pre/post House/Team/usage JSON was unchanged, all five packs returned ready,
+  and the restored bot had writer census 1/0/0 and restart count zero. Read-only
+  command inspection found zero globals and all 12 guild roots unchanged.
+- Exact source `c2dfc72` built arm64/non-root image
+  `sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`;
+  complete discovery passed 2,128 tests with 98 intentional skips.
+- Docker storage exhaustion briefly put PostgreSQL into recovery. Startup
+  failed closed. Removing only unreferenced old images and unused builder cache
+  restored space; the untouched database volume recovered and retained its
+  active guild state.
+- No command sync, tester announcement, production, RackNerd, or external-
+  database action occurred. Next recommended unit: adversarial N8/N9 re-review,
+  then P9.29 bounded human acceptance if green.
 
 ### 2026-08-12 — P9.28 Beta Lab readiness repaired
 
