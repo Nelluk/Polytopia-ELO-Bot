@@ -883,7 +883,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             administration.settings,
             'reconcile_database_guild_configuration',
             side_effect=RuntimeError('stale runtime'),
-        ):
+        ), mock.patch.object(
+            administration.settings,
+            'quarantine_database_guild_configuration',
+        ) as quarantine:
             with self.assertRaisesRegex(
                 workers.OperatorGuildConfigurationActivationCommitted,
                 'committed.*restart',
@@ -891,6 +894,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 await self.cog._operator_guild_draft_operation(
                     interaction, workers.ACTIVATE,
                 )
+        quarantine.assert_called_once_with(GUILD_ID)
 
 
 if __name__ == '__main__':

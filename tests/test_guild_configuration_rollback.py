@@ -667,7 +667,10 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
                     administration.settings,
                     'reconcile_database_guild_configuration',
                     side_effect=RuntimeError('stale'),
-                ):
+                ), mock.patch.object(
+                    administration.settings,
+                    'quarantine_database_guild_configuration',
+                ) as quarantine:
             with self.assertRaisesRegex(
                 workers.OperatorGuildConfigurationRollbackCommitted,
                 'committed.*restart',
@@ -682,6 +685,7 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
                     expected_active_digest=current.document_digest,
                     confirmation_text=f'ROLLBACK 1 {committed.document_digest}',
                 )
+        quarantine.assert_called_once_with(GUILD_ID)
 
 
 if __name__ == '__main__':

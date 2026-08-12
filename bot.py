@@ -126,6 +126,44 @@ def main(args: List[str] = None):
         exit(0)
 
 
+def _interaction_command_path(interaction: discord.Interaction) -> tuple[str, ...]:
+    """Return only the root/group/subcommand path from Discord interaction data."""
+
+    data = getattr(interaction, 'data', None)
+    if not isinstance(data, dict):
+        return ()
+    path = []
+    current = data
+    while isinstance(current, dict):
+        name = current.get('name')
+        if not isinstance(name, str):
+            break
+        path.append(name)
+        nested = current.get('options')
+        current = next(
+            (
+                option
+                for option in nested
+                if isinstance(option, dict) and option.get('type') in (1, 2)
+            ),
+            None,
+        ) if isinstance(nested, list) else None
+    return tuple(path)
+
+
+def _is_owner_restart_recovery(interaction: discord.Interaction) -> bool:
+    """Keep one exact owner recovery action available during quarantine."""
+
+    try:
+        requester_id = int(interaction.user.id)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return (
+        requester_id == int(settings.owner_id)
+        and _interaction_command_path(interaction) == ('operator', 'bot', 'restart')
+    )
+
+
 class PolyBotCommandTree(discord.app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         async def deny(message: str) -> bool:
@@ -148,12 +186,34 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                 'Try the command again in a moment.'
             )
         guild_id = getattr(interaction, 'guild_id', None)
-        if guild_id is not None and int(guild_id) not in settings.config:
+        quarantined = (
+            guild_id is not None
+            and settings.database_guild_configuration_quarantined(guild_id)
+        )
+        owner_restart_recovery = (
+            _is_owner_restart_recovery(interaction)
+            and guild_id is not None
+            and (int(guild_id) in settings.config or quarantined)
+        )
+        if (
+                quarantined
+                and not owner_restart_recovery
+        ):
+            return await deny(
+                'This server is temporarily quarantined because a committed '
+                'configuration change could not be published safely. No command '
+                'was run; the owner can use `/operator bot restart` to reconcile.'
+            )
+        if (
+                guild_id is not None
+                and int(guild_id) not in settings.config
+                and not owner_restart_recovery
+        ):
             return await deny(
                 'This server is not active in the bot configuration. It may '
                 'be quarantined or suspended; no command was run.'
             )
-        if guild_id is not None:
+        if guild_id is not None and not owner_restart_recovery:
             data = getattr(interaction, 'data', None) or {}
             root = data.get('name') if isinstance(data, dict) else None
             allowed_roots = settings.application_command_policy.roots_for_guild(
@@ -164,6 +224,8 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                     'This application command is not enabled for this server. '
                     'No command was run.'
                 )
+        if owner_restart_recovery:
+            return True
         if not settings.maintenance_mode:
             return True
         return await deny('The bot is restarting. Try the command again in a moment.')
@@ -230,8 +292,7 @@ class MyBot(commands.Bot):
         guild_id = self._dispatched_guild_id(args)
         if guild_id is not None and event_name not in lifecycle_events:
             if (
-                not settings.guild_configuration_ready()
-                or guild_id not in settings.config
+                not settings.guild_configuration_allows_dispatch(guild_id)
             ):
                 logger.debug(
                     'Dropping quarantined guild event %s for guild %s.',
@@ -661,7 +722,10 @@ def get_prefix(bot, message):
     # Guild-specific command prefixes
     if not getattr(settings, 'guild_configuration_ready', lambda: True)():
         return 'fakeprefix'
-    if message.guild and message.guild.id in settings.config:
+    if (
+            message.guild
+            and settings.guild_configuration_allows_dispatch(message.guild.id)
+    ):
         # Current guild is allowed
         set_prefix = settings.guild_setting(message.guild.id, "command_prefix")
         if not set_prefix:
@@ -734,6 +798,14 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         if not getattr(settings, 'guild_configuration_ready', lambda: True)():
             logger.debug(
                 'Ignoring messages while guild configuration is not ready.'
+            )
+        elif (
+                message.guild is not None
+                and not settings.guild_configuration_allows_dispatch(message.guild.id)
+        ):
+            logger.debug(
+                'Ignoring message while guild %s configuration is quarantined.',
+                message.guild.id,
             )
         elif settings.maintenance_mode:
             if message.content and message.content.startswith(tuple(get_prefix(bot, message))):

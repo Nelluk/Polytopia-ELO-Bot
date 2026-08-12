@@ -68,6 +68,7 @@ from modules import operator_guild_lifecycle_workers
 from modules import operator_guild_delegation as operator_guild_delegation_service
 from modules import operator_guild_delegation_views
 from modules import operator_guild_delegation_workers
+from modules import operator_guild_mutation_coordinator
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -170,6 +171,14 @@ def current_restart_activity() -> operator_restart_service.RestartActivitySnapsh
         descriptions.append(
             f'manual channel purge in {purge_count} guild(s)'
         )
+    active_guild_mutation = (
+        operator_guild_mutation_coordinator.guild_mutation_coordinator.active
+    )
+    if active_guild_mutation is not None:
+        descriptions.append(
+            f'guild-configuration mutation `{active_guild_mutation.operation}` '
+            f'for guild {active_guild_mutation.guild_id}'
+        )
     return operator_restart_service.RestartActivitySnapshot(tuple(descriptions))
 
 
@@ -237,6 +246,40 @@ class administration(commands.Cog):
         parent=operator_group,
         guild_only=True,
     )
+
+    async def _run_guild_mutation_claim(
+        self,
+        interaction: discord.Interaction,
+        *,
+        operation: str,
+        guild_id: int,
+        runner,
+        conflict_type,
+    ):
+        try:
+            return await (
+                operator_guild_mutation_coordinator.guild_mutation_coordinator.run(
+                    operation=operation,
+                    guild_id=int(guild_id),
+                    requester_id=int(interaction.user.id),
+                    runner=runner,
+                )
+            )
+        except operator_guild_mutation_coordinator.GuildMutationConflict as exc:
+            raise conflict_type(str(exc)) from exc
+
+    @staticmethod
+    def _quarantine_committed_guild(guild_id: int) -> None:
+        try:
+            settings.quarantine_database_guild_configuration(guild_id)
+        except Exception:
+            settings.maintenance_mode = True
+            logger.critical(
+                'Could not install the committed-publication quarantine for '
+                'guild %s; all ordinary commands are now blocked.',
+                guild_id,
+                exc_info=True,
+            )
 
     def __init__(self, bot):
         self.bot = bot
@@ -477,6 +520,38 @@ class administration(commands.Cog):
             raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityDrift(
                 'The command-capability confirmation did not match the preview.'
             )
+        try:
+            return await self._run_guild_mutation_claim(
+                interaction,
+                operation=(
+                    'command-capability activation'
+                    if plan.mode == operator_guild_command_capabilities.ACTIVATE
+                    else 'command-tree reconciliation'
+                ),
+                guild_id=plan.guild_id,
+                runner=lambda: self._operator_guild_command_commit_uncoordinated(
+                    interaction,
+                    plan,
+                    confirmation_text,
+                ),
+                conflict_type=(
+                    operator_guild_command_capabilities.OperatorGuildCommandCapabilityDrift
+                ),
+            )
+        except operator_guild_command_capabilities.OperatorGuildCommandCapabilityCommitted:
+            self._quarantine_committed_guild(plan.guild_id)
+            raise
+
+    async def _operator_guild_command_commit_uncoordinated(
+        self,
+        interaction: discord.Interaction,
+        plan,
+        confirmation_text: str,
+    ):
+        if confirmation_text != plan.confirmation:
+            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityDrift(
+                'The command-capability confirmation did not match the preview.'
+            )
         fresh = await self._operator_guild_command_plan(
             interaction,
             plan.guild_id,
@@ -542,6 +617,42 @@ class administration(commands.Cog):
         )
 
     async def _operator_guild_lifecycle_operation(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: int,
+        action: str,
+        operation: str = operator_guild_lifecycle_workers.PREVIEW,
+        preview=None,
+        command_plan_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
+        runner = lambda: self._operator_guild_lifecycle_operation_uncoordinated(
+            interaction,
+            target_guild_id=target_guild_id,
+            action=action,
+            operation=operation,
+            preview=preview,
+            command_plan_digest=command_plan_digest,
+            confirmation_text=confirmation_text,
+        )
+        if operation != operator_guild_lifecycle_workers.COMMIT:
+            return await runner()
+        try:
+            return await self._run_guild_mutation_claim(
+                interaction,
+                operation=f'guild {action}',
+                guild_id=target_guild_id,
+                runner=runner,
+                conflict_type=(
+                    operator_guild_lifecycle_workers.OperatorGuildLifecycleConflict
+                ),
+            )
+        except operator_guild_lifecycle_workers.OperatorGuildLifecycleCommitted:
+            self._quarantine_committed_guild(target_guild_id)
+            raise
+
+    async def _operator_guild_lifecycle_operation_uncoordinated(
         self,
         interaction: discord.Interaction,
         *,
@@ -683,6 +794,37 @@ class administration(commands.Cog):
             raise
 
     async def _operator_guild_lifecycle_commit(
+        self,
+        interaction: discord.Interaction,
+        preview,
+        plan,
+        confirmation_text: str,
+    ):
+        if confirmation_text != preview.confirmation(plan.plan_digest):
+            raise operator_guild_lifecycle_workers.OperatorGuildLifecycleConflict(
+                'The lifecycle confirmation did not match the preview.'
+            )
+        try:
+            return await self._run_guild_mutation_claim(
+                interaction,
+                operation=f'guild {preview.action}',
+                guild_id=preview.guild_id,
+                runner=lambda: self._operator_guild_lifecycle_commit_uncoordinated(
+                    interaction,
+                    preview,
+                    plan,
+                    confirmation_text,
+                ),
+                conflict_type=operator_guild_lifecycle_workers.OperatorGuildLifecycleConflict,
+            )
+        except (
+            operator_guild_lifecycle_workers.OperatorGuildLifecycleCommitted,
+            operator_guild_lifecycle_workers.OperatorGuildLifecycleCommandUnverified,
+        ):
+            self._quarantine_committed_guild(preview.guild_id)
+            raise
+
+    async def _operator_guild_lifecycle_commit_uncoordinated(
         self,
         interaction: discord.Interaction,
         preview,
@@ -1608,6 +1750,64 @@ class administration(commands.Cog):
         command_plan_digest: str | None = None,
         target_guild_id: int | None = None,
     ):
+        runner = lambda: self._operator_guild_draft_operation_uncoordinated(
+            interaction,
+            operation,
+            expected_draft_version=expected_draft_version,
+            expected_draft_digest=expected_draft_digest,
+            replacement_document=replacement_document,
+            target_revision=target_revision,
+            expected_target_digest=expected_target_digest,
+            expected_active_revision=expected_active_revision,
+            expected_active_generation=expected_active_generation,
+            expected_active_digest=expected_active_digest,
+            confirmation_text=confirmation_text,
+            command_plan_digest=command_plan_digest,
+            target_guild_id=target_guild_id,
+        )
+        if operation not in {
+            operator_guild_configuration_draft_workers.ACTIVATE,
+            operator_guild_configuration_draft_workers.ACTIVATE_COMMANDS,
+            operator_guild_configuration_draft_workers.ROLLBACK_COMMIT,
+        }:
+            return await runner()
+        guild_id = int(
+            interaction.guild_id if target_guild_id is None else target_guild_id
+        )
+        try:
+            return await self._run_guild_mutation_claim(
+                interaction,
+                operation=f'guild configuration {operation}',
+                guild_id=guild_id,
+                runner=runner,
+                conflict_type=(
+                    operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftConflict
+                ),
+            )
+        except (
+            operator_guild_configuration_draft_workers.OperatorGuildConfigurationActivationCommitted,
+            operator_guild_configuration_draft_workers.OperatorGuildConfigurationRollbackCommitted,
+        ):
+            self._quarantine_committed_guild(guild_id)
+            raise
+
+    async def _operator_guild_draft_operation_uncoordinated(
+        self,
+        interaction: discord.Interaction,
+        operation: str,
+        *,
+        expected_draft_version: int | None = None,
+        expected_draft_digest: str | None = None,
+        replacement_document=None,
+        target_revision: int | None = None,
+        expected_target_digest: str | None = None,
+        expected_active_revision: int | None = None,
+        expected_active_generation: int | None = None,
+        expected_active_digest: str | None = None,
+        confirmation_text: str | None = None,
+        command_plan_digest: str | None = None,
+        target_guild_id: int | None = None,
+    ):
         current_snapshot = {
             int(guild_id): (
                 record.revision,
@@ -1694,6 +1894,38 @@ class administration(commands.Cog):
         expected_plan_digest: str | None = None,
         confirmation_text: str | None = None,
     ):
+        runner = lambda: self._operator_guild_delegation_operation_uncoordinated(
+            interaction,
+            operation,
+            expected_policy_version=expected_policy_version,
+            manager_role_ids=manager_role_ids,
+            allow_activation=allow_activation,
+            expected_plan_digest=expected_plan_digest,
+            confirmation_text=confirmation_text,
+        )
+        if operation != operator_guild_delegation_workers.APPLY:
+            return await runner()
+        return await self._run_guild_mutation_claim(
+            interaction,
+            operation='guild configuration delegation',
+            guild_id=int(interaction.guild_id),
+            runner=runner,
+            conflict_type=(
+                operator_guild_delegation_workers.OperatorGuildDelegationValidationError
+            ),
+        )
+
+    async def _operator_guild_delegation_operation_uncoordinated(
+        self,
+        interaction: discord.Interaction,
+        operation: str,
+        *,
+        expected_policy_version: int | None = None,
+        manager_role_ids: tuple[int, ...] | None = None,
+        allow_activation: bool | None = None,
+        expected_plan_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
         request = operator_guild_delegation_service.build_request(
             interaction=interaction,
             operation=operation,
@@ -1706,6 +1938,40 @@ class administration(commands.Cog):
         return await operator_guild_delegation_workers.run_delegation(request)
 
     async def _operator_guild_enrollment_operation(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: int,
+        template: str,
+        operation: str,
+        expected_document_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
+        runner = lambda: self._operator_guild_enrollment_operation_uncoordinated(
+            interaction,
+            target_guild_id=target_guild_id,
+            template=template,
+            operation=operation,
+            expected_document_digest=expected_document_digest,
+            confirmation_text=confirmation_text,
+        )
+        if operation != operator_guild_enrollment_workers.COMMIT:
+            return await runner()
+        try:
+            return await self._run_guild_mutation_claim(
+                interaction,
+                operation='guild enrollment',
+                guild_id=target_guild_id,
+                runner=runner,
+                conflict_type=(
+                    operator_guild_enrollment_workers.OperatorGuildEnrollmentConflict
+                ),
+            )
+        except operator_guild_enrollment_workers.OperatorGuildEnrollmentCommitted:
+            self._quarantine_committed_guild(target_guild_id)
+            raise
+
+    async def _operator_guild_enrollment_operation_uncoordinated(
         self,
         interaction: discord.Interaction,
         *,

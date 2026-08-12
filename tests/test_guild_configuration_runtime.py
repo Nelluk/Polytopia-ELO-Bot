@@ -161,6 +161,7 @@ class SettingsAuthorityTests(unittest.TestCase):
         self.original = (
             settings.guild_configuration_source,
             settings._database_guild_configuration,
+            settings._database_guild_configuration_quarantine,
             settings.config,
             settings.application_command_policy,
         )
@@ -169,9 +170,27 @@ class SettingsAuthorityTests(unittest.TestCase):
         (
             settings.guild_configuration_source,
             settings._database_guild_configuration,
+            settings._database_guild_configuration_quarantine,
             settings.config,
             settings.application_command_policy,
         ) = self.original
+
+    def test_committed_publication_quarantine_fails_closed_until_convergence(self):
+        settings.guild_configuration_source = 'database'
+        settings._database_guild_configuration = None
+        settings._database_guild_configuration_quarantine = frozenset()
+        current = snapshot()
+        settings.activate_database_guild_configuration(current)
+        self.assertTrue(settings.guild_configuration_allows_dispatch(GUILD_ID))
+
+        settings.quarantine_database_guild_configuration(GUILD_ID)
+        self.assertTrue(settings.guild_configuration_ready())
+        self.assertTrue(settings.database_guild_configuration_quarantined(GUILD_ID))
+        self.assertFalse(settings.guild_configuration_allows_dispatch(GUILD_ID))
+
+        settings.clear_database_guild_configuration_quarantine(GUILD_ID)
+        self.assertFalse(settings.database_guild_configuration_quarantined(GUILD_ID))
+        self.assertTrue(settings.guild_configuration_allows_dispatch(GUILD_ID))
 
     def test_database_source_is_unready_until_one_snapshot_is_published(self):
         settings.guild_configuration_source = 'database'

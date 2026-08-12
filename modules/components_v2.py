@@ -100,6 +100,20 @@ class RequesterLayoutView(discord.ui.LayoutView):
         raise NotImplementedError
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
+        guild_id = getattr(interaction, 'guild_id', None)
+        if guild_id is not None:
+            # Imported lazily to keep this database-agnostic UI primitive out
+            # of settings' import graph.
+            import settings
+
+            if settings.database_guild_configuration_quarantined(guild_id):
+                await interaction.response.send_message(
+                    'This server is temporarily quarantined after a committed '
+                    'configuration publication failure. No action was run; the '
+                    'owner must reconcile or restart the bot.',
+                    ephemeral=True,
+                )
+                return False
         if interaction.user.id == self.requester_id:
             return True
         await interaction.response.send_message(

@@ -52,6 +52,7 @@ bot = None
 run_tasks = runtime_profile.background_tasks_enabled
 maintenance_mode = False  # if set as True bot will ignore all commands (TODO: respond to all commands?)
 _database_guild_configuration = None
+_database_guild_configuration_quarantine = frozenset()
 team_elo_reset_date = '1/1/2020'
 
 moonrise_reset_date = datetime.date(2020, 12, 1)
@@ -237,6 +238,62 @@ def guild_configuration_ready() -> bool:
     )
 
 
+def database_guild_configuration_quarantined(guild_id: int) -> bool:
+    """Return whether committed publication uncertainty blocks this guild."""
+
+    try:
+        normalized = int(guild_id)
+    except (TypeError, ValueError):
+        return False
+    return normalized in _database_guild_configuration_quarantine
+
+
+def quarantine_database_guild_configuration(guild_id: int) -> None:
+    """Fail closed for one guild after a committed publication failure."""
+
+    global _database_guild_configuration_quarantine
+    if guild_configuration_source != 'database':
+        return
+    normalized = int(guild_id)
+    if normalized <= 0:
+        raise ValueError('A positive guild ID is required for quarantine.')
+    _database_guild_configuration_quarantine = frozenset({
+        *_database_guild_configuration_quarantine,
+        normalized,
+    })
+    logger.critical(
+        'Quarantined database guild configuration %s after committed '
+        'publication uncertainty. Restart or verified reconciliation is required.',
+        normalized,
+    )
+
+
+def clear_database_guild_configuration_quarantine(guild_id: int) -> None:
+    """Clear one fail-closed latch only after verified runtime convergence."""
+
+    global _database_guild_configuration_quarantine
+    normalized = int(guild_id)
+    _database_guild_configuration_quarantine = frozenset(
+        value
+        for value in _database_guild_configuration_quarantine
+        if value != normalized
+    )
+
+
+def guild_configuration_allows_dispatch(guild_id: int) -> bool:
+    """Return whether ordinary guild traffic may use the published snapshot."""
+
+    try:
+        normalized = int(guild_id)
+    except (TypeError, ValueError):
+        return False
+    return (
+        guild_configuration_ready()
+        and normalized in config
+        and not database_guild_configuration_quarantined(normalized)
+    )
+
+
 def database_guild_configuration(guild_id: int):
     """Return one immutable published database record, or ``None``."""
 
@@ -267,6 +324,7 @@ def activate_database_guild_configuration(snapshot) -> None:
     """Atomically expose one already validated immutable database snapshot."""
 
     global _database_guild_configuration, config, application_command_policy
+    global _database_guild_configuration_quarantine
     if guild_configuration_source != 'database':
         raise RuntimeError(
             'Database guild configuration was not selected before startup.'
@@ -286,6 +344,7 @@ def activate_database_guild_configuration(snapshot) -> None:
     # reference first; the compatibility mapping and command policy are views
     # contained in that same immutable snapshot.
     _database_guild_configuration = snapshot
+    _database_guild_configuration_quarantine = frozenset()
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy
 
@@ -393,6 +452,7 @@ def reconcile_database_guild_configuration(
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy
+    clear_database_guild_configuration_quarantine(activated_guild_id)
 
 
 def reconcile_database_guild_enrollment(
@@ -456,6 +516,7 @@ def reconcile_database_guild_enrollment(
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy
+    clear_database_guild_configuration_quarantine(enrolled_guild_id)
 
 
 def reconcile_database_guild_lifecycle(
@@ -545,6 +606,7 @@ def reconcile_database_guild_lifecycle(
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy
+    clear_database_guild_configuration_quarantine(target_guild_id)
 
 
 def configured_role_ids(guild_id: int, setting_name: str) -> tuple[int, ...]:
