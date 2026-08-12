@@ -493,10 +493,10 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.5A cross-platform container deployment interface is
-implemented on `codex/p11-5a-container-interface` from exact pushed base
-`f495391434879d90691775bb984ede79a6b3897d`. The short `./polybot` interface is
-under final offline and real Darwin validation. The existing sole local bot
-continues running the prior reviewed `de5ad77` image under project
+implemented and locally validated on `codex/p11-5a-container-interface` from
+exact pushed base `f495391434879d90691775bb984ede79a6b3897d`; Tier-3 management
+review and accumulation integration remain pending. The existing sole local
+bot continues running the prior reviewed `de5ad77` image under project
 `polybot-mac-beta` as development application `479029527553638401`; it has not
 been restarted or recreated for this unit. No application-command
 synchronization, tester announcement, external database, or production action
@@ -15973,7 +15973,8 @@ behavior.
 
 ### P11.5A — Cross-platform container deployment interface
 
-Status: **In progress on `codex/p11-5a-container-interface`**
+Status: **Implementation and local validation complete on
+`codex/p11-5a-container-interface`; Tier-3 handoff pending.**
 
 Branch/base: exact clean pushed accumulation checkpoint
 `f495391434879d90691775bb984ede79a6b3897d`.
@@ -16001,6 +16002,49 @@ checks, Compose rendering, immutable-image doctor and bind probe, read-only
 real Darwin status against the healthy `polybot-mac-beta` project, complete
 diff review, and proof that the existing Mac beta was not restarted or
 degraded during implementation.
+
+Implementation checkpoints: `f4512c2` (operator interface, generalized
+digest/count-bound import, tests, and primary runbook), `bf57515` (explicit
+Docker Desktop host/guest bind validation), `a1f07a2` (read-only archive-plan
+mount correction), and `159a9e0` (current-unit consistency correction and
+final validated image source).
+
+Local validation result: PASS. Exact arm64 image checkpoint
+`159a9e0d27f10ca9a9b7d38fb3387e557ab92c2e` is image
+`sha256:e19eff4e007eb4d51e43517622629578ac8bd366a4d8633807edfee77592b0e5`,
+runs as `1000:1000`, and contains none of the ignored runtime profiles,
+Compose environment, or database secret files. The immutable doctor, host
+mode/owner probe, live non-root bind probe, and Compose rendering passed.
+Forty-six focused tests passed. The no-network, read-only-root,
+capability-dropped exact image passed all 2,064 offline tests with 96
+intentional skips.
+
+The retained transfer still hashes to
+`a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+Both exact restore and import plans ran through ephemeral tool containers; the
+restore wrapper refused missing confirmation and the import job reported no
+PostgreSQL connection or write. The no-confirmation backup wrapper likewise
+refused at its exact checkpoint confirmation before secrets, filesystem, or
+PostgreSQL access. No recovery volume was removed and no backup/import/restore
+apply ran during this interface unit.
+
+Read-only final status found one project bot, zero host writers, zero other
+container writers, application `479029527553638401`, trusted guild
+`478571892832206869`, healthy `polytopia_dev/polybot_dev` on PostgreSQL 18,
+the winner FK, zero wrongly owned application tables/sequences, and bounded
+counts `71|4|44|15|3|48|24`. The running bot retained image `de5ad77`, start
+time `2026-08-12T14:15:30.796198585Z`, and restart count 1; PostgreSQL retained
+start time `2026-08-12T13:43:20.470745095Z`, restart count 0, and healthy
+state. Thus implementation did not restart, recreate, or replace the current
+beta.
+
+Remaining portability limitation: Darwin and Linux decisions and exact Linux
+ownership enforcement are covered offline, but this unit could exercise only
+the real Darwin/Docker Desktop path. Docker Desktop presents host-owned private
+binds under the selected container identity, so every setup/start retains the
+host metadata check plus live non-root bind probe. First-ever trusted-guild
+bootstrap remains P11.5B; the imported current database already has its
+trusted-guild authority.
 
 ## Standard work-unit template
 
@@ -17386,12 +17430,13 @@ because they share legacy status; their risks and operational owners differ.
 
 ### 7. Containerized deployment feasibility
 
-Design status: **P11.1 development proof is complete and integrated at
-`309c222`; P11.2's approved read-only deployment doctor is complete at
-`7fc73cf`; P11.3 guarded logical backup and isolated fresh-volume restore is
-complete and integrated at `70bb734`. Docker appeared only after P11.3's
-pushed close-out and remains uninvoked; live proof, Compose verification, and
-all production adoption remain deferred gates.**
+Design status: **P11.1–P11.4 completed the container contract, doctor,
+recovery jobs, live engine proof, Mac archive import, and development bot
+lifecycle. P11.5A now provides the locally validated `./polybot` operator
+interface on `codex/p11-5a-container-interface`; Tier-3 review/integration and
+a live Linux exercise remain. P11.5B is still required only for first-ever
+trusted-guild bootstrap on a fresh schema. All production adoption remains a
+separately approved gate.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
 Compose stack. Begin with a design and development proof rather than replacing
@@ -17452,6 +17497,41 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5A cross-platform operator interface locally validated
+
+- Created `codex/p11-5a-container-interface` from exact pushed accumulation
+  checkpoint `f495391434879d90691775bb984ede79a6b3897d` and implemented the
+  nine-command `./polybot` interface without exposing Compose profiles,
+  project flags, identity interpolation, secret generation, archive variables,
+  or confirmation-token construction.
+- Reused the existing doctor, provisioner, schema, import, backup, and restore
+  jobs. Import now supports reviewed checksum-paired development backups only
+  after a digest/name/count-bound fresh-volume receipt; the retained transfer
+  remains exact and its legacy counts remain independently fixed.
+- Corrected two Docker Desktop findings from live validation: immutable doctor
+  mounts now inspect the actual non-root container view while the wrapper
+  separately checks host modes/owners, and connection-free archive plans use
+  one read-only source-directory mount rather than forbidden nested file mounts.
+  Linux's exact ownership rule remains unchanged and has focused offline
+  coverage.
+- Passed 46 focused tests, shell parsing, Python compilation, diff checks,
+  Compose rendering, immutable doctor, non-root bind probe, private-input image
+  inspection, exact restore/import/backup plans, and all 2,064 hardened
+  no-network offline tests with 96 intentional skips.
+- Final validated implementation checkpoint `159a9e0` built native arm64 image
+  `sha256:e19eff4e007eb4d51e43517622629578ac8bd366a4d8633807edfee77592b0e5`
+  as non-root `1000:1000`. Read-only database verification passed PostgreSQL
+  18 identity, winner FK, ownership, trusted guild, and exact bounded counts.
+- The current beta remained healthy on prior image `de5ad77` with unchanged
+  bot/database start times and restart counts, exactly one project writer, and
+  no host or other-container writer. No bot/database restart, command sync,
+  tester announcement, production/external access, database write, recovery
+  volume removal, or archive mutation occurred.
+- Commits: `f4512c2`, `bf57515`, `a1f07a2`, and `159a9e0`; this evidence
+  close-out follows separately. Next: Tier-3 management review and accumulation
+  integration. A live Linux exercise and P11.5B first trusted-guild bootstrap
+  remain separate follow-ups.
 
 ### 2026-08-12 — P11.4B3 Mac container bot lifecycle proof passed
 

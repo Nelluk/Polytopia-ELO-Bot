@@ -493,6 +493,43 @@ volume. PostgreSQL major upgrades require a separate dump/restore or
 `pg_upgrade` plan. Never point a new major image at the existing volume and
 never use `latest`.
 
+## P11.5A operator-interface evidence
+
+- Branch `codex/p11-5a-container-interface` starts at exact pushed accumulation
+  checkpoint `f495391434879d90691775bb984ede79a6b3897d`. Implementation
+  checkpoints are `f4512c2`, `bf57515`, `a1f07a2`, and `159a9e0`.
+- On arm64 macOS with Docker Desktop Engine/Client 29.6.2, Compose 5.3.1, and
+  about 512 GiB available, the repository entrypoint selected the fixed
+  `polybot-mac-beta` project and internal `1000:1000` identity. Host ownership
+  and modes, immutable doctor, live bind readability, and Compose rendering
+  all passed.
+- Exact image checkpoint `159a9e0d27f10ca9a9b7d38fb3387e557ab92c2e` is
+  `sha256:e19eff4e007eb4d51e43517622629578ac8bd366a4d8633807edfee77592b0e5`,
+  native arm64 and non-root `1000:1000`. Specific inspection confirmed that
+  neither ignored runtime profile, the Compose environment, nor either
+  database secret was baked into the image.
+- Forty-six focused operator/container/doctor/recovery tests passed. The exact
+  no-network, read-only-root, capability-dropped image passed all 2,064
+  offline tests with 96 intentional skips.
+- The retained archive pair still verifies at
+  `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+  Exact restore/import plans passed through read-only source-directory mounts
+  without a database connection or archive write; missing confirmation was
+  refused. The backup plan also refused missing confirmation before reading a
+  secret, writing a file, or connecting to PostgreSQL.
+- Final status showed exactly one local writer, application
+  `479029527553638401`, trusted guild `478571892832206869`, healthy PostgreSQL
+  18 `polytopia_dev/polybot_dev`, the winner FK, correct application ownership,
+  and bounded counts `71|4|44|15|3|48|24`. The bot and database start times and
+  restart counts were unchanged, proving this unit did not restart or recreate
+  the healthy beta. No command synchronization or production/external action
+  occurred.
+- Linux decision paths and strict owner enforcement are tested offline; no
+  live Linux engine was available in this Mac unit. Docker Desktop ownership
+  remapping remains explicitly host-checked and live-probed. First-ever
+  trusted-guild bootstrap remains P11.5B, while the imported current database
+  already contains that authority.
+
 ## P11.4A evidence
 
 - Registry digests: Python
