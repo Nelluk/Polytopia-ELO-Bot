@@ -492,8 +492,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.8 owner-only guild suspend/resume lifecycle is in
-Tier-3 implementation and review on `codex/p10-8-guild-suspend-resume`, from
+Current active unit: **P10.8 owner-only guild suspend/resume lifecycle is
+implemented, Tier-3 reviewed, and development-database gated on
+`codex/p10-8-guild-suspend-resume`, from
 exact clean pushed accumulation checkpoint
 `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`. The selected contract requires a
 different active control guild, preserves the active revision, drafts, and
@@ -502,9 +503,13 @@ publishes the fail-closed runtime graph before applying an exact target-guild
 command removal/restoration. Resume fully revalidates saved live Discord
 references. Repeating an already completed action is a Discord reconciliation
 with no database write. Retirement, delegation, production, schema work,
-startup synchronization, and global synchronization remain excluded. Next:
-complete offline and rolled-back development-PostgreSQL validation, Tier-3
-diff review, exact integration/push, and development-beta deployment.**
+startup synchronization, and global synchronization remain excluded.
+Implementation checkpoint `763fe28` passes 97 focused tests, complete offline
+discovery of 1,969 tests with 88 intentional gates skipped, and the 78-test
+stopped-writer PostgreSQL gate with only the established retained-fixture skip.
+The lifecycle transition and protected audit were fully outer-transaction
+rolled back. Next: exact integration/push, development-guild-only registration,
+and guarded beta deployment.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15426,8 +15431,8 @@ that absence is not grounds to manufacture or persist a second guild.
 
 ### P10.8 — Owner-only guild suspend/resume lifecycle
 
-Status: **In progress; implementation complete, validation and integration
-pending**
+Status: **Implemented, Tier-3 reviewed, and development-database gated;
+integration and beta deployment pending**
 
 Branch/base: `codex/p10-8-guild-suspend-resume`, exact clean pushed
 accumulation checkpoint `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`.
@@ -16897,7 +16902,7 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
-### 2026-08-11 — P10.8 owner lifecycle implementation ready for validation
+### 2026-08-11 — P10.8 owner lifecycle implemented and database-gated
 
 - Reconciled exact clean local/tracking/GitHub accumulation checkpoint
   `f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`, created isolated branch/worktree
@@ -16915,10 +16920,22 @@ deferred into this post-modernization backlog.
   retains truthful committed-state recovery for runtime or Discord failures.
   Global/startup synchronization, schema, retirement, delegation, production,
   and synthetic retained enrollment remain excluded.
-- Next: complete focused and full offline validation, run the explicit outer-
-  rolled-back stopped-writer development-PostgreSQL proof, finish complete-diff
-  review, record exact evidence, integrate/push, and deploy the two nested
-  command registrations to the development guild.
+- Tier-3 complete-diff review corrected mention-safe target/status rendering,
+  made both terminal publication fallbacks non-throwing, and removed redundant
+  coordinator exception handling. No actionable finding remains. Focused
+  validation passes 97 tests; compilation and diff checks pass. Complete
+  offline discovery passes all 1,969 tests with 88 intentional gated skips.
+- The guarded beta at checkpoint `f2930d6`, PID `268113`, was healthy with zero
+  restarts and authenticated as development application `479029527553638401`.
+  It stopped cleanly, after which the host-wide audit proved no development
+  writer. The explicit `development` / `polytopia_dev` / `polybot_dev` gate ran
+  78 tests: 77 passed and only the established operator-fixture round trip
+  skipped. The P10.8 case verified registry state/generation, protected plan-
+  digest audit, and unchanged revision/draft counts, then rolled the complete
+  transaction back. No schema or retained development data changed.
+- Implementation/runbook checkpoint: `763fe28`. Next: commit this evidence,
+  fast-forward the unit into accumulation, push, plan/inspect/apply only the
+  configured development-guild `operator` root, and restart the durable beta.
 
 ### 2026-08-11 — P10.6c command-capability activation reviewed and database-gated
 
