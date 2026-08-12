@@ -425,7 +425,8 @@ check:
   database after integration; no database write occurred
 - P11.5D writer-census and backup-restoration implementation checkpoint:
   `f5cd39d` on `codex/p11-5d-writer-backup-hardening`, from exact clean base
-  `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`
+  `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`; reviewed evidence and
+  fast-forward integration checkpoint: `57efbbe`
 - current combined offline result: complete discovery succeeded across 2,109
   tests with 91 intentional development-database skips
 - current stopped-writer development-database result: all 79 cases passed
@@ -533,7 +534,7 @@ synchronization, tester announcement, external database, or production action
 occurred.** P11.5C is integrated and pushed at `aa936c6`; its two required
 read-only development-database gates passed against the stopped-writer
 development identity. P11.5D is implemented and Tier-3 reviewed at `f5cd39d`
-on its isolated branch and is pending final accumulation integration.
+and fast-forward integrated with its reviewed evidence at `57efbbe`.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16206,8 +16207,8 @@ deploy, or announcement was performed.
 
 ### P11.5D — Writer census and restoration cleanup (N6/N7)
 
-Status: **Implemented and Tier-3 reviewed at `f5cd39d`; pending final
-fast-forward integration into the accumulation branch.**
+Status: **Complete; implemented and Tier-3 reviewed at `f5cd39d`, with
+reviewed evidence and fast-forward integration at `57efbbe`.**
 
 Branch/base: `codex/p11-5d-writer-backup-hardening`, exact clean base
 `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`.
@@ -17802,6 +17803,9 @@ deferred into this post-modernization backlog.
   locally and in an isolated RackNerd development worktree. Complete offline
   discovery succeeded across 2,109 tests with 91 intentional skips; shell and
   diff checks passed.
+- Added the operator runbook and durable evidence at `57efbbe`, reran the
+  dependency-sensitive roadmap contract on that exact RackNerd candidate, and
+  fast-forward integrated it into `codex/database-slash-modernization`.
 - No production, database, Discord, service restart, deployment, command sync,
   or announcement action occurred.
 
