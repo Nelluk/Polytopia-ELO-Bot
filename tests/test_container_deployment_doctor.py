@@ -344,8 +344,9 @@ log_root = logs/development
             item for item in report.findings
             if item.key == 'runtime-bind-ownership'
         )
-        self.assertEqual(finding.status, doctor.PASS)
+        self.assertEqual(finding.status, doctor.WARN)
         self.assertIn('Docker Desktop', finding.message)
+        self.assertTrue(report.ready)
 
     def test_darwin_still_rejects_private_files_not_owned_by_invoking_user(self):
         report = doctor.run_doctor(

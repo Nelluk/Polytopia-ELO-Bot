@@ -38,9 +38,10 @@ operationally clean on this host.
   must exactly own both mode-0600 private configuration mounts. On Docker
   Desktop for macOS, the mode-0600 files instead remain owned by the invoking
   host user and Docker Desktop presents the bind to the configured container
-  identity. The doctor applies only that narrower Darwin exception and keeps
-  the Linux exact-owner check unchanged. Runtime uses a read-only root
-  filesystem, all Linux capabilities dropped, a bounded tmpfs, resource
+  identity. The doctor applies only that narrower Darwin host-owner rule as a
+  warning, requires a live Docker Desktop bind probe before bot startup, and
+  keeps the Linux exact-owner pass/block unchanged. Runtime uses a read-only
+  root filesystem, all Linux capabilities dropped, a bounded tmpfs, resource
   ceilings, and persistent image and log volumes.
 - `postgres` uses PostgreSQL 18.4, matching the development server major
   verified on 2026-08-11. Its data is isolated in `postgres_data`; the bot

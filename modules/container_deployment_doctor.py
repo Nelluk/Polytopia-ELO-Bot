@@ -443,8 +443,8 @@ def _runtime_bind_ownership(
     if host_platform == 'darwin':
         success = (
             'Private bot configuration is owned by the invoking macOS user; '
-            'Docker Desktop presents private binds to the configured non-root '
-            'container identity.'
+            'confirm that Docker Desktop presents a mode-0600 bind to the '
+            'configured non-root identity before starting the bot.'
         )
         failure = (
             'Private bot configuration files on macOS must be owned by the '
@@ -461,7 +461,7 @@ def _runtime_bind_ownership(
         )
     return _finding(
         'runtime-bind-ownership',
-        BLOCK if mismatched else PASS,
+        BLOCK if mismatched else (WARN if host_platform == 'darwin' else PASS),
         success if not mismatched else failure,
     )
 
