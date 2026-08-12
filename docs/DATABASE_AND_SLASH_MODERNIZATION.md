@@ -493,9 +493,10 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P11.5A cross-platform container deployment interface is
-implemented and locally validated on `codex/p11-5a-container-interface` from
-exact pushed base `f495391434879d90691775bb984ede79a6b3897d`; Tier-3 management
-review and accumulation integration remain pending. The existing sole local
+implemented, locally validated, and Tier-3 reviewed on
+`codex/p11-5a-container-interface` from exact pushed base
+`f495391434879d90691775bb984ede79a6b3897d`; accumulation integration remains
+pending. The existing sole local
 bot continues running the prior reviewed `de5ad77` image under project
 `polybot-mac-beta` as development application `479029527553638401`; it has not
 been restarted or recreated for this unit. No application-command
@@ -592,7 +593,7 @@ bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
 
-Next recommended after P11.5A: Tier-3 review and accumulation integration.
+Next recommended after P11.5A: accumulation integration.
 P11.5B remains the separate first-ever trusted-guild bootstrap for a fresh
 empty database; an imported database already contains that authority. Retain
 the sole local beta for bounded operator acceptance without announcing to
@@ -15974,7 +15975,8 @@ behavior.
 ### P11.5A — Cross-platform container deployment interface
 
 Status: **Implementation and local validation complete on
-`codex/p11-5a-container-interface`; Tier-3 handoff pending.**
+`codex/p11-5a-container-interface`; Tier-3 reviewed and accepted for
+accumulation integration.**
 
 Branch/base: exact clean pushed accumulation checkpoint
 `f495391434879d90691775bb984ede79a6b3897d`.
@@ -16007,16 +16009,19 @@ Implementation checkpoints: `f4512c2` (operator interface, generalized
 digest/count-bound import, tests, and primary runbook), `bf57515` (explicit
 Docker Desktop host/guest bind validation), `a1f07a2` (read-only archive-plan
 mount correction), and `159a9e0` (current-unit consistency correction and
-final validated image source).
+initial validated image source). Tier-3 correction `1e84351` closes descendant
+writer detection, test-override isolation, generalized-import receipt,
+immutable-doctor trust, status provenance, and active-writer backup provenance
+boundaries.
 
-Local validation result: PASS. Exact arm64 image checkpoint
-`159a9e0d27f10ca9a9b7d38fb3387e557ab92c2e` is image
-`sha256:e19eff4e007eb4d51e43517622629578ac8bd366a4d8633807edfee77592b0e5`,
+Local validation and Tier-3 review result: PASS. Exact arm64 image checkpoint
+`1e84351aed1a28e667395df5fdeeb58f81310475` is image
+`sha256:4e6c67d084234223fe86f6dc9f002972c743c7a62648a89daabc1ebc37db1643`,
 runs as `1000:1000`, and contains none of the ignored runtime profiles,
 Compose environment, or database secret files. The immutable doctor, host
 mode/owner probe, live non-root bind probe, and Compose rendering passed.
-Forty-six focused tests passed. The no-network, read-only-root,
-capability-dropped exact image passed all 2,064 offline tests with 96
+Forty-eight focused tests passed. The no-network, read-only-root,
+capability-dropped exact image passed all 2,066 offline tests with 96
 intentional skips.
 
 The retained transfer still hashes to
@@ -17432,9 +17437,9 @@ because they share legacy status; their risks and operational owners differ.
 
 Design status: **P11.1–P11.4 completed the container contract, doctor,
 recovery jobs, live engine proof, Mac archive import, and development bot
-lifecycle. P11.5A now provides the locally validated `./polybot` operator
-interface on `codex/p11-5a-container-interface`; Tier-3 review/integration and
-a live Linux exercise remain. P11.5B is still required only for first-ever
+lifecycle. P11.5A now provides the locally validated and Tier-3 reviewed
+`./polybot` operator interface on `codex/p11-5a-container-interface`;
+integration and a live Linux exercise remain. P11.5B is still required only for first-ever
 trusted-guild bootstrap on a fresh schema. All production adoption remains a
 separately approved gate.**
 
@@ -17497,6 +17502,35 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.5A Tier-3 review passed
+
+- Complete-diff review corrected six operational boundaries before
+  integration: host-writer auditing now excludes all descendants of every
+  running Docker container init PID; platform overrides are honored only in
+  source-only tests; generalized raw import requires the same regular,
+  non-symlink digest/name/count receipt as `./polybot`; internal immutable
+  doctor mode refuses a Git checkout; stopped-stack status retains configured
+  provenance and database exposure; and backup confirmation/source provenance
+  follows the active writer image rather than a newer configured image.
+- The corrected focused operator/container/doctor/recovery set passed all 48
+  tests. Shell parsing, compilation, diff checks, Compose rendering, immutable
+  doctor, real Darwin bind readability, and private-input inspection passed.
+  Exact arm64 checkpoint `1e84351aed1a28e667395df5fdeeb58f81310475`
+  produced image
+  `sha256:4e6c67d084234223fe86f6dc9f002972c743c7a62648a89daabc1ebc37db1643`;
+  its hardened offline run passed all 2,066 tests with 96 intentional skips.
+- The retained archive and sidecar remain mode 0600 and the 85,932-byte archive
+  still hashes to
+  `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+  The no-confirmation restore plan refused before PostgreSQL access; ordinary
+  import correctly refused while the sole beta writer remained active.
+- Read-only status and backup-plan review found exactly one project writer,
+  zero host/other-container writers, an internal-only healthy PostgreSQL 18
+  target, and bound backup confirmation to active checkpoint `de5ad77`. The
+  beta retained its prior image, start times, and restart counts. No restart,
+  command synchronization, data mutation, production/external access, or
+  tester announcement occurred. No actionable Tier-3 finding remains.
 
 ### 2026-08-12 — P11.5A cross-platform operator interface locally validated
 

@@ -73,9 +73,11 @@ operationally clean on this host.
   development backup basename format with an exact adjacent SHA-256 sidecar,
   requires a safely provisioned relation-empty target plus zero target
   sessions, restores once as `polybot_dev`, and verifies schema, ownership,
-  and bounded data counts. The operator interface additionally requires a
-  matching receipt from `verify-backup` before import. It never starts the bot
-  and is not part of normal startup.
+  and bounded data counts. The retained transfer keeps its separately fixed
+  digest/count contract; every later archive also requires a matching ignored
+  receipt from `verify-backup` before either the operator interface or raw
+  generalized import can apply it. It never starts the bot and is not part of
+  normal startup.
 
 The immutable contract is
 `deploy/container/container-contract.toml`. Version changes to its images,
@@ -497,19 +499,20 @@ never use `latest`.
 
 - Branch `codex/p11-5a-container-interface` starts at exact pushed accumulation
   checkpoint `f495391434879d90691775bb984ede79a6b3897d`. Implementation
-  checkpoints are `f4512c2`, `bf57515`, `a1f07a2`, and `159a9e0`.
+  checkpoints are `f4512c2`, `bf57515`, `a1f07a2`, `159a9e0`, and Tier-3
+  correction `1e84351`.
 - On arm64 macOS with Docker Desktop Engine/Client 29.6.2, Compose 5.3.1, and
   about 512 GiB available, the repository entrypoint selected the fixed
   `polybot-mac-beta` project and internal `1000:1000` identity. Host ownership
   and modes, immutable doctor, live bind readability, and Compose rendering
   all passed.
-- Exact image checkpoint `159a9e0d27f10ca9a9b7d38fb3387e557ab92c2e` is
-  `sha256:e19eff4e007eb4d51e43517622629578ac8bd366a4d8633807edfee77592b0e5`,
+- Exact Tier-3 image checkpoint `1e84351aed1a28e667395df5fdeeb58f81310475` is
+  `sha256:4e6c67d084234223fe86f6dc9f002972c743c7a62648a89daabc1ebc37db1643`,
   native arm64 and non-root `1000:1000`. Specific inspection confirmed that
   neither ignored runtime profile, the Compose environment, nor either
   database secret was baked into the image.
-- Forty-six focused operator/container/doctor/recovery tests passed. The exact
-  no-network, read-only-root, capability-dropped image passed all 2,064
+- Forty-eight focused operator/container/doctor/recovery tests passed. The
+  exact no-network, read-only-root, capability-dropped image passed all 2,066
   offline tests with 96 intentional skips.
 - The retained archive pair still verifies at
   `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
@@ -529,6 +532,11 @@ never use `latest`.
   remapping remains explicitly host-checked and live-probed. First-ever
   trusted-guild bootstrap remains P11.5B, while the imported current database
   already contains that authority.
+- Tier-3 review corrected descendant-process writer detection under Compose
+  `init`, made platform overrides test-only, required verified receipts at the
+  raw generalized-import boundary, bound immutable-doctor mode to a Git-free
+  image, kept stopped-stack status provenance visible, and bound backups to the
+  active writer's checkpoint. No actionable review finding remains.
 
 ## P11.4A evidence
 
