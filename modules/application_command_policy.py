@@ -27,7 +27,7 @@ _ROOT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 # Adding a future root requires a taxonomy/policy change first.
 KNOWN_TOP_LEVEL_ROOTS = frozenset({
     'about', 'elo', 'game', 'guide', 'help', 'house', 'leaderboard',
-    'league', 'operator', 'player', 'squad', 'staffhelp', 'support', 'team',
+    'guild', 'league', 'operator', 'player', 'squad', 'staffhelp', 'support', 'team',
     'tools', 'whattotest',
 })
 
@@ -108,7 +108,7 @@ DEFAULT_CAPABILITY_FAMILIES = (
     ),
     CapabilityFamily(
         name="operator",
-        roots=("operator",),
+        roots=("guild", "operator"),
         visibility="administrator-default",
         description=(
             "Cross-guild operator commands with authoritative configured-ID "

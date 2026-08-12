@@ -1,4 +1,4 @@
-# Development guild-configuration owner control plane
+# Development guild-configuration control plane
 
 P10.6a adds the first Discord control-plane surface for the already enrolled
 development guild. It is deliberately read-only: it creates no revision,
@@ -7,7 +7,7 @@ synchronizes application commands.
 
 ## Command surface
 
-All commands are guild-only, owner-only, ephemeral, and available only while
+The P10.6a commands are guild-only, owner-only, ephemeral, and available only while
 the process is running with exact `development` / `database` guild-
 configuration authority:
 
@@ -49,7 +49,10 @@ all fail visibly without changing configuration.
 P10.6a originally retained P10.5's startup requirement that the stored active
 document match the static rollback copy. Later P10 units add separately
 reviewed editing, activation, rollback, onboarding, command capability, and
-lifecycle boundaries. Delegation and production authority remain separate.
+lifecycle boundaries. P10.9 later adds separately stored, owner-controlled
+ordinary-setting delegation through `/guild edit`; its complete boundary and
+operator procedure are in `docs/DEVELOPMENT_GUILD_CONFIGURATION_DELEGATION.md`.
+Production authority remains separate.
 
 ## Suspension and resumption
 

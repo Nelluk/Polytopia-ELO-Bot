@@ -12,7 +12,9 @@ synchronizes commands, or authorizes production work.
 - Exact environment/database/user: `development` / `polytopia_dev` /
   `polybot_dev`; background tasks, API, and Bullet remain disabled.
 - One complete canonical document per guild, copied from the exact active
-  revision and generation and bound to the configured bot owner.
+  revision and generation. P10.9 allows a currently authorized same-guild
+  manager to share an ordinary-only draft; every replacement records the
+  latest actor and remains protected by version/digest/base evidence.
 - Draft lifetime is 24 hours. Reset replaces any prior or expired draft;
   discard expires the row without deleting history from authoritative tables.
 - Every edit replaces the complete validated document using the observed
@@ -33,12 +35,17 @@ synchronizes commands, or authorizes production work.
   complete revision and audit event; it never moves the active pointer
   backward, deletes history, or consumes a draft.
 
-The private `/operator guild edit` workspace exposes Create/Reset, Refresh,
+The private owner `/operator guild edit` workspace exposes Create/Reset, Refresh,
 six section selectors, typed role/channel/category selectors, Validate,
 Activate, and Discard. Validation checks the complete document and current
 same-guild Discord role/channel identity. Activate is disabled until the
 current nonempty draft has validated and then requires typing
 `ACTIVATE <full-digest>` exactly.
+
+P10.9 adds `/guild edit` for an explicitly delegated manager. It filters the
+workspace to ordinary fields and the database worker independently rejects a
+complete document containing any protected change. Activation remains disabled
+unless the owner opted in through the separately audited delegation policy.
 
 The private `/operator guild rollback revision:<number>` command displays the
 source and current revision evidence, changed fields, and full source digest.

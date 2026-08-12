@@ -14,6 +14,7 @@ from unittest import mock
 
 from modules import administration
 from modules import guild_configuration_draft_storage as drafts
+from modules import guild_configuration_delegation_storage as delegation
 from modules import operator_guild_configuration_drafts as service
 from modules import operator_guild_configuration_draft_views as views
 from modules import operator_guild_configuration_draft_workers as workers
@@ -46,6 +47,22 @@ def request(operation=workers.SHOW, **kwargs):
     return workers.request_from_profile(
         profile=profile(), requester_id=OWNER_ID, guild_id=GUILD_ID,
         operation=operation, runtime_record=runtime_record(), **kwargs,
+    )
+
+
+def manager_request(operation=workers.SHOW, **kwargs):
+    return workers.request_from_profile(
+        profile=profile(), requester_id=OWNER_ID + 1, guild_id=GUILD_ID,
+        invoking_guild_id=GUILD_ID, requester_role_ids=(900,),
+        operation=operation, runtime_record=runtime_record(), **kwargs,
+    )
+
+
+def manager_policy(*, activation=False):
+    return delegation.GuildConfigurationDelegation(
+        guild_id=GUILD_ID, policy_version=1, manager_role_ids=(900,),
+        allow_activation=activation, actor=f'discord:{OWNER_ID}',
+        created_at=NOW.isoformat(), updated_at=NOW.isoformat(),
     )
 
 
@@ -388,6 +405,137 @@ class RequestAndWorkerTests(unittest.TestCase):
             ):
                 workers.execute_draft_operation(request())
 
+    def test_delegated_manager_is_rechecked_and_can_edit_only_ordinary_fields(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Manager edit',
+        )
+        old = stored()
+        updated = stored(edited, version=2)
+        value = manager_request(
+            workers.REPLACE,
+            expected_draft_version=old.draft_version,
+            expected_draft_digest=old.document_digest,
+            replacement_document=document_to_mapping(edited),
+        )
+        connection = Connection()
+        with mock.patch.object(
+            workers.delegation, 'select_delegation', return_value=manager_policy(),
+        ), mock.patch.object(
+            workers.drafts, 'replace_draft', return_value=updated,
+        ) as write:
+            result = run_with(connection, value, selected=old)
+        self.assertTrue(result.delegated)
+        self.assertFalse(result.activation_allowed)
+        write.assert_called_once()
+
+    def test_delegated_manager_cannot_read_or_overwrite_protected_draft(self):
+        active = fixtures.bundle().imports[0].document
+        protected = service.replace_field(
+            active, service.FIELD_BY_KEY['helper_roles'], (999,),
+        )
+        connection = Connection()
+        with mock.patch.object(
+            workers.delegation, 'select_delegation', return_value=manager_policy(),
+        ):
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftPermissionError,
+                'owner-only configuration',
+            ):
+                run_with(
+                    connection, manager_request(), selected=stored(protected),
+                )
+
+    def test_delegated_activation_requires_separate_owner_opt_in(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Manager edit',
+        )
+        old = stored(edited)
+        value = manager_request(
+            workers.ACTIVATE,
+            expected_draft_version=1,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        with mock.patch.object(
+            workers.delegation, 'select_delegation', return_value=manager_policy(),
+        ), mock.patch.object(workers.drafts, 'activate_draft') as write:
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftPermissionError,
+                'activation owner-only',
+            ):
+                run_with(connection, value, selected=old)
+        write.assert_not_called()
+
+    def test_delegated_activation_opt_in_uses_existing_atomic_publication_path(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Manager activation',
+        )
+        old = stored(edited)
+        value = manager_request(
+            workers.ACTIVATE,
+            expected_draft_version=1,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        connection = Connection()
+        committed = activation(edited)
+        reloaded = runtime_fixtures.snapshot()
+        reloaded = replace(
+            reloaded,
+            guilds={GUILD_ID: replace(
+                reloaded.guilds[GUILD_ID],
+                revision=2,
+                generation=2,
+                document=edited,
+                document_digest=document_digest(edited),
+            )},
+        )
+        with mock.patch.object(
+            workers.delegation,
+            'select_delegation',
+            return_value=manager_policy(activation=True),
+        ), mock.patch.object(
+            workers.drafts, 'activate_draft', return_value=committed,
+        ) as write, mock.patch.object(
+            workers, '_post_commit_runtime_snapshot', return_value=reloaded,
+        ):
+            result = run_with(connection, value, selected=old)
+        self.assertTrue(result.delegated)
+        self.assertTrue(result.activation_allowed)
+        self.assertIs(result.activation, committed)
+        self.assertEqual(connection.commits, 1)
+        write.assert_called_once()
+
+    def test_delegated_role_and_same_guild_are_required_before_database_use(self):
+        value = manager_request()
+        with mock.patch.object(workers.settings, 'owner_id', OWNER_ID), \
+                mock.patch.object(workers, '_connect') as connect:
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftPermissionError,
+                'configured bot owner',
+            ):
+                workers.execute_draft_operation(replace(
+                    value, invoking_guild_id=GUILD_ID + 1,
+                ))
+        connect.assert_not_called()
+
+        connection = Connection()
+        with mock.patch.object(
+            workers.delegation, 'select_delegation', return_value=manager_policy(),
+        ):
+            with self.assertRaisesRegex(
+                workers.OperatorGuildConfigurationDraftPermissionError,
+                'currently hold',
+            ):
+                run_with(
+                    connection,
+                    replace(value, requester_role_ids=(901,)),
+                )
+
 
 class AsyncOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancellation_drains_owned_worker(self):
@@ -486,6 +634,17 @@ class EditServiceAndViewTests(unittest.TestCase):
                 require, service.FIELD_BY_KEY['allow_teams'], False
             )
 
+    def test_requester_role_snapshot_excludes_everyone_and_managed_roles(self):
+        roles = (
+            SimpleNamespace(
+                id=GUILD_ID, managed=False, is_default=lambda: True,
+            ),
+            SimpleNamespace(id=800, managed=True, is_default=lambda: False),
+            SimpleNamespace(id=900, managed=False, is_default=lambda: False),
+        )
+        interaction = SimpleNamespace(user=SimpleNamespace(roles=roles))
+        self.assertEqual(service.requester_role_ids(interaction), (900,))
+
     def test_workspace_builds_every_field_kind_and_is_private_safe(self):
         active = fixtures.bundle().imports[0].document
         result = workers.GuildConfigurationDraftResult(
@@ -541,6 +700,32 @@ class EditServiceAndViewTests(unittest.TestCase):
         )
         self.assertEqual(modal.confirmation.min_length, len(modal.expected))
         self.assertEqual(modal.confirmation.max_length, len(modal.expected))
+
+    def test_delegated_workspace_exposes_only_ordinary_fields_and_disables_activation(self):
+        active = fixtures.bundle().imports[0].document
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(),
+            delegated=True, activation_allowed=False,
+        )
+
+        async def runner(*_args, **_kwargs):
+            return result
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID + 1, active_document=active, result=result,
+            runner=runner, role_names={}, channel_names={}, ordinary_only=True,
+        )
+        self.assertEqual(workspace.sections, service.ORDINARY_SECTIONS)
+        self.assertTrue(all(
+            field.key in service.ORDINARY_FIELD_KEYS
+            for section in workspace.sections
+            for field in service.fields_for_section(section, ordinary_only=True)
+        ))
+        rendered = str(workspace.children)
+        self.assertNotIn('Helper roles', rendered)
+        self.assertNotIn('Command capabilities', rendered)
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):

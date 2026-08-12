@@ -165,6 +165,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         channel_names: Mapping[int, str],
         target_guild_id: int | None = None,
         capabilities_only: bool = False,
+        ordinary_only: bool = False,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
@@ -177,15 +178,24 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             int(result.guild_id) if target_guild_id is None else int(target_guild_id)
         )
         self.capabilities_only = bool(capabilities_only)
+        self.ordinary_only = bool(ordinary_only)
         self.sections = (
             (service.CAPABILITIES,)
             if self.capabilities_only else service.SECTIONS
         )
+        if self.ordinary_only:
+            self.sections = service.ORDINARY_SECTIONS
         self.section = self.sections[0]
-        self.field_key = service.fields_for_section(self.section)[0].key
+        self.field_key = service.fields_for_section(
+            self.section, ordinary_only=self.ordinary_only,
+        )[0].key
         self.list_mode = 'add'
         self.busy = False
-        self.status = 'Create or edit a draft, validate it, then activate it.'
+        self.status = (
+            'Create or edit an ordinary-settings draft, then validate it.'
+            if self.ordinary_only and not result.activation_allowed
+            else 'Create or edit a draft, validate it, then activate it.'
+        )
         self.rebuild()
 
     @property
@@ -304,7 +314,9 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         if not await self.ready(interaction):
             return
         self.section = str(select.values[0])
-        self.field_key = service.fields_for_section(self.section)[0].key
+        self.field_key = service.fields_for_section(
+            self.section, ordinary_only=self.ordinary_only,
+        )[0].key
         self.list_mode = 'add'
         self.rebuild()
         await interaction.response.edit_message(view=self)
@@ -540,7 +552,9 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 disabled=self.busy,
             )
             section.callback = lambda interaction: self._select_section(interaction, section)
-            fields = service.fields_for_section(self.section)
+            fields = service.fields_for_section(
+                self.section, ordinary_only=self.ordinary_only,
+            )
             field_select = discord.ui.Select(
                 placeholder='Choose one field to edit',
                 options=[
@@ -580,6 +594,18 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                     '`operator`, then edit other settings from inside the target.'
                     if self.capabilities_only else ''
                 )
+                + (
+                    '\n-# This delegated workspace exposes only ordinary '
+                    'same-guild settings. Owner-only fields are neither shown '
+                    'nor accepted by the worker.'
+                    if self.ordinary_only else ''
+                )
+                + (
+                    '\n-# The owner kept activation owner-only; a manager can '
+                    'prepare and validate this draft for owner review.'
+                    if self.ordinary_only and not self.result.activation_allowed
+                    else ''
+                )
             ),
         ))
         controls = []
@@ -605,6 +631,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 or draft is None
                 or self.result.validation is None
                 or not service.changed_paths(self.active_document, draft.document)
+                or not self.result.activation_allowed
             ),
         )
         activate.callback = self._activate

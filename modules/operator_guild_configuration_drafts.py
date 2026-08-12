@@ -86,12 +86,27 @@ FIELDS = (
     DraftField('command_capabilities', 'Command capabilities', CAPABILITIES, ('command_capabilities',), CAPABILITY_LIST),
 )
 FIELD_BY_KEY = {value.key: value for value in FIELDS}
+ORDINARY_FIELD_KEYS = frozenset({
+    'display_name', 'command_prefix',
+    'require_teams', 'allow_teams', 'allow_uneven_teams', 'max_team_size',
+    'bot_channels', 'strict_bot_channels', 'newbie_channels',
+    'challenge_channels', 'game_categories', 'ranked_game_channel',
+    'unranked_game_channel', 'steam_game_channel', 'game_announce_channel',
+})
+ORDINARY_FIELDS = tuple(value for value in FIELDS if value.key in ORDINARY_FIELD_KEYS)
+ORDINARY_SECTIONS = tuple(
+    value for value in SECTIONS
+    if any(field.section == value for field in ORDINARY_FIELDS)
+)
 
 
-def fields_for_section(section: str) -> tuple[DraftField, ...]:
+def fields_for_section(
+    section: str, *, ordinary_only: bool = False,
+) -> tuple[DraftField, ...]:
     if section not in SECTIONS:
         raise GuildConfigurationDraftEditError('Unknown draft section.')
-    return tuple(value for value in FIELDS if value.section == section)
+    source = ORDINARY_FIELDS if ordinary_only else FIELDS
+    return tuple(value for value in source if value.section == section)
 
 
 def field_value(document: GuildConfigurationDocument, field: DraftField) -> Any:
@@ -213,6 +228,37 @@ def access_error(interaction: Any) -> str | None:
     return None
 
 
+def delegated_access_error(interaction: Any) -> str | None:
+    if getattr(interaction, 'guild_id', None) is None:
+        return 'This command can only be used in a server.'
+    profile = settings.runtime_profile
+    if (
+            profile.environment != 'development'
+            or profile.guild_configuration_source != 'database'
+    ):
+        return 'Guild configuration editing requires development database authority.'
+    if not settings.guild_configuration_ready():
+        return 'The running database guild configuration is not published.'
+    if settings.database_guild_configuration(int(interaction.guild_id)) is None:
+        return 'This server is not active in the running configuration snapshot.'
+    return None
+
+
+def requester_role_ids(interaction: Any) -> tuple[int, ...]:
+    values = set()
+    for role in tuple(getattr(interaction.user, 'roles', ())):
+        role_id = int(role.id)
+        is_default = getattr(role, 'is_default', None)
+        if (
+                role_id <= 0
+                or bool(getattr(role, 'managed', False))
+                or (callable(is_default) and bool(is_default()))
+        ):
+            continue
+        values.add(role_id)
+    return tuple(sorted(values))
+
+
 def build_request(
     *,
     bot: Any,
@@ -244,6 +290,8 @@ def build_request(
         guild_id=guild_id,
         operation=operation,
         runtime_record=settings.database_guild_configuration(guild_id),
+        invoking_guild_id=int(interaction.guild_id),
+        requester_role_ids=requester_role_ids(interaction),
         expected_draft_version=expected_draft_version,
         expected_draft_digest=expected_draft_digest,
         replacement_document=(
@@ -290,6 +338,8 @@ def build_rollback_request(
         guild_id=guild_id,
         operation=operation,
         runtime_record=settings.database_guild_configuration(guild_id),
+        invoking_guild_id=int(interaction.guild_id),
+        requester_role_ids=requester_role_ids(interaction),
         discord_snapshot=snapshot,
         target_revision=int(target_revision),
         expected_target_digest=expected_target_digest,
@@ -318,12 +368,16 @@ __all__ = [
     'NULLABLE_CHANNEL_LIST',
     'OPTIONAL_CHANNEL',
     'OPTIONAL_ROLE',
+    'ORDINARY_FIELDS',
+    'ORDINARY_FIELD_KEYS',
+    'ORDINARY_SECTIONS',
     'PERMISSIONS',
     'ROLE_LIST',
     'SECTIONS',
     'TEAMS',
     'TEXT',
     'access_error',
+    'delegated_access_error',
     'add_id',
     'build_request',
     'build_rollback_request',
@@ -332,4 +386,5 @@ __all__ = [
     'fields_for_section',
     'remove_id',
     'replace_field',
+    'requester_role_ids',
 ]

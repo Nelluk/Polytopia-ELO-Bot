@@ -1,4 +1,4 @@
-"""Bounded workers for owner-only guild-configuration drafts."""
+"""Bounded workers for owner and delegated guild-configuration drafts."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import psycopg2
 
 import settings
 from modules import guild_configuration_draft_storage as drafts
+from modules import guild_configuration_delegation_storage as delegation
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
@@ -42,6 +43,23 @@ WRITE_OPERATIONS = frozenset({
     RESET, REPLACE, DISCARD, ACTIVATE, ACTIVATE_COMMANDS, ROLLBACK_COMMIT,
 })
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
+ORDINARY_CHANGED_PATHS = frozenset({
+    'identity.display_name',
+    'identity.command_prefix',
+    'teams.require_teams',
+    'teams.allow_teams',
+    'teams.allow_uneven_teams',
+    'teams.max_team_size',
+    'channels.bot_channel_ids',
+    'channels.strict_bot_channel_ids',
+    'channels.newbie_message_channel_ids',
+    'channels.match_challenge_channel_ids',
+    'channels.game_category_ids',
+    'channels.ranked_game_channel_id',
+    'channels.unranked_game_channel_id',
+    'channels.steam_game_channel_id',
+    'channels.game_announce_channel_id',
+})
 
 
 class OperatorGuildConfigurationDraftError(RuntimeError):
@@ -113,6 +131,8 @@ class GuildConfigurationDraftRequest:
     database_password: str = field(repr=False)
     database_host: str | None = None
     database_port: int | None = None
+    invoking_guild_id: int | None = None
+    requester_role_ids: tuple[int, ...] = ()
     expected_draft_version: int | None = None
     expected_draft_digest: str | None = None
     replacement_document_json: str | None = field(default=None, repr=False)
@@ -168,6 +188,8 @@ class GuildConfigurationDraftResult:
     )
     runtime_published: bool = False
     committed: bool = False
+    delegated: bool = False
+    activation_allowed: bool = True
 
 
 _executor = ThreadPoolExecutor(
@@ -184,13 +206,6 @@ def _strict_positive(value: Any, field_name: str) -> int:
     return value
 
 
-def _validate_owner(requester_id: int) -> None:
-    if int(requester_id) != int(settings.owner_id):
-        raise OperatorGuildConfigurationDraftPermissionError(
-            'Only the configured bot owner can manage guild configuration drafts.'
-        )
-
-
 def _validate_request(
     request: GuildConfigurationDraftRequest,
 ) -> GuildConfigurationDraftRequest:
@@ -198,12 +213,35 @@ def _validate_request(
         raise OperatorGuildConfigurationDraftValidationError(
             'A frozen guild-configuration draft request is required.'
         )
-    _validate_owner(request.requester_id)
     if request.operation not in OPERATIONS:
         raise OperatorGuildConfigurationDraftValidationError(
             'The guild-configuration draft operation is invalid.'
         )
     _strict_positive(request.guild_id, 'Guild ID')
+    owner = int(request.requester_id) == int(settings.owner_id)
+    if request.invoking_guild_id is not None:
+        _strict_positive(request.invoking_guild_id, 'Invoking guild ID')
+    roles = tuple(request.requester_role_ids)
+    if (
+            any(
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+                for value in roles
+            )
+            or roles != tuple(sorted(set(roles)))
+    ):
+        raise OperatorGuildConfigurationDraftValidationError(
+            'The requester role snapshot is invalid.'
+        )
+    if not owner and (
+            request.invoking_guild_id != request.guild_id
+            or not roles
+            or request.operation in {
+                ACTIVATE_COMMANDS, ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
+            }
+    ):
+        raise OperatorGuildConfigurationDraftPermissionError(
+            'Only the configured bot owner can use this configuration operation.'
+        )
     try:
         storage.validate_target(request.target)
     except storage.GuildConfigurationStorageError as exc:
@@ -396,6 +434,8 @@ def request_from_profile(
     guild_id: int,
     operation: str,
     runtime_record: Any,
+    invoking_guild_id: int | None = None,
+    requester_role_ids: Sequence[int] = (),
     expected_draft_version: int | None = None,
     expected_draft_digest: str | None = None,
     replacement_document: Mapping[str, Any] | None = None,
@@ -455,6 +495,10 @@ def request_from_profile(
         runtime_revision=int(runtime_record.revision),
         runtime_generation=int(runtime_record.generation),
         runtime_document_digest=str(runtime_record.document_digest),
+        invoking_guild_id=(
+            None if invoking_guild_id is None else int(invoking_guild_id)
+        ),
+        requester_role_ids=tuple(sorted(int(value) for value in requester_role_ids)),
         database_password=profile.database_password,
         database_host=profile.database_host,
         database_port=profile.database_port,
@@ -518,9 +562,15 @@ def _validate_schema(cursor: Any) -> None:
             raise drafts.GuildConfigurationDraftStorageError(
                 'Guild-configuration draft storage is absent.'
             )
+        if not delegation.validate_delegation_schema(
+                delegation.inspect_delegation_schema(cursor)):
+            raise delegation.GuildConfigurationDelegationStorageError(
+                'Guild-configuration delegation storage is absent.'
+            )
     except (
         storage.GuildConfigurationStorageError,
         drafts.GuildConfigurationDraftStorageError,
+        delegation.GuildConfigurationDelegationStorageError,
     ) as exc:
         raise OperatorGuildConfigurationDraftValidationError(
             'The guild-configuration draft schema is absent or invalid.'
@@ -608,6 +658,48 @@ def _changed_paths(
     ))
 
 
+def _delegated_authority(
+    cursor: Any,
+    request: GuildConfigurationDraftRequest,
+) -> delegation.GuildConfigurationDelegation | None:
+    if int(request.requester_id) == int(settings.owner_id):
+        return None
+    try:
+        policy = delegation.select_delegation(
+            cursor, request.guild_id, for_update=False,
+        )
+    except delegation.GuildConfigurationDelegationStorageError as exc:
+        raise OperatorGuildConfigurationDraftPermissionError(
+            'Configuration delegation could not be verified.'
+        ) from exc
+    if (
+            policy is None
+            or not policy.enabled
+            or not set(request.requester_role_ids).intersection(
+                policy.manager_role_ids
+            )
+    ):
+        raise OperatorGuildConfigurationDraftPermissionError(
+            'You do not currently hold a configured guild-manager role.'
+        )
+    return policy
+
+
+def _require_ordinary(
+    active: GuildConfigurationDocument,
+    candidate: GuildConfigurationDocument,
+) -> None:
+    forbidden = tuple(
+        path for path in _changed_paths(active, candidate)
+        if path not in ORDINARY_CHANGED_PATHS
+    )
+    if forbidden:
+        raise OperatorGuildConfigurationDraftPermissionError(
+            'This draft includes owner-only configuration. Ask the bot owner '
+            'to finish or reset it before delegated editing.'
+        )
+
+
 def _post_commit_runtime_snapshot(
     request: GuildConfigurationDraftRequest,
 ) -> runtime.GuildConfigurationRuntimeSnapshot:
@@ -684,6 +776,11 @@ def execute_draft_operation(
             active_revision, active_generation, active_document, active_digest = (
                 _active(cursor, request, for_update=not readonly)
             )
+            delegated_policy = _delegated_authority(cursor, request)
+            delegated = delegated_policy is not None
+            activation_allowed = (
+                not delegated or delegated_policy.allow_activation
+            )
             actor = f'discord:{request.requester_id}'
             validation = None
             if request.operation in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT}:
@@ -754,6 +851,15 @@ def execute_draft_operation(
                             str(exc)
                         ) from exc
             elif request.operation == RESET:
+                if delegated:
+                    existing = drafts.select_draft(
+                        cursor,
+                        request.guild_id,
+                        active_only=True,
+                        for_update=True,
+                    )
+                    if existing is not None:
+                        _require_ordinary(active_document, existing.document)
                 draft = drafts.put_draft(
                     cursor,
                     guild_id=request.guild_id,
@@ -788,8 +894,12 @@ def execute_draft_operation(
                         'The draft is based on an older active revision; reset it '
                         'before continuing.'
                     )
+                if delegated and draft is not None:
+                    _require_ordinary(active_document, draft.document)
                 if request.operation == REPLACE:
                     assert replacement is not None
+                    if delegated:
+                        _require_ordinary(active_document, replacement)
                     try:
                         draft = drafts.replace_draft(
                             cursor,
@@ -826,6 +936,11 @@ def execute_draft_operation(
                     )
                 elif request.operation in {ACTIVATE, ACTIVATE_COMMANDS}:
                     assert draft is not None
+                    if delegated and not activation_allowed:
+                        raise OperatorGuildConfigurationDraftPermissionError(
+                            'The owner delegated editing and validation, but kept '
+                            'activation owner-only.'
+                        )
                     _live_validate(request, draft)
                     capabilities_changed = (
                         draft.document.command_capabilities
@@ -912,6 +1027,8 @@ def execute_draft_operation(
                 rollback=rollback,
                 runtime_snapshot=runtime_snapshot,
                 committed=committed,
+                delegated=delegated,
+                activation_allowed=activation_allowed,
             )
     except psycopg2.OperationalError as exc:
         raise OperatorGuildConfigurationDraftUnavailable(

@@ -449,7 +449,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             {command.name for command in self.guild_group.commands},
             {
                 'list', 'settings', 'validate', 'history', 'edit', 'rollback',
-                'enroll', 'commands', 'suspend', 'resume',
+                'enroll', 'commands', 'suspend', 'resume', 'delegation',
             },
         )
         settings_command = self.guild_group.get_command('settings')

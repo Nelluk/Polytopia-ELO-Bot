@@ -411,8 +411,13 @@ Each step is a separate bounded unit with its own review and evidence.
    saved live references, restores the runtime graph, and restores only the
    saved command capabilities. A repeat action reconciles Discord without a
    database write; no global or startup synchronization is introduced.
-9. **Delegated local editing.** Add opt-in same-guild ordinary-setting
-   delegation with the permission matrix above.
+9. **Delegated local editing (complete in P10.9 for development).** The owner
+   grants explicit assignable role IDs through a separately versioned and
+   audited policy. Managers use `/guild edit` only in their own active guild;
+   every operation rechecks current role evidence and the database policy,
+   protected document changes fail closed, and activation is a separate
+   owner-controlled opt-in. The `guild` root does not inherit `/operator`'s
+   administrator-default visibility or bot-wide surface.
 10. **Production plan/apply/canary.** Separately approve production schema,
    import, shadow comparison, authority switch, and rollback. Do not combine
    this with the current modernization cutover merely for convenience.

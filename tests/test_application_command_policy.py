@@ -104,7 +104,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         )
         self.assertEqual(policy.capabilities_for_guild(20), ('operator',))
         self.assertIn('operator', policy.roots_for_guild(10))
-        self.assertEqual(policy.roots_for_guild(20), ('operator',))
+        self.assertEqual(policy.roots_for_guild(20), ('guild', 'operator'))
         self.assertEqual(policy.assigned_guild_ids(), (10, 20))
 
     def test_staffhelp_capability_can_apply_to_every_allowed_guild(self):

@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_ROOTS = (
     'elo',
     'game',
+    'guild',
     'house',
     'leaderboard',
     'league',
@@ -71,7 +72,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         readiness = _read('docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md')
         readiness_current = _section(readiness, '## Current reconciliation')
         self.assertEqual(
-            tuple(re.findall(r'`([^`]+)`', readiness_current))[:11],
+            tuple(re.findall(r'`([^`]+)`', readiness_current))[:len(EXPECTED_ROOTS)],
             EXPECTED_ROOTS,
         )
         self.assertIn('M1–M6 and L1 are resolved', readiness_current)
@@ -79,7 +80,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P10.8 owner-only guild suspend/resume lifecycle',
+            'Current active unit: **P10.9 additive guild-configuration delegation',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)

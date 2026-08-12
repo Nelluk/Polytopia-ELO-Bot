@@ -132,7 +132,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 for command
                 in administration.administration.__cog_app_commands__
             ],
-            ['elo', 'team', 'operator'],
+            ['elo', 'team', 'guild', 'operator'],
         )
         self.assertEqual(
             {command.name for command in game_group.commands},
@@ -246,7 +246,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             },
             {
                 'list', 'settings', 'validate', 'history', 'edit', 'rollback',
-                'enroll', 'commands', 'suspend', 'resume',
+                'enroll', 'commands', 'suspend', 'resume', 'delegation',
             },
         )
         self.assertEqual(

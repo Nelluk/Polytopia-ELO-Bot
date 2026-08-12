@@ -581,10 +581,10 @@ def replace_draft(
     cursor.execute(
         f'UPDATE "{DRAFT_TABLE}" SET draft_version = draft_version + 1, '
         'schema_version = %s, document = CAST(%s AS JSONB), '
-        'document_digest = %s, updated_at = CURRENT_TIMESTAMP, '
+        'document_digest = %s, actor = %s, updated_at = CURRENT_TIMESTAMP, '
         f'expires_at = CURRENT_TIMESTAMP + INTERVAL \'{DRAFT_TTL_HOURS} hours\' '
         'WHERE guild_id = %s AND draft_version = %s AND document_digest = %s '
-        'AND base_revision = %s AND base_generation = %s AND actor = %s '
+        'AND base_revision = %s AND base_generation = %s '
         'AND expires_at > CURRENT_TIMESTAMP '
         'RETURNING guild_id, draft_version, base_revision, base_generation, '
         'schema_version, document, document_digest, actor, created_at, '
@@ -593,12 +593,12 @@ def replace_draft(
             document.schema_version,
             payload,
             digest,
+            actor,
             guild_id,
             expected_version,
             expected_digest,
             base_revision,
             base_generation,
-            actor,
         ),
     )
     row = cursor.fetchone()
@@ -621,8 +621,8 @@ def expire_draft(
         f'UPDATE "{DRAFT_TABLE}" SET draft_version = draft_version + 1, '
         'updated_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP '
         'WHERE guild_id = %s AND draft_version = %s AND document_digest = %s '
-        'AND actor = %s AND expires_at > CURRENT_TIMESTAMP',
-        (guild_id, expected_version, expected_digest, actor),
+        'AND expires_at > CURRENT_TIMESTAMP',
+        (guild_id, expected_version, expected_digest),
     )
     if cursor.rowcount != 1:
         raise GuildConfigurationDraftStorageError(

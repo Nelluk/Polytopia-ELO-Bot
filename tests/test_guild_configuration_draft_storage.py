@@ -192,12 +192,13 @@ class DraftPersistenceTests(unittest.TestCase):
         )
         statement, parameters = cursor.statements[-1]
         self.assertIn('draft_version = %s AND document_digest = %s', statement)
-        self.assertEqual(parameters[-1], 'discord:1')
+        self.assertEqual(parameters[3], 'discord:1')
         drafts.expire_draft(
             cursor, guild_id=fixtures.GUILD_ID, expected_version=2,
             expected_digest=document_digest(document), actor='discord:1',
         )
         self.assertIn('expires_at = CURRENT_TIMESTAMP', cursor.statements[-1][0])
+        self.assertNotIn('actor = %s', cursor.statements[-1][0])
 
     def test_stale_replace_and_discard_fail_closed(self):
         document = fixtures.bundle().imports[0].document

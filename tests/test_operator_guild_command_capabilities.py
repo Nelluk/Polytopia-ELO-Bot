@@ -74,7 +74,7 @@ class FakeTree:
 
 def command_bot(*, current=(), global_commands=()):
     source = tuple(FakeCommand(name) for name in (
-        'game', 'leaderboard', 'operator', 'player', 'staffhelp',
+        'game', 'guild', 'leaderboard', 'operator', 'player', 'staffhelp',
     ))
     return SimpleNamespace(tree=FakeTree(
         source=source,
@@ -114,7 +114,7 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         second = await activation_plan(second_bot)
 
         self.assertEqual(first, second)
-        self.assertEqual(first.creates, ('operator',))
+        self.assertEqual(first.creates, ('guild', 'operator'))
         self.assertEqual(first.removals, ())
         self.assertEqual(
             first.confirmation,
@@ -161,7 +161,10 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(result.guild_id, GUILD_ID)
-        self.assertEqual(result.roots, ('game', 'leaderboard', 'operator', 'player'))
+        self.assertEqual(
+            result.roots,
+            ('game', 'guild', 'leaderboard', 'operator', 'player'),
+        )
         self.assertEqual(bot.tree.sync_scopes, [GUILD_ID])
         self.assertEqual(bot.tree.clear_scope, GUILD_ID)
         self.assertEqual(bot.tree.add_scope, GUILD_ID)

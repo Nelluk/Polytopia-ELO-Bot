@@ -65,6 +65,9 @@ from modules import operator_guild_command_capability_views
 from modules import operator_guild_lifecycle as operator_guild_lifecycle_service
 from modules import operator_guild_lifecycle_views
 from modules import operator_guild_lifecycle_workers
+from modules import operator_guild_delegation as operator_guild_delegation_service
+from modules import operator_guild_delegation_views
+from modules import operator_guild_delegation_workers
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -179,6 +182,11 @@ class administration(commands.Cog):
     team_group = discord.app_commands.Group(
         name='team',
         description='View and manage competitive team attributes.',
+        guild_only=True,
+    )
+    guild_group = discord.app_commands.Group(
+        name='guild',
+        description='Manage delegated settings for this server.',
         guild_only=True,
     )
     operator_group = discord.app_commands.Group(
@@ -1675,6 +1683,28 @@ class administration(commands.Cog):
             result = replace(result, runtime_published=True)
         return result
 
+    async def _operator_guild_delegation_operation(
+        self,
+        interaction: discord.Interaction,
+        operation: str,
+        *,
+        expected_policy_version: int | None = None,
+        manager_role_ids: tuple[int, ...] | None = None,
+        allow_activation: bool | None = None,
+        expected_plan_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
+        request = operator_guild_delegation_service.build_request(
+            interaction=interaction,
+            operation=operation,
+            expected_policy_version=expected_policy_version,
+            manager_role_ids=manager_role_ids,
+            allow_activation=allow_activation,
+            expected_plan_digest=expected_plan_digest,
+            confirmation_text=confirmation_text,
+        )
+        return await operator_guild_delegation_workers.run_delegation(request)
+
     async def _operator_guild_enrollment_operation(
         self,
         interaction: discord.Interaction,
@@ -1991,30 +2021,13 @@ class administration(commands.Cog):
                 ephemeral=True,
             )
 
-    @operator_guild_group.command(
-        name='edit',
-        description='Privately edit and validate one active guild configuration.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id=(
-            'Active target server ID; omit to edit the server where this command runs.'
-        ),
-    )
-    async def operator_guild_draft_slash(
+    async def _open_guild_draft_workspace(
         self,
         interaction: discord.Interaction,
-        target_guild_id: str | None = None,
+        *,
+        target: int,
+        ordinary_only: bool,
     ):
-        access_error = operator_guild_draft_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error,
-                ephemeral=True,
-            )
-        try:
-            target = self._operator_target_guild_id(interaction, target_guild_id)
-        except ValueError as exc:
-            return await interaction.response.send_message(str(exc), ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         try:
             target_guild = self._operator_visible_target_guild(target)
@@ -2044,6 +2057,7 @@ class administration(commands.Cog):
                 channel_names=channel_names,
                 target_guild_id=target,
                 capabilities_only=(target != int(interaction.guild_id)),
+                ordinary_only=ordinary_only or result.delegated,
             )
             await operator_guild_configuration_draft_views.publish_private(
                 interaction,
@@ -2057,6 +2071,89 @@ class administration(commands.Cog):
             return await interaction.followup.send(
                 'Could not open the guild-configuration draft workspace. '
                 'Active configuration was unchanged.',
+                ephemeral=True,
+            )
+
+    @operator_guild_group.command(
+        name='edit',
+        description='Privately edit and validate one active guild configuration.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id=(
+            'Active target server ID; omit to edit the server where this command runs.'
+        ),
+    )
+    async def operator_guild_draft_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str | None = None,
+    ):
+        access_error = operator_guild_draft_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error, ephemeral=True,
+            )
+        try:
+            target = self._operator_target_guild_id(interaction, target_guild_id)
+        except ValueError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
+        return await self._open_guild_draft_workspace(
+            interaction, target=target, ordinary_only=False,
+        )
+
+    @guild_group.command(
+        name='edit',
+        description='Privately edit delegated ordinary settings for this server.',
+    )
+    async def guild_draft_slash(self, interaction: discord.Interaction):
+        access_error = operator_guild_draft_service.delegated_access_error(
+            interaction
+        )
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error, ephemeral=True,
+            )
+        return await self._open_guild_draft_workspace(
+            interaction,
+            target=int(interaction.guild_id),
+            ordinary_only=(int(interaction.user.id) != int(settings.owner_id)),
+        )
+
+    @operator_guild_group.command(
+        name='delegation',
+        description='Privately grant or revoke this guild manager policy.',
+    )
+    async def operator_guild_delegation_slash(
+        self, interaction: discord.Interaction,
+    ):
+        access_error = operator_guild_delegation_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error, ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await self._operator_guild_delegation_operation(
+                interaction, operator_guild_delegation_workers.SHOW,
+            )
+            role_names = {
+                int(role.id): str(role.name)
+                for role in tuple(interaction.guild.roles)
+            }
+            view = operator_guild_delegation_views.GuildDelegationWorkspace(
+                requester_id=int(interaction.user.id),
+                result=result,
+                runner=self._operator_guild_delegation_operation,
+                role_names=role_names,
+            )
+            await operator_guild_delegation_views.publish_private(interaction, view)
+            return view
+        except operator_guild_delegation_workers.OperatorGuildDelegationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator guild delegation failure')
+            return await interaction.followup.send(
+                'Could not open the guild delegation workspace. No policy changed.',
                 ephemeral=True,
             )
 

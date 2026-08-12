@@ -450,8 +450,8 @@ class CancellationTests(unittest.IsolatedAsyncioTestCase):
 
 class CommandPlanAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_lifecycle_plan_removes_target_roots_and_syncs_exact_guild(self):
-        source = (FakeCommand('operator'),)
-        current = (FakeCommand('operator'),)
+        source = (FakeCommand('guild'), FakeCommand('operator'))
+        current = (FakeCommand('guild'), FakeCommand('operator'))
         bot = SimpleNamespace(tree=FakeTree(source=source, current=current))
         policy = commands.build_capability_policy(
             {CONTROL_ID: (), TARGET_ID: ('operator',)},
@@ -464,14 +464,14 @@ class CommandPlanAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             current_capabilities=('operator',), desired_capabilities=(),
             mode=commands.LIFECYCLE,
         )
-        self.assertEqual(plan.removals, ('operator',))
+        self.assertEqual(plan.removals, ('guild', 'operator'))
         result = await commands.apply_command_plan(bot=bot, policy=policy, plan=plan)
         self.assertEqual(result.guild_id, TARGET_ID)
         self.assertEqual(bot.tree.sync_scopes, [TARGET_ID])
         self.assertEqual(bot.tree.fetch_scopes.count(None), 3)
 
     async def test_resume_plan_restores_saved_roots_to_exact_guild(self):
-        source = (FakeCommand('operator'),)
+        source = (FakeCommand('guild'), FakeCommand('operator'))
         bot = SimpleNamespace(tree=FakeTree(source=source, current=()))
         policy = commands.build_capability_policy(
             {CONTROL_ID: (), TARGET_ID: ()},
@@ -484,9 +484,9 @@ class CommandPlanAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             current_capabilities=(), desired_capabilities=('operator',),
             mode=commands.LIFECYCLE,
         )
-        self.assertEqual(plan.creates, ('operator',))
+        self.assertEqual(plan.creates, ('guild', 'operator'))
         result = await commands.apply_command_plan(bot=bot, policy=policy, plan=plan)
-        self.assertEqual(result.roots, ('operator',))
+        self.assertEqual(result.roots, ('guild', 'operator'))
         self.assertEqual(bot.tree.sync_scopes, [TARGET_ID])
 
     def test_runtime_publication_removes_and_restores_exact_target(self):
