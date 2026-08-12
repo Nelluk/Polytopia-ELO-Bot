@@ -380,6 +380,32 @@ log_root = logs/development
         self.assertEqual(finding.status, doctor.BLOCK)
         self.assertNotIn(str(backup_directory.resolve()), '\n'.join(report.commands))
 
+    def test_darwin_backup_directory_uses_host_owner_and_requires_live_probe(self):
+        env_path = self.root / 'deploy/container/.env'
+        env = env_path.read_text(encoding='utf-8').replace(
+            f'POLYBOT_RECOVERY_UID={os.getuid()}',
+            f'POLYBOT_RECOVERY_UID={os.getuid() + 1000}',
+        ).replace(
+            f'POLYBOT_RECOVERY_GID={os.getgid()}',
+            f'POLYBOT_RECOVERY_GID={os.getgid() + 1000}',
+        )
+        env_path.write_text(env, encoding='utf-8')
+
+        report = doctor.run_doctor(
+            self.root,
+            mode='bundled',
+            which=self._docker_only,
+            git_probe=self._git,
+            host_platform='darwin',
+            host_uid=os.getuid(),
+        )
+        finding = next(
+            item for item in report.findings if item.key == 'backup-directory'
+        )
+        self.assertEqual(finding.status, doctor.WARN)
+        self.assertIn('live Docker Desktop bind probe', finding.message)
+        self.assertTrue(report.ready)
+
     def test_invalid_contract_refuses_before_any_engine_probe(self):
         contract = self.root / 'deploy/container/container-contract.toml'
         contract.write_text(

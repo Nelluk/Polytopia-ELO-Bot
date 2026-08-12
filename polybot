@@ -157,6 +157,57 @@ validate_secret_file() {
     || fail "Required secret has an unsafe shape: $target"
 }
 
+metadata_uid() {
+  if [ "$(platform_name)" = darwin ]; then
+    stat -f '%u' "$1"
+  else
+    stat -c '%u' "$1"
+  fi
+}
+
+metadata_gid() {
+  if [ "$(platform_name)" = darwin ]; then
+    stat -f '%g' "$1"
+  else
+    stat -c '%g' "$1"
+  fi
+}
+
+metadata_mode() {
+  if [ "$(platform_name)" = darwin ]; then
+    stat -f '%Lp' "$1"
+  else
+    stat -c '%a' "$1"
+  fi
+}
+
+host_private_input_probe() {
+  require_command stat
+  for target in "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$ADMIN_SECRET" "$APP_SECRET"; do
+    [ "$(metadata_mode "$target")" = 600 ] \
+      || fail "Private deployment file must retain mode 0600: $target"
+  done
+  [ "$(metadata_mode "$BACKUP_DIR")" = 700 ] \
+    || fail 'The ignored backup directory must retain mode 0700.'
+
+  if [ "$(platform_name)" = darwin ]; then
+    for target in "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$BACKUP_DIR"; do
+      [ "$(metadata_uid "$target")" = "$(host_uid)" ] \
+        || fail 'Docker Desktop bind inputs must be owned by the invoking macOS user.'
+    done
+  else
+    for target in "$CONFIG_FILE" "$SERVER_SETTINGS_FILE"; do
+      [ "$(metadata_uid "$target")" = "$(runtime_uid)" ] \
+        && [ "$(metadata_gid "$target")" = "$(runtime_gid)" ] \
+        || fail 'Linux private configuration owner must match the runtime UID/GID.'
+    done
+    [ "$(metadata_uid "$BACKUP_DIR")" = "$(runtime_uid)" ] \
+      && [ "$(metadata_gid "$BACKUP_DIR")" = "$(runtime_gid)" ] \
+      || fail 'Linux backup owner must match the recovery UID/GID.'
+  fi
+  echo 'Host private-input ownership and modes: PASS.'
+}
+
 rewrite_config_key() {
   EDIT_KEY=$1
   EDIT_VALUE=$2
@@ -265,8 +316,8 @@ prepare_ignored_inputs() {
   rewrite_env_key POLYBOT_SOURCE_CHECKPOINT "$checkpoint"
   rewrite_env_key POLYBOT_RUNTIME_UID "$(runtime_uid)"
   rewrite_env_key POLYBOT_RUNTIME_GID "$(runtime_gid)"
-  rewrite_env_key POLYBOT_RECOVERY_UID "$(host_uid)"
-  rewrite_env_key POLYBOT_RECOVERY_GID "$(host_gid)"
+  rewrite_env_key POLYBOT_RECOVERY_UID "$(runtime_uid)"
+  rewrite_env_key POLYBOT_RECOVERY_GID "$(runtime_gid)"
 
   if [ "$scaffolded" = true ]; then
     echo 'Private container configuration scaffolds were created.'
@@ -296,12 +347,11 @@ run_immutable_doctor() {
     --read-only \
     --cap-drop ALL \
     --security-opt no-new-privileges:true \
-    --user 0:0 \
+    --user "$(runtime_uid):$(runtime_gid)" \
     --mount "type=bind,src=$ENV_FILE,dst=/app/deploy/container/.env,readonly" \
     --mount "type=bind,src=$CONFIG_FILE,dst=/app/deploy/container/config.development.ini,readonly" \
     --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/app/deploy/container/server_settings_dev.py,readonly" \
-    --mount "type=bind,src=$ADMIN_SECRET,dst=/app/deploy/container/secrets/postgres-admin-password.txt,readonly" \
-    --mount "type=bind,src=$APP_SECRET,dst=/app/deploy/container/secrets/polybot-database-password.txt,readonly" \
+    --mount "type=bind,src=$SECRETS_DIR,dst=/app/deploy/container/secrets,readonly" \
     --mount "type=bind,src=$BACKUP_DIR,dst=/app/deploy/container/backups,readonly" \
     --env POLYBOT_ENV=development \
     --env POLYBOT_DEPLOYMENT_CLI_INTERNAL=1 \
@@ -309,8 +359,8 @@ run_immutable_doctor() {
     python scripts/check_container_deployment.py \
       --mode bundled \
       --immutable-image-checkpoint "$checkpoint" \
-      --host-platform "$(platform_name)" \
-      --host-uid "$(host_uid)"
+      --host-platform linux \
+      --host-uid "$(runtime_uid)"
 }
 
 live_bind_probe() {
@@ -453,6 +503,7 @@ command_setup() {
   require_engine
   validate_project_name
   prepare_ignored_inputs
+  host_private_input_probe
   checkpoint=$(git_checkpoint)
   echo "Building exact development image for checkpoint $checkpoint..."
   compose build bot
@@ -498,6 +549,7 @@ command_start() {
   require_engine
   validate_project_name
   require_prepared_inputs
+  host_private_input_probe
   host_checkpoint=$(git_checkpoint)
   [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
     || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
@@ -680,6 +732,7 @@ command_verify_backup() {
   validate_project_name
   require_prepared_inputs
   ensure_private_directories
+  host_private_input_probe
   prepare_archive_source "$1"
   plan=$(restore_plan)
   printf '%s\n' "$plan"
@@ -716,6 +769,7 @@ command_import_backup() {
   validate_project_name
   require_prepared_inputs
   ensure_private_directories
+  host_private_input_probe
   bot_id=$(bot_container_id)
   container_running "$bot_id" \
     && fail 'Stop the development bot before importing a database.'
@@ -754,6 +808,7 @@ command_backup() {
   require_engine
   validate_project_name
   require_prepared_inputs
+  host_private_input_probe
   plan=$(compose --profile recovery run --rm --no-deps database-backup)
   printf '%s\n' "$plan"
   confirmation=$(printf '%s\n' "$plan" | sed -n 's/^confirmation: //p' | tail -n 1)

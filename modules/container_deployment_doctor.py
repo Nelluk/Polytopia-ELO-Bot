@@ -381,7 +381,14 @@ def _secret_value(path: Path, label: str) -> tuple[Finding, str | None]:
     return finding, value
 
 
-def _backup_directory(path: Path, *, uid: int, gid: int) -> Finding:
+def _backup_directory(
+    path: Path,
+    *,
+    uid: int,
+    gid: int,
+    host_platform: str,
+    host_uid: int,
+) -> Finding:
     try:
         metadata = path.lstat()
     except OSError:
@@ -397,21 +404,35 @@ def _backup_directory(path: Path, *, uid: int, gid: int) -> Finding:
             f'Backup path must be one non-symlink directory: {path}',
         )
     permissions = stat.S_IMODE(metadata.st_mode)
-    safe = (
-        metadata.st_uid == uid
-        and metadata.st_gid == gid
-        and permissions == 0o700
-    )
-    return _finding(
-        'backup-directory',
-        PASS if safe else BLOCK,
-        (
+    if host_platform == 'darwin':
+        safe = metadata.st_uid == host_uid and permissions == 0o700
+        success = (
+            'Off-volume backup directory is owned by the invoking macOS user '
+            'with mode 0700; the recovery job still requires a live Docker '
+            'Desktop bind probe.'
+        )
+        failure = (
+            'Off-volume backup directory on macOS must be owned by the '
+            'invoking host user with mode 0700.'
+        )
+    else:
+        safe = (
+            metadata.st_uid == uid
+            and metadata.st_gid == gid
+            and permissions == 0o700
+        )
+        success = (
             'Off-volume backup directory has the exact recovery owner and '
             f'mode 0700: {path}'
-            if safe else
+        )
+        failure = (
             'Off-volume backup directory must match the configured recovery '
             f'UID/GID and mode 0700: {path}'
-        ),
+        )
+    return _finding(
+        'backup-directory',
+        BLOCK if not safe else (WARN if host_platform == 'darwin' else PASS),
+        success if safe else failure,
     )
 
 
@@ -910,6 +931,8 @@ def run_doctor(
                     root / str(contract['backup_directory']),
                     uid=int(recovery_uid),
                     gid=int(recovery_gid),
+                    host_platform=host_platform,
+                    host_uid=host_uid,
                 ))
             else:
                 findings.append(_finding(

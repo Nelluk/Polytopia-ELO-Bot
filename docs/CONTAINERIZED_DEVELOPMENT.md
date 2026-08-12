@@ -138,11 +138,15 @@ existing ignored development profile when available or creates private
 scaffolds from the tracked examples, generates distinct database secrets
 without printing them, fixes only container-owned database/effect settings,
 pins the exact clean checkpoint, selects the reviewed Darwin/Linux identity
-policy, builds the image, runs the existing doctor inside that immutable
-image, performs the real bind-readability probe, starts PostgreSQL, and reuses
-the existing provisioner. It never overwrites an existing database or Discord
-configuration. If it creates scaffolds, the operator fills the Discord and
-denylist placeholders and reruns setup.
+policy, verifies host ownership/modes, builds the image, runs the existing
+doctor inside that immutable image against the actual Linux container view,
+performs the real bind-readability probe, starts PostgreSQL, and reuses the
+existing provisioner. On Docker Desktop the host inputs remain owned by the
+invoking macOS user while the container view uses the fixed internal
+`1000:1000`; Linux retains exact host/runtime UID/GID equality. It never
+overwrites an existing database or Discord configuration. If it creates
+scaffolds, the operator fills the Discord and denylist placeholders and
+reruns setup.
 
 When the ordinary database is relation-empty, setup prints the existing schema
 plan and exact confirmation. Entering the token initializes a fresh empty
@@ -286,10 +290,12 @@ administrative and application passwords are new recovery-cluster secrets;
 they do not need to equal the source server's credentials. Never point this
 flow at an existing database or use it as authority to change production.
 
-Set `POLYBOT_RECOVERY_UID` and `POLYBOT_RECOVERY_GID` in the ignored `.env` to
-the positive host UID/GID that owns `deploy/container/backups`. Recovery jobs
-run with that identity, a read-only root filesystem, dropped capabilities, and
-no Docker socket. Use this base command below, or paste the full equivalent:
+On Linux, set `POLYBOT_RECOVERY_UID` and `POLYBOT_RECOVERY_GID` in the ignored
+`.env` to the positive host UID/GID that owns `deploy/container/backups`. On
+Docker Desktop use the positive internal runtime identity while the host
+directory remains mode 0700 and owned by the invoking macOS user. Recovery
+jobs run with that identity, a read-only root filesystem, dropped capabilities,
+and no Docker socket. Use this base command below, or paste the full equivalent:
 
 ```bash
 COMPOSE='docker compose --env-file deploy/container/.env --file deploy/container/compose.development.yaml'
