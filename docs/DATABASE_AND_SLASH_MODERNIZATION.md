@@ -436,8 +436,10 @@ check:
 - P9.28R container safety-evidence repair checkpoints: `3e891d7`, `a51ecb7`,
   and `c2dfc72`; validated exact arm64 image:
   `sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`
+- P9.28R2 adversarial correction checkpoint: `931e245`; validated exact arm64
+  image: `sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
 - current combined offline result: complete exact-image discovery succeeded
-  across 2,128 tests with 98 intentional skips
+  across 2,134 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
@@ -533,22 +535,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28R container Beta Lab lock/evidence repair is
-complete locally.** Checkpoints `3e891d7`, `a51ecb7`, and `c2dfc72` replace
-P9.28's release-basis evidence. Compose now starts the bot only through the
-guarded launcher, which proves the configured image/source checkpoint and
-holds the shared durable-writer lock for the process lifetime. Database repair
-evidence is schema v2: it binds the complete canonical House/Team baseline and
-all usage predicates to a digest and rechecks them through publication. Exact
-arm64 image
-`sha256:f5487f4ae27b4261dd333c7e1f64d0e9b02fc1cbe4157ff2cdf8ce6f7df27e0c`
-passed 2,128 tests with 98 intentional skips. Live running-writer refusal and
-the complementary stopped-writer reconcile with byte-for-byte-equivalent
-pre/post database rows passed. All five protected packs are ready. No command
-synchronization, tester announcement, production, RackNerd, or external-
-database action occurred. RC2 remains historical; after a focused adversarial
-re-review of N8/N9, the next implementation/test unit is P9.29 human command,
-retained-prefix, and public/private visibility acceptance.
+Current active unit: **P9.28R2 adversarial container/evidence correction is
+complete locally at `931e245`.** Compose operator context now proves the `/app`
+image root, image interpreter, root-owned embedded checkpoint, and mounted log-
+volume boundary before profile/database loading. Cross-container census counts
+the guarded launcher command. Pending rollback proves both recorded row IDs are
+absent before deleting evidence, and fault injection proves the writer lock is
+held across final proof and publication. Exact arm64 image
+`sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
+passed 2,134 tests with 98 intentional skips. The direct-host reproduction
+refuses before profile load; the exact image plus actual named log volume and
+matching embedded checkpoint passes. No command synchronization, tester
+announcement, production, RackNerd, or external-database action occurred. RC2
+remains historical; after final Mac beta refresh/live boundary evidence, the
+next unit is P9.29 human command, retained-prefix, and public/private visibility
+acceptance.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16607,10 +16608,61 @@ volume, current image, container, backup, or database was deleted. PostgreSQL
 recovered automatically, accepted connections, retained the active guild row,
 and completed a checkpoint before testing resumed.
 
-Next action: focused adversarial re-review of N8/N9 against the P9.28R
-checkpoint. If green, proceed to P9.29 bounded human command, retained-prefix,
-and public/private visibility acceptance. Tester instructions or a tester ping
-remain separately approved terminal actions.
+Next action: superseded by P9.28R2 after the focused adversarial review found
+four concrete blockers. Preserve this section as the pre-review evidence.
+
+### P9.28R2 — Adversarial container/evidence corrections
+
+Status: **Complete locally: all four focused-review blockers corrected and the
+exact code image passes complete discovery.**
+
+Branch/base: `codex/p9-28r2-adversarial-corrections`, exact clean pushed base
+`b68d2acc1ab77930fdc20cdc05711ac24a1d3498`; implementation checkpoint
+`931e24521fc55e835ab5d3be0ef67d5d2ff149eb`.
+
+Risk tier: **Tier 3 container provenance, cross-container writer exclusion,
+pending ownership recovery, and publication ordering.**
+
+N8-R1 is closed before profile or database loading. A Compose marker pair is
+no longer sufficient: the CLI requires the exact `/app` project root and image
+interpreter, Docker's root-owned container marker, a root-owned/non-symlink
+embedded checkpoint file matching both runtime checkpoint values, and the
+mounted `/app/logs/development` boundary. The image creates the immutable
+checkpoint proof at build time. Contract version 8 and the deployment doctor
+require this asset. The reviewer reproduction from a host checkout exits 2
+before `_profile()` is called; a probe using the exact image, actual named log
+volume, and matching checkpoint succeeds.
+
+N8-R2 is closed by recognizing both the legacy direct `bot.py --skip_tasks`
+command and the reviewed `scripts/run_development_beta.py --skip_tasks`
+container command. Regression coverage models a second project/container and
+proves `assert_single_writer_startable` refuses it.
+
+N9-R1 is closed by querying the `house_id` and `team_id` stored in pending v1
+or v2 creation evidence when name-based discovery finds no rows. Pending state
+is removed as rolled back only when both direct identity queries are empty. A
+renamed or otherwise undiscoverable recorded identity fails closed for manual
+review.
+
+N9-R2 is closed at the controlled-writer boundary. Seed and reconcile already
+hold `_mutation_writer_scope` through final proof and atomic evidence
+publication. New fault injection attempts a second `BetaWriterLock` from the
+publication callback and proves it is refused; the lock becomes available only
+after publication and scope exit. With N8-R1/R2 closed, every supported writer
+path contends on that boundary.
+
+Focused operator, persona, container-contract, deployment-doctor, and wrapper
+coverage passes 106 tests; the strengthened wrapper suite passes 20 tests.
+Exact arm64/non-root source image
+`sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
+at `931e245` passes all 2,134 tests with 98 intentional skips. One discarded
+manual build had an incorrect expanded provenance SHA; it was detected before
+execution, deleted, and replaced by the exact image above.
+
+Next action: refresh the Mac beta from the final clean evidence checkpoint and
+repeat authenticated status, all-five-pack readiness, running-writer refusal,
+and stopped-writer idempotent reconciliation. If those pass, proceed to P9.29
+bounded human acceptance. No command sync or tester announcement is required.
 
 ## Standard work-unit template
 
@@ -18063,6 +18115,25 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.28R2 adversarial blockers corrected
+
+- Replaced self-declared Compose context with image/interpreter/container,
+  embedded-checkpoint, and mounted-log-volume proofs before profile loading;
+  bumped the container contract to version 8.
+- Counted launcher-based bots in cross-container writer census and proved a
+  second project/container blocks startup.
+- Required direct absence of both pending evidence row IDs before treating a
+  seed as rolled back. Renamed/changed recorded rows now fail closed.
+- Proved a competing writer cannot acquire the shared lock after final database
+  proof and before/during evidence publication.
+- Exact `931e245` arm64 image
+  `sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
+  passed 2,134 tests with 98 skips. Direct host context refused before profile
+  load; exact image plus actual named volume/checkpoint proof passed.
+- No command sync, tester announcement, production, RackNerd, or external-
+  database action occurred. Next recommended unit after final Mac live evidence:
+  P9.29 bounded human acceptance.
 
 ### 2026-08-12 — P9.28R container lock/evidence boundary repaired
 
