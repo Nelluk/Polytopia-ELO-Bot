@@ -265,8 +265,16 @@ class WiderBetaSetupTests(unittest.TestCase):
         self.root = Path(self.tempdir.name)
         self.profile = make_profile(self.root)
         self.manifest = copy.deepcopy(MANIFEST)
+        self.database_lock = mock.patch.object(
+            beta_wider_setup.beta_database_writer_lock,
+            'BetaDatabaseWriterLock',
+        )
+        database_lock = self.database_lock.start().return_value
+        database_lock.acquire.return_value = None
+        database_lock.release.return_value = None
 
     def tearDown(self):
+        self.database_lock.stop()
         self.tempdir.cleanup()
 
     def seed(self, database, **kwargs):

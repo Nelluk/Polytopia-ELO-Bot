@@ -338,6 +338,14 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                 mock.patch.object(run_development_beta, 'validate_beta_launch', return_value=CHECKPOINT), \
                 mock.patch.object(run_development_beta, 'assert_beta_profile'), \
                 mock.patch.object(
+                    run_development_beta,
+                    '_start_database_lock_keeper',
+                    return_value=mock.Mock(poll=mock.Mock(return_value=None)),
+                ), mock.patch.object(
+                    run_development_beta,
+                    '_stop_database_lock_keeper',
+                ), \
+                mock.patch.object(
                     run_development_beta.os,
                     'execv',
                     side_effect=lambda python, argv: executed.append((python, argv)),
@@ -380,6 +388,14 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                 mock.patch.object(run_development_beta, 'load_runtime_profile', return_value=selected_profile), \
                 mock.patch.object(run_development_beta, 'validate_beta_launch', return_value=CHECKPOINT), \
                 mock.patch.object(run_development_beta, 'assert_beta_profile'), \
+                mock.patch.object(
+                    run_development_beta,
+                    '_start_database_lock_keeper',
+                    return_value=mock.Mock(poll=mock.Mock(return_value=None)),
+                ), mock.patch.object(
+                    run_development_beta,
+                    '_stop_database_lock_keeper',
+                ), \
                 mock.patch.object(run_development_beta, 'operation_paths', return_value=paths), \
                 mock.patch.object(run_development_beta.os, 'execv', side_effect=execv), \
                 mock.patch.object(run_development_beta.Path, 'is_file', return_value=True), \

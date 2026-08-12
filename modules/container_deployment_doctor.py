@@ -192,7 +192,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 8
+            value.get('contract_version') != 9
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys

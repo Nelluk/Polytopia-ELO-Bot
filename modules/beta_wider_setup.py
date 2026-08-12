@@ -26,7 +26,7 @@ import stat
 import tempfile
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from modules import beta_operations, beta_readiness
+from modules import beta_database_writer_lock, beta_operations, beta_readiness
 
 
 SETUP_SCHEMA_VERSION = 1
@@ -411,15 +411,28 @@ def _mutation_writer_scope(
     if guard is None:
         guard = nullcontext()
     with guard:
-        if writer_check is not None:
-            writer_check(profile)
-        yield
+        try:
+            database_guard = beta_database_writer_lock.BetaDatabaseWriterLock(
+                profile
+            )
+            database_guard.acquire()
+        except beta_database_writer_lock.BetaDatabaseWriterLockError as exc:
+            raise WiderBetaSetupSafetyError(
+                'Another process holds the development database writer lock; '
+                'stop every beta writer before seed or cleanup.'
+            ) from exc
+        try:
+            if writer_check is not None:
+                writer_check(profile)
+            yield
+        finally:
+            database_guard.release()
 
 
 def assert_beta_writer_stopped(profile: Any) -> None:
-    """Acquire and release the launcher's guarded writer lock once."""
+    """Acquire and release both universal development writer locks once."""
 
-    with _held_beta_writer_lock(profile):
+    with _mutation_writer_scope(profile):
         return
 
 

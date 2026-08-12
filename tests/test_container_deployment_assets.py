@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 8)
+        self.assertEqual(contract['contract_version'], 9)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -124,6 +124,9 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn(
             '/usr/local/share/polybot/image-checkpoint',
             dockerfile,
+        )
+        self.assertTrue(
+            (self.root / 'scripts/hold_development_beta_database_lock.py').is_file()
         )
         self.assertNotIn('config.development.ini', dockerfile)
         for excluded in (

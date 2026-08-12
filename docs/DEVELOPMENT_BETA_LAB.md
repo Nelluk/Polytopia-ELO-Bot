@@ -109,7 +109,11 @@ legacy non-Compose/systemd path only and must explicitly set the reviewed
 context values fail before profile or socket/database access. Compose context
 also proves the `/app` image root, image interpreter, root-owned embedded image
 checkpoint, and the shared log-volume mount; ordinary environment strings are
-not sufficient.
+not sufficient. Every supported durable launcher and one-shot database mutation
+also acquires the same PostgreSQL session advisory lock keyed to the fixed
+development database. This database-scoped boundary remains shared across
+bundled Compose, external Compose, and host-systemd even when their filesystem
+lock volumes differ.
 
 `status` returns primitive pack DTOs. `plan` adds the bounded action for each
 pack and explicitly reports which live mutations are implemented. The

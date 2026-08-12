@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import select
+import subprocess
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +27,62 @@ from modules.beta_operations import (  # noqa: E402
     validate_beta_launch,
 )
 from runtime_config import load_runtime_profile  # noqa: E402
+
+
+DATABASE_LOCK_KEEPER = (
+    PROJECT_ROOT / 'scripts/hold_development_beta_database_lock.py'
+)
+LOCK_KEEPER_READY_TIMEOUT_SECONDS = 15
+
+
+def _start_database_lock_keeper(python: Path) -> subprocess.Popen:
+    """Start the database-scoped lock session before the bot/file lock."""
+
+    read_fd, write_fd = os.pipe()
+    process = None
+    try:
+        process = subprocess.Popen(
+            (
+                str(python),
+                str(DATABASE_LOCK_KEEPER),
+                '--parent-pid',
+                str(os.getpid()),
+                '--ready-fd',
+                str(write_fd),
+            ),
+            close_fds=True,
+            pass_fds=(write_fd,),
+        )
+        os.close(write_fd)
+        write_fd = -1
+        readable, _, _ = select.select(
+            (read_fd,),
+            (),
+            (),
+            LOCK_KEEPER_READY_TIMEOUT_SECONDS,
+        )
+        response = os.read(read_fd, 32) if readable else b''
+        if response != b'READY\n' or process.poll() is not None:
+            raise RuntimeError(
+                'The development database writer lock keeper refused startup.'
+            )
+        return process
+    except BaseException:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            process.wait(timeout=5)
+        raise
+    finally:
+        os.close(read_fd)
+        if write_fd >= 0:
+            os.close(write_fd)
+
+
+def _stop_database_lock_keeper(process: subprocess.Popen | None) -> None:
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    process.wait(timeout=5)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,8 +106,6 @@ def main(argv: list[str] | None = None) -> int:
             require_service_environment=True,
         )
         paths = operation_paths(profile, create=True)
-        writer_lock = BetaWriterLock(paths.writer_lock)
-        writer_lock.acquire()
         os.environ['POLYBOT_BETA_CHECKPOINT'] = checkpoint
         # Preserve the venv entry-point path across exec. Resolving this
         # symlink selects the base interpreter and loses its site-packages.
@@ -63,6 +119,13 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError(
                 'The durable beta must run with the reviewed development venv.'
             )
+        database_lock_keeper = _start_database_lock_keeper(python)
+        writer_lock = BetaWriterLock(paths.writer_lock)
+        try:
+            writer_lock.acquire()
+        except BaseException:
+            _stop_database_lock_keeper(database_lock_keeper)
+            raise
         bot_path = (PROJECT_ROOT / 'bot.py').resolve()
         try:
             os.execv(
@@ -73,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             # ``execv`` does not return in the real service.  The finally is
             # useful for offline tests and for an unexpected exec failure.
             writer_lock.release()
+            _stop_database_lock_keeper(database_lock_keeper)
     except Exception as exc:
         print(f'Development beta launch refused: {exc}', file=sys.stderr)
         return 2
