@@ -492,11 +492,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.3 guarded container database recovery is complete
-and Tier-3 reviewed on `codex/p11-3-container-recovery`, based on exact clean
-pushed accumulation checkpoint
-`c09292803c16f6c8a5184e9c1f9c17896856a500`, at implementation checkpoint
-`d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`; integration is pending.
+Current active unit: **P11.3 guarded container database recovery is complete,
+Tier-3 reviewed, and fast-forward integrated from
+`codex/p11-3-container-recovery`, based on exact clean pushed accumulation
+checkpoint `c09292803c16f6c8a5184e9c1f9c17896856a500`. Implementation checkpoint:
+`d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`; evidence/integration checkpoint:
+`70bb734cb7396e3357f6a51d47090ed8a5c29d11`.
 
 The bundled Compose recovery profile now has an explicit, plan-first logical
 backup job and a digest-bound restore drill that can address only a second
@@ -526,8 +527,11 @@ exposure, complete source-session detection, fresh-cluster role inventory,
 administrative identity verification, and contract versioning. No actionable
 finding remains. No Docker/Podman executable was exposed on `PATH`; no image,
 container, volume, PostgreSQL, Discord, service, dependency, tester, or
-production mutation occurred. Next recommended after integration: P11.4 live-
-engine development proof if Docker and Compose are available; also ready is
+production mutation occurred. The unchanged host beta remains healthy on
+`7fc73cf` as the only development writer with all five Beta Lab packs ready;
+no restart is warranted for inactive container recovery tooling. Next
+recommended: P11.4 live-engine development proof if Docker and Compose are
+available; also ready is
 the separate development feedback retention/redaction lifecycle.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
@@ -15693,7 +15697,7 @@ checklist change, or tester announcement was warranted.
 
 ### P11.3 — Guarded container database recovery
 
-Status: **Complete and Tier-3 reviewed on the unit branch; integration pending**
+Status: **Complete, Tier-3 reviewed, and integrated at `70bb734`**
 
 Branch/base: `codex/p11-3-container-recovery`, exact clean pushed accumulation
 checkpoint `c09292803c16f6c8a5184e9c1f9c17896856a500`.
@@ -15755,6 +15759,15 @@ Implementation checkpoint:
 `d7553c7dc2379dc683a2ac7f42a0b04adf8bf8ff`. No Docker/Podman executable was
 exposed on `PATH`, and no image pull/build, container/volume/database/Discord,
 service, dependency, tester-announcement, or production operation occurred.
+Evidence and exact fast-forward integration checkpoint:
+`70bb734cb7396e3357f6a51d47090ed8a5c29d11`. Read-only post-integration
+inspection found the unchanged user service active/running as PID `292880`
+with zero restarts, exactly one host-wide development writer, startup
+checkpoint `7fc73cfa3dc2306a253d8f41b7dc0e48fb905dfe`, a responsive authenticated
+control socket, and all five Beta Lab packs ready. A beta restart, stopped-
+writer database gate, command plan/apply, checklist update, and announcement
+are unwarranted because this unit changes no active host-beta or command-tree
+behavior.
 
 ## Standard work-unit template
 
@@ -17122,7 +17135,7 @@ because they share legacy status; their risks and operational owners differ.
 Design status: **P11.1 development proof is complete and integrated at
 `309c222`; P11.2's approved read-only deployment doctor is complete at
 `7fc73cf`; P11.3 guarded logical backup and isolated fresh-volume restore is
-complete and reviewed at `d7553c7`. No container engine was available to this
+complete and integrated at `70bb734`. No container engine was available to this
 unit, so live proof and all production adoption remain deferred gates.**
 
 Explore whether PolyBot should be built and deployed as an immutable Docker
@@ -17215,6 +17228,17 @@ deferred into this post-modernization backlog.
   service, dependency, tester, or production effect occurred. Next: integrate
   and push P11.3, inspect the unchanged host beta, and take P11.4 live-engine
   proof only if Docker/Compose are actually available.
+- Fast-forwarded the reviewed implementation and evidence into
+  `codex/database-slash-modernization` at
+  `70bb734cb7396e3357f6a51d47090ed8a5c29d11`. The user service remains active
+  and running as PID `292880` with zero restarts; the host-wide audit finds
+  exactly that one development writer at startup checkpoint `7fc73cf`; the
+  authenticated local control path responds; and all five Beta Lab packs are
+  ready. No beta restart, PostgreSQL gate, Discord command apply, checklist
+  change, or announcement is warranted for inactive container recovery assets.
+  Next recommended: P11.4 exact-image live-engine development proof once Docker
+  and its Compose plugin are available; otherwise take the independent
+  development feedback retention/redaction lifecycle.
 
 ### 2026-08-11 — P11.2 read-only deployment doctor implemented
 
