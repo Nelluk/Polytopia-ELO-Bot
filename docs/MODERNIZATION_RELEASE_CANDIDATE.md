@@ -64,6 +64,12 @@ PostgreSQL discovery pass. The bounded-beta matrix remains pending at four of
 seven checks, and production configuration remains pending at zero of three;
 therefore `require-ready` intentionally returns nonzero.
 
+P9.27 subsequently corrected the container Beta Lab control boundary, so RC2
+is historical for the current source even though its record remains valid for
+`8e79dc2`. Do not carry RC2 gates forward to a successor candidate. The
+working control path reports incomplete Beta Lab structure/personas and an
+unpinned tester role; repair and human acceptance remain separate gates.
+
 ## Tester-message boundary
 
 `release-candidate-manifests/tester-instructions-draft.md` is deliberately

@@ -427,16 +427,16 @@ check:
   `f5cd39d` on `codex/p11-5d-writer-backup-hardening`, from exact clean base
   `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`; reviewed evidence and
   fast-forward integration checkpoint: `57efbbe`
-- P9.26 frozen RC2 source candidate:
-  `8e79dc295c024340fd55f9678d507e6e214469b4`; exact arm64 image:
-  `sha256:989da370c8b0ac21c25ac25039e966960e6e366b8c4c7b171dea5cb6cdb3b768`
+- P9.27 container Beta Lab control checkpoint:
+  `162f1bfd9fdc672d99137308ca3d8c24c5d19658`; exact arm64 image:
+  `sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`
 - current combined offline result: exact-candidate complete discovery
   succeeded across 2,110 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
 - deployment disposition: RackNerd remains stopped and the sole Mac container
-  beta runs exact local candidate `8e79dc2` in the reviewed arm64 image above.
+  beta runs exact local source `162f1bf` in the reviewed arm64 image above.
   P11.6 card parity received Nelluk's bounded visual acceptance; P11.7 is
   test-only. The 12 development-guild roots are unchanged and the global tree
   is empty, so no command synchronization or tester announcement occurred.
@@ -526,17 +526,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.27 container Beta Lab control parity is in progress
-from exact clean pushed checkpoint
-`4787138c4918457ba76ef71f71e7508e8bf2dd39`.** P9.26 and RC2 are pushed and
-retain valid evidence for frozen candidate `8e79dc2`, but live P9.27 audit found
-that both Compose definitions omitted the fail-closed Beta Lab control
-environment used by the systemd beta. The Mac bot was healthy, while Beta Lab,
-readiness, and release-status requests correctly refused because no local
-control socket existed. P9.27 adds that exact application/guild/database/role
-and source-checkpoint binding without enabling startup command sync or a host
-network listener. Because this is a new runtime-source correction, RC2 cannot
-be promoted as evidence for the eventual successor candidate.
+Current active unit: **P9.27 container Beta Lab control parity is implemented,
+live-validated, and locally fast-forwarded from exact clean pushed checkpoint
+`4787138c4918457ba76ef71f71e7508e8bf2dd39`.** Exact source `162f1bf` runs in
+arm64 image `sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`
+with restart count zero, one project writer, and no host/other-container
+writer. Its private mode-0600 control socket successfully serves Beta Lab and
+release status. Complete discovery passes all 2,110 tests with 98 intentional
+skips; read-only command inspection finds zero globals and all 12 guild roots
+unchanged. Readiness now reports its true blockers: incomplete server
+structure, an unprepared guided persona, and an unpinned tester role. No
+fixture, role, channel, database, command-tree, or production mutation was
+performed. RC2 remains historical after this runtime-source correction.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16429,8 +16430,8 @@ continue to fail.
 
 ### P9.27 — Container Beta Lab control parity
 
-Status: **In progress; source correction focused tests pass, live exact-source
-verification pending.**
+Status: **Complete locally: exact-image, live control, inventory, command-tree,
+and offline validation pass.**
 
 Branch/base: `codex/p9-27-bounded-beta-acceptance`, exact clean pushed
 accumulation checkpoint `4787138c4918457ba76ef71f71e7508e8bf2dd39`.
@@ -16456,12 +16457,24 @@ mode-0600 Unix socket remains inside the private persistent log volume with no
 host network publication. Contract version 6 and the deployment doctor require
 all values, so drift fails setup before launch.
 
-Focused container/doctor/beta/startup coverage passes 87 tests, and both
-bundled and external Compose definitions render successfully. The source must
-next be frozen, rebuilt, and started; live Beta Lab, readiness, release status,
-writer census, command-tree, and complete offline checks remain required.
-RC2 stays historical after this runtime correction; a successor candidate
-record must be generated only after the corrected source proves healthy.
+Focused container/doctor/beta/startup/document coverage passes 88 tests, and
+both bundled and external Compose definitions render successfully. Exact
+source `162f1bfd9fdc672d99137308ca3d8c24c5d19658` built arm64/non-root image
+`sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`.
+The restored bot authenticated as application `479029527553638401`, retained
+one project writer with no other writers, and created the private socket as
+`0600 1000:1000`. Beta Lab and release-status requests succeed through it;
+complete discovery passes 2,110 tests with 98 intentional skips. Read-only
+command inspection finds zero globals and all 12 guild roots unchanged.
+
+The control path now exposes rather than masks the next blockers. Beta Lab
+reports the leaderboard, game-results, and all three self-service lanes ready,
+but server structure and guided personas blocked. Readiness inventory refuses
+because the tester role is not pinned; release state is empty. Repairing those
+resources can mutate the development database and Discord roles/channels, so
+it is not folded into this source unit. RC2 stays historical after this runtime
+correction; a successor candidate record must follow the separately approved
+readiness repair and human checks.
 
 ## Standard work-unit template
 
@@ -17914,6 +17927,32 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.27 container Beta Lab control restored
+
+- Live audit against exact P9.26 candidate `8e79dc2` found the healthy Mac
+  Compose bot lacked the systemd beta's guarded control environment. Beta Lab,
+  readiness, and release-status operations refused because no local socket
+  existed.
+- Added exact control-enabled/startup-sync-disabled checkpoint, application,
+  guild, database, and role values to both Compose modes. Contract version 6,
+  doctor validation, and deployment tests require them.
+- Focused coverage passed 88 tests; both Compose modes rendered. Exact source
+  `162f1bf` built arm64/non-root image
+  `sha256:fa93744038ff1205bae794aaee5db1bebb6f53a4f1907e190ec11dbd553e82ac`.
+  Complete isolated discovery passed all 2,110 tests with 98 intentional
+  skips.
+- Replaced only the Mac bot. It authenticated as application
+  `479029527553638401`, restart count zero, with one project writer and no
+  other writers. The control socket is mode 0600 and owned by `1000:1000`.
+  Beta Lab and release status succeed; zero global and all 12 unchanged guild
+  command roots were verified read-only.
+- The now-working inventory reports three ready packs but blocks incomplete
+  server structure and guided personas; readiness refuses an unpinned tester
+  role. No repair, command apply, tester announcement, production, RackNerd,
+  or external-database action occurred. Next recommended unit: P9.28 bounded
+  Beta Lab readiness repair under explicit Discord/database mutation approval,
+  followed by the remaining human command/parity/visibility checks.
 
 ### 2026-08-12 — P9.26 post-P11 RC2 candidate validated
 

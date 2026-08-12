@@ -614,6 +614,12 @@ Status: **In progress through P9.26/R-002 after all preceding corrections.**
   Cutover, 2,110-case offline, and 79-case stopped-writer development-database
   gates pass. RC1 remains historical and RC2 remains blocked by three human
   beta and all three production-configuration checks.
+- **P9.27 follow-up:** the Mac Compose beta omitted the fail-closed Beta Lab
+  control identity and checkpoint environment. Exact source `162f1bf`
+  restores the private local socket without startup sync. Live status then
+  exposed incomplete server structure/personas and an unpinned tester role;
+  RC2 is historical for the corrected source and those beta resources remain
+  unresolved.
 
 ## Low / documentation
 

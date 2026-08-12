@@ -99,6 +99,11 @@ resolution checkpoint, and passes candidate-bound cutover review, 2,110-case
 offline discovery, and 79-case stopped-writer development PostgreSQL discovery.
 RC2 remains correctly not ready: three bounded-beta items and all three
 separately approved redacted production-configuration checks are pending.
+P9.27 then found and corrected a container-only Beta Lab control omission.
+That runtime-source change makes RC2 historical for the current accumulation
+tip. Its live control now exposes incomplete server structure/personas and an
+unpinned tester role; those resources and the human matrix must be resolved
+before freezing the successor candidate.
 
 After upstream reconciliation, freeze one clean commit and review the cutover-
 critical delta. Preserve the per-unit history; do not squash away its durable
