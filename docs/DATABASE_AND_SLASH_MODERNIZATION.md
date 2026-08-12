@@ -492,31 +492,34 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.8 owner-only guild suspend/resume lifecycle is
-complete, integrated, pushed, development-guild registered, and beta-deployed
-from `codex/p10-8-guild-suspend-resume`, based on
-exact clean pushed accumulation checkpoint
-`f2930d67cb164cb8006ddc86d1d8bc1d3062cf24`. The selected contract requires a
-different active control guild, preserves the active revision, drafts, and
-history, changes only registry lifecycle state plus one generation/audit, and
-publishes the fail-closed runtime graph before applying an exact target-guild
-command removal/restoration. Resume fully revalidates saved live Discord
-references. Repeating an already completed action is a Discord reconciliation
-with no database write. Retirement, delegation, production, schema work,
-startup synchronization, and global synchronization remain excluded.
-Implementation checkpoint `763fe28` passes 97 focused tests, complete offline
-discovery of 1,969 tests with 88 intentional gates skipped, and the 78-test
-stopped-writer PostgreSQL gate with only the established retained-fixture skip.
-rolled back. Exact fast-forward integration/pushed code checkpoint is
-`f5a1c79174e5c2425558f3ee92f20fcc26a0341a`. Remote inspection found an empty
-global tree and exactly one update to the development-guild `operator` root;
-guild-only apply converged all 11 roots. The healthy guarded beta runs that
-checkpoint as PID `274913`, authenticated as development application
-`479029527553638401`, with database authority generation 1, zero restarts, one
-host-wide development writer, and all five Beta Lab packs ready. No second
-enrollment was manufactured for destructive live acceptance. Next recommended:
-P10.9 additive delegation policy plus opt-in same-guild ordinary-manager
-editing. Also ready: scope the separate soft-retirement lifecycle contract.**
+Current active unit: **P10.9 additive guild-configuration delegation is
+implemented and development-database gated on
+`codex/p10-9-guild-delegation`, based on exact clean pushed accumulation
+checkpoint `6f676e903d9936c881d93394d9d7ec39a5fc552f`. The owner controls one
+versioned policy per active guild through `/operator guild delegation`, with
+explicit assignable role IDs, activation delegation off by default, full-plan
+digest confirmation, and a protected audit event. Authorized managers use the
+separate `/guild edit` entry only in their current guild. The UI exposes only
+ordinary settings and the worker independently reloads the database policy,
+rechecks the request's current role evidence, and rejects protected drafts or
+changes on every operation. `/guild` has no administrator-default permission
+or operator commands; the existing default-deny `operator` capability deploys
+the `guild` and `operator` roots together.
+
+The additive development table is present at exact schema digest
+`e1750b4d18672b4a267976d892335917c132b71bdd14323aa5c8a1a7d86604b0`.
+Focused validation passes 156 tests; complete offline discovery passes all
+1,996 tests with 89 intentional gated skips. The complete stopped-writer
+PostgreSQL gate passes 87 of 88 tests with only the established retained-
+fixture round trip skipped; the P10.9 policy/audit proof fully rolls back and
+retains no policy. Implementation/review checkpoint `c2951c3`. Tier-3 review
+corrected strict role-ID normalization,
+no-op mutation rejection, role-snapshot filtering, rollback evidence, and a
+future-state-dependent real-schema fixture. No actionable finding remains.
+Accumulation integration, development-guild registration, and beta restart
+are the remaining close-out actions. Production authority, lifecycle
+retirement, global/startup synchronization, and real policy grants remain
+excluded.**
 
 Previous completed control-plane unit: **P10.6c coordinated command-capability
 activation is integrated, pushed, development-guild registered, and beta-
@@ -15487,6 +15490,69 @@ Out of scope: hard retirement/deletion, implicit leave, production lifecycle,
 schema changes, delegation, global or startup synchronization, and fabricating
 a retained second development enrollment solely for live acceptance.
 
+### P10.9 — Opt-in same-guild ordinary-setting delegation
+
+Status: **Implementation and development database gate complete; integration
+and beta deployment in progress**
+
+Branch/base: `codex/p10-9-guild-delegation`, exact clean pushed accumulation
+checkpoint `6f676e903d9936c881d93394d9d7ec39a5fc552f`.
+
+Risk tier: **Tier 3 authorization, authoritative policy mutation, shared draft,
+and runtime publication boundary.**
+
+The owner opens private `/operator guild delegation` in one active guild and
+replaces the complete set of explicit assignable manager role IDs. The policy
+separately controls whether a manager may activate ordinary-setting drafts;
+activation remains owner-only by default. `@everyone`, Discord-managed,
+deleted, duplicate, invalid, and excessive role sets fail closed. Exact
+confirmation binds guild ID, prior policy version, canonical roles, and the
+activation flag. The transaction locks the active registry and policy rows,
+rechecks stale version evidence, replaces one policy version, and appends one
+protected `delegation_policy` audit event without moving the active revision or
+registry generation. Empty roles plus disabled activation is explicit
+revocation; unchanged apply is refused.
+
+An authorized manager uses `/guild edit`, not `/operator`. Each component
+operation freezes the invoking guild and current assignable member roles, then
+the database worker reloads the current policy inside its own transaction.
+Managers can share one ordinary draft for their guild and may edit only display
+name, prefix, ordinary team rules, ordinary bot/game channels and categories,
+and game-announcement destinations. Any protected change makes the complete
+draft inaccessible to a manager. Authorization roles, private/log/staff
+routes, global inclusion, command capabilities, lifecycle, delegation,
+rollback, coordinated command activation, and cross-guild access remain owner-
+only. The existing atomic activation and immutable post-commit runtime
+publication path is reused only when policy explicitly permits activation.
+
+P10.9 adds one strict development-only table and the connection-free
+plan/apply/verify tool documented in
+`docs/DEVELOPMENT_GUILD_CONFIGURATION_DELEGATION.md`. The schema was applied at
+digest `e1750b4d18672b4a267976d892335917c132b71bdd14323aa5c8a1a7d86604b0` and
+verified exactly. The apply completed while the prior P10.8 beta process was
+still running, contrary to the runbook's stop-before-DDL ordering. That process
+did not load or write the new independent table and the operation changed no
+active configuration. On discovery, only the development beta was stopped,
+the host-wide audit proved no writer, and the complete database gate was run
+in the required stopped-writer window. This deviation is retained as process
+evidence rather than described as compliant ordering.
+
+Focused validation passes 156 tests. Complete offline discovery passes all
+1,996 tests with 89 intentional gated skips. The complete explicitly gated
+development PostgreSQL run passes 87 of 88 tests with only the established
+owned-fixture round trip skipped. Its P10.9 case verifies policy plus protected
+audit and fully rolls back; no policy is retained. Tier-3 complete-diff review
+found and corrected strict pre-sort role validation, no-op policy application,
+`@everyone`/managed-role snapshot filtering, audit-failure rollback coverage,
+delegated activation-path coverage, schema-apply rollback coverage, and a
+future-policy-safe database fixture. No actionable finding remains.
+
+Implementation/review checkpoint: `c2951c3`.
+
+Out of scope: granting an actual development role policy merely for acceptance,
+security-setting delegation, lifecycle retirement, production schema or
+authority, global/startup command synchronization, and tester announcement.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16752,7 +16818,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.8, including P10.6c, are implemented in
+Design status: **P10.1 through P10.9, including P10.6c, are implemented in
 development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
@@ -16773,8 +16839,9 @@ P10.7 adds no-row inert quarantine and digest-bound owner enrollment with one
 least-authority prefix template; P10.6c adds coordinated command-capability
 activation and exact one-guild reconciliation; P10.8 adds reversible
 suspension/resumption with fail-closed runtime publication and exact one-guild
-command removal/restoration. Later units own retirement, delegation,
-production canary, and static retirement.
+command removal/restoration; P10.9 adds separately stored, owner-controlled
+same-guild ordinary-setting delegation. Later units own retirement, production
+canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16908,6 +16975,41 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.9 delegation implemented and database-gated
+
+- Reconciled exact clean local/tracking/GitHub accumulation checkpoint
+  `6f676e903d9936c881d93394d9d7ec39a5fc552f`, created isolated branch/worktree
+  `codex/p10-9-guild-delegation`, and ran the required development-worktree
+  setup with exact database authority and disabled tasks/API/Bullet.
+- Added the versioned additive delegation table, connection-free exact schema
+  plan/apply/verify tool, owner-only private policy workspace, explicit role
+  evidence and full-digest confirmation, protected audit, revocation, and the
+  separate `/guild edit` delegated entry. The existing default-deny `operator`
+  capability now owns both `guild` and `operator`; only the latter retains
+  administrator-default visibility.
+- Delegated workers enforce same-guild current-role/current-policy authority
+  independently of the UI, expose only the approved ordinary fields, reject
+  any protected draft/change, keep coordinated command activation and rollback
+  owner-only, and require a separate policy opt-in before using the existing
+  atomic ordinary activation and immutable runtime publication path.
+- Tier-3 review corrected strict role normalization, no-op application, role-
+  snapshot filtering, rollback and activation evidence, schema failure
+  coverage, and database-fixture durability. Focused validation passes 156
+  tests; complete offline discovery passes 1,996 tests with 89 intentional
+  gates skipped. Compilation and diff checks pass.
+- Implementation/review checkpoint: `c2951c3`.
+- Additive schema apply and verify succeeded at digest
+  `e1750b4d18672b4a267976d892335917c132b71bdd14323aa5c8a1a7d86604b0`.
+  The apply inadvertently preceded the required beta stop; the old process did
+  not know or write the independent table and no active configuration changed.
+  The process was then stopped, the host-wide audit proved no development
+  writer, and the full explicit gate passed 87 of 88 tests with only the
+  established owned-fixture round trip skipped. The new policy/audit case fully
+  rolled back and retained no policy. Next: integrate and push, inspect/apply
+  only the configured development-guild command tree, then restore and verify
+  the guarded beta. No tester announcement is planned for this owner/security
+  surface.
 
 ### 2026-08-11 — P10.8 owner lifecycle implemented and database-gated
 
