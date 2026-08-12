@@ -427,18 +427,21 @@ check:
   `f5cd39d` on `codex/p11-5d-writer-backup-hardening`, from exact clean base
   `aa936c6c9057e554d0f38e4a16fa6ad9c1cb95d3`; reviewed evidence and
   fast-forward integration checkpoint: `57efbbe`
+- P11.8 Mac beta refresh source checkpoint:
+  `1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`; exact arm64 image:
+  `sha256:3716c0b6b3069face166aea70a38973cea1ce15a6482a9d52d3222bde40a87f0`
 - current combined offline result: complete discovery succeeded across 2,109
   tests with 91 intentional development-database skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
 - deployment disposition: RackNerd remains stopped and the sole Mac container
-  beta remains on its prior reviewed `de5ad77` image. P11.6 needs a Mac image
-  rebuild plus human desktop/mobile card smoke; P11.7 is test-only. Neither
-  unit changes the Discord command tree, so no command synchronization or
-  tester announcement is warranted before that smoke. P11.5B is needed only
-  for a genuinely fresh database and does not alter the already-bootstrapped
-  Mac beta.
+  beta runs exact pushed source `1cb3ad6` in the reviewed arm64 image above.
+  P11.6 card parity received Nelluk's bounded visual acceptance; P11.7 is
+  test-only. The 12 development-guild roots are unchanged and the global tree
+  is empty, so no command synchronization or tester announcement occurred.
+  P11.5B is needed only for a genuinely fresh database and does not alter the
+  already-bootstrapped Mac beta.
 - preserved pilot checkpoint branch: `codex/slash-async-unwin-pilot`
 - implementation checkpoint: `a9375b3`
 - development-guild sync fix: `9a64ce1`
@@ -523,18 +526,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.5A cross-platform container deployment interface is
-complete: implemented, locally validated, Tier-3 reviewed, and fast-forward
-integrated at `f4ff80faa4e58dff968e9004a4e18d37c247fc8c` from exact pushed base
-`f495391434879d90691775bb984ede79a6b3897d`. The existing sole local bot
-continues running the prior reviewed `de5ad77` image under project
-`polybot-mac-beta` as development application `479029527553638401`; it has
-not been restarted or recreated for this unit. No application-command
-synchronization, tester announcement, external database, or production action
-occurred.** P11.5C is integrated and pushed at `aa936c6`; its two required
-read-only development-database gates passed against the stopped-writer
-development identity. P11.5D is implemented and Tier-3 reviewed at `f5cd39d`
-and fast-forward integrated with its reviewed evidence at `57efbbe`.
+Current active unit: **P11.8 current-accumulation Mac beta refresh and card
+acceptance is complete in the isolated evidence branch. The sole
+`polybot-mac-beta` bot runs exact pushed source `1cb3ad6` as development
+application `479029527553638401`; PostgreSQL and the trusted database guild
+snapshot remain healthy, command roots are unchanged, and Nelluk accepted the
+P11.6 cards after a bounded visual check. No command synchronization, tester
+announcement, external database, RackNerd runtime, or production action
+occurred. Final roadmap integration/push is pending.** P11.5C is integrated
+and pushed at `aa936c6`; its two required read-only development-database gates
+passed against the stopped-writer development identity. P11.5D is integrated
+with its reviewed evidence at `57efbbe`.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16239,7 +16241,8 @@ performed.
 
 ### P11.6 — Player, team, and game card parity polish
 
-Status: **Complete; Tier-2 reviewed and integrated at `30f2257`.**
+Status: **Complete; Tier-2 reviewed and integrated at `30f2257`, deployed on
+the Mac container beta from `1cb3ad6`, and visually accepted by Nelluk.**
 
 Branch/base: `codex/p11-6-card-polish`, from exact pushed accumulation
 checkpoint `7a0040faab8076bf9cb02f4e6ef2ab4dc44e680f`.
@@ -16283,13 +16286,11 @@ pass under the unchanged `development` / `polytopia_dev` / `polybot_dev` gate.
 The combined accumulation passes 2,073 offline tests with 91 intentional
 skips. Compilation and diff checks pass.
 
-The unit is not yet deployed. RackNerd remains inactive with no development
-writer, while the sole Mac Compose beta remains healthy on its prior reviewed
-`de5ad77` image. The next deployment action is to rebuild and start the Mac
-beta from the pushed accumulation checkpoint, verify its sole-writer and
-identity checks, then human-smoke representative player, team, pending-game,
-and completed PolyChampions game cards on desktop and mobile. No command sync
-is required, and no tester announcement should precede that owner smoke.
+P11.8 rebuilt and started the sole Mac Compose beta from exact pushed
+accumulation checkpoint `1cb3ad6`, then verified its sole-writer, application,
+database-authority, persistence, and command-tree state. Nelluk's bounded
+visual check accepted the updated cards. No command sync or tester
+announcement was required.
 
 ### P11.7 — Persisted team/squad ELO graph coverage
 
@@ -16333,6 +16334,52 @@ accumulation passes all 2,073 offline tests with 91 intentional skips.
 
 P11.7 requires no beta restart, command synchronization, or announcement. Its
 new cases remain part of future stopped-writer database validation windows.
+
+### P11.8 — Current-accumulation Mac beta refresh and card acceptance
+
+Status: **Beta-validated on exact pushed source `1cb3ad6`; evidence branch
+integration pending.**
+
+Branch/base: `codex/p11-8-mac-beta-refresh`, exact clean pushed base
+`1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`.
+
+Risk tier: **Tier 3 development runtime/deployment boundary; no production
+scope.**
+
+The supported `./polybot setup` path updated only ignored deployment inputs,
+built `polybot-mac-beta:1cb3ad6`, and passed the immutable bundled doctor,
+Darwin ownership policy, non-root bind probe, PostgreSQL provision check, and
+existing-database preservation check. It found 39 public relations and trusted
+active guild `478571892832206869`; no schema, import, bootstrap, or command
+synchronization ran. `./polybot start` replaced only the prior project bot.
+
+The final bot is arm64 image
+`sha256:3716c0b6b3069face166aea70a38973cea1ce15a6482a9d52d3222bde40a87f0`,
+runs as non-root `1000:1000`, and carries exact source label `1cb3ad6`. It
+authenticated as development application `479029527553638401`, published the
+database-authority snapshot for guild `478571892832206869` at generation 1,
+and reached ready state with restart count zero. Final status reports one
+project bot, zero host writers, zero other-container writers, healthy internal-
+only `polytopia_dev/polybot_dev`, and the four retained persistence volumes.
+
+Read-only Discord inspection reported an empty global tree and all 12 target
+guild roots unchanged, with no creates, updates, or removals. The exact image
+passed all 2,109 offline tests with 98 intentional skips under no-network,
+read-only-root, capability-dropped isolation. Two earlier partial harness runs
+failed only because the one-shot test container omitted the runtime-profile
+mounts and correct non-root tmpfs options; the corrected complete run passed.
+A mistakenly unnamed one-shot inspector created only three empty temporary
+volumes and one network under `polybot-development`; their exact labels and
+absence of containers were verified before those task-owned artifacts were
+removed. The live `polybot-mac-beta` project was not affected.
+
+Nelluk performed a bounded visual check of the P11.6 player/team/game card
+updates and accepted them. No tester announcement was sent. The next
+recommended unit is **P9.26/M7-R-002 release-candidate refresh**: freeze the
+post-P11 exact accumulation candidate, refresh the stale RC1 source/digests,
+and rerun the candidate-bound offline, stopped-writer database, cutover-review,
+and bounded-beta gates before separately approved production-configuration
+verification.
 
 ## Standard work-unit template
 
@@ -17785,6 +17832,34 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.8 Mac beta refreshed and cards accepted
+
+- Created `codex/p11-8-mac-beta-refresh` from exact clean pushed accumulation
+  checkpoint `1cb3ad6979bab2fe7d1bf57c13614c2db02d9dd0`. The optional isolated
+  host-Python setup gate refused because this Mac primary checkout has no
+  shared `.venv`; no runtime import or test was attempted in that worktree.
+  Deployment used the supported clean primary-checkout container interface.
+- `./polybot setup` built exact arm64/non-root image
+  `sha256:3716c0b6b3069face166aea70a38973cea1ce15a6482a9d52d3222bde40a87f0`,
+  passed the immutable doctor and bind probe, preserved all 39 existing public
+  relations, and found trusted guild `478571892832206869`.
+- `./polybot start` replaced only the previous project bot. The new bot
+  authenticated as development application `479029527553638401`, published
+  the database-authority generation-1 snapshot, and remained healthy with
+  restart count zero. Final census is one project bot, zero host writers, and
+  zero other-container writers; PostgreSQL remains healthy and internal-only.
+- Read-only Discord inspection found an empty global tree and all 12 target
+  roots unchanged. No command apply occurred. The exact image passed all
+  2,109 offline tests with 98 intentional skips under no-network/read-only-
+  root/capability-drop isolation.
+- Nelluk accepted the P11.6 player/team/game card changes after a quick visual
+  check. No tester announcement, RackNerd runtime action, external database,
+  production access, or production service action occurred.
+- Next recommended unit: P9.26/M7-R-002 exact release-candidate refresh from
+  the post-P11 accumulation tip, followed by candidate-bound gates. The older
+  `acf706f` RC1 manifest must not be treated as evidence for current runtime
+  code.
 
 ### 2026-08-12 — P11.5D writer census and backup restoration hardened
 
