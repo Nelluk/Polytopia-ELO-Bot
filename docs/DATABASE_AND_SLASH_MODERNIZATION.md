@@ -490,31 +490,31 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.25 legacy ELO calculation characterization is
-complete, integrated, pushed, and beta-restored from
-`codex/p9-25-elo-characterization`, based on exact clean pushed accumulation
-checkpoint `0f7d8de284c7b8a06b3e3ce04912266a98c3e686`. Nine compact offline tests
-now invoke the actual legacy model methods and lock down logistic win chances,
-uneven-side formula versions, multi-side normalization, team and squad deltas,
-player provisional factors, low-rating boosts, era-field selection, global-
-guild exclusion, and the bot-account exception. Complete offline discovery
-passes all 1,908 tests with 85 intentional gated skips. Two new stopped-writer
-PostgreSQL cases pass through the unchanged `development` / `polytopia_dev` /
-`polybot_dev` gate: one proves exact post-Moonrise 1v1 deltas and reversal
-semantics on a real ranked graph; the other proves two ordered results replay
-to byte-for-byte-equivalent rating/snapshot evidence through
-`recalculate_elo_since`. Both use the established outer rollback scope and
-leave no fixture state. Implementation checkpoint: `2e6b950`; evidence and
-exact fast-forward integration checkpoint:
-`414deda973e680df7f4444c2491c8fd736f9e86b`. The unit changes no formula or
-runtime code, command surface, schema, dependency, configuration, Discord
-state, or production state. The durable beta was stopped only for the
-real-schema window and now runs exact checkpoint `414deda` as PID `251835`,
-authenticated as development application `479029527553638401`, with database
-authority generation 1, zero restart churn, and exactly one host-wide
-development writer. No command plan/apply, tester checklist, or announcement
-was warranted. Next recommended: P10.6c coordinated command-capability
-activation; P10.7 quarantined onboarding is also ready.**
+Current active unit: **P10.7 quarantined development-guild onboarding is
+implemented, Tier-3 reviewed, and database-gated on
+`codex/p10-7-quarantined-onboarding`, based on exact clean pushed accumulation
+checkpoint `96b92ce0a57c5575eb68c0fe488a454d72d1cb55`. Unknown guilds now remain
+connected without creating a database row while bot-level dispatch drops their
+prefix commands and every guild listener event; application interactions are
+privately acknowledged as quarantined. Owner-only `/operator guild enroll`
+must run from an already active guild and previews the exact visible target,
+observed bot permissions, one reviewed least-authority prefix template, and a
+full immutable document digest. Exact `ENROLL <guild-id> <digest>` confirmation
+creates registry/revision/audit evidence atomically at revision 1/generation 1
+and then publishes exactly one additional guild through a complete read-only
+active-graph reload. It never synchronizes commands. Implementation/runbook
+checkpoint: `1a11abd`; review correction: `02a0dd8`. Focused validation passes
+112 tests with the new
+database case skipped behind its gate; compilation and diff checks pass. The
+stopped-writer `development` / `polytopia_dev` / `polybot_dev` gate ran 78
+tests: 77 passed and the established operator-fixture round trip skipped. The
+new PostgreSQL enrollment graph was verified and fully outer-transaction
+rolled back. The durable beta is intentionally stopped pending integration,
+the development-guild-only command plan/apply, and restart from the clean
+pushed checkpoint. No schema, retained database state, global synchronization,
+tester communication, dependency, or production action occurred. Next after
+P10.7 close-out: P10.6c coordinated command-capability activation; delegated
+local editing is also ready.**
 
 P10.1 dynamic guild configuration architecture is complete as a parallel
 documentation/design unit from exact clean accumulation base
@@ -15279,6 +15279,53 @@ Next action: P10.6c should coordinate application-command capability
 activation with an explicit development-guild plan/apply and fail-closed
 runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
+### P10.7 — Quarantined development-guild onboarding
+
+Status: **Implemented, Tier-3 reviewed, and development-database gated; pending
+accumulation integration/deployment**
+
+Unknown guilds no longer trigger an automatic leave and never receive an
+implicit configuration row. A bot-level dispatch boundary drops all
+guild-scoped listener events before cogs can act; prefix routing remains a
+non-command and slash interactions receive a private quarantine explanation.
+Join/ready lifecycle events remain observable so an exact target can be
+reviewed.
+
+The configured owner invokes `/operator guild enroll` from an already active
+development guild with the target's exact string-form snowflake and the
+explicit `Basic prefix server` template. Preview verifies the target is visible
+to the development bot, not already represented in any registry state, not a
+known production guild, and has the minimum view/send/history permissions. It
+freezes the complete active runtime revision/generation/document-digest graph
+and exact current-plus-target Discord role/channel inventory. Commit requires
+`ENROLL <guild-id> <full-document-digest>` and repeats every check.
+
+Under the shared configuration advisory lock, one repeatable-read transaction
+inserts active registry state, immutable revision 1, generation 1, and audit
+event 1. Any pre-commit revision/audit failure rolls back the complete graph.
+After commit, a separate worker-owned read-only connection reloads every active
+guild, and the event loop publishes only if all previous evidence is unchanged
+and exactly one revision/generation-1 guild was added. Post-commit reload,
+cancellation, or publication failure reports committed truth and directs the
+owner to restart rather than repeat enrollment.
+
+The first template uses `$`, maps `@everyone` through ordinary user levels
+1–3, and grants no staff/mod/advanced role, team behavior, global ranking,
+channel restriction/destination, or application-command capability. Enrollment
+does not run command synchronization. P10.6c separately owns capability
+activation plus explicit guild-only registration. Suspension, retirement,
+delegation, production onboarding, and static retirement remain out of scope.
+
+Implementation/runbook checkpoint: `1a11abd`; review correction: `02a0dd8`.
+Focused validation passes 112 tests with one explicit P10.7 database skip;
+compilation and diff checks pass. Complete offline discovery passes 1,840
+tests with 86 intentional gated skips. The stopped-
+writer database run passed 77 of 78 tests with only the established operator-
+fixture preservation skip; its new first-revision/audit graph rolled back in
+full and left no retained row. Complete-diff review corrected listener-level
+quarantine, dynamic active-inventory facade use, exact current digest binding,
+and terminal committed-state publication. No actionable finding remains.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -16467,6 +16514,26 @@ stale naturally. No-op sources and sources with different application-command
 capabilities are rejected because command registration remains a separate
 coordinated operation.
 
+### D-059 — Observe unknown guilds inertly; enroll exactly one reviewed template
+
+Status: **Accepted; implemented by P10.7 in development**
+
+An invitation is observation, not enrollment: it creates no database row,
+assigns no roles or settings, and gives no command/listener authority. The bot
+retains the connection so the configured owner can name an exact visible
+target from an already trusted active guild. The owner selects an explicit
+reviewed template and confirms its full digest; no arbitrary JSON, implicit
+default, self-service target-guild administrator, or invite-time write is
+accepted.
+
+The first registry row, immutable revision, generation, and protected audit
+are one atomic graph. Runtime publication adds exactly that one active guild
+without changing existing evidence. Application-command synchronization is
+never an enrollment side effect; a new guild begins prefix-only until P10.6c
+capability activation and explicit guild-only apply. Known production guilds
+remain denied in development, and production enrollment needs separate
+authority.
+
 ## Post-modernization backlog
 
 These are non-blocking design interests, not authorization or prerequisites
@@ -16474,7 +16541,7 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6b3 implemented in development.** The
+Design status: **P10.1 through P10.6b3 and P10.7 implemented in development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16489,9 +16556,11 @@ Implementation is intentionally staged rather than one large migration.
 P10.6a establishes the read-only owner surface for already enrolled guilds.
 P10.6b1 isolates draft editing and preview from authority; P10.6b2 adds
 ordinary-settings activation and exact runtime reconciliation while keeping
-command deployment separate; P10.6b3 adds monotonic rollback-to-revision.
-Later units own coordinated command-capability activation, quarantined
-onboarding, delegation, production canary, and static retirement.
+command deployment separate; P10.6b3 adds monotonic rollback-to-revision;
+P10.7 adds no-row inert quarantine and digest-bound owner enrollment with one
+least-authority prefix template. Later units own coordinated command-capability
+activation, suspension/retirement, delegation, production canary, and static
+retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16625,6 +16694,40 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-11 — P10.7 quarantined onboarding implemented and database-gated
+
+- Reconciled exact clean local/GitHub accumulation checkpoint
+  `96b92ce0a57c5575eb68c0fe488a454d72d1cb55`, created isolated branch/worktree
+  `codex/p10-7-quarantined-onboarding`, and ran the required development setup
+  with database authority, beta identity, and disabled tasks/API evidence.
+- Implementation/runbook checkpoint `1a11abd` and review correction `02a0dd8`
+  retain unknown guilds without a row, drop all their guild-scoped command/
+  listener dispatch, and add private
+  owner-only `/operator guild enroll` from an active guild. Preview and commit
+  bind target identity, bot permissions, complete live Discord inventory,
+  every active revision/generation/digest, one safe prefix template, and exact
+  full-digest confirmation.
+- The transaction creates registry/revision/audit graph 1/1/1 under the shared
+  configuration lock. Post-commit publication reloads all active guilds on a
+  separate connection and adds exactly one runtime guild. No application-
+  command synchronization is hidden in enrollment.
+- Tier-3 complete-diff review corrected whole-listener quarantine rather than
+  command-only blocking, dynamic active-inventory facade use, full current
+  document-digest conflict binding, and terminal committed-state panel
+  failures. No remaining actionable review finding is known.
+- Focused validation passes 112 tests with one gated skip; compilation and
+  diff checks pass. Complete offline discovery passes 1,840 tests with 86
+  intentional gated skips. The stopped-writer PostgreSQL suite ran 78 tests:
+  77 passed and only
+  the established operator-managed fixture round trip skipped. The new
+  enrollment graph was verified and fully rolled back.
+- The previously healthy beta at PID `251835` was the sole development writer
+  and stopped cleanly; host-wide audit is clear. No schema, retained database,
+  dependency, global command, tester announcement, or production action
+  occurred. Next: commit this evidence, fast-forward into accumulation, push,
+  apply only the reviewed development-guild operator-root update, and restart
+  the durable beta from that clean checkpoint.
 
 ### 2026-08-11 — P9.25 legacy ELO behavior characterized and database-gated
 
