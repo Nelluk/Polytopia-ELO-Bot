@@ -7092,6 +7092,145 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
         return game, tuple(sides)
 
+    def _create_p117_ranked_2v2_graph(
+            self, *, guild_id, marker, completed_ts):
+        """Create the smallest graph that takes every ranked ELO branch."""
+
+        id_base = 8_720_000_000_000_000_000 + (
+            uuid.uuid4().int % 100_000_000
+        )
+        players = []
+        for index, label in enumerate(('Alpha One', 'Alpha Two',
+                                       'Bravo One', 'Bravo Two')):
+            member = self.models.DiscordMember.create(
+                discord_id=id_base + index,
+                name=f'{marker}-{label}',
+                polytopia_name=f'{marker}{index}',
+            )
+            players.append(self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member.name,
+            ))
+
+        teams = tuple(
+            self.models.Team.create(
+                guild_id=guild_id,
+                name=f'{marker}-team-{label}',
+            )
+            for label in ('alpha', 'bravo')
+        )
+        squads = tuple(
+            self.models.Squad.create(
+                guild_id=guild_id,
+                name=f'{marker}-squad-{label}',
+            )
+            for label in ('alpha', 'bravo')
+        )
+        sides = []
+        for position, (team, squad, side_players) in enumerate(
+            zip(teams, squads, (players[:2], players[2:])), start=1
+        ):
+            for player in side_players:
+                self.models.SquadMember.create(player=player, squad=squad)
+            sides.append((team, squad, tuple(side_players), position))
+
+        game = self.models.Game.create(
+            guild_id=guild_id,
+            host=players[0],
+            name=marker,
+            notes=marker,
+            date=datetime.date(2026, 8, 11),
+            completed_ts=completed_ts,
+            is_pending=False,
+            is_completed=False,
+            is_confirmed=False,
+            is_ranked=True,
+            is_mobile=True,
+            size=[2, 2],
+        )
+        game_sides = []
+        for team, squad, side_players, position in sides:
+            side = self.models.GameSide.create(
+                game=game,
+                team=team,
+                squad=squad,
+                position=position,
+                sidename=f'{marker}-{position}',
+                size=2,
+            )
+            game_sides.append(side)
+            for player in side_players:
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=side,
+                    player=player,
+                )
+        return game, tuple(game_sides), tuple(players), teams, squads
+
+    def _p117_elo_graph_snapshot(self, *, games, players, teams, squads):
+        """Read every persisted rating/snapshot branch in stable order."""
+
+        player_rows = tuple(
+            self.models.Player.get_by_id(player.id) for player in players
+        )
+        member_rows = tuple(
+            self.models.DiscordMember.get_by_id(player.discord_member_id)
+            for player in players
+        )
+        game_side_rows = tuple(
+            self.models.GameSide.select()
+            .where(self.models.GameSide.game.in_(
+                tuple(game.id for game in games)
+            ))
+            .order_by(self.models.GameSide.game, self.models.GameSide.position)
+        )
+        lineup_rows = tuple(
+            self.models.Lineup.select()
+            .where(self.models.Lineup.game.in_(
+                tuple(game.id for game in games)
+            ))
+            .order_by(self.models.Lineup.game, self.models.Lineup.id)
+        )
+        return {
+            'players': tuple(
+                (row.elo_moonrise, row.elo_max_moonrise,
+                 row.elo_alltime, row.elo_max_alltime)
+                for row in player_rows
+            ),
+            'members': tuple(
+                (row.elo_moonrise, row.elo_max_moonrise,
+                 row.elo_alltime, row.elo_max_alltime)
+                for row in member_rows
+            ),
+            'teams': tuple(
+                (self.models.Team.get_by_id(team.id).elo,
+                 self.models.Team.get_by_id(team.id).elo_alltime)
+                for team in teams
+            ),
+            'squads': tuple(
+                self.models.Squad.get_by_id(squad.id).elo
+                for squad in squads
+            ),
+            'sides': tuple(
+                (row.elo_change_team, row.team_elo_after_game,
+                 row.elo_change_team_alltime, row.team_elo_after_game_alltime,
+                 row.elo_change_squad)
+                for row in game_side_rows
+            ),
+            'lineups': tuple(
+                (row.elo_change_player_moonrise,
+                 row.elo_after_game_moonrise,
+                 row.elo_change_player_alltime,
+                 row.elo_after_game_alltime,
+                 row.elo_change_discordmember_moonrise,
+                 row.elo_after_game_global_moonrise,
+                 row.elo_change_discordmember_alltime,
+                 row.elo_after_game_global_alltime)
+                for row in lineup_rows
+            ),
+        }
+
     def test_p925_ranked_win_and_reverse_use_exact_legacy_deltas(self):
         """Characterize a real ranked graph and its retained reversal rules."""
 
@@ -7297,6 +7436,219 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             )
             self.models.Game.recalculate_elo_since(completed_ts)
             self.assertEqual(graph_snapshot(), before_replay)
+
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.notes.contains(marker)
+            ).count(),
+            0,
+        )
+
+    def test_p117_ranked_2v2_graph_persists_and_reverses_all_rating_branches(self):
+        """A ranked 2v2 stores and reverses player, member, team, and squad ELO."""
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        marker = f'P11.7-ranked-{uuid.uuid4().hex[:10]}'
+        completed_ts = datetime.datetime(2502, 1, 1) + datetime.timedelta(
+            seconds=uuid.uuid4().int % 20_000_000
+        )
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.completed_ts >= completed_ts
+            ).count(),
+            0,
+        )
+
+        with self.rollback_scope():
+            game, sides, players, teams, squads = self._create_p117_ranked_2v2_graph(
+                guild_id=guild_id,
+                marker=marker,
+                completed_ts=completed_ts,
+            )
+            self.models.Game.load_full_game(game.id).declare_winner(
+                winning_side=self.models.GameSide.get_by_id(sides[0].id),
+                confirm=True,
+            )
+
+            global_enabled = guild_id in self.settings.servers_included_in_global_lb()
+            expected_member_delta = (38, 38) if global_enabled else (0, None)
+            graph = self._p117_elo_graph_snapshot(
+                games=(game,), players=players, teams=teams, squads=squads,
+            )
+            self.assertEqual(
+                graph['players'],
+                ((1038, 1038, 1038, 1038),) * 2
+                + ((962, 1000, 962, 1000),) * 2,
+            )
+            self.assertEqual(
+                graph['members'],
+                ((1038, 1038, 1038, 1038),) * 2
+                + ((962, 1000, 962, 1000),) * 2
+                if global_enabled else ((1000, 1000, 1000, 1000),) * 4,
+            )
+            self.assertEqual(graph['teams'], ((1016, 1016), (984, 984)))
+            self.assertEqual(graph['squads'], (1025, 975))
+            self.assertEqual(
+                graph['sides'],
+                ((16, 1016, 16, 1016, 25), (-16, 984, -16, 984, -25)),
+            )
+            self.assertEqual(
+                graph['lineups'],
+                ((38, 1038, 38, 1038, expected_member_delta[0],
+                  expected_member_delta[1], expected_member_delta[0],
+                  expected_member_delta[1]),) * 2
+                + ((-38, 962, -38, 962, -expected_member_delta[0],
+                    962 if global_enabled else None,
+                    -expected_member_delta[0],
+                    962 if global_enabled else None),) * 2,
+            )
+
+            self.models.Game.load_full_game(game.id).reverse_elo_changes()
+            reversed_graph = self._p117_elo_graph_snapshot(
+                games=(game,), players=players, teams=teams, squads=squads,
+            )
+            self.assertEqual(
+                reversed_graph['players'],
+                ((1000, 1038, 1000, 1038),) * 2
+                + ((1000, 1000, 1000, 1000),) * 2,
+            )
+            self.assertEqual(
+                reversed_graph['members'],
+                ((1000, 1038, 1000, 1038),) * 2
+                + ((1000, 1000, 1000, 1000),) * 2
+                if global_enabled else ((1000, 1000, 1000, 1000),) * 4,
+            )
+            self.assertEqual(reversed_graph['teams'], ((1000, 1000),) * 2)
+            self.assertEqual(reversed_graph['squads'], (1000, 1000))
+            self.assertEqual(
+                reversed_graph['sides'],
+                ((0, None, 0, None, 0),) * 2,
+            )
+            self.assertEqual(
+                reversed_graph['lineups'],
+                ((0, None, 0, None, 0, None, 0, None),) * 4,
+            )
+
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.notes == marker
+            ).count(),
+            0,
+        )
+
+    def test_p117_recalculation_replays_ranked_2v2_graph_deterministically(self):
+        """Replay preserves the 2v2 Team/Squad graph as well as player snapshots."""
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        marker = f'P11.7-replay-{uuid.uuid4().hex[:10]}'
+        completed_ts = datetime.datetime(2503, 1, 1) + datetime.timedelta(
+            seconds=uuid.uuid4().int % 20_000_000
+        )
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.completed_ts >= completed_ts
+            ).count(),
+            0,
+        )
+
+        with self.rollback_scope():
+            first_game, first_sides, players, teams, squads = (
+                self._create_p117_ranked_2v2_graph(
+                    guild_id=guild_id,
+                    marker=f'{marker}-one',
+                    completed_ts=completed_ts,
+                )
+            )
+            second_game = self.models.Game.create(
+                guild_id=guild_id,
+                host=players[0],
+                name=f'{marker}-two',
+                notes=marker,
+                date=datetime.date(2026, 8, 11),
+                completed_ts=completed_ts + datetime.timedelta(seconds=1),
+                is_pending=False,
+                is_completed=False,
+                is_confirmed=False,
+                is_ranked=True,
+                is_mobile=True,
+                size=[2, 2],
+            )
+            second_sides = []
+            for first_side in first_sides:
+                side = self.models.GameSide.create(
+                    game=second_game,
+                    team=first_side.team,
+                    squad=first_side.squad,
+                    position=first_side.position,
+                    sidename=f'{marker}-two-{first_side.position}',
+                    size=2,
+                )
+                second_sides.append(side)
+                for first_lineup in first_side.lineup:
+                    self.models.Lineup.create(
+                        game=second_game,
+                        gameside=side,
+                        player=first_lineup.player,
+                    )
+
+            self.models.Game.load_full_game(first_game.id).declare_winner(
+                winning_side=self.models.GameSide.get_by_id(first_sides[0].id),
+                confirm=True,
+            )
+            self.models.Game.load_full_game(second_game.id).declare_winner(
+                winning_side=self.models.GameSide.get_by_id(second_sides[1].id),
+                confirm=True,
+            )
+
+            global_enabled = guild_id in self.settings.servers_included_in_global_lb()
+            expected_member_rows = (
+                ((1006, 1038, 1006, 1038),) * 2
+                + ((1029, 1029, 1029, 1029),) * 2
+                if global_enabled else ((1000, 1000, 1000, 1000),) * 4
+            )
+            expected_member_delta = (38, 1038, 38, 1038, 38, 1038, 38, 1038)
+            expected_graph = {
+                'players': ((1006, 1038, 1006, 1038),) * 2
+                + ((1029, 1029, 1029, 1029),) * 2,
+                'members': expected_member_rows,
+                'teams': ((999, 999), (1001, 1001)),
+                'squads': (1000, 1000),
+                'sides': (
+                    (16, 1016, 16, 1016, 25),
+                    (-16, 984, -16, 984, -25),
+                    (-17, 999, -17, 999, -29),
+                    (17, 1001, 17, 1001, 29),
+                ),
+                'lineups': (
+                    expected_member_delta if global_enabled else (38, 1038, 38, 1038, 0, None, 0, None),
+                ) * 2 + (
+                    (-38, 962, -38, 962, -38, 962, -38, 962)
+                    if global_enabled else (-38, 962, -38, 962, 0, None, 0, None),
+                ) * 2 + (
+                    (-32, 1006, -32, 1006, -32, 1006, -32, 1006)
+                    if global_enabled else (-32, 1006, -32, 1006, 0, None, 0, None),
+                ) * 2 + (
+                    (67, 1029, 67, 1029, 67, 1029, 67, 1029)
+                    if global_enabled else (67, 1029, 67, 1029, 0, None, 0, None),
+                ) * 2,
+            }
+            before_replay = self._p117_elo_graph_snapshot(
+                games=(first_game, second_game),
+                players=players,
+                teams=teams,
+                squads=squads,
+            )
+            self.assertEqual(before_replay, expected_graph)
+            self.models.Game.recalculate_elo_since(completed_ts)
+            self.assertEqual(
+                self._p117_elo_graph_snapshot(
+                    games=(first_game, second_game),
+                    players=players,
+                    teams=teams,
+                    squads=squads,
+                ),
+                expected_graph,
+            )
 
         self.assertEqual(
             self.models.Game.select().where(
