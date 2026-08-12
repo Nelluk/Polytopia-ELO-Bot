@@ -492,8 +492,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P10.6c coordinated command-capability activation is in
-progress from exact clean pushed accumulation checkpoint
+Current active unit: **P10.6c coordinated command-capability activation
+is complete, integrated, pushed, development-guild registered, and beta-
+deployed from exact clean pushed accumulation checkpoint
 `0497d071576b45290ada4e526a6b52635d181e42` on
 `codex/p10-6c-command-capability-activation`. The selected Tier-3 contract lets
 the configured owner target any active database guild from an already trusted
@@ -504,8 +505,14 @@ one-guild sync; active-policy reconciliation is separately repeatable without
 another database write. Unknown or stale remotely registered roots are denied
 again at runtime dispatch. Global synchronization, production, schema, and
 implicit startup apply remain excluded. Implementation checkpoint `1af74ca`
-passes the complete offline and stopped-writer PostgreSQL gates after Tier-3
-review; integration and development deployment evidence are pending.**
+and evidence checkpoint `10c51d6` pass the complete offline and stopped-writer
+PostgreSQL gates after Tier-3 review. The exact development-guild registration
+converged all 11 roots with an empty global tree, and the guarded beta runs
+exact code/evidence checkpoint `10c51d66eded26c1f0336a281dbf95d394f2d50a`
+as PID `268113`. No live capability revision was manufactured for acceptance.
+Next recommended: P10.8 owner-only suspend/resume lifecycle. Also ready:
+scope the additive delegation-policy storage and same-guild ordinary-manager
+boundary as a later P10.9 unit.**
 
 Previous unit: **P10.7 quarantined development-guild onboarding is
 complete, integrated, pushed, development-guild registered, and beta-deployed
@@ -15305,8 +15312,8 @@ runtime dispatch. P10.7 quarantined onboarding is the other ready bounded unit.
 
 ### P10.6c — Coordinated command-capability activation
 
-Status: **Implemented, reviewed, and database-gated; integration and
-development deployment pending**
+Status: **Complete; integrated, pushed, development-guild registered, and
+beta-deployed**
 
 Branch/base: `codex/p10-6c-command-capability-activation`, exact clean pushed
 accumulation checkpoint `0497d071576b45290ada4e526a6b52635d181e42`.
@@ -16629,7 +16636,7 @@ authority.
 
 ### D-060 — Activate command capabilities with fail-closed policy before one-guild sync
 
-Status: **Accepted for P10.6c implementation**
+Status: **Accepted and implemented by P10.6c in development**
 
 A P10.7-enrolled guild starts prefix-only, so command capability management
 must be invokable from another already trusted active guild with an exact
@@ -16660,8 +16667,8 @@ for the current rollout.
 
 ### 1. Dynamic guild configuration and onboarding control plane
 
-Design status: **P10.1 through P10.6b3 and P10.7 implemented in development;
-P10.6c is in progress.** The
+Design status: **P10.1 through P10.7, including P10.6c, are implemented in
+development.** The
 inventory, architecture, offline typed contract, additive development import,
 first-ready shadow comparison, and explicit development authority switch are
 recorded in
@@ -16678,9 +16685,9 @@ P10.6b1 isolates draft editing and preview from authority; P10.6b2 adds
 ordinary-settings activation and exact runtime reconciliation while keeping
 command deployment separate; P10.6b3 adds monotonic rollback-to-revision;
 P10.7 adds no-row inert quarantine and digest-bound owner enrollment with one
-least-authority prefix template. Later units own coordinated command-capability
-activation, suspension/retirement, delegation, production canary, and static
-retirement.
+least-authority prefix template; P10.6c adds coordinated command-capability
+activation and exact one-guild reconciliation. Later units own suspension/
+retirement, delegation, production canary, and static retirement.
 Nelluk has clarified that useful implementation may proceed while current beta
 feedback accumulates; any runtime change simply requires proportionate
 candidate evidence refresh before production.
@@ -16843,10 +16850,23 @@ deferred into this post-modernization backlog.
   skipped. The P10.6c case created and verified a capability-changing revision
   plus protected plan-digest audit inside an outer transaction, then rolled
   everything back. No schema or retained development data changed.
-- Next: commit this evidence, fast-forward into accumulation, push, run the
-  reviewed offline and exact development-guild command plan/apply, restart the
-  guarded beta at the clean checkpoint, and record final identity/health.
-  This owner-only control-plane release does not warrant a tester ping.
+- Fast-forwarded checkpoints `1af74ca` and `10c51d6` into
+  `codex/database-slash-modernization` and pushed exact code/evidence checkpoint
+  `10c51d66eded26c1f0336a281dbf95d394f2d50a` to GitHub. Offline planning was
+  bounded to guild `478571892832206869`; remote inspection proved the global
+  tree empty and exactly one update to the existing `operator` root. Guild-only
+  apply succeeded and repeat inspection reports all 11 roots unchanged.
+- Started only the guarded durable beta from exact checkpoint `10c51d6`. PID
+  `268113` authenticated as development application `479029527553638401`,
+  loaded the complete database-authority graph at generation 1, retained
+  disabled startup synchronization, passed the protected status control, and
+  is the sole host-wide development writer. No live capability-changing draft
+  or second enrollment was manufactured merely for acceptance.
+- No tester checklist or announcement was warranted for this owner-only
+  control plane. P10.6c is complete. Next recommended: P10.8 owner-only
+  suspend/resume lifecycle. Also ready: scope P10.9 additive delegation-policy
+  storage plus opt-in same-guild ordinary editing; production, global sync,
+  and static retirement remain separately authorized boundaries.
 
 ### 2026-08-11 — P10.7 quarantined onboarding implemented and database-gated
 
