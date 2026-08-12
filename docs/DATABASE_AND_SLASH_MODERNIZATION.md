@@ -547,9 +547,11 @@ passed 2,134 tests with 98 intentional skips. The direct-host reproduction
 refuses before profile load; the exact image plus actual named log volume and
 matching embedded checkpoint passes. No command synchronization, tester
 announcement, production, RackNerd, or external-database action occurred. RC2
-remains historical; after final Mac beta refresh/live boundary evidence, the
-next unit is P9.29 human command, retained-prefix, and public/private visibility
-acceptance.
+remains historical. Final Mac beta evidence at docs-inclusive checkpoint
+`58cab81` passed: the expected application authenticated, all five packs were
+ready, running reconcile refused, stopped-writer reconcile returned exact House
+256/Team 802 ready at census 0/0/0, and restart restored 1/0/0. The next unit is
+P9.29 human command, retained-prefix, and public/private visibility acceptance.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16659,10 +16661,12 @@ at `931e245` passes all 2,134 tests with 98 intentional skips. One discarded
 manual build had an incorrect expanded provenance SHA; it was detected before
 execution, deleted, and replaced by the exact image above.
 
-Next action: refresh the Mac beta from the final clean evidence checkpoint and
-repeat authenticated status, all-five-pack readiness, running-writer refusal,
-and stopped-writer idempotent reconciliation. If those pass, proceed to P9.29
-bounded human acceptance. No command sync or tester announcement is required.
+Final Mac evidence: **Complete at `58cab81`.** Exact arm64 image
+`sha256:e36739a642702d230110de943091df2e6aec739f06f5f166ff0755a58d23a41a`
+authenticated as application `479029527553638401`; all five packs were ready;
+running reconcile exited 2; stopped-writer census was 0/0/0 and reconcile
+returned House 256/Team 802 ready; restart restored 1/0/0. Proceed to P9.29
+bounded human acceptance. No command sync or tester announcement occurred.
 
 ## Standard work-unit template
 
@@ -18131,9 +18135,14 @@ deferred into this post-modernization backlog.
   `sha256:6e99bb82e426a7bc68678eba1cb13f46e368d9f96f30d6df61b6449587261da0`
   passed 2,134 tests with 98 skips. Direct host context refused before profile
   load; exact image plus actual named volume/checkpoint proof passed.
+- Docs-inclusive checkpoint `58cab81` built exact arm64 image
+  `sha256:e36739a642702d230110de943091df2e6aec739f06f5f166ff0755a58d23a41a`.
+  It authenticated as the expected application with all five packs ready.
+  Running reconciliation refused; bot-only stop yielded census 0/0/0 and exact
+  House 256/Team 802 ready; restart restored 1/0/0.
 - No command sync, tester announcement, production, RackNerd, or external-
-  database action occurred. Next recommended unit after final Mac live evidence:
-  P9.29 bounded human acceptance.
+  database action occurred. Next recommended unit: P9.29 bounded human
+  acceptance.
 
 ### 2026-08-12 — P9.28R container lock/evidence boundary repaired
 
