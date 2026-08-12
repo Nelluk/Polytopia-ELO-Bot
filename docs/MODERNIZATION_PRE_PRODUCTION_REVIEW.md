@@ -91,7 +91,7 @@ release-candidate evidence gate after those bounded pre-freeze units.
 | M6 | Resolved | P9.20 direct per-guild production relay and all-guild capability policy |
 | M7 | In progress | P9.24/R-002 exact release-candidate evidence |
 | L1 | Resolved | P9.19 current-authority reconciliation and model-free consistency regression |
-| N3 | Resolved pending integration | P10.10 implementation `f33b14b`; roadmap owns final push/beta evidence |
+| N3 | Resolved | P10.10 implementation `f33b14b`, evidence/integration `2fd16f7`; roadmap owns final push/beta evidence |
 | N4 | Open | P11.4B1 accurate backup semantics plus isolated local import/rehearsal |
 
 ## Blocker

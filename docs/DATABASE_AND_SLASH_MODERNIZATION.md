@@ -493,14 +493,16 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P10.10/N3 global guild-authority mutation coordination
-is implemented and Tier-3 reviewed on
+is complete, Tier-3 reviewed, database-gated, and fast-forward integrated on
 `codex/p10-10-guild-mutation-coordinator`, based on exact clean pushed
 accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
 Implementation checkpoint: `f33b14b`. Focused validation passes 195 tests;
 complete offline discovery passes all 2,038 tests with 89 intentional database
 gates skipped; and the complete stopped-writer development PostgreSQL gate
 passes 88 of 89 tests with only the established owned-fixture round trip
-skipped. Integration, push, and beta restart/verification are in progress.**
+skipped. Unit integration checkpoint: `2fd16f7a5026b5bdecc9e20704350b8ed52d6741`;
+the accumulation close-out is this evidence commit. Push and beta restart/
+verification are in progress.**
 
 The accepted fail-fast process-wide claim spans final revalidation, database
 commit, complete graph reload, immutable runtime publication, exact one-guild
@@ -15620,8 +15622,8 @@ was granted. Owner-first command acceptance remains available through
 
 ### P10.10 — Global guild-authority mutation coordinator (N3)
 
-Status: **Implemented, Tier-3 reviewed, and development-database gated;
-integration/deployment in progress**
+Status: **Complete, Tier-3 reviewed, development-database gated, and
+fast-forward integrated; push/deployment in progress**
 
 Branch/base: `codex/p10-10-guild-mutation-coordinator`, exact clean pushed
 accumulation checkpoint `16f8ba7d8bc3867d4b6246c8d2ee5e4cdcde7510`.
@@ -15680,7 +15682,8 @@ P10.3–P10.9 schema path was included; transactional mutation cases rolled back
 and no retained development configuration, policy, lifecycle, or fixture
 change was made.
 
-Implementation/review checkpoint: `f33b14b`. No schema, command-tree,
+Implementation/review checkpoint: `f33b14b`; evidence/integration checkpoint:
+`2fd16f7a5026b5bdecc9e20704350b8ed52d6741`. No schema, command-tree,
 container, production, or tester-facing change is part of N3. The active bot
 runtime must be restarted from the clean pushed accumulation checkpoint after
 integration because N3 changes live dispatch and recovery behavior; no command
@@ -17355,9 +17358,11 @@ deferred into this post-modernization backlog.
   five packs ready, stopped only that user service, and required a clear host-
   wide writer audit. The complete P10-aware PostgreSQL gate then ran 89 tests:
   88 passed and only the established owned-fixture round trip skipped. No
-  retained database mutation occurred. Next: commit this evidence, integrate
-  and push N3, then start and verify the guarded beta from the exact clean
-  accumulation checkpoint without command apply or tester announcement.
+  retained database mutation occurred. The reviewed two-commit unit was then
+  fast-forward integrated at `2fd16f7a5026b5bdecc9e20704350b8ed52d6741`.
+  Next: commit/push this accumulation close-out, then start and verify the
+  guarded beta from the exact clean checkpoint without command apply or tester
+  announcement.
 
 ### 2026-08-12 — P11.4A live-engine infrastructure proof completed
 
