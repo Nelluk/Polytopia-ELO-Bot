@@ -252,6 +252,17 @@ def database_guild_configuration(guild_id: int):
     return _database_guild_configuration.guilds.get(normalized)
 
 
+def database_guild_ids() -> tuple[int, ...]:
+    """Return the exact immutable active database-authority inventory."""
+
+    if (
+            guild_configuration_source != 'database'
+            or _database_guild_configuration is None
+    ):
+        return ()
+    return tuple(sorted(_database_guild_configuration.guilds))
+
+
 def activate_database_guild_configuration(snapshot) -> None:
     """Atomically expose one already validated immutable database snapshot."""
 
@@ -337,6 +348,69 @@ def reconcile_database_guild_configuration(
             raise RuntimeError(
                 'An unrelated guild changed during runtime reconciliation.'
             )
+    _database_guild_configuration = snapshot
+    config = snapshot.legacy_config
+    application_command_policy = snapshot.command_policy
+
+
+def reconcile_database_guild_enrollment(
+    snapshot,
+    *,
+    expected_current: dict[int, tuple[int, int, str]],
+    enrolled_guild_id: int,
+    expected_enrollment: tuple[int, int, str],
+) -> None:
+    """Publish one committed owner enrollment without widening any other row."""
+
+    global _database_guild_configuration, config, application_command_policy
+    if guild_configuration_source != 'database':
+        raise RuntimeError(
+            'Database guild configuration was not selected before startup.'
+        )
+    current = _database_guild_configuration
+    if current is None:
+        raise RuntimeError('Database guild configuration is not published.')
+    if not isinstance(
+            snapshot,
+            guild_configuration_runtime.GuildConfigurationRuntimeSnapshot,
+    ):
+        raise TypeError('A validated database runtime snapshot is required.')
+    current_ids = set(current.guilds)
+    if set(expected_current) != current_ids:
+        raise RuntimeError('Expected runtime inventory is incomplete.')
+    if enrolled_guild_id in current_ids:
+        raise RuntimeError('The enrolled guild already exists at runtime.')
+    if set(snapshot.guilds) != current_ids | {enrolled_guild_id}:
+        raise RuntimeError(
+            'Enrollment must add exactly one guild to the runtime inventory.'
+        )
+    for guild_id, value in current.guilds.items():
+        expected = expected_current[guild_id]
+        observed = (value.revision, value.generation, value.document_digest)
+        if observed != expected:
+            raise RuntimeError(
+                'Runtime configuration changed before enrollment publication.'
+            )
+        candidate = snapshot.guilds[guild_id]
+        if (
+            candidate.revision,
+            candidate.generation,
+            candidate.document_digest,
+        ) != observed:
+            raise RuntimeError(
+                'An existing guild changed during enrollment reconciliation.'
+            )
+    enrolled = snapshot.guilds[enrolled_guild_id]
+    if (
+        enrolled.revision,
+        enrolled.generation,
+        enrolled.document_digest,
+    ) != expected_enrollment:
+        raise RuntimeError(
+            'Reloaded enrollment evidence differs from the committed write.'
+        )
+    if enrolled.revision != 1 or enrolled.generation != 1:
+        raise RuntimeError('A new enrollment must begin at revision/generation 1.')
     _database_guild_configuration = snapshot
     config = snapshot.legacy_config
     application_command_policy = snapshot.command_policy

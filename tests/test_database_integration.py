@@ -115,14 +115,16 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             discord_snapshot = json.loads(
                 snapshot_path.read_text(encoding='utf-8')
             )
+            cls.guild_configuration_discord_snapshot = discord_snapshot
             stored = asyncio.run(shadow.run_active_configuration(
                 shadow.active_request_from_profile(cls.profile)
             ))
+            active_guild_ids = tuple(value.guild_id for value in stored)
             settings.activate_database_guild_configuration(
                 runtime.build_runtime_snapshot_from_stored(
                     stored_configurations=stored,
                     discord_snapshot=discord_snapshot,
-                    allowed_guild_ids=cls.profile.allowed_guild_ids,
+                    allowed_guild_ids=active_guild_ids,
                 )
             )
         cls.models.db.connect(reuse_if_open=True)

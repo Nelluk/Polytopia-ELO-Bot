@@ -223,11 +223,13 @@ def build_request(
     replacement_document: GuildConfigurationDocument | None = None,
 ) -> workers.GuildConfigurationDraftRequest:
     guild_id = int(interaction.guild_id)
+    runtime_guild_ids = settings.database_guild_ids()
     snapshot = None
     if operation in {workers.VALIDATE, workers.ACTIVATE}:
         snapshot = shadow.capture_discord_snapshot(
             profile=settings.runtime_profile,
             guilds=tuple(bot.guilds),
+            guild_ids=runtime_guild_ids,
         )
     return workers.request_from_profile(
         profile=settings.runtime_profile,
@@ -243,6 +245,7 @@ def build_request(
             else document_to_mapping(replacement_document)
         ),
         discord_snapshot=snapshot,
+        runtime_guild_ids=runtime_guild_ids,
     )
 
 
@@ -263,9 +266,11 @@ def build_rollback_request(
             'Unknown guild-configuration rollback operation.'
         )
     guild_id = int(interaction.guild_id)
+    runtime_guild_ids = settings.database_guild_ids()
     snapshot = shadow.capture_discord_snapshot(
         profile=settings.runtime_profile,
         guilds=tuple(bot.guilds),
+        guild_ids=runtime_guild_ids,
     )
     return workers.request_from_profile(
         profile=settings.runtime_profile,
@@ -280,6 +285,7 @@ def build_rollback_request(
         expected_active_generation=expected_active_generation,
         expected_active_digest=expected_active_digest,
         confirmation_text=confirmation_text,
+        runtime_guild_ids=runtime_guild_ids,
     )
 
 

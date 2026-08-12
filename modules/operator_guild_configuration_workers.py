@@ -226,6 +226,7 @@ def request_from_profile(
     operation: str,
     runtime_record: Any,
     discord_snapshot: Mapping[str, Any] | None = None,
+    runtime_guild_ids: Sequence[int] | None = None,
 ) -> GuildConfigurationReadRequest:
     """Freeze exact development/runtime identity before entering the worker."""
 
@@ -259,12 +260,16 @@ def request_from_profile(
         raise OperatorGuildConfigurationValidationError(
             'The guild-configuration runtime target is invalid.'
         ) from exc
+    allowed_source = (
+        profile.allowed_guild_ids
+        if runtime_guild_ids is None else runtime_guild_ids
+    )
     request = GuildConfigurationReadRequest(
         operation=str(operation),
         requester_id=int(requester_id),
         guild_id=int(guild_id),
         target=target,
-        allowed_guild_ids=tuple(sorted(int(value) for value in profile.allowed_guild_ids)),
+        allowed_guild_ids=tuple(sorted(int(value) for value in allowed_source)),
         runtime_revision=int(runtime_record.revision),
         runtime_generation=int(runtime_record.generation),
         runtime_document_digest=str(runtime_record.document_digest),

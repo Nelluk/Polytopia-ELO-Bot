@@ -369,6 +369,7 @@ def request_from_profile(
     expected_active_generation: int | None = None,
     expected_active_digest: str | None = None,
     confirmation_text: str | None = None,
+    runtime_guild_ids: Sequence[int] | None = None,
 ) -> GuildConfigurationDraftRequest:
     if (
             getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
@@ -403,12 +404,16 @@ def request_from_profile(
                 'Guild-configuration draft input could not be frozen.'
             ) from exc
 
+    allowed_source = (
+        profile.allowed_guild_ids
+        if runtime_guild_ids is None else runtime_guild_ids
+    )
     request = GuildConfigurationDraftRequest(
         operation=str(operation),
         requester_id=int(requester_id),
         guild_id=int(guild_id),
         target=target,
-        allowed_guild_ids=tuple(sorted(int(value) for value in profile.allowed_guild_ids)),
+        allowed_guild_ids=tuple(sorted(int(value) for value in allowed_source)),
         runtime_revision=int(runtime_record.revision),
         runtime_generation=int(runtime_record.generation),
         runtime_document_digest=str(runtime_record.document_digest),
@@ -576,12 +581,14 @@ def _post_commit_runtime_snapshot(
                 database_password=request.database_password,
                 database_host=request.database_host,
                 database_port=request.database_port,
+                include_all_active=True,
             )
         )
+        active_ids = tuple(value.guild_id for value in active)
         return runtime.build_runtime_snapshot_from_stored(
             stored_configurations=active,
             discord_snapshot=discord_snapshot,
-            allowed_guild_ids=request.allowed_guild_ids,
+            allowed_guild_ids=active_ids,
         )
     except (
         json.JSONDecodeError,

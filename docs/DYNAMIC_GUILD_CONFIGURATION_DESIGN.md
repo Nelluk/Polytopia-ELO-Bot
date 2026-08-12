@@ -387,8 +387,15 @@ Each step is a separate bounded unit with its own review and evidence.
    digest-confirmed rollback that clones an earlier document into a new
    monotonic revision without consuming any draft. Keep enrollment and command
    deployment separate.
-7. **Quarantined onboarding.** Only after the control plane is proven, replace
-   automatic leave with inert pending visibility and owner-only enrollment.
+7. **Quarantined onboarding (complete in P10.7 for development).** Unknown
+   guilds are retained without a database row and all guild-scoped commands
+   and listener events remain inert. The owner starts from an already active
+   development guild, previews one least-authority prefix template bound to
+   exact target/Discord/runtime evidence, and confirms the full document
+   digest. One transaction creates active registry state, immutable revision
+   1/generation 1, and audit event 1; a complete post-commit reload publishes
+   exactly one additional runtime guild. Enrollment never synchronizes
+   commands. Suspension/retirement and production onboarding remain separate.
 8. **Delegated local editing.** Add opt-in same-guild ordinary-setting
    delegation with the permission matrix above.
 9. **Production plan/apply/canary.** Separately approve production schema,

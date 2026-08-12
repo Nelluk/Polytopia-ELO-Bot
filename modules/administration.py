@@ -57,6 +57,9 @@ from modules import operator_guild_configuration_drafts as operator_guild_draft_
 from modules import operator_guild_configuration_draft_views
 from modules import operator_guild_configuration_draft_workers
 from modules import operator_guild_configuration_rollback_views
+from modules import operator_guild_enrollment as operator_guild_enrollment_service
+from modules import operator_guild_enrollment_views
+from modules import operator_guild_enrollment_workers
 from modules import game_open_workers
 from modules import interaction_lifecycle
 
@@ -1215,7 +1218,7 @@ class administration(commands.Cog):
                 record.generation,
                 record.document_digest,
             )
-            for guild_id in settings.runtime_profile.allowed_guild_ids
+            for guild_id in settings.database_guild_ids()
             if (record := settings.database_guild_configuration(guild_id))
             is not None
         }
@@ -1274,6 +1277,118 @@ class administration(commands.Cog):
                 ) from exc
             result = replace(result, runtime_published=True)
         return result
+
+    async def _operator_guild_enrollment_operation(
+        self,
+        interaction: discord.Interaction,
+        *,
+        target_guild_id: int,
+        template: str,
+        operation: str,
+        expected_document_digest: str | None = None,
+        confirmation_text: str | None = None,
+    ):
+        current_snapshot = {
+            int(guild_id): (
+                record.revision,
+                record.generation,
+                record.document_digest,
+            )
+            for guild_id in settings.database_guild_ids()
+            if (record := settings.database_guild_configuration(guild_id))
+            is not None
+        }
+        request = operator_guild_enrollment_service.build_request(
+            bot=self.bot,
+            interaction=interaction,
+            target_guild_id=target_guild_id,
+            template=template,
+            operation=operation,
+            expected_document_digest=expected_document_digest,
+            confirmation_text=confirmation_text,
+        )
+        result = await operator_guild_enrollment_workers.run_enrollment(request)
+        if result.enrollment is not None:
+            enrollment = result.enrollment
+            try:
+                settings.reconcile_database_guild_enrollment(
+                    result.runtime_snapshot,
+                    expected_current=current_snapshot,
+                    enrolled_guild_id=enrollment.guild_id,
+                    expected_enrollment=(
+                        enrollment.revision,
+                        enrollment.generation,
+                        enrollment.document_digest,
+                    ),
+                )
+            except Exception as exc:
+                raise operator_guild_enrollment_workers.OperatorGuildEnrollmentCommitted(
+                    enrollment
+                ) from exc
+        return result
+
+    @operator_guild_group.command(
+        name='enroll',
+        description='Privately preview and enroll a quarantined development guild.',
+    )
+    @discord.app_commands.choices(template=[
+        discord.app_commands.Choice(
+            name='Basic prefix server',
+            value=operator_guild_enrollment_workers.BASIC_PREFIX_TEMPLATE,
+        ),
+    ])
+    @discord.app_commands.describe(
+        target_guild_id='Exact server ID currently visible to the development bot.',
+        template='Reviewed least-authority first configuration.',
+    )
+    async def operator_guild_enroll_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str,
+        template: discord.app_commands.Choice[str],
+    ):
+        access_error = operator_guild_enrollment_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        try:
+            normalized_target = int(target_guild_id.strip())
+            if normalized_target <= 0 or str(normalized_target) != target_guild_id.strip():
+                raise ValueError
+        except (AttributeError, TypeError, ValueError):
+            return await interaction.response.send_message(
+                'Enter the exact positive numeric target guild ID.',
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await self._operator_guild_enrollment_operation(
+                interaction,
+                target_guild_id=normalized_target,
+                template=str(template.value),
+                operation=operator_guild_enrollment_workers.PREVIEW,
+            )
+            view = operator_guild_enrollment_views.GuildEnrollmentWorkspace(
+                requester_id=int(interaction.user.id),
+                result=result,
+                runner=self._operator_guild_enrollment_operation,
+            )
+            await operator_guild_enrollment_views.publish_private(
+                interaction,
+                view,
+            )
+            return view
+        except operator_guild_enrollment_workers.OperatorGuildEnrollmentError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected operator guild-enrollment preview failure')
+            return await interaction.followup.send(
+                'Could not open the guild-enrollment preview. The target remains '
+                'quarantined and no configuration was changed.',
+                ephemeral=True,
+            )
 
     @operator_guild_group.command(
         name='rollback',

@@ -194,6 +194,31 @@ class ShadowWorkerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(connection.closed)
 
+    async def test_direct_active_loader_can_discover_additional_active_guilds(self):
+        selected = profile()
+        selected.guild_configuration_source = 'database'
+        mapping = copy.deepcopy(
+            document_to_mapping(fixtures.bundle().imports[0].document)
+        )
+        mapping['guild_id'] = 987654321012345678
+        mapping['identity']['display_name'] = 'New active guild'
+        additional_document = validate_document(mapping)
+        additional = list(stored_row(document=additional_document))
+        additional[0] = additional_document.guild_id
+        connection = FakeConnection((stored_row(), tuple(additional)))
+        request_value = shadow.active_request_from_profile(selected)
+        self.assertTrue(request_value.include_all_active)
+        with mock.patch.object(
+            shadow, '_connect', return_value=connection,
+        ), mock.patch.object(
+            storage, 'inspect_schema_inventory', return_value=exact_inventory(),
+        ):
+            result = await shadow.run_active_configuration(request_value)
+        self.assertEqual(
+            tuple(value.guild_id for value in result),
+            (GUILD_ID, additional_document.guild_id),
+        )
+
     async def test_document_state_and_inventory_mismatches_block_promotion(self):
         mapping = copy.deepcopy(
             document_to_mapping(fixtures.bundle().imports[0].document)
@@ -559,6 +584,67 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             'Try the command again in a moment.',
             ephemeral=True,
         )
+
+    async def test_unknown_guild_is_quarantined_for_prefix_and_slash_without_leave(self):
+        interaction = SimpleNamespace(
+            guild_id=987654321012345678,
+            response=SimpleNamespace(
+                is_done=lambda: False,
+                send_message=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        message = SimpleNamespace(
+            guild=SimpleNamespace(id=interaction.guild_id),
+            author=SimpleNamespace(name='tester'),
+        )
+        with mock.patch.object(
+            bot_module.settings, 'guild_configuration_ready', return_value=True,
+        ), mock.patch.object(
+            bot_module.settings, 'config', {GUILD_ID: {}},
+        ), mock.patch.object(
+            bot_module.settings, 'maintenance_mode', False,
+        ):
+            self.assertEqual(bot_module.get_prefix(None, message), 'fakeprefix')
+            self.assertFalse(await bot_module.PolyBotCommandTree.interaction_check(
+                None, interaction,
+            ))
+        interaction.response.send_message.assert_awaited_once_with(
+            'This server is quarantined and has not been enrolled by the bot '
+            'owner. No command was run.',
+            ephemeral=True,
+        )
+        source = inspect.getsource(bot_module.init_bot)
+        self.assertIn('is quarantined', source)
+        self.assertNotIn('await guild.leave()', source)
+
+    async def test_unknown_guild_listener_events_are_dropped_at_dispatch_boundary(self):
+        instance = self.make_bot()
+        unknown = SimpleNamespace(
+            guild=SimpleNamespace(id=987654321012345678)
+        )
+        try:
+            with mock.patch.object(
+                bot_module.settings, 'guild_configuration_ready', return_value=True,
+            ), mock.patch.object(
+                bot_module.settings, 'config', {GUILD_ID: {}},
+            ), mock.patch.object(
+                bot_module.commands.Bot, 'dispatch', autospec=True,
+            ) as parent_dispatch:
+                instance.dispatch('member_join', unknown)
+                parent_dispatch.assert_not_called()
+                instance.dispatch('interaction', unknown)
+                parent_dispatch.assert_called_once_with(
+                    instance, 'interaction', unknown,
+                )
+                parent_dispatch.reset_mock()
+                instance.dispatch(
+                    'member_join',
+                    SimpleNamespace(guild=SimpleNamespace(id=GUILD_ID)),
+                )
+                parent_dispatch.assert_called_once()
+        finally:
+            await instance.close()
 
 
 if __name__ == '__main__':

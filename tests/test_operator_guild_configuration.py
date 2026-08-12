@@ -444,7 +444,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     def test_exact_registration_shape(self):
         self.assertEqual(
             {command.name for command in self.guild_group.commands},
-            {'list', 'settings', 'validate', 'history', 'edit', 'rollback'},
+            {
+                'list', 'settings', 'validate', 'history', 'edit', 'rollback',
+                'enroll',
+            },
         )
         settings_command = self.guild_group.get_command('settings')
         self.assertEqual(

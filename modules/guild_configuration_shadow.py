@@ -65,6 +65,7 @@ class ActiveConfigurationReadRequest:
     database_password: str = field(repr=False)
     database_host: str | None = None
     database_port: int | None = None
+    include_all_active: bool = False
 
 
 @dataclass(frozen=True)
@@ -163,11 +164,15 @@ def capture_discord_snapshot(
     *,
     profile: Any,
     guilds: Sequence[Any],
+    guild_ids: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Capture a bounded, member-free snapshot from the ready Discord cache."""
 
     target = target_from_profile(profile)
-    allowed = tuple(sorted(int(value) for value in profile.allowed_guild_ids))
+    source_ids = (
+        profile.allowed_guild_ids if guild_ids is None else guild_ids
+    )
+    allowed = tuple(sorted(int(value) for value in source_ids))
     if not allowed or len(allowed) > MAX_SHADOW_GUILDS:
         raise GuildConfigurationShadowMalformed('allowed_guild_inventory_invalid')
     if len(allowed) != len(set(allowed)) or any(value <= 0 for value in allowed):
@@ -342,6 +347,7 @@ def active_request_from_profile(profile: Any) -> ActiveConfigurationReadRequest:
         database_password=profile.database_password,
         database_host=profile.database_host,
         database_port=profile.database_port,
+        include_all_active=True,
     )
     return _validate_active_request(request)
 
@@ -374,6 +380,8 @@ def _validate_active_request(
         raise GuildConfigurationShadowMalformed(
             'database_authentication_missing'
         )
+    if not isinstance(request.include_all_active, bool):
+        raise GuildConfigurationShadowMalformed('active_request_invalid')
     return request
 
 
@@ -453,6 +461,26 @@ def inspect_active_configuration(
                     'storage_or_identity_invalid'
                 ) from exc
             stored = _stored_values(_load_rows(cursor))
+        if request.include_all_active:
+            active = tuple(
+                value for value in stored
+                if value.enrollment_state == 'active'
+            )
+            active_ids = tuple(value.guild_id for value in active)
+            if not set(request.allowed_guild_ids).issubset(active_ids):
+                raise GuildConfigurationShadowMalformed(
+                    'stored_guild_inventory_incomplete'
+                )
+            if any(
+                value.active_revision is None
+                or value.document is None
+                or value.document_digest is None
+                for value in active
+            ):
+                raise GuildConfigurationShadowMalformed(
+                    'stored_active_graph_invalid'
+                )
+            return active
         if tuple(value.guild_id for value in stored) != request.allowed_guild_ids:
             raise GuildConfigurationShadowMalformed(
                 'stored_guild_inventory_incomplete'

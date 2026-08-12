@@ -62,11 +62,13 @@ def build_request(
     operation: str,
 ) -> workers.GuildConfigurationReadRequest:
     guild_id = int(interaction.guild_id)
+    runtime_guild_ids = settings.database_guild_ids()
     snapshot = None
     if operation == workers.VALIDATE:
         snapshot = shadow.capture_discord_snapshot(
             profile=settings.runtime_profile,
             guilds=tuple(bot.guilds),
+            guild_ids=runtime_guild_ids,
         )
     return workers.request_from_profile(
         profile=settings.runtime_profile,
@@ -75,6 +77,7 @@ def build_request(
         operation=operation,
         runtime_record=settings.database_guild_configuration(guild_id),
         discord_snapshot=snapshot,
+        runtime_guild_ids=runtime_guild_ids,
     )
 
 

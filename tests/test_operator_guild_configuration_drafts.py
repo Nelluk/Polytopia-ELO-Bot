@@ -645,6 +645,8 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             administration.settings, 'runtime_profile', selected_profile,
         ), mock.patch.object(
+            administration.settings, 'database_guild_ids', return_value=(GUILD_ID,),
+        ), mock.patch.object(
             administration.settings,
             'database_guild_configuration',
             return_value=current,
@@ -683,6 +685,8 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         with mock.patch.object(
             administration.settings, 'runtime_profile', profile(),
+        ), mock.patch.object(
+            administration.settings, 'database_guild_ids', return_value=(GUILD_ID,),
         ), mock.patch.object(
             administration.settings, 'database_guild_configuration',
             return_value=current,

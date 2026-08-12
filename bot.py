@@ -141,6 +141,20 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                     ephemeral=True,
                 )
             return False
+        guild_id = interaction.guild_id
+        if guild_id is not None and int(guild_id) not in settings.config:
+            message = (
+                'This server is quarantined and has not been enrolled by the '
+                'bot owner. No command was run.'
+            )
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+            return False
         if not settings.maintenance_mode:
             return True
         message = 'The bot is restarting. Try the command again in a moment.'
@@ -184,6 +198,43 @@ class MyBot(commands.Bot):
         # failures observable and always acknowledge a delivered interaction
         # instead of leaving Discord's "Sending command..." state unresolved.
         self.tree.on_error = self._on_application_command_error
+
+    @staticmethod
+    def _dispatched_guild_id(args) -> int | None:
+        if not args:
+            return None
+        subject = args[0]
+        guild = getattr(subject, 'guild', None)
+        value = (
+            getattr(guild, 'id', None)
+            if guild is not None
+            else getattr(subject, 'guild_id', None)
+        )
+        try:
+            return None if value is None else int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def dispatch(self, event_name: str, /, *args, **kwargs) -> None:
+        """Keep every unknown-guild event inert, not only command dispatch."""
+
+        lifecycle_events = {
+            'connect', 'disconnect', 'guild_join', 'interaction', 'ready',
+            'resumed',
+        }
+        guild_id = self._dispatched_guild_id(args)
+        if guild_id is not None and event_name not in lifecycle_events:
+            if (
+                not settings.guild_configuration_ready()
+                or guild_id not in settings.config
+            ):
+                logger.debug(
+                    'Dropping quarantined guild event %s for guild %s.',
+                    event_name,
+                    guild_id,
+                )
+                return
+        super().dispatch(event_name, *args, **kwargs)
 
     async def on_interaction(self, interaction: discord.Interaction):
         """Log the safe routing envelope for application-command delivery."""
@@ -352,23 +403,28 @@ class MyBot(commands.Bot):
                 == 'database'
             )
             try:
-                discord_snapshot = shadow.capture_discord_snapshot(
-                    profile=profile,
-                    guilds=tuple(self.guilds),
-                )
                 if database_selected:
                     stored = await shadow.run_active_configuration(
                         shadow.active_request_from_profile(profile)
                     )
                     guild_ids = tuple(value.guild_id for value in stored)
+                    discord_snapshot = shadow.capture_discord_snapshot(
+                        profile=profile,
+                        guilds=tuple(self.guilds),
+                        guild_ids=guild_ids,
+                    )
                     result = shadow.GuildConfigurationShadowResult(
                         status=shadow.STATUS_MATCHED,
-                        expected_guild_ids=tuple(profile.allowed_guild_ids),
+                        expected_guild_ids=guild_ids,
                         stored_guild_ids=guild_ids,
                         matched_guild_ids=guild_ids,
                         stored_configurations=stored,
                     )
                 else:
+                    discord_snapshot = shadow.capture_discord_snapshot(
+                        profile=profile,
+                        guilds=tuple(self.guilds),
+                    )
                     bundle = shadow.expected_bundle_from_snapshot(
                         profile=profile,
                         discord_snapshot=discord_snapshot,
@@ -406,7 +462,7 @@ class MyBot(commands.Bot):
                     runtime_snapshot = runtime.build_runtime_snapshot_from_stored(
                         stored_configurations=result.stored_configurations,
                         discord_snapshot=discord_snapshot,
-                        allowed_guild_ids=profile.allowed_guild_ids,
+                        allowed_guild_ids=result.matched_guild_ids,
                     )
                     settings.activate_database_guild_configuration(
                         runtime_snapshot
@@ -682,6 +738,19 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             await bot.process_commands(message)
 
     @bot.event
+    async def on_guild_join(guild):
+        if guild.id in settings.config:
+            logger.info('Connected to enrolled guild %s %s.', guild.id, guild.name)
+            return
+        logger.warning(
+            'New guild %s %s is quarantined. No configuration row was '
+            'created and command dispatch remains disabled until owner '
+            'enrollment.',
+            guild.id,
+            guild.name,
+        )
+
+    @bot.event
     async def on_ready():
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 
@@ -717,8 +786,12 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             if g.id in settings.config:
                 logger.debug(f'Loaded in guild {g.id} {g.name}')
             else:
-                logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
-                await g.leave()
+                logger.warning(
+                    'Quarantined guild %s %s is not enrolled; retaining an '
+                    'inert connection for owner review.',
+                    g.id,
+                    g.name,
+                )
 
         try:
             await bot._revoke_beta_lab_personas()
