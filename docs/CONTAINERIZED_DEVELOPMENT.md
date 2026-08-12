@@ -449,6 +449,39 @@ never use `latest`.
   images, cache, and synthetic backup pair were then removed. The pre-existing
   `hello-world` resource remained untouched.
 
+## P11.4B2 Mac import evidence
+
+- The local host was arm64 macOS 26.6.1 with Docker Desktop 4.85.0,
+  Engine/Client 29.6.2, Compose 5.3.1, and about 516 GiB available. The pinned
+  Python, uv, and PostgreSQL OCI indexes contain both linux/amd64 and
+  linux/arm64 manifests; this host resolved native arm64 images.
+- The retained 85,932-byte archive and strict sidecar both verify as
+  `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+  The original transferred pair was not modified.
+- A real Docker Desktop mode-0600 bind owned by host `501:20` was readable as
+  configured container `1000:1000`. The doctor continues to enforce exact
+  numeric ownership on Linux. On Darwin it verifies the current host owner,
+  warns that static metadata cannot prove the container view, and requires the
+  documented live probe before startup.
+- The exact implementation image at
+  `103226e1531a6840d663cba2e83d0b07eb2a7bbc` is
+  `sha256:e36c8264604a12be1603aeb2d9ad7682176b5fa7d3e683d8f636d5f9fd8e2f0f`,
+  native arm64, non-root `1000:1000`, and contains no private runtime input.
+  Its hardened offline run passed 2,054 tests with 96 intentional skips;
+  focused container/recovery/doctor coverage passed 36 tests.
+- The fresh ordinary PostgreSQL 18.4 database passed import and independent
+  schema, winner-FK, application-owner, and bounded-count verification. Its
+  second exact apply refused the non-fresh schema before restore. Both the
+  ordinary and retained recovery volumes remain; only the ordinary service is
+  running, with internal `5432/tcp` and no host publication.
+
+The database is ready for the separately gated bot lifecycle unit. The bot is
+not ready to start until the user confirms the VPS beta is stopped, the
+cross-runtime writer audit is clear, and the ignored reviewed local container
+configuration files are provided. Docker Desktop's remapped bind ownership is
+a remaining platform behavior that must be live-probed on every startup; it is
+not treated as equivalent to Linux host ownership.
+
 ## Remaining gates before supported use
 
 1. Provide enough build headroom for Compose to exit cleanly, or use a

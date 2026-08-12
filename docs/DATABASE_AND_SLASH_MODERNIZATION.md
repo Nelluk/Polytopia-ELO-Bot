@@ -492,40 +492,45 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P11.4B1 stopped-host-development-database export and
-fresh isolated container import rehearsal is complete, Tier-3 reviewed,
-integrated, pushed, and development-validated on
-`codex/p11-4b1-host-database-import`, based on exact clean pushed accumulation
-checkpoint `2cb462e7d1271787b6550290375518e59e766566`. Risk tier: Tier 3 operational
-and database boundary. The unit also applies the selected N4 correction:
-pre/post `pg_dump` session observations remain useful, but are no longer
-described as proof that no transient session existed between them. No host or
-production restore is authorized. Implementation/integration checkpoint:
-`d27d6c83508ad00ef4e28d4eabad5fcddcf3189f`; live evidence checkpoint:
-`af0b4e3b1c98e7324fcf41ffe5f66f9f80459518`.**
+Current active unit: **P11.4B2 Mac transfer import and portability proof is
+complete and Tier-3 reviewed on `codex/p11-4b2-mac-container-import`, based on
+exact clean accumulation checkpoint
+`4d7b5dfdf202c82aa9f21ea5da6d1d2bc34bac40`. Risk tier: Tier 3 operational
+and database boundary. Implementation checkpoints: `72aa3b3`, `7f70c68`, and
+`103226e`. No Discord bot, command synchronization, external database, or
+production service was addressed.**
 
-Focused recovery/export/document validation passes 21 tests. Complete offline
-discovery passes all 2,045 tests with 89 intentional database gates skipped.
-The corrected stopped-writer PostgreSQL gate passes 76 tests with the one
-established operator-owned fixture round trip skipped. The first gated command
-was refused before tests because it omitted the now-required reviewed guild-
-configuration snapshot; the corrected documented command is the passing run.
+The development-only import is fixed to bundled service `postgres`, target
+`polytopia_dev`, application role `polybot_dev`, and PostgreSQL major 18. It
+accepts only the reviewed archive basename and exact SHA-256 sidecar. Its
+unconfirmed plan reads the archive pair and catalog without a database
+connection or file write; apply requires the exact digest-bound confirmation,
+a stopped bot, a safely provisioned but relation-empty target, and zero target
+sessions. Restore runs as `polybot_dev` in one transaction with archived owner
+and ACL replay disabled. Postchecks require the application schema,
+`game.winner_id` foreign key, table/sequence ownership, and exact bounded data
+counts. A repeat apply refused the non-fresh target before `pg_restore`.
 
-The real stopped host export published an 85,932-byte PostgreSQL 18 custom
-archive with SHA-256
-`a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`;
-both session observations were zero. The exact digest-confirmed archive
-restored into fresh isolated `polytopia_restore_verify` on the contract-pinned
-PostgreSQL 18.4 image with no host port. Required-table, winner-FK, and object-
-owner checks passed. Bounded source/restore evidence matched 71 guild games, 4
-Houses, 44 guild Players, 15 guild Teams, fixture IDs 2286–2288, 48 showcase
-games, and 24 showcase Players. A repeated apply refused the non-fresh volume
-before writes. The isolated container/network/volume, one-use secrets, and
-unit-only image were removed; the private archive/digest pair is retained for
-Nelluk's planned local-machine transfer rehearsal. The beta is healthy at
-`d27d6c8`, expected application `479029527553638401`, PID `347159`, exactly one
-development writer, and all five Beta Lab packs ready. No command apply,
-checklist update, or tester announcement was warranted.
+The 2026-08-12 host was arm64 macOS 26.6.1 with Docker Desktop 4.85.0,
+Engine/Client 29.6.2, Compose 5.3.1, and about 516 GiB available. All three
+pinned image indexes contained both linux/amd64 and linux/arm64 manifests, and
+Docker resolved native arm64 images. A live Docker Desktop bind probe showed a
+mode-0600 host file owned by `501:20` presented readably as `1000:1000` to the
+configured container identity. Linux doctor checks still require exact numeric
+host/container ownership; Darwin instead requires the current host owner,
+emits a warning, and requires that live bind probe before bot startup.
+
+Focused container/recovery/doctor coverage passes 36 tests. The exact
+`103226e1531a6840d663cba2e83d0b07eb2a7bbc` image is
+`sha256:e36c8264604a12be1603aeb2d9ad7682176b5fa7d3e683d8f636d5f9fd8e2f0f`,
+native arm64, and runs as non-root `1000:1000`; inspection found no private
+runtime inputs. Its no-network, read-only-root, capability-dropped offline run
+passes all 2,054 tests with 96 intentional skips. The ordinary bundled
+PostgreSQL 18.4 service is healthy with no host port and contains the verified
+import: 71 guild games, 4 Houses, 44 guild Players, 15 guild Teams, fixture IDs
+2286–2288, 48 showcase games, and 24 showcase Players. The source recovery
+copy reports the same counts. The recovery container was removed while its
+volume and the original 85,932-byte archive/digest pair remain preserved.
 
 Previous completed source unit: **P10.10/N3 global guild-authority mutation
 coordination is complete, Tier-3 reviewed, database-gated, integrated, pushed,
@@ -553,8 +558,10 @@ bounded application data, and state accurately that pre/post session samples
 do not prove no transient session existed during `pg_dump`. No production or
 host-database restore is authorized.
 
-Next recommended after P11.4B1: **P11.4B2 container bot lifecycle proof**, once
-enough Docker build headroom is available: build the exact pushed checkpoint,
+Next recommended after P11.4B2: **P11.4B3 container bot lifecycle proof**, only
+after the user confirms the VPS beta is stopped and the reviewed ignored local
+runtime profiles are present: perform the cross-runtime single-writer audit,
+build or select the exact reviewed checkpoint,
 exercise persistent image/log volumes, resource ceilings, SIGINT and exit-75
 restart behavior, database outage/recovery, exact single-writer exclusion, and
 one controlled development Discord login. Also ready: the independent
@@ -17382,6 +17389,39 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P11.4B2 Mac transfer import and portability proof passed
+
+- Reverified the exact clean accumulation base `4d7b5df`, local/upstream
+  equality, arm64 Mac and Docker Desktop versions, free space, ignored private
+  file modes without displaying their contents, the already-passed isolated
+  recovery rehearsal, and the original archive/sidecar digest
+  `a1ab30a068a068da6ce207d41d8b840a31291d721b49ee4e1d7a9c464958aa8b`.
+- Added the fixed, plan-first ordinary bundled-database import. Live apply
+  exposed a PostgreSQL reserved-word alias in the post-restore FK query; the
+  target remained an isolated diagnostic copy, repeat apply correctly refused
+  it before restore, and correction `7f70c68` added the focused regression.
+  A newly recreated, provisioned ordinary volume then imported successfully,
+  passed schema/FK/owner/count verification, and refused a repeat import before
+  writes.
+- Verified multi-architecture manifests and actual Docker Desktop bind
+  ownership. Correction `103226e` preserves the exact Linux UID/GID doctor
+  rule and makes the narrower Darwin host-owner result an explicit warning
+  requiring a live bind probe rather than a silent pass.
+- Focused validation passes 36 tests. Complete isolated image discovery passes
+  2,054 tests with 96 intentional skips. Compose rendering, exact plan,
+  PostgreSQL 18.4 provisioning/import, independent source/target checks,
+  repeat refusal, non-root image metadata, and absence of private runtime
+  inputs all pass. Final reviewed code image:
+  `sha256:e36c8264604a12be1603aeb2d9ad7682176b5fa7d3e683d8f636d5f9fd8e2f0f`
+  at source checkpoint `103226e`.
+- Left the imported ordinary database healthy with only internal `5432/tcp`.
+  Removed the completed recovery container and superseded bot image while
+  preserving both database volumes and the original archive/sidecar. No bot,
+  Discord connection or synchronization, external database, production
+  service, push, or tester announcement occurred. Next: P11.4B3 only after the
+  user confirms the VPS beta is stopped and supplies/reviews the missing local
+  container runtime profiles.
 
 ### 2026-08-12 — P11.4B1 host-development container import rehearsal passed
 
