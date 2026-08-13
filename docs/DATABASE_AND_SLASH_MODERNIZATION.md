@@ -16797,7 +16797,7 @@ visibility.
 
 ### P9.30 — Explicit server-help and PolyELO-feedback routing
 
-Status: **Implemented locally; validation and integration pending.**
+Status: **Validated locally; integration and beta refresh pending.**
 
 Branch/base: `codex/p9-30-staffhelp-routing`, exact clean accumulation base
 `8f52e8035ca7164b18b8b2823e98a65cca9ff02c`.
@@ -16837,6 +16837,23 @@ invocation has no ordinary source message to link, and production support text
 is intentionally not copied into `GameLog`. Each submission goes to exactly
 one disclosed destination, drains an already-started send on cancellation, and
 acknowledges only the destination actually reached.
+
+Implementation checkpoint `66ef1ae` adds the routing service, bounded optional
+game-context worker, settings examples, production-cutover guidance, and
+focused regressions. Checkpoint `74f55ad` makes one existing Compose-refusal
+test accept both legitimate fail-closed paths encountered on a host and inside
+an authentic checkpointed image; profile loading remains prohibited in both
+cases. Focused staffhelp/persona validation passed 40 tests. Exact arm64 image
+`sha256:d9ae78c35e75b976c53372c309d8c626ac572e40b0ed2f4ca3ff02d3f3069eb3`
+from `74f55ad` passed complete offline discovery: 2,153 tests with 99
+intentional skips. With the beta bot stopped and writer census 0/0/0, the
+unchanged development-database gate passed 80 tests with one intentional
+operator-fixture-preserving skip against `polytopia_dev` / `polybot_dev`; the
+new staffhelp game-context case was read-only, and test-owned mutation cases
+retained their existing rollback/cleanup contracts. The previous beta was
+restored immediately afterward at writer census 1/0/0. No production,
+RackNerd, command synchronization, schema, production route selection, or
+tester announcement occurred.
 
 ## Standard work-unit template
 
