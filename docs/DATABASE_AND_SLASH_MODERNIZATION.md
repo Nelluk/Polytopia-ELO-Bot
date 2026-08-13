@@ -16797,7 +16797,7 @@ visibility.
 
 ### P9.30 — Explicit server-help and PolyELO-feedback routing
 
-Status: **Validated locally; integration and beta refresh pending.**
+Status: **Integrated; refreshed development beta running.**
 
 Branch/base: `codex/p9-30-staffhelp-routing`, exact clean accumulation base
 `8f52e8035ca7164b18b8b2823e98a65cca9ff02c`.
@@ -16854,6 +16854,16 @@ retained their existing rollback/cleanup contracts. The previous beta was
 restored immediately afterward at writer census 1/0/0. No production,
 RackNerd, command synchronization, schema, production route selection, or
 tester announcement occurred.
+
+Fast-forward integration checkpoint `c49d2b4` built arm64 image
+`sha256:c25712df4710b03e15f94ff360199083d06347d6ee26752c66e12ffac9ace6c7`
+and replaced the prior Mac beta without synchronizing commands. The refreshed
+bot authenticated as application `479029527553638401` at the exact checkpoint,
+PostgreSQL remained healthy and internal-only as `polytopia_dev` /
+`polybot_dev`, writer census was 1/0/0, and all five retained Beta Lab packs
+reported ready. Human acceptance of the three disclosed modal destinations and
+their category-specific acknowledgements remains the only P9.30 beta check;
+production central-route IDs remain intentionally unset until cutover review.
 
 ## Standard work-unit template
 
