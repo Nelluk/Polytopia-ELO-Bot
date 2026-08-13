@@ -53,6 +53,8 @@ that contains all of the following exact values and evidence:
 - proof every configured guild's `staff_help_channel` and first
   `helper_roles` entry resolve to the reviewed private relay destination and
   configured helper role;
+- proof the bot-level `polyelo_feedback_route` resolves to the reviewed private
+  maintainer channel in an allowlisted guild, with no role mention;
 - fresh R-002 evidence bound to the release commit: complete offline suite,
   stopped-writer development PostgreSQL suite, cutover-critical review, and
   bounded beta matrix;
@@ -99,6 +101,9 @@ check must prove:
   `('tools_support',)`, exposing only `/staffhelp` in every allowlisted guild;
 - every allowlisted guild has a valid `staff_help_channel` and nonempty first
   `helper_roles` entry;
+- top-level `polyelo_feedback_route` contains exactly positive `guild_id` and
+  `channel_id` values for one reviewed private maintainer channel in an
+  allowlisted guild;
 - `operator`, `elo_maintenance`, and `beta_testing` are not assigned; and
 - the configured prefix, image root, and log root remain production values.
 
@@ -152,8 +157,9 @@ Complete these before notifying users of downtime:
    image archives with `tar -tzf`; timestamps, sizes, and paths must match the
    release record.
 7. Confirm every configured production staff-help channel and first Helper role
-   still resolves exactly. Do not proceed if any guild would accept the command
-   without a working private destination and controlled role mention.
+   still resolves exactly, and confirm the one bot-level PolyELO feedback route
+   resolves to the reviewed private maintainer channel with mentions disabled.
+   Do not proceed if either production flow lacks its working destination.
 
 Do not announce completion or invite testing at this stage.
 
@@ -470,7 +476,8 @@ operation merely because local reporting failed.
 For the approved observation window, record service PID/restarts, gateway
 health, database/schema errors, recurring-task cycle health, retained-prefix
 parity, native permission/visibility results, command-tree convergence, and
-one safe `/staffhelp` relay check per configured guild. Roll back the narrowest
+one safe local `/staffhelp` relay check per configured guild plus one PolyELO
+feedback relay check to the maintainer channel. Roll back the narrowest
 independent layer that is unhealthy. Expansion to another user-command
 capability, prefix retirement, API activation, backfill, or destructive cleanup
 is a new unit with separate approval.

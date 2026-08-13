@@ -32,15 +32,21 @@ class StaffHelpModal(discord.ui.Modal):
     """Requester-bound modal with bounded native Components v2 fields."""
 
     category = discord.ui.Label(
-        text='Category',
-        description='What kind of report is this?',
+        text='Who should receive this?',
+        description='Server help stays local; bot feedback goes to PolyELO maintainers.',
         component=discord.ui.RadioGroup(
             custom_id='staffhelp-category',
             required=True,
             options=(
-                discord.RadioGroupOption(label='Help', value='help'),
-                discord.RadioGroupOption(label='Bug', value='bug'),
-                discord.RadioGroupOption(label='Feature', value='feature'),
+                discord.RadioGroupOption(
+                    label='Contact server staff', value='help'
+                ),
+                discord.RadioGroupOption(
+                    label='Report a PolyELO bug', value='bug'
+                ),
+                discord.RadioGroupOption(
+                    label='Suggest a PolyELO improvement', value='feature'
+                ),
             ),
         ),
     )
@@ -97,7 +103,7 @@ class StaffHelpModal(discord.ui.Modal):
         title = (
             'Staff help / beta feedback'
             if self.profile.environment == 'development'
-            else 'Staff help'
+            else 'Staff help / PolyELO feedback'
         )
         super().__init__(title=title, timeout=300)
         self.bot = bot
@@ -193,16 +199,32 @@ class StaffHelpModal(discord.ui.Modal):
             )
             return
         except staff_help.StaffHelpConfigurationError:
-            await interaction.followup.send(
-                'Your message could not be sent because staff help is not '
-                'configured for this server. Please ping a server staff member directly.',
-                ephemeral=True,
+            category = getattr(
+                getattr(self.category, 'component', None), 'value', None
             )
+            if category == 'help':
+                message = (
+                    'Your message could not be sent because staff help is not '
+                    'configured for the related server. Please ping a server '
+                    'staff member directly.'
+                )
+            else:
+                message = (
+                    'The PolyELO maintainer inbox is temporarily unavailable. '
+                    'If this is urgent, choose Contact server staff instead.'
+                )
+            await interaction.followup.send(message, ephemeral=True)
             return
         except staff_help.StaffHelpDeliveryError:
+            category = getattr(
+                getattr(self.category, 'component', None), 'value', None
+            )
+            destination = (
+                'server staff' if category == 'help' else 'the PolyELO maintainers'
+            )
             await interaction.followup.send(
-                'Your message could not be sent to server staff. '
-                'Please try again later or ping a server staff member directly.',
+                f'Your message could not be sent to {destination}. '
+                'Please try again later or contact server staff directly.',
                 ephemeral=True,
             )
             return
@@ -220,10 +242,17 @@ class StaffHelpModal(discord.ui.Modal):
             return
 
         if result.environment == 'production':
-            message = (
-                'Your message has been sent to server staff. '
-                'Please wait patiently or submit another report with additional information.'
-            )
+            if result.destination == 'server_staff':
+                message = (
+                    'Your message has been sent to server staff. '
+                    'Please wait patiently or submit another report with additional information.'
+                )
+            elif result.destination == 'polyelo_bug':
+                message = 'Your bug report was sent to the PolyELO maintainers.'
+            else:
+                message = (
+                    'Your improvement suggestion was sent to the PolyELO maintainers.'
+                )
         elif result.delivered:
             message = (
                 f'Your report was recorded as `{result.report_id}`. '

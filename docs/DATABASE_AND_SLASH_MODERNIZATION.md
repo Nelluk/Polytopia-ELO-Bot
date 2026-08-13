@@ -359,7 +359,7 @@ would become unavailable if a prefix is retired.
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
-| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens one requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. Development writes the durable JSONL record first and then best-effort mirrors it to the fixed beta staff channel. Production writes no JSONL record: it makes one direct relay to the invoking guild's configured `staff_help_channel` and allows a ping only for the first configured `helper_roles` role. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. P9.20 resolves the production boundary without creating a second command or a Nelluk-owned production inbox. Production success is claimed only after Discord accepts the direct relay; incomplete guild routing fails closed. No native attachment gap exists because discord.py 2.7.1 Components v2 provides the multi-file upload. | Add development-store retention/redaction operations or a later staff workflow only with a separate privacy and operational review. Production relay retention is governed by the destination Discord channel; do not silently add a second archive. | Prefix retirement and environment-explicit delivery implemented through P9.20 |
+| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens one requester-bound modal with three explicit destinations: local server staff, PolyELO bug report, or PolyELO improvement. Development keeps the durable JSONL-first flow and fixed beta mirror. Production writes no JSONL, `GameLog`, or database record. Local help uses the active stored guild configuration for the related game's (or invoking guild's) `staff_help_channel` and first `helper_roles` role; bug/improvement reports use one bot-level `polyelo_feedback_route` with no role ping. A bounded legacy-compatible game-context read supplies routing and a compact game summary without a second Discord send. | Legacy recommendation: **retire** — the low-use prefix intake remains superseded and is not restored. Each production submission has exactly one disclosed destination; local requests are never silently copied to maintainers. Native uploads replace attachment URLs, slash invocation has no source-message jump link, and support text is intentionally not duplicated into `GameLog`. Success is claimed only after the one selected Discord send completes; configuration or delivery failures remain private. | Add development-store retention/redaction operations only through its separately reviewed lifecycle. Production retention remains governed by the selected Discord channel; do not silently add another archive or dual-delivery path. | Environment split implemented through P9.20; explicit local/product routing implemented by P9.30 |
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. At P8.4, `$team_tier` and `$team_edit ... ARCHIVE` remained retained; the later P8.26/C-025 decision separately retires the archive workflow and `$team_edit` registration while preserving `$team_tier`. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; archive disposition superseded by accepted P8.26/C-025 decision |
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
@@ -16794,6 +16794,49 @@ ready. No production, RackNerd, command sync, tester announcement, schema, or
 application-database mutation occurred. Next recommended unit: P9.29 bounded
 human acceptance of command behavior, retained-prefix parity, and public/private
 visibility.
+
+### P9.30 — Explicit server-help and PolyELO-feedback routing
+
+Status: **Implemented locally; validation and integration pending.**
+
+Branch/base: `codex/p9-30-staffhelp-routing`, exact clean accumulation base
+`8f52e8035ca7164b18b8b2823e98a65cca9ff02c`.
+
+Risk tier: **Tier 3 privacy, cross-guild routing, and external-publication
+truthfulness.** No production access, command synchronization, schema change,
+database mutation, tester announcement, or prefix restoration is in scope.
+
+The production command retains one top-level no-option `/staffhelp` surface but
+the modal now makes the destination explicit: **Contact server staff**,
+**Report a PolyELO bug**, or **Suggest a PolyELO improvement**. Development
+continues to select only its JSONL-first authoritative store and fixed beta
+mirror. Production selects only one Discord backend and sets `stored=False`;
+it never calls the JSONL store and adds no production database or filesystem
+archive.
+
+Local help performs one bounded worker-local, channel-first/game-ID-fallback
+lookup compatible with the deployed prefix behavior. When a related game is
+found, its guild determines the local destination; otherwise the invoking
+guild does. The destination channel and first helper role are resolved through
+`settings.guild_setting()` and `settings.resolve_configured_role()`, so the
+active stored guild-configuration snapshot remains authoritative when database
+authority is enabled. One compact related-game field is included in the same
+relay rather than attempting a second game-card publication. A failed optional
+game-context read does not disable help.
+
+Bug and improvement submissions resolve one explicit bot-level
+`polyelo_feedback_route` from the environment's server-settings module. That
+global cross-guild destination is deliberately not duplicated into every
+guild document. The target guild must be allowlisted and cached, the channel
+must be sendable, and no user or role mention is permitted. Both flows preserve
+native attachments and source/requester context; an exact service checkpoint
+is included when the deployment exports it.
+
+The previously approved `$staffhelp` / `$helpstaff` retirement remains. Slash
+invocation has no ordinary source message to link, and production support text
+is intentionally not copied into `GameLog`. Each submission goes to exactly
+one disclosed destination, drains an already-started send on cancellation, and
+acknowledges only the destination actually reached.
 
 ## Standard work-unit template
 

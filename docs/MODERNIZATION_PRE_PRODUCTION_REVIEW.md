@@ -574,15 +574,16 @@ Status: **Resolved by P9.20.**
 - **Focused regression:** release-readiness validation must fail if
   `tools_support` is unassigned or any production guild lacks a valid
   `staff_help_channel` and first helper role.
-- **Resolution:** one public `/staffhelp` form now selects exactly one backend
-  from the explicit runtime profile. Production makes one direct Discord relay
-  to the invoking guild's configured staff-help channel, permits a ping only
-  for its first configured helper role, writes no JSONL record, and reports
-  success only after the send completes. Development retains its durable JSONL
-  record-first flow and best-effort fixed beta mirror. The configured helper
-  role is the production recipient; no separate Nelluk-owned inbox, owner, or
-  polling cadence exists. Production preflight and submit-time resolution fail
-  closed when the route is incomplete.
+- **Resolution:** one public `/staffhelp` form selects exactly one backend from
+  the explicit runtime profile and one user-selected destination. Development
+  retains its durable JSONL record-first flow and best-effort fixed beta
+  mirror. In production, local server help resolves the related game's or
+  invoking guild's active configured staff-help channel and first helper role;
+  PolyELO bug/improvement feedback resolves one explicit bot-level maintainer
+  channel without a role ping. Production writes no JSONL, `GameLog`, database,
+  or other local archive and reports success only after its one selected send
+  completes. Missing routes fail privately without disabling the other valid
+  flow; no local request is silently copied to maintainers.
 
 ### M7 — No final-HEAD release-candidate evidence exists
 

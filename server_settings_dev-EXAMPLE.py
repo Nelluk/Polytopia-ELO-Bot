@@ -67,3 +67,4 @@ server_list = {
         'bot_channels': [TEST_BOT_CHANNEL_ID],
     },
 }
+polyelo_feedback_route = {}

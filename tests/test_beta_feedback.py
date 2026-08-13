@@ -365,7 +365,11 @@ class FeedbackRelayAndModalTests(unittest.TestCase):
         category = modal.category.component.to_component_dict()
         self.assertEqual(
             [(option['label'], option['value']) for option in category['options']],
-            [('Help', 'help'), ('Bug', 'bug'), ('Feature', 'feature')],
+            [
+                ('Contact server staff', 'help'),
+                ('Report a PolyELO bug', 'bug'),
+                ('Suggest a PolyELO improvement', 'feature'),
+            ],
         )
         self.assertEqual(modal.details.component.max_length, beta_feedback.MAX_DETAILS_LENGTH)
         self.assertEqual(modal.files.component.max_values, beta_feedback.MAX_ATTACHMENTS)

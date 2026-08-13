@@ -6157,6 +6157,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.models.db.connect(reuse_if_open=True)
         self.assertTrue(result.exists)
         self.assertEqual(result.game_id, int(game.id))
+
         self.assertEqual(result.guild_id, int(game.guild_id))
         self.assertEqual(result.is_pending, bool(game.is_pending))
         self.assertEqual(result.external_server_ids, expected_external)
@@ -6170,6 +6171,33 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertFalse(missing.exists)
         self.assertIsNone(missing.guild_id)
         self.assertEqual(missing.external_server_ids, ())
+
+    def test_staff_help_context_reads_real_game_without_writes(self):
+        """Resolve bounded production routing context from one existing game."""
+
+        from modules import staff_help_workers
+
+        guild_id = int(self.profile.allowed_guild_ids[0])
+        game = (
+            self.models.Game
+            .select()
+            .where(self.models.Game.guild_id == guild_id)
+            .order_by(self.models.Game.id)
+            .first()
+        )
+        if game is None:
+            self.skipTest('No retained development game is available.')
+        before = self.models.Game.select().count()
+
+        result = staff_help_workers.find_related_game(
+            channel_id=0,
+            game_id=int(game.id),
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.game_id, int(game.id))
+        self.assertEqual(result.guild_id, guild_id)
+        self.assertEqual(self.models.Game.select().count(), before)
 
     def test_game_reminder_worker_reads_real_schema_without_writes(self):
         """Exercise P5.11 reminder snapshots without fixture mutation."""

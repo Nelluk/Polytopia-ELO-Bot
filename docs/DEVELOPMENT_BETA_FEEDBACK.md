@@ -4,7 +4,8 @@ WB1.1 adds structured `/staffhelp` intake for the development wider beta. The
 command is registered as a top-level command with no slash options. It opens a
 requester-bound modal containing:
 
-- category: `help`, `bug`, or `feature`;
+- explicit destination/category: **Contact server staff** (`help`), **Report a
+  PolyELO bug** (`bug`), or **Suggest a PolyELO improvement** (`feature`);
 - a 160-character short summary;
 - a 4,000-character detailed description;
 - optional 1,000-character command/game/context text; and
@@ -12,11 +13,13 @@ requester-bound modal containing:
 
 The authoritative JSONL store is development-only. P9.20 later retained this
 development record-first backend and added a distinct production backend to the
-same `/staffhelp` form: production relays directly to the invoking guild's
-configured channel and first Helper role without writing JSONL. That reviewed
-source design does not itself deploy or configure production; production
-rollout remains separately approved. The approved retirement of the legacy
-prefix is not reversed by either backend.
+same `/staffhelp` form. P9.30 makes the production destination explicit: local
+help uses the related game's or invoking guild's active configured staff-help
+channel and first Helper role, while PolyELO bug/improvement feedback uses one
+bot-level maintainer channel without a role ping. Production never writes
+JSONL or `GameLog`. That reviewed source design does not itself deploy or
+configure production; production rollout remains separately approved. The
+approved retirement of the legacy prefix is not reversed by either backend.
 
 The installed discord.py 2.7.1 Components v2 API supports `RadioGroup` and
 `FileUpload`; the native form accepts at most 10 files. Each file is limited

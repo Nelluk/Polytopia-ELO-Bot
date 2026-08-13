@@ -13,6 +13,11 @@ application_command_capabilities = {}
 # rollout may set ('tools_support',) only after every guild's staff-help channel
 # and first helper role are verified. Operator deployment is a separate choice.
 application_command_all_guild_capabilities = ()
+# Optional bot-level destination for production PolyELO bug and improvement
+# reports. This is intentionally separate from each guild's stored
+# staff_help_channel/helper-role policy. Configure exact positive IDs before
+# enabling centralized production feedback.
+polyelo_feedback_route = {}
 # this is a convenience list of frequently-referred to servers in the code.
 # main and polychampions are the primary game discord servers and should remain as they are
 # test can be a development server. the bot will treat that as having the same abilities as polychampions
