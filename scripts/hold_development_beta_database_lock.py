@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import signal
 import sys
 import time
 
@@ -32,9 +31,10 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_ready(file_descriptor: int, value: str) -> None:
+def _write_ready(file_descriptor: int, value: str, *, close: bool) -> None:
     os.write(file_descriptor, f'{value}\n'.encode('ascii'))
-    os.close(file_descriptor)
+    if close:
+        os.close(file_descriptor)
 
 
 def _parent_exists(parent_pid: int) -> bool:
@@ -64,21 +64,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         writer_lock = BetaDatabaseWriterLock(profile)
         writer_lock.acquire()
-        _write_ready(args.ready_fd, 'READY')
+        _write_ready(args.ready_fd, 'READY', close=False)
         ready_sent = True
         while _parent_exists(args.parent_pid):
             time.sleep(CHECK_INTERVAL_SECONDS)
             writer_lock.check()
         return 0
     except BaseException:
-        try:
-            _write_ready(args.ready_fd, 'REFUSED')
-        except OSError:
-            pass
-        if ready_sent and _parent_exists(args.parent_pid):
+        if not ready_sent:
             try:
-                os.kill(args.parent_pid, signal.SIGTERM)
-            except ProcessLookupError:
+                _write_ready(args.ready_fd, 'REFUSED', close=True)
+            except OSError:
                 pass
         return 2
     finally:
@@ -87,6 +83,10 @@ def main(argv: list[str] | None = None) -> int:
                 writer_lock.release()
             except Exception:
                 pass
+        try:
+            os.close(args.ready_fd)
+        except OSError:
+            pass
 
 
 if __name__ == '__main__':

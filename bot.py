@@ -1,4 +1,5 @@
 import argparse
+from contextlib import nullcontext
 import asyncio
 import importlib
 import logging
@@ -110,23 +111,33 @@ def configure_runtime_arguments(args: List[str] = None):
 
 def main(args: List[str] = None):
     args = configure_runtime_arguments(args)
-    if args.add_default_data:
-        initialize_data = importlib.import_module('modules.initialize_data')
+    mutation_lock = nullcontext()
+    if (
+        getattr(settings.runtime_profile, 'environment', None) == 'development'
+        and (args.add_default_data or args.recalc_elo)
+    ):
+        from modules.beta_database_writer_lock import BetaDatabaseWriterLock
 
-        initialize_data.initialize_data()
+        mutation_lock = BetaDatabaseWriterLock(settings.runtime_profile)
+    if args.add_default_data:
+        with mutation_lock:
+            initialize_data = importlib.import_module('modules.initialize_data')
+
+            initialize_data.initialize_data()
         exit(0)
     if args.recalc_elo:
-        models = importlib.import_module('modules.models')
+        with mutation_lock:
+            models = importlib.import_module('modules.models')
 
-        print('Recalculating all ELO')
-        start = timer()
-        # This is a standalone synchronous operator path, not a Discord
-        # worker. Own its Peewee connection explicitly so success, failure,
-        # and process exit all have a deterministic connection lifecycle.
-        with models.db.connection_context():
-            models.Game.recalculate_all_elo()
-        end = timer()
-        print(f'Recalculation complete - took {end - start} seconds.')
+            print('Recalculating all ELO')
+            start = timer()
+            # This is a standalone synchronous operator path, not a Discord
+            # worker. Own its Peewee connection explicitly so success, failure,
+            # and process exit all have a deterministic connection lifecycle.
+            with models.db.connection_context():
+                models.Game.recalculate_all_elo()
+            end = timer()
+            print(f'Recalculation complete - took {end - start} seconds.')
         exit(0)
     if args.game_export:
         utilities = importlib.import_module('modules.utilities')

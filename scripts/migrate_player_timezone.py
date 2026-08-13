@@ -125,6 +125,7 @@ def main(argv=None) -> int:
         return 2
 
     from runtime_config import get_runtime_profile
+    from modules import beta_database_writer_lock
 
     profile = get_runtime_profile()
     target = migration.MigrationTarget(
@@ -133,22 +134,30 @@ def main(argv=None) -> int:
         database_user=profile.database_user,
     )
     connection = None
+    writer_lock = None
     try:
         # Validate the fixed profile before opening a PostgreSQL connection.
         migration.validate_apply_target(target)
         migration.validate_apply_confirmation(args.confirm)
+        writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
+        writer_lock.acquire()
         connection = _live_connection(profile)
         plan = migration.apply_migration(
             connection,
             target=target,
             confirmation=args.confirm,
         )
-    except migration.MigrationSafetyError as exc:
+    except (
+        migration.MigrationSafetyError,
+        beta_database_writer_lock.BetaDatabaseWriterLockError,
+    ) as exc:
         print(f'Migration refused: {exc}', file=sys.stderr)
         return 2
     finally:
         if connection is not None:
             connection.close()
+        if writer_lock is not None:
+            writer_lock.release()
 
     _print_plan(plan, apply_executed=True)
     print('Development migration transaction committed.')

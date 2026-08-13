@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from modules import dev_fixtures
+from modules import beta_database_writer_lock, dev_fixtures
 from runtime_config import get_runtime_profile
 
 
@@ -136,38 +136,13 @@ def main(argv=None) -> int:
         # Import database-backed modules only after the static profile gate.
         from modules import models
 
-        if args.command == 'seed':
-            state = dev_fixtures.seed_fixtures(
-                profile=profile,
-                models_module=models,
-                guild_id=guild_id,
-                user_ids=args.user,
-                manifest_path=args.manifest,
-            )
-            _print_state(state)
-        elif args.command == 'status':
+        if args.command == 'status':
             state = dev_fixtures.fixture_status(
                 profile=profile,
                 models_module=models,
                 guild_id=guild_id,
             )
             _print_state(state)
-        elif args.command == 'cleanup':
-            state = dev_fixtures.cleanup_fixtures(
-                profile=profile,
-                models_module=models,
-                guild_id=guild_id,
-                manifest_path=args.manifest,
-                confirmed=args.confirm,
-            )
-            _print_state(state)
-        elif args.command == 'leaderboard-seed':
-            state = dev_fixtures.seed_leaderboard_fixtures(
-                profile=profile,
-                models_module=models,
-                guild_id=guild_id,
-            )
-            _print_leaderboard_state(state)
         elif args.command == 'leaderboard-status':
             state = dev_fixtures.leaderboard_fixture_status(
                 profile=profile,
@@ -176,17 +151,45 @@ def main(argv=None) -> int:
             )
             _print_leaderboard_state(state)
         else:
-            state = dev_fixtures.cleanup_leaderboard_fixtures(
-                profile=profile,
-                models_module=models,
-                guild_id=guild_id,
-                confirmed=args.confirm,
-            )
-            _print_leaderboard_state(state)
+            with beta_database_writer_lock.BetaDatabaseWriterLock(profile):
+                if args.command == 'seed':
+                    state = dev_fixtures.seed_fixtures(
+                        profile=profile,
+                        models_module=models,
+                        guild_id=guild_id,
+                        user_ids=args.user,
+                        manifest_path=args.manifest,
+                    )
+                    _print_state(state)
+                elif args.command == 'cleanup':
+                    state = dev_fixtures.cleanup_fixtures(
+                        profile=profile,
+                        models_module=models,
+                        guild_id=guild_id,
+                        manifest_path=args.manifest,
+                        confirmed=args.confirm,
+                    )
+                    _print_state(state)
+                elif args.command == 'leaderboard-seed':
+                    state = dev_fixtures.seed_leaderboard_fixtures(
+                        profile=profile,
+                        models_module=models,
+                        guild_id=guild_id,
+                    )
+                    _print_leaderboard_state(state)
+                else:
+                    state = dev_fixtures.cleanup_leaderboard_fixtures(
+                        profile=profile,
+                        models_module=models,
+                        guild_id=guild_id,
+                        confirmed=args.confirm,
+                    )
+                    _print_leaderboard_state(state)
         return 0
     except (
         dev_fixtures.FixtureSafetyError,
         dev_fixtures.FixtureValidationError,
+        beta_database_writer_lock.BetaDatabaseWriterLockError,
     ) as exc:
         print(f'Fixture operation refused: {exc}', file=sys.stderr)
         return 2

@@ -41,6 +41,7 @@ Usage: ./polybot COMMAND [ARGUMENT]
 Commands:
   setup                 Prepare private inputs, image, and an empty database
   bootstrap-guild ID    Activate the first configured guild on a fresh database
+  writer-fence OP ...   Plan, install, or verify the development writer fence
   import-backup PATH    Import one fresh-volume-verified development archive
   start                 Start the sole development bot and database
   status                Report concise deployment and writer state
@@ -729,6 +730,23 @@ command_bootstrap_guild() {
   echo 'Next: start the bot, then use the explicit development-guild command plan/apply.'
 }
 
+command_writer_fence() {
+  operation=${1:-}
+  [ "$#" -gt 0 ] && shift || true
+  require_exact_beta_image
+  case "$operation" in
+    plan|verify) : ;;
+    apply)
+      bot_id=$(bot_container_id)
+      container_running "$bot_id" \
+        && fail 'Stop the development bot before writer-fence installation.'
+      assert_single_writer_startable
+      ;;
+    *) fail 'Usage: ./polybot writer-fence plan|verify|apply --confirm EXACT_TOKEN' ;;
+  esac
+  compose --profile tools run --rm writer-fence "$operation" "$@"
+}
+
 require_prepared_inputs() {
   for target in "$ENV_FILE" "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$ADMIN_SECRET" "$APP_SECRET"; do
     [ -f "$target" ] && [ ! -L "$target" ] \
@@ -1152,6 +1170,7 @@ main() {
   case "$command" in
     setup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot setup'; command_setup ;;
     bootstrap-guild) command_bootstrap_guild "$@" ;;
+    writer-fence) command_writer_fence "$@" ;;
     import-backup) command_import_backup "$@" ;;
     start) [ "$#" -eq 0 ] || fail 'Usage: ./polybot start'; command_start ;;
     status) [ "$#" -eq 0 ] || fail 'Usage: ./polybot status'; command_status ;;

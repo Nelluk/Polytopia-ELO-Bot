@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 9)
+        self.assertEqual(contract['contract_version'], 10)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -98,6 +98,9 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
 
     def test_bot_image_is_locked_nonroot_and_excludes_runtime_secrets(self):
         dockerfile = (self.assets / 'Dockerfile').read_text(encoding='utf-8')
+        compose = (self.assets / 'compose.development.yaml').read_text(
+            encoding='utf-8'
+        )
         ignore = (self.root / '.dockerignore').read_text(encoding='utf-8')
 
         self.assertIn(
@@ -128,6 +131,10 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertTrue(
             (self.root / 'scripts/hold_development_beta_database_lock.py').is_file()
         )
+        self.assertTrue(
+            (self.root / 'scripts/manage_development_writer_fence.py').is_file()
+        )
+        self.assertIn('writer-fence:', compose)
         self.assertNotIn('config.development.ini', dockerfile)
         for excluded in (
             '.git', '.venv', 'config.ini', 'config.development.ini',

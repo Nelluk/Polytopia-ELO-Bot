@@ -5,16 +5,20 @@ from __future__ import annotations
 from contextlib import contextmanager, nullcontext
 import os
 import signal
+import subprocess
+import sys
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from modules import beta_database_writer_lock, beta_wider_setup
-from scripts import hold_development_beta_database_lock
+from scripts import hold_development_beta_database_lock, run_development_beta
 
 
 def profile():
     return SimpleNamespace(
+        environment='development',
         database_name='polytopia_dev',
         database_user='polybot_dev',
         database_password='private',
@@ -38,6 +42,17 @@ class Cursor:
         self.connection.queries.append((query, params))
         if 'pg_try_advisory_lock' in query:
             self.result = self.connection.acquire_result
+        elif 'SET generation = generation + 1' in query:
+            self.result = (self.connection.generation,)
+        elif 'FROM pg_locks' in query:
+            self.result = (
+                'polytopia_dev', 'polybot_dev', True,
+                self.connection.generation,
+            )
+        elif 'jsonb_set' in query:
+            import json
+
+            self.result = (json.loads(params[1]),)
         elif 'pg_advisory_unlock' in query:
             self.result = (True,)
         else:
@@ -55,6 +70,9 @@ class Connection:
         self.queries = []
         self.autocommit = False
         self.closed = False
+        self.generation = 1
+        self.commits = 0
+        self.rollbacks = 0
 
     def cursor(self):
         return Cursor(self)
@@ -62,17 +80,27 @@ class Connection:
     def close(self):
         self.closed = True
 
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
 
 class BetaDatabaseWriterLockTests(unittest.TestCase):
     def test_exact_database_identity_and_session_lock_are_required(self):
         connection = Connection()
         lock = beta_database_writer_lock.BetaDatabaseWriterLock(
             profile(), connect=lambda **_kwargs: connection,
+            takeover_grace_seconds=0,
         )
 
         lock.acquire()
+        self.assertEqual(lock.generation, 1)
         self.assertTrue(connection.autocommit)
         lock.check()
+        evidence = lock.publish_evidence('test', {'value': 1})
+        self.assertEqual(evidence['document'], {'value': 1})
         lock.release()
 
         self.assertTrue(connection.closed)
@@ -80,15 +108,32 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
             'pg_try_advisory_lock',
             connection.queries[0][0],
         )
+        self.assertEqual(connection.commits, 2)
         self.assertIn(
             'pg_advisory_unlock',
             connection.queries[-1][0],
         )
 
+    def test_changed_fence_generation_invalidates_live_session(self):
+        connection = Connection()
+        lock = beta_database_writer_lock.BetaDatabaseWriterLock(
+            profile(), connect=lambda **_kwargs: connection,
+            takeover_grace_seconds=0,
+        )
+        lock.acquire()
+        connection.generation += 1
+        with self.assertRaisesRegex(
+            beta_database_writer_lock.BetaDatabaseWriterLockError,
+            'lock or fence generation was lost',
+        ):
+            lock.check()
+        lock.release()
+
     def test_competing_database_session_refuses(self):
         connection = Connection(acquire=False)
         lock = beta_database_writer_lock.BetaDatabaseWriterLock(
             profile(), connect=lambda **_kwargs: connection,
+            takeover_grace_seconds=0,
         )
 
         with self.assertRaisesRegex(
@@ -181,7 +226,7 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
             if write_fd >= 0:
                 os.close(write_fd)
 
-    def test_keeper_session_loss_fail_stops_parent(self):
+    def test_keeper_session_loss_closes_liveness_pipe_for_supervisor(self):
         read_fd, write_fd = os.pipe()
         lock = mock.Mock()
         lock.check.side_effect = (
@@ -218,12 +263,73 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
             write_fd = -1
             self.assertEqual(result, 2)
             self.assertEqual(os.read(read_fd, 32), b'READY\n')
-            kill.assert_called_once_with(parent_pid, signal.SIGTERM)
+            kill.assert_not_called()
             lock.release.assert_called_once()
         finally:
             os.close(read_fd)
             if write_fd >= 0:
                 os.close(write_fd)
+
+    def test_supervisor_stops_bot_when_keeper_dies_abruptly(self):
+        for abrupt_signal in (signal.SIGTERM, signal.SIGKILL):
+            with self.subTest(signal=abrupt_signal):
+                read_fd, write_fd = os.pipe()
+                keeper = subprocess.Popen(
+                    (sys.executable, '-c', 'import time; time.sleep(60)'),
+                    pass_fds=(write_fd,),
+                )
+                os.close(write_fd)
+                bot = subprocess.Popen(
+                    (sys.executable, '-c', 'import time; time.sleep(60)'),
+                )
+                timer = threading.Timer(
+                    0.1,
+                    keeper.send_signal,
+                    args=(abrupt_signal,),
+                )
+                successor_observation = []
+
+                def acquire_successor():
+                    while keeper.poll() is None:
+                        threading.Event().wait(0.001)
+
+                    def takeover_grace(_seconds):
+                        deadline = threading.Event()
+                        for _ in range(1000):
+                            if bot.poll() is not None:
+                                break
+                            deadline.wait(0.001)
+
+                    lock = beta_database_writer_lock.BetaDatabaseWriterLock(
+                        profile(),
+                        connect=lambda **_kwargs: Connection(),
+                        takeover_grace_seconds=1,
+                        sleep=takeover_grace,
+                    )
+                    lock.acquire()
+                    successor_observation.append(bot.poll())
+                    lock.release()
+
+                successor = threading.Thread(target=acquire_successor)
+                successor.start()
+                timer.start()
+                try:
+                    self.assertEqual(
+                        run_development_beta._supervise(
+                            keeper, read_fd, bot,
+                        ),
+                        2,
+                    )
+                    self.assertIsNotNone(bot.poll())
+                    successor.join(timeout=2)
+                    self.assertFalse(successor.is_alive())
+                    self.assertEqual(len(successor_observation), 1)
+                    self.assertIsNotNone(successor_observation[0])
+                finally:
+                    timer.cancel()
+                    run_development_beta._stop_process(bot)
+                    run_development_beta._stop_process(keeper)
+                    os.close(read_fd)
 
 
 if __name__ == '__main__':

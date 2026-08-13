@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from modules import guild_configuration_delegation_storage as delegation  # noqa: E402
 from modules import guild_configuration_storage as storage  # noqa: E402
 from runtime_config import RuntimeConfigurationError, load_runtime_profile  # noqa: E402
+from modules import beta_database_writer_lock  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -75,6 +76,7 @@ def _emit(value: Any) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     connection = None
+    writer_lock = None
     try:
         profile = _profile()
         target = _target(profile)
@@ -83,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.operation == 'plan':
             _emit(delegation.plan_to_mapping(plan))
             return 0
+        if args.operation == 'apply':
+            writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
+            writer_lock.acquire()
         connection = _connection(profile, readonly=args.operation == 'verify')
         result = (
             delegation.apply_delegation_schema(
@@ -102,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         RuntimeConfigurationError,
         storage.GuildConfigurationStorageError,
         delegation.GuildConfigurationDelegationStorageError,
+        beta_database_writer_lock.BetaDatabaseWriterLockError,
     ) as exc:
         print(f'P10.9 refused: {exc}', file=sys.stderr)
         return 2
@@ -111,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if connection is not None:
             connection.close()
+        if writer_lock is not None:
+            writer_lock.release()
 
 
 if __name__ == '__main__':

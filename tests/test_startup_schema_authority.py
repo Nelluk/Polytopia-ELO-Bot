@@ -307,10 +307,16 @@ class DevelopmentBootstrapTests(unittest.TestCase):
                 finally:
                     events.append('commit')
 
-            def execute_sql(self, statement):
+            def execute_sql(self, statement, params=None):
                 if 'current_database' in statement:
                     events.append('identity')
                     return QueryResult(('polytopia_dev', 'polybot_dev'))
+                if 'CREATE TABLE IF NOT EXISTS "development_writer_fence"' in statement:
+                    events.append('create-writer-fence')
+                    return QueryResult(None)
+                if 'INSERT INTO "development_writer_fence"' in statement:
+                    events.append('seed-writer-fence')
+                    return QueryResult(None)
                 events.append('foreign-key-check')
                 return QueryResult((False,))
 
@@ -352,6 +358,8 @@ class DevelopmentBootstrapTests(unittest.TestCase):
                 'identity',
                 'begin',
                 ('create-tables', len(REQUIRED_TABLES), True),
+                'create-writer-fence',
+                'seed-writer-fence',
                 'foreign-key-check',
                 'create-foreign-key',
                 'commit',
@@ -382,6 +390,93 @@ class DevelopmentBootstrapTests(unittest.TestCase):
         apply_bootstrap.assert_not_called()
         self.assertIn('Plan only; no database connection', output.getvalue())
         self.assertNotIn('bootstrap-secret', output.getvalue())
+
+    def test_fresh_apply_holds_raw_database_lock_through_bootstrap(self):
+        profile = SimpleNamespace(
+            environment='development',
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
+            database_password='bootstrap-secret',
+            database_host='localhost',
+            database_port=5432,
+        )
+        events = []
+
+        class Cursor:
+            result = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, statement, _params=None):
+                if 'pg_try_advisory_lock' in statement:
+                    events.append('raw-lock')
+                    self.result = ('polytopia_dev', 'polybot_dev', True)
+                elif 'information_schema.tables' in statement:
+                    events.append('empty-proof')
+                    self.result = (0,)
+                elif 'pg_advisory_unlock' in statement:
+                    events.append('raw-unlock')
+                    self.result = (True,)
+
+            def fetchone(self):
+                return self.result
+
+        class Connection:
+            autocommit = False
+
+            def cursor(self):
+                return Cursor()
+
+            def close(self):
+                events.append('raw-close')
+
+        durable = mock.Mock()
+        durable.acquire.side_effect = (
+            bootstrap_script.beta_database_writer_lock
+            .BetaDatabaseWriterLockError('fence not installed')
+        )
+
+        def apply(*_args, **_kwargs):
+            events.append('bootstrap')
+            self.assertNotIn('raw-unlock', events)
+            return SimpleNamespace(verified_tables=('one',))
+
+        token = bootstrap.confirmation_token(
+            bootstrap.DevelopmentSchemaBootstrapTarget(
+                environment=profile.environment,
+                database_name=profile.database_name,
+                database_user=profile.database_user,
+                database_password=profile.database_password,
+                database_host=profile.database_host,
+                database_port=profile.database_port,
+            )
+        )
+        with mock.patch.object(
+            bootstrap_script, 'load_runtime_profile', return_value=profile,
+        ), mock.patch.object(
+            bootstrap_script.beta_database_writer_lock,
+            'BetaDatabaseWriterLock',
+            return_value=durable,
+        ), mock.patch(
+            'psycopg2.connect', return_value=Connection(),
+        ), mock.patch.object(
+            bootstrap_script,
+            'bootstrap_development_schema',
+            side_effect=apply,
+        ):
+            self.assertEqual(
+                bootstrap_script.main(['--apply', '--confirm', token]),
+                0,
+            )
+
+        self.assertEqual(
+            events,
+            ['raw-lock', 'empty-proof', 'bootstrap', 'raw-unlock', 'raw-close'],
+        )
 
 
 if __name__ == '__main__':

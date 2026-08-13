@@ -28,6 +28,7 @@ from runtime_config import (  # noqa: E402
     RuntimeConfigurationError,
     load_runtime_profile,
 )
+from modules import beta_database_writer_lock  # noqa: E402
 
 
 MAX_SNAPSHOT_BYTES = 512 * 1024
@@ -295,6 +296,7 @@ def _emit(value: Any) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     connection = None
+    writer_lock = None
     try:
         profile = _profile()
         target = _target(profile)
@@ -321,6 +323,8 @@ def main(argv: list[str] | None = None) -> int:
             _emit(storage.bundle_to_mapping(bundle))
             return 0
         if args.operation == 'apply':
+            writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
+            writer_lock.acquire()
             connection = _connection(profile, readonly=False)
             result = storage.apply_storage(
                 connection,
@@ -337,7 +341,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         _emit(_result_mapping(result))
         return 0
-    except (RuntimeConfigurationError, storage.GuildConfigurationStorageError) as exc:
+    except (
+        RuntimeConfigurationError,
+        storage.GuildConfigurationStorageError,
+        beta_database_writer_lock.BetaDatabaseWriterLockError,
+    ) as exc:
         print(f'P10.3 refused: {exc}', file=sys.stderr)
         return 2
     except Exception as exc:
@@ -346,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if connection is not None:
             connection.close()
+        if writer_lock is not None:
+            writer_lock.release()
 
 
 if __name__ == '__main__':

@@ -332,7 +332,8 @@ class BetaRuntimeGuardTests(unittest.TestCase):
             'POLYBOT_BETA_DATABASE': beta_operations.BETA_DATABASE_NAME,
             'POLYBOT_BETA_DATABASE_ROLE': beta_operations.BETA_DATABASE_ROLE,
         }
-        executed = []
+        keeper = mock.Mock(poll=mock.Mock(return_value=None))
+        bot = mock.Mock(poll=mock.Mock(return_value=0))
         with mock.patch.dict(os.environ, environment, clear=False), \
                 mock.patch.object(run_development_beta, 'load_runtime_profile', return_value=selected_profile), \
                 mock.patch.object(run_development_beta, 'validate_beta_launch', return_value=CHECKPOINT), \
@@ -340,15 +341,21 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                 mock.patch.object(
                     run_development_beta,
                     '_start_database_lock_keeper',
-                    return_value=mock.Mock(poll=mock.Mock(return_value=None)),
+                    return_value=(keeper, 91),
                 ), mock.patch.object(
                     run_development_beta,
-                    '_stop_database_lock_keeper',
+                    '_stop_process',
                 ), \
                 mock.patch.object(
-                    run_development_beta.os,
-                    'execv',
-                    side_effect=lambda python, argv: executed.append((python, argv)),
+                    run_development_beta.subprocess,
+                    'Popen',
+                    return_value=bot,
+                ) as popen, mock.patch.object(
+                    run_development_beta,
+                    '_supervise',
+                    return_value=0,
+                ), mock.patch.object(
+                    run_development_beta.os, 'close',
                 ), mock.patch.object(
                     run_development_beta.Path,
                     'is_file',
@@ -364,25 +371,22 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                     return_value=beta_operations.operation_paths(selected_profile, create=True),
             ):
                 self.assertEqual(run_development_beta.main(['--skip_tasks']), 0)
-        self.assertEqual(len(executed), 1)
-        self.assertEqual(
-            executed[0][0],
-            str(run_development_beta.SHARED_DEVELOPMENT_PYTHON),
-        )
-        self.assertEqual(executed[0][1][0], executed[0][0])
-        self.assertEqual(executed[0][1][-1], '--skip_tasks')
+        command = popen.call_args.args[0]
+        self.assertEqual(command[0], str(run_development_beta.SHARED_DEVELOPMENT_PYTHON))
+        self.assertEqual(command[-1], '--skip_tasks')
 
     def test_compose_launcher_holds_shared_writer_lock_across_exec(self):
         selected_profile = profile(self.root)
         paths = beta_operations.operation_paths(selected_profile, create=True)
         environment = {'POLYBOT_RESTART_SUPERVISOR': 'compose'}
-        executed = []
+        keeper = mock.Mock(poll=mock.Mock(return_value=None))
+        bot = mock.Mock(poll=mock.Mock(return_value=0))
 
-        def execv(python, argv):
-            executed.append((python, argv))
+        def supervise(_keeper, _keeper_fd, _bot):
             competing = beta_operations.BetaWriterLock(paths.writer_lock)
             with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
                 competing.acquire()
+            return 0
 
         with mock.patch.dict(os.environ, environment, clear=False), \
                 mock.patch.object(run_development_beta, 'load_runtime_profile', return_value=selected_profile), \
@@ -391,19 +395,21 @@ class BetaRuntimeGuardTests(unittest.TestCase):
                 mock.patch.object(
                     run_development_beta,
                     '_start_database_lock_keeper',
-                    return_value=mock.Mock(poll=mock.Mock(return_value=None)),
+                    return_value=(keeper, 91),
                 ), mock.patch.object(
                     run_development_beta,
-                    '_stop_database_lock_keeper',
+                    '_stop_process',
                 ), \
                 mock.patch.object(run_development_beta, 'operation_paths', return_value=paths), \
-                mock.patch.object(run_development_beta.os, 'execv', side_effect=execv), \
+                mock.patch.object(run_development_beta.subprocess, 'Popen', return_value=bot) as popen, \
+                mock.patch.object(run_development_beta, '_supervise', side_effect=supervise), \
+                mock.patch.object(run_development_beta.os, 'close'), \
                 mock.patch.object(run_development_beta.Path, 'is_file', return_value=True), \
                 mock.patch.object(run_development_beta.os.path, 'samefile', return_value=True):
             self.assertEqual(run_development_beta.main(['--skip_tasks']), 0)
 
         self.assertEqual(
-            executed[0][0],
+            popen.call_args.args[0][0],
             str(run_development_beta.PROJECT_ROOT / '.venv/bin/python'),
         )
         released = beta_operations.BetaWriterLock(paths.writer_lock)

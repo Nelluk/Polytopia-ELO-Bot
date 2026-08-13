@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from modules import guild_configuration_bootstrap as bootstrap  # noqa: E402
 from modules import guild_configuration_storage as storage  # noqa: E402
 from runtime_config import RuntimeConfigurationError, load_runtime_profile  # noqa: E402
+from modules import beta_database_writer_lock  # noqa: E402
 from scripts import manage_guild_configuration_storage as snapshots  # noqa: E402
 
 
@@ -122,6 +123,7 @@ def _print_plan(plan: bootstrap.FirstGuildBootstrapPlan) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     connection = None
+    writer_lock = None
     try:
         profile = _profile()
         _require_single_guild(profile, args.guild_id)
@@ -147,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.operation == 'plan':
             print('Plan only; no database connection or write was attempted.')
             return 0
+        writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
+        writer_lock.acquire()
         connection = _connection(profile)
         result = bootstrap.apply_first_guild_bootstrap(
             connection,
@@ -166,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         RuntimeConfigurationError,
         storage.GuildConfigurationStorageError,
         bootstrap.FirstGuildBootstrapError,
+        beta_database_writer_lock.BetaDatabaseWriterLockError,
     ) as exc:
         print(f'P11.5B refused: {exc}', file=sys.stderr)
         return 2
@@ -175,6 +180,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if connection is not None:
             connection.close()
+        if writer_lock is not None:
+            writer_lock.release()
 
 
 if __name__ == '__main__':

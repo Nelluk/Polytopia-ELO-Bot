@@ -16,6 +16,7 @@ from modules import (
     beta_operations,
     beta_readiness,
     beta_wider_setup,
+    development_writer_fence,
 )
 
 
@@ -719,6 +720,10 @@ def database_status(profile: Any) -> PersonaDatabaseStatus:
         database = beta_wider_setup._default_database_factory(profile)
         with database.connection_context():
             baseline = _read_only_database_baseline(database, policy)
+            authority = development_writer_fence.load_evidence(
+                database,
+                development_writer_fence.PERSONA_EVIDENCE_KEY,
+            )
     except Exception as exc:
         if isinstance(exc, BetaLabPersonaError):
             return PersonaDatabaseStatus(False, str(exc), None, None)
@@ -742,6 +747,18 @@ def database_status(profile: Any) -> PersonaDatabaseStatus:
             None,
             None,
         )
+    if not development_writer_fence.evidence_matches(
+        authority,
+        evidence_key=development_writer_fence.PERSONA_EVIDENCE_KEY,
+        document=state,
+    ):
+        return PersonaDatabaseStatus(
+            False,
+            'Persona filesystem evidence is not backed by the database fence; '
+            'exact reconciliation is required.',
+            None,
+            None,
+        )
     return PersonaDatabaseStatus(
         True,
         'The owned Beta Lab House/Team database fixture is ready.',
@@ -756,7 +773,7 @@ def seed_database(profile: Any) -> PersonaDatabaseStatus:
     policy = manifest()
     beta_readiness.validate_database_profile(profile, policy.guild_id)
     _role_state_for_database(profile)
-    with beta_wider_setup._mutation_writer_scope(profile):
+    with beta_wider_setup._mutation_writer_scope(profile) as writer_fence:
         if _read_state(profile, DATABASE_PENDING_STATE_FILENAME) is not None:
             raise BetaLabPersonaError(
                 'Pending persona database evidence requires reconciliation; '
@@ -816,6 +833,16 @@ def seed_database(profile: Any) -> PersonaDatabaseStatus:
                     'The committed persona fixture changed before ownership '
                     'evidence could be published.'
                 )
+        try:
+            writer_fence.publish_evidence(
+                development_writer_fence.PERSONA_EVIDENCE_KEY,
+                evidence,
+            )
+        except Exception as exc:
+            raise BetaLabPersonaError(
+                'Persona evidence could not be fenced in the database; '
+                'pending evidence was retained.'
+            ) from exc
         _publish_database_state(profile)
     return database_status(profile)
 
@@ -826,7 +853,7 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
     policy = manifest()
     beta_readiness.validate_database_profile(profile, policy.guild_id)
     _role_state_for_database(profile)
-    with beta_wider_setup._mutation_writer_scope(profile):
+    with beta_wider_setup._mutation_writer_scope(profile) as writer_fence:
         state = _read_state(profile, DATABASE_STATE_FILENAME)
         pending = _read_state(profile, DATABASE_PENDING_STATE_FILENAME)
         if state is not None and pending is not None:
@@ -839,24 +866,43 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
             replace_state = None
             if state is not None:
                 baseline = _read_only_database_baseline(database, policy)
-                if _database_evidence_matches(state, baseline, policy):
+                authority = development_writer_fence.load_evidence(
+                    database,
+                    development_writer_fence.PERSONA_EVIDENCE_KEY,
+                )
+                if (
+                    _database_evidence_matches(state, baseline, policy)
+                    and development_writer_fence.evidence_matches(
+                        authority,
+                        evidence_key=(
+                            development_writer_fence.PERSONA_EVIDENCE_KEY
+                        ),
+                        document=state,
+                    )
+                ):
                     return PersonaDatabaseStatus(
                         True,
                         'The owned Beta Lab House/Team database fixture is ready.',
                         int(baseline['team']['id']),
                         int(baseline['house']['id']),
                     )
-                if not _legacy_database_evidence_matches(state, policy, baseline):
+                if _database_evidence_matches(state, baseline, policy):
+                    evidence = dict(state)
+                    replace_state = state
+                elif not _legacy_database_evidence_matches(
+                    state, policy, baseline,
+                ):
                     raise BetaLabPersonaError(
                         'Published persona ownership evidence does not exactly '
                         'match the database; manual review is required.'
                     )
-                evidence = _evidence_from_baseline(
-                    baseline,
-                    policy,
-                    origin='adopted',
-                )
-                replace_state = state
+                else:
+                    evidence = _evidence_from_baseline(
+                        baseline,
+                        policy,
+                        origin='adopted',
+                    )
+                    replace_state = state
             elif pending is not None:
                 with database.atomic():
                     database.execute_sql('SET TRANSACTION READ ONLY')
@@ -933,5 +979,15 @@ def reconcile_pending_database(profile: Any) -> PersonaDatabaseStatus:
                     'The persona fixture changed between reconciliation proof '
                     'and publication; pending evidence was retained.'
                 )
+        try:
+            writer_fence.publish_evidence(
+                development_writer_fence.PERSONA_EVIDENCE_KEY,
+                evidence,
+            )
+        except Exception as exc:
+            raise BetaLabPersonaError(
+                'Persona evidence could not be fenced in the database; '
+                'pending evidence was retained.'
+            ) from exc
         _publish_database_state(profile, replace_state=replace_state)
     return database_status(profile)

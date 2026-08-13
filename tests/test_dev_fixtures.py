@@ -177,6 +177,34 @@ class DevelopmentFixtureSafetyTests(unittest.TestCase):
         self.assertEqual(result, 2)
         self.assertIn('Fixture operation refused', stderr.getvalue())
 
+    def test_every_cli_mutation_holds_database_writer_lock(self):
+        lock = mock.MagicMock()
+        state = dev_fixtures.FixtureState(
+            guild_id=1234,
+            user_ids=(),
+            games=(),
+        )
+        with mock.patch.object(
+            manage_dev_fixtures, 'get_runtime_profile', return_value=profile(),
+        ), mock.patch.object(
+            manage_dev_fixtures.beta_database_writer_lock,
+            'BetaDatabaseWriterLock',
+            return_value=lock,
+        ), mock.patch.object(
+            manage_dev_fixtures.dev_fixtures,
+            'seed_fixtures',
+            return_value=state,
+        ) as seed:
+            self.assertEqual(
+                manage_dev_fixtures.main([
+                    'seed', '--user', '1', '--user', '2',
+                ]),
+                0,
+            )
+        lock.__enter__.assert_called_once_with()
+        lock.__exit__.assert_called_once()
+        seed.assert_called_once()
+
     def test_profile_gate_requires_exact_environment_database_and_role(self):
         dev_fixtures.validate_profile(profile())
         unsafe_profiles = (
