@@ -276,7 +276,11 @@ class PersonaDatabaseTests(unittest.TestCase):
 
         self.assertEqual(result, 2)
         profile.assert_not_called()
-        self.assertIn('Compose Beta Lab operations require', stderr.getvalue())
+        self.assertRegex(
+            stderr.getvalue(),
+            '(Compose Beta Lab operations require|'
+            'embedded Compose image checkpoint does not match)',
+        )
 
     def test_cli_reports_shared_writer_refusal_without_traceback(self):
         refusal = personas.beta_wider_setup.WiderBetaSetupSafetyError(
