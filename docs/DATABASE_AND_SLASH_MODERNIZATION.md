@@ -441,9 +441,10 @@ check:
 - P9.28R3 database-scoped writer-exclusion checkpoint:
   `843dfffc8f0577c6f95cf7eddbf7d43c3990b740`; exact source image built and
   validated locally
-- P9.28R4 initial fail-stop writer-fencing checkpoint: `4f6e0ee` on
-  `codex/p9-28r4-failstop-fencing`, from exact clean base `3436ad9`
-- current combined offline result: complete disposable source-image discovery
+- P9.28R4 reduced fail-stop writer-fencing checkpoint: `996bf0c` on
+  `codex/p9-28r4-failstop-fencing`, from exact clean base `3436ad9`; exact
+  arm64 image `sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`
+- current combined offline result: complete exact-image discovery
   succeeded across 2,144 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
@@ -554,8 +555,8 @@ The database-backed evidence-table proposal was rejected as disproportionate;
 the narrow post-proof filesystem-publication session-loss window is explicitly
 accepted as development-only residual risk because every later readiness check
 still compares the complete live baseline. Contract version 10 and focused
-real-subprocess fault tests are green offline; exact-image, gated development-
-database, and live Mac fail-stop evidence remain before closure. No schema
+real-subprocess fault tests are green in the exact image; gated development-
+database and live Mac fail-stop evidence remain before closure. No schema
 change is required.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
@@ -16740,7 +16741,7 @@ pending.**
 
 Branch/base: `codex/p9-28r4-failstop-fencing`, exact clean base
 `3436ad9976f3ca77fcfa2737c4194e30d579f4db`; implementation checkpoint
-`4f6e0ee`.
+`996bf0ca0e37fef53e35c158477a3c21381d4a3c`.
 
 Risk tier: **Tier 3 durable-service fail-stop and universal development-writer
 exclusion.**
@@ -16776,9 +16777,10 @@ therefore records that window as accepted residual risk rather than introducing
 new durable schema and migration lifecycle for it.
 
 Contract version 10, compilation, shell syntax, patch checks, and 152 expanded
-focused tests pass in the disposable locked container image. Complete discovery
-and exact-checkpoint image validation remain, followed by gated database tests
-and live keeper-death/restart proof. No production, RackNerd,
+focused tests pass in exact arm64 image
+`sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`.
+Complete discovery passed all 2,144 tests with 98 intentional skips. Gated
+database tests and live keeper-death/restart proof remain. No production, RackNerd,
 Discord sync, tester announcement, or live database action is in scope.
 
 ## Standard work-unit template
@@ -18245,8 +18247,10 @@ deferred into this post-modernization backlog.
   evidence table as disproportionate and recorded its narrow development-only
   publication window as accepted residual risk.
 - Bumped the container contract to version 10. Compilation, shell syntax, patch
-  checks, and the expanded 152-test focused suite pass in the disposable locked
-  image. Complete/exact/live evidence is pending; no live schema or database
+  checks, the expanded 152-test focused suite, and complete discovery (2,144
+  passed, 98 skipped) succeeded in exact checkpoint image
+  `sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`.
+  Gated/live evidence is pending; no live schema or database
   mutation, command sync, tester announcement, production, or RackNerd action
   occurred.
 
