@@ -17,8 +17,10 @@ live PostgreSQL session identify:
 - a guild allowed by the development profile
 
 Run the command-line seed and cleanup operations only while the beta bot is
-stopped. A separate fixture-management process cannot coordinate with the
-running bot's ELO mutations.
+stopped. The CLI now enforces this boundary by acquiring the same fixed
+PostgreSQL advisory lock as the durable beta before any mutation; it refuses
+while any supported bot or one-shot writer holds that database lock. Status
+operations remain read-only and do not acquire it.
 
 The running development beta additionally exposes owner-only
 `/operator beta prepare` and `/operator beta reset`. Those two commands are

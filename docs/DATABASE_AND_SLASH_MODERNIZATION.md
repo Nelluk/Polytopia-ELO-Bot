@@ -441,8 +441,10 @@ check:
 - P9.28R3 database-scoped writer-exclusion checkpoint:
   `843dfffc8f0577c6f95cf7eddbf7d43c3990b740`; exact source image built and
   validated locally
-- current combined offline result: complete exact-image discovery succeeded
-  across 2,140 tests with 98 intentional skips
+- P9.28R4 fail-stop writer-fencing implementation checkpoint: `4f6e0ee` on
+  `codex/p9-28r4-failstop-fencing`, from exact clean base `3436ad9`
+- current combined offline result: complete disposable source-image discovery
+  succeeded across 2,150 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
   with one intentional retained-fixture skip; the three P11.6 read paths and
   both new P11.7 mutation/replay cases passed
@@ -538,28 +540,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28R3 universal database-writer exclusion is complete
-and live-validated at `50d46af`.** A follow-up
-adversarial review correctly reopened N8-R1 and N9-R2 because a mounted log path
-does not prove one shared lock inode across Compose projects, volumes, and the
-supported host-systemd mode. The durable launcher now owns a dedicated
-PostgreSQL advisory-lock session for the exact development database, and its
-keeper fail-stops the bot if that session is lost. Every supported one-shot
-persona mutation obtains the same database lock inside its existing filesystem
-guard and holds it through final baseline proof and evidence publication.
-Contract version 9 and focused fault injection cover refusal, ordering, and
-session-loss termination. Exact source-image validation passed 132 focused
-tests and all 2,140 offline tests with 98 intentional skips. The final arm64
-image `sha256:4ba82091f643af7a0a25ddc5997500f9f32ef772aa14d0fa3fdffd278fa19af6`
-authenticated as the expected application with all five packs ready. An exact
-alternate container with a different mounted log volume was refused by the
-database lock. Running reconcile refused; bot-only stop yielded 0/0/0 and
-allowed the exact no-op reconciliation; restart restored 1/0/0 and one exact
-advisory-lock holder. N8-R1 and N9-R2 are closed at the database identity.
-No command sync, tester announcement, production, RackNerd, schema, or
-database-row mutation occurred. Next recommended: one narrow GPT-Pro
-verification of this exact checkpoint, then P9.29 bounded human acceptance if
-green.
+Current active unit: **P9.28R4 fail-stop supervision, complete writer coverage,
+and fenced evidence publication is in implementation validation.** The next
+adversarial review correctly showed that P9.28R3 still let the bot outlive an
+abruptly killed lock keeper, omitted supported fixture/schema CLI writers, and
+could lose the lock session between final persona proof and filesystem
+publication. R4 keeps the launcher as the long-lived supervisor, makes keeper
+exit or liveness-pipe loss synchronously stop the bot, and requires every
+supported development mutation entry point to acquire the same database lock.
+An additive development-only fence row increments on acquisition and stores the
+persona evidence authority transactionally on the lock-owning PostgreSQL
+session before filesystem projection. Readiness requires the file, database
+authority, and complete live baseline to agree. Contract version 10 and focused
+real-subprocess fault tests are green offline; exact-image, gated development-
+database, and live Mac fail-stop evidence remain before closure. No live schema
+or database mutation has occurred in this unit yet.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16736,6 +16731,60 @@ command synchronization, tester announcement, production, or RackNerd action
 occurred. N8-R1 and N9-R2 are now closed by a database-identity boundary rather
 than a filesystem assumption.
 
+### P9.28R4 — Fail-stop supervision and fenced publication
+
+Status: **In progress; source and offline validation complete, exact/live gates
+pending.**
+
+Branch/base: `codex/p9-28r4-failstop-fencing`, exact clean base
+`3436ad9976f3ca77fcfa2737c4194e30d579f4db`; implementation checkpoint
+`4f6e0ee`.
+
+Risk tier: **Tier 3 durable-service fail-stop, universal development-writer
+exclusion, additive development schema, and evidence-publication authority.**
+
+The follow-up adversarial review found three reproducible gaps. Killing the
+P9.28R3 keeper after READY released the PostgreSQL lock while the exec'd bot
+continued; the supported fixture CLI and other schema/migration writers did not
+all contend on that lock; and persona evidence still crossed a database-to-file
+publication boundary without a database-backed fence.
+
+R4 retains the launcher as PID-supervisor after READY. It monitors both the
+keeper process and the retained liveness pipe, forwards normal stop signals to
+the bot, and synchronously terminates the bot with a nonzero launcher result if
+the keeper exits or the pipe closes. Real subprocess tests cover both SIGTERM
+and SIGKILL keeper death and prove the bot child is gone before supervision
+returns.
+
+The exact development database gains one additive
+`development_writer_fence` row. Every lock acquisition increments its
+generation while holding the fixed advisory lock. Supported fixture, persona,
+guild-configuration schema/bootstrap, timezone migration, default-data, and
+ELO-recalculation entry points acquire that same lock before mutation. Fresh
+schema bootstrap holds the raw advisory lock across its relation-empty proof
+and schema transaction; an existing database uses a separately planned,
+confirmed, stopped-writer fence installation. Every successor also holds the
+lock idle for a one-second fail-stop grace and revalidates its session and
+generation before returning, longer than the supervisor's keeper poll. This
+prevents the next supported writer from starting while the prior bot is still
+being terminated after abrupt keeper death.
+
+Persona seed/reconciliation writes its canonical document, digest, and fence
+generation to the database row on the lock-owning session after the final
+baseline proof and before filesystem projection. Readiness requires exact
+agreement among the database baseline, database authority, and filesystem
+document. A session failure before authority publication retains pending
+evidence; a later conflicting mutation invalidates readiness even if the file
+rename occurred. This closes the stale-filesystem-authority path without
+pretending PostgreSQL and a file rename are one atomic transaction.
+
+Contract version 10, compilation, shell syntax, patch checks, and 158 expanded
+focused tests pass in the disposable locked container image. Complete discovery
+and exact-checkpoint image validation remain, followed by the explicitly gated
+development-only fence installation, database tests, persona authority
+reconciliation, and live keeper-death/restart proof. No production, RackNerd,
+Discord sync, tester announcement, or live database action is in scope.
+
 ## Standard work-unit template
 
 Copy this section under the active phase for each implementation unit.
@@ -18187,6 +18236,23 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-12 — P9.28R4 source and offline gate implemented
+
+- Accepted the adversarial keeper-death, omitted-writer, and publication-fence
+  findings against exact checkpoint `3436ad9`.
+- Replaced exec-after-READY with a long-lived launcher supervisor. SIGTERM and
+  SIGKILL keeper fault tests prove the bot child is stopped before the launcher
+  returns failure.
+- Added the development-only writer-fence schema and database-backed persona
+  evidence authority. All supported development mutation entry points now
+  contend on the same fixed PostgreSQL advisory lock; fresh bootstrap retains a
+  raw lock across the empty-schema exception.
+- Bumped the container contract to version 10. Compilation, shell syntax, patch
+  checks, and the expanded 158-test focused suite pass in the disposable locked
+  image. Complete/exact/live evidence is pending; no live schema or database
+  mutation, command sync, tester announcement, production, or RackNerd action
+  occurred.
 
 ### 2026-08-12 — P9.28R3 database-scoped writer exclusion validated
 

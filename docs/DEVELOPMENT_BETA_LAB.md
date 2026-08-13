@@ -173,15 +173,25 @@ owned House/Team rows:
   --confirm PREPARE-BETA-LAB-PERSONAS
 ```
 
-Database operations run in a one-shot bot service with the same persistent log
-volume and therefore the same writer-lock inode as the durable bot. Mutation
-still requires the durable beta to be stopped; a running bot makes the shared
-lock fail closed before database access. Seed writes schema-v2 private pending
-ownership evidence inside the database transaction. That evidence includes a
-canonical snapshot and SHA-256 digest of every House, Team, and usage field in
-the pristine predicate. After commit, and again during crash recovery or
-adoption, the operation rereads the full predicate under the same writer lock
-and publishes only an exact match.
+Database operations retain the local filesystem guard but rely on the fixed
+PostgreSQL advisory lock as the universal writer identity. Bundled Compose,
+external Compose, host-systemd, and supported one-shot mutations therefore
+contend even when their filesystem volumes differ. Mutation still requires the
+durable beta to be stopped; a running bot makes the database lock fail closed
+before inspection or mutation. Seed writes schema-v2 private pending ownership
+evidence inside the database transaction. That evidence includes a canonical
+snapshot and SHA-256 digest of every House, Team, and usage field in the
+pristine predicate. After commit, and again during crash recovery or adoption,
+the operation rereads the full predicate under the same writer lock.
+
+Before replacing the pending filesystem record, the same lock-owning PostgreSQL
+session transactionally publishes its canonical evidence document and digest
+to `development_writer_fence`. The filesystem record is a projection, not the
+sole authority: readiness requires the file, complete live baseline, and
+database-backed authority to agree. If the session dies before database
+publication, pending evidence remains. If it dies after database publication
+but around the filesystem rename, any later conflicting mutation makes the
+baseline fail closed rather than accepting stale published evidence.
 
 If a commit or publication outcome is unknown, do not retry seed. With the beta
 still stopped, use:

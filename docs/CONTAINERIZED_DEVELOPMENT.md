@@ -87,13 +87,41 @@ operationally clean on this host.
   normal startup.
 
 The immutable contract is
-`deploy/container/container-contract.toml`. Contract version 9 includes the
+`deploy/container/container-contract.toml`. Contract version 10 includes the
 container Beta Lab control/checkpoint identity, a root-owned embedded checkpoint
-proof, and requires the durable bot to hold both the local filesystem lock and
-the database-scoped advisory lock for its full lifetime. The monitored advisory-
-lock helper terminates the bot if its PostgreSQL session is lost. Version changes to its
-images, identity, persistence, or startup-effect policy require review together
+proof, and requires the durable launcher to supervise both the bot and its
+database-lock keeper for the complete service lifetime. Keeper exit, pipe loss,
+or PostgreSQL-session loss makes the launcher stop the bot and exit nonzero; the
+bot is never the unmonitored service process. The exact development database
+also contains the fixed `development_writer_fence` row used for lock generations
+and database-backed persona evidence. A successor retains and revalidates the
+lock through a one-second fail-stop grace before it may inspect or mutate data,
+so the supervised bot is gone before takeover succeeds. Version changes to images, identity,
+persistence, writer fencing, or startup-effect policy require review together
 with the Compose and Dockerfile changes.
+
+### Installing the writer fence in an existing development database
+
+A fresh bundled bootstrap creates the fence in the same transaction as the
+application tables while retaining the raw advisory lock. An existing
+development database requires one explicit additive installation before a
+contract-version-10 bot can start. Keep the current beta running until the
+exact replacement image is prepared, then stop only the bot and run:
+
+```bash
+./polybot writer-fence plan
+./polybot writer-fence apply \
+  --confirm 'INSTALL DEVELOPMENT WRITER FENCE polytopia_dev AS polybot_dev'
+./polybot writer-fence verify
+./polybot beta-lab database-reconcile \
+  --confirm RECONCILE-BETA-LAB-PERSONAS
+./polybot start
+```
+
+`apply` refuses a running bot or another detected writer and is fixed to
+`development` / `polytopia_dev` / `polybot_dev`. Reconciliation writes the
+database-backed authority for an existing exact persona evidence document; it
+does not adopt a changed or ambiguous fixture.
 
 ## Configuration and secret boundary
 

@@ -140,10 +140,14 @@ POLYBOT_ENV=development .venv/bin/python scripts/bootstrap_development_database.
 ```
 
 The apply path is development-only, verifies the live database and role before
-DDL, creates only missing model tables and the deferred
-`game.winner_id -> gameside.id` foreign key in one transaction, then verifies
-the startup schema through a new read-only connection. It is safe to rerun
-with a fresh exact confirmation when the schema is already complete.
+DDL, retains the fixed PostgreSQL advisory lock across the fresh-database
+exception, and creates only missing model tables, the
+`development_writer_fence` authority row, and the deferred
+`game.winner_id -> gameside.id` foreign key in one transaction. It then verifies
+the startup schema through a new read-only connection. On a nonfresh database,
+the writer fence must already exist and be acquired; use the explicitly gated
+existing-database flow in `docs/CONTAINERIZED_DEVELOPMENT.md` instead of the
+fresh-schema exception.
 
 After the schema bootstrap succeeds, seed the permanent tribe reference data:
 
@@ -152,7 +156,8 @@ POLYBOT_ENV=development .venv/bin/python bot.py --add_default_data --skip_tasks
 ```
 
 The `--add_default_data` option adds the Polytopia tribes; it is safe to run
-again because existing tribes are skipped. It does not own schema creation.
+again because existing tribes are skipped. It acquires the development
+database writer fence before mutation and does not own schema creation.
 An ordinary bot start first performs a model-free read-only schema preflight
 and fails closed if the required tables or winner foreign key are missing.
 
