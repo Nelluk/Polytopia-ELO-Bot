@@ -218,16 +218,6 @@ services:
     command: []
     restart: "no"
 
-  writer-fence:
-    <<: *bot-service
-    profiles: ["tools"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    entrypoint: ["python", "scripts/manage_development_writer_fence.py"]
-    command: []
-    restart: "no"
-
   bot:
     <<: *bot-service
     depends_on:

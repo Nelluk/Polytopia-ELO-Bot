@@ -424,7 +424,7 @@ def _mutation_writer_scope(
         try:
             if writer_check is not None:
                 writer_check(profile)
-            yield database_guard
+            yield
         finally:
             database_guard.release()
 

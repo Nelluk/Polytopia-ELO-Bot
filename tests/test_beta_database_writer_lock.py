@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager, nullcontext
 import os
+from pathlib import Path
 import signal
 import subprocess
 import sys
@@ -42,17 +43,10 @@ class Cursor:
         self.connection.queries.append((query, params))
         if 'pg_try_advisory_lock' in query:
             self.result = self.connection.acquire_result
-        elif 'SET generation = generation + 1' in query:
-            self.result = (self.connection.generation,)
         elif 'FROM pg_locks' in query:
             self.result = (
                 'polytopia_dev', 'polybot_dev', True,
-                self.connection.generation,
             )
-        elif 'jsonb_set' in query:
-            import json
-
-            self.result = (json.loads(params[1]),)
         elif 'pg_advisory_unlock' in query:
             self.result = (True,)
         else:
@@ -70,9 +64,6 @@ class Connection:
         self.queries = []
         self.autocommit = False
         self.closed = False
-        self.generation = 1
-        self.commits = 0
-        self.rollbacks = 0
 
     def cursor(self):
         return Cursor(self)
@@ -80,14 +71,30 @@ class Connection:
     def close(self):
         self.closed = True
 
-    def commit(self):
-        self.commits += 1
-
-    def rollback(self):
-        self.rollbacks += 1
-
-
 class BetaDatabaseWriterLockTests(unittest.TestCase):
+    def test_supported_out_of_process_writers_contend_on_shared_lock(self):
+        root = Path(__file__).resolve().parents[1]
+        required_sources = (
+            'bot.py',
+            'scripts/manage_dev_fixtures.py',
+            'modules/beta_lab_personas.py',
+            'modules/beta_wider_setup.py',
+            'scripts/manage_guild_configuration_storage.py',
+            'scripts/manage_guild_configuration_drafts.py',
+            'scripts/manage_guild_configuration_delegation.py',
+            'scripts/bootstrap_first_guild_configuration.py',
+            'scripts/bootstrap_development_database.py',
+            'scripts/migrate_player_timezone.py',
+        )
+        for relative in required_sources:
+            with self.subTest(source=relative):
+                source = (root / relative).read_text(encoding='utf-8')
+                self.assertTrue(
+                    'BetaDatabaseWriterLock' in source
+                    or '_mutation_writer_scope' in source,
+                    f'{relative} does not visibly enter the shared writer lock',
+                )
+
     def test_exact_database_identity_and_session_lock_are_required(self):
         connection = Connection()
         lock = beta_database_writer_lock.BetaDatabaseWriterLock(
@@ -96,11 +103,8 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
         )
 
         lock.acquire()
-        self.assertEqual(lock.generation, 1)
         self.assertTrue(connection.autocommit)
         lock.check()
-        evidence = lock.publish_evidence('test', {'value': 1})
-        self.assertEqual(evidence['document'], {'value': 1})
         lock.release()
 
         self.assertTrue(connection.closed)
@@ -108,26 +112,10 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
             'pg_try_advisory_lock',
             connection.queries[0][0],
         )
-        self.assertEqual(connection.commits, 2)
         self.assertIn(
             'pg_advisory_unlock',
             connection.queries[-1][0],
         )
-
-    def test_changed_fence_generation_invalidates_live_session(self):
-        connection = Connection()
-        lock = beta_database_writer_lock.BetaDatabaseWriterLock(
-            profile(), connect=lambda **_kwargs: connection,
-            takeover_grace_seconds=0,
-        )
-        lock.acquire()
-        connection.generation += 1
-        with self.assertRaisesRegex(
-            beta_database_writer_lock.BetaDatabaseWriterLockError,
-            'lock or fence generation was lost',
-        ):
-            lock.check()
-        lock.release()
 
     def test_competing_database_session_refuses(self):
         connection = Connection(acquire=False)

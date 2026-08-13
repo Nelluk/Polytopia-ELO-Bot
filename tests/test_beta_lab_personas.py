@@ -451,7 +451,7 @@ class PersonaDatabaseTests(unittest.TestCase):
                 mock.patch.object(personas, '_write_state', side_effect=write), \
                 mock.patch.object(personas, '_publish_database_state') as publish, \
                 mock.patch.object(personas, 'database_status', return_value=final), \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                 mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
                 mock.patch.object(personas, '_read_only_database_baseline', side_effect=(baseline, baseline)):
             self.assertIs(personas.reconcile_pending_database(profile), final)
@@ -479,41 +479,11 @@ class PersonaDatabaseTests(unittest.TestCase):
                 mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: state.get(name)), \
                 mock.patch.object(personas, '_write_state', side_effect=lambda _p, name, value: state.__setitem__(name, value)), \
                 mock.patch.object(personas, '_publish_database_state') as publish, \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                 mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
                 mock.patch.object(personas, '_read_only_database_baseline', side_effect=(baseline, changed)):
             with self.assertRaisesRegex(
                 personas.BetaLabPersonaError, 'changed between',
-            ):
-                personas.reconcile_pending_database(profile)
-
-        self.assertIn(personas.DATABASE_PENDING_STATE_FILENAME, state)
-        publish.assert_not_called()
-
-    def test_lock_session_loss_cannot_publish_filesystem_evidence(self):
-        profile = object()
-        policy = SimpleNamespace(
-            guild_id=300,
-            house_name='Beta Lab House',
-            team_name='Beta Lab Team',
-        )
-        baseline = {'house': {'id': 10}, 'team': {'id': 20}}
-        state = {}
-        database = SimpleNamespace(connection_context=contextlib.nullcontext)
-        writer = mock.Mock()
-        writer.publish_evidence.side_effect = RuntimeError('session lost')
-        with mock.patch.object(personas, 'manifest', return_value=policy), \
-                mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
-                mock.patch.object(personas, '_role_state_for_database'), \
-                mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: state.get(name)), \
-                mock.patch.object(personas, '_write_state', side_effect=lambda _p, name, value: state.__setitem__(name, value)), \
-                mock.patch.object(personas, '_publish_database_state') as publish, \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(writer)), \
-                mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
-                mock.patch.object(personas, '_read_only_database_baseline', side_effect=(baseline, baseline)):
-            with self.assertRaisesRegex(
-                personas.BetaLabPersonaError,
-                'pending evidence was retained',
             ):
                 personas.reconcile_pending_database(profile)
 
@@ -548,7 +518,7 @@ class PersonaDatabaseTests(unittest.TestCase):
                     mock.patch.object(personas, '_role_state_for_database'), \
                     mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: states.get(name)), \
                     mock.patch.object(personas, '_remove_state') as remove, \
-                    mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                    mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                     mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
                     mock.patch.object(personas.beta_wider_setup, '_identity'), \
                     mock.patch.object(personas, '_database_rows', return_value=((), ())), \
@@ -582,7 +552,7 @@ class PersonaDatabaseTests(unittest.TestCase):
                 mock.patch.object(personas, '_role_state_for_database'), \
                 mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: states.get(name)), \
                 mock.patch.object(personas, '_remove_state') as remove, \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                 mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
                 mock.patch.object(personas.beta_wider_setup, '_identity'), \
                 mock.patch.object(personas, '_database_rows', return_value=((), ())), \
@@ -612,7 +582,7 @@ class PersonaDatabaseTests(unittest.TestCase):
             @contextlib.contextmanager
             def writer_scope(_profile):
                 with personas.beta_operations.BetaWriterLock(lock_path):
-                    yield mock.Mock()
+                    yield
 
             def publish(_profile, *, replace_state=None):
                 self.assertIsNone(replace_state)
@@ -662,9 +632,8 @@ class PersonaDatabaseTests(unittest.TestCase):
                 mock.patch.object(personas, '_write_state', side_effect=lambda _p, name, value: state.__setitem__(name, value)), \
                 mock.patch.object(personas, '_publish_database_state') as publish, \
                 mock.patch.object(personas, 'database_status', return_value=final), \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                 mock.patch.object(personas.beta_wider_setup, '_default_database_factory', return_value=database), \
-                mock.patch.object(personas.development_writer_fence, 'load_evidence', return_value=None), \
                 mock.patch.object(personas, '_read_only_database_baseline', side_effect=(baseline, baseline)):
             self.assertIs(personas.reconcile_pending_database(profile), final)
 
@@ -684,7 +653,7 @@ class PersonaDatabaseTests(unittest.TestCase):
                 mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
                 mock.patch.object(personas, '_role_state_for_database'), \
                 mock.patch.object(personas, '_read_state', side_effect=lambda _p, name: states.get(name)), \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())), \
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()), \
                 mock.patch.object(personas.beta_wider_setup, '_default_database_factory') as factory:
             with self.assertRaisesRegex(
                 personas.BetaLabPersonaError, 'Published and pending',
@@ -736,13 +705,9 @@ class PersonaDatabaseTests(unittest.TestCase):
 
             def __enter__(self):
                 events.append(f'{self.name}-enter')
-                return self
 
             def __exit__(self, exc_type, *_args):
                 events.append(f'{self.name}-exit-{exc_type is None}')
-
-            def publish_evidence(self, _key, _value):
-                events.append('database-authority-publish')
 
         database = SimpleNamespace(
             connection_context=lambda: Scope('connection'),
@@ -788,11 +753,7 @@ class PersonaDatabaseTests(unittest.TestCase):
 
         write_event = f'write-{personas.DATABASE_PENDING_STATE_FILENAME}'
         self.assertLess(events.index(write_event), events.index('atomic-exit-True'))
-        self.assertLess(
-            events.index('atomic-exit-True'),
-            events.index('database-authority-publish'),
-        )
-        self.assertLess(events.index('database-authority-publish'), events.index('publish'))
+        self.assertLess(events.index('atomic-exit-True'), events.index('publish'))
         self.assertLess(events.index('publish'), events.index('writer-exit-True'))
         self.assertNotIn(f'write-{personas.DATABASE_STATE_FILENAME}', events)
 
@@ -822,7 +783,7 @@ class PersonaDatabaseTests(unittest.TestCase):
         with mock.patch.object(personas, 'manifest', return_value=policy), \
                 mock.patch.object(personas.beta_readiness, 'validate_database_profile'), \
                 mock.patch.object(personas, '_read_state', side_effect=read), \
-                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext(mock.Mock())):
+                mock.patch.object(personas.beta_wider_setup, '_mutation_writer_scope', return_value=contextlib.nullcontext()):
             with self.assertRaisesRegex(
                 personas.BetaLabPersonaError, 'requires reconciliation',
             ):

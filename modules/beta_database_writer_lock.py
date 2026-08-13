@@ -3,19 +3,13 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-import json
 import time
 from typing import Any, Callable
 
 import psycopg2
 
-from modules import development_writer_fence
-
-
 # ASCII ``PolyBeta`` as one positive signed 64-bit PostgreSQL advisory key.
-DATABASE_WRITER_ADVISORY_LOCK_KEY = (
-    development_writer_fence.DATABASE_WRITER_ADVISORY_LOCK_KEY
-)
+DATABASE_WRITER_ADVISORY_LOCK_KEY = 0x506F6C7942657461
 LOCK_APPLICATION_NAME = 'polybot-development-beta-writer-lock'
 # The supervisor polls keeper process/pipe state every 100 ms. A successor
 # retains the advisory lock without touching application data for this longer
@@ -75,15 +69,6 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
         self._takeover_grace_seconds = takeover_grace_seconds
         self._sleep = sleep
         self._connection: Any | None = None
-        self._generation: int | None = None
-
-    @property
-    def generation(self) -> int:
-        if self._generation is None:
-            raise BetaDatabaseWriterLockError(
-                'The development database writer fence is not held.'
-            )
-        return self._generation
 
     def acquire(self) -> None:
         if self._connection is not None:
@@ -93,6 +78,7 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
         connection = None
         try:
             connection = self._connect(**_connection_kwargs(self.profile))
+            connection.autocommit = True
             with connection.cursor() as cursor:
                 cursor.execute(
                     'SELECT current_database(), current_user, '
@@ -109,42 +95,16 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
                     'Another process holds the development database writer lock '
                     'or the connected database identity is wrong.'
                 )
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    f'UPDATE "{development_writer_fence.FENCE_TABLE}" '
-                    'SET generation = generation + 1, '
-                    'updated_at = CURRENT_TIMESTAMP '
-                    'WHERE lock_key = %s AND schema_version = %s '
-                    'RETURNING generation',
-                    (
-                        DATABASE_WRITER_ADVISORY_LOCK_KEY,
-                        development_writer_fence.FENCE_SCHEMA_VERSION,
-                    ),
-                )
-                generation_row = cursor.fetchone()
-            if (
-                generation_row is None
-                or type(generation_row[0]) is not int
-                or generation_row[0] <= 0
-            ):
-                raise BetaDatabaseWriterLockError(
-                    'The development database writer-fence row is missing.'
-                )
-            connection.commit()
-            connection.autocommit = True
             self._connection = connection
-            self._generation = int(generation_row[0])
             self._sleep(self._takeover_grace_seconds)
             self.check()
         except BetaDatabaseWriterLockError:
             self._connection = None
-            self._generation = None
             if connection is not None:
                 connection.close()
             raise
         except Exception as exc:
             self._connection = None
-            self._generation = None
             if connection is not None:
                 connection.close()
             raise BetaDatabaseWriterLockError(
@@ -166,22 +126,16 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
                     "AND locktype = 'advisory' AND granted "
                     'AND objsubid = 1 '
                     'AND ((classid::bigint << 32) | objid::bigint) = %s'
-                    '), (SELECT generation FROM '
-                    f'"{development_writer_fence.FENCE_TABLE}" '
-                    'WHERE lock_key = %s)',
-                    (
-                        DATABASE_WRITER_ADVISORY_LOCK_KEY,
-                        DATABASE_WRITER_ADVISORY_LOCK_KEY,
-                    ),
+                    ')',
+                    (DATABASE_WRITER_ADVISORY_LOCK_KEY,),
                 )
                 if cursor.fetchone() != (
                     self.profile.database_name,
                     self.profile.database_user,
                     True,
-                    self.generation,
                 ):
                     raise BetaDatabaseWriterLockError(
-                        'The database writer lock or fence generation was lost.'
+                        'The database writer lock session was lost.'
                     )
         except BetaDatabaseWriterLockError:
             raise
@@ -190,82 +144,9 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
                 'The database writer lock session was lost.'
             ) from exc
 
-    def publish_evidence(
-        self,
-        evidence_key: str,
-        document: Any,
-    ) -> dict[str, Any]:
-        """Atomically bind evidence authority to this fenced lock session."""
-
-        if not isinstance(evidence_key, str) or not evidence_key:
-            raise BetaDatabaseWriterLockError('The evidence key is invalid.')
-        if not isinstance(document, dict):
-            raise BetaDatabaseWriterLockError(
-                'Database writer evidence must be one JSON object.'
-            )
-        connection = self._connection
-        if connection is None:
-            raise BetaDatabaseWriterLockError(
-                'The development database writer lock is not held.'
-            )
-        self.check()
-        payload, digest = development_writer_fence.canonical_document(document)
-        entry = {
-            'schema_version': development_writer_fence.FENCE_SCHEMA_VERSION,
-            'evidence_key': evidence_key,
-            'fence_generation': self.generation,
-            'document_sha256': digest,
-            'document': document,
-        }
-        try:
-            connection.autocommit = False
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    f'UPDATE "{development_writer_fence.FENCE_TABLE}" '
-                    'SET evidence = jsonb_set('
-                    'evidence, ARRAY[%s], %s::jsonb, true), '
-                    'updated_at = CURRENT_TIMESTAMP '
-                    'WHERE lock_key = %s AND generation = %s '
-                    'RETURNING evidence -> %s',
-                    (
-                        evidence_key,
-                        json.dumps(entry, sort_keys=True, separators=(',', ':')),
-                        DATABASE_WRITER_ADVISORY_LOCK_KEY,
-                        self.generation,
-                        evidence_key,
-                    ),
-                )
-                row = cursor.fetchone()
-            if row is None or row[0] != entry:
-                raise BetaDatabaseWriterLockError(
-                    'The database writer fence changed before evidence publication.'
-                )
-            connection.commit()
-        except BetaDatabaseWriterLockError:
-            try:
-                connection.rollback()
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                connection.rollback()
-            except Exception:
-                pass
-            raise BetaDatabaseWriterLockError(
-                'Database writer evidence could not be published.'
-            ) from exc
-        finally:
-            try:
-                connection.autocommit = True
-            except Exception:
-                pass
-        return entry
-
     def release(self) -> None:
         connection = self._connection
         self._connection = None
-        self._generation = None
         if connection is None:
             return
         try:

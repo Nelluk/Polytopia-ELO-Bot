@@ -9,7 +9,6 @@ from modules.database_schema_contract import (
     REQUIRED_TABLES,
     WINNER_FOREIGN_KEY_SQL,
 )
-from modules import development_writer_fence
 from modules.startup_schema_preflight import (
     StartupSchemaPreflightRequest,
     StartupSchemaPreflightResult,
@@ -126,14 +125,6 @@ def bootstrap_development_schema(
             )
         with models.db.atomic():
             models.db.create_tables(model_classes, safe=True)
-            models.db.execute_sql(development_writer_fence.CREATE_TABLE_SQL)
-            models.db.execute_sql(
-                development_writer_fence.INSERT_ROW_SQL,
-                (
-                    development_writer_fence.DATABASE_WRITER_ADVISORY_LOCK_KEY,
-                    development_writer_fence.FENCE_SCHEMA_VERSION,
-                ),
-            )
             winner_fk_exists = bool(
                 models.db.execute_sql(WINNER_FOREIGN_KEY_SQL).fetchone()[0]
             )
