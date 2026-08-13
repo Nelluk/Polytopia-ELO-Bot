@@ -442,8 +442,9 @@ check:
   `843dfffc8f0577c6f95cf7eddbf7d43c3990b740`; exact source image built and
   validated locally
 - P9.28R4 reduced fail-stop writer-fencing checkpoint: `996bf0c` on
-  `codex/p9-28r4-failstop-fencing`, from exact clean base `3436ad9`; exact
-  arm64 image `sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`
+  `codex/p9-28r4-failstop-fencing`, from exact clean base `3436ad9`;
+  docs-inclusive live checkpoint `0585881`; final exact arm64 image
+  `sha256:b97c8387c69e93854a6462817099992167bd49d3023a2ccc852c15f221f4ecf0`
 - current combined offline result: complete exact-image discovery
   succeeded across 2,144 tests with 98 intentional skips
 - current stopped-writer development-database result: all 79 cases passed
@@ -541,9 +542,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.28R4 fail-stop supervision and complete writer
-coverage is in implementation validation.** The next
-adversarial review correctly showed that P9.28R3 still let the bot outlive an
+Current active unit: **P9.29 bounded human acceptance is recommended next.**
+P9.28R4 fail-stop supervision and complete writer coverage is complete. The
+preceding adversarial review correctly showed that P9.28R3 still let the bot
+outlive an
 abruptly killed lock keeper, omitted supported fixture/schema CLI writers, and
 could lose the lock session between final persona proof and filesystem
 publication. R4 keeps the launcher as the long-lived supervisor, makes keeper
@@ -555,9 +557,11 @@ The database-backed evidence-table proposal was rejected as disproportionate;
 the narrow post-proof filesystem-publication session-loss window is explicitly
 accepted as development-only residual risk because every later readiness check
 still compares the complete live baseline. Contract version 10 and focused
-real-subprocess fault tests are green in the exact image; gated development-
-database and live Mac fail-stop evidence remain before closure. No schema
-change is required.
+real-subprocess fault tests are green in the exact image. The stopped-writer
+development-database gate passed all 79 cases with one intentional skip. Live
+SIGTERM and SIGKILL keeper loss each synchronously stopped the bot, incremented
+the Compose restart count, and recovered the exact beta at writer census 1/0/0
+with all five protected packs ready. No schema change is required.
 
 The copied ignored runtime profiles matched the RackNerd source files byte for
 byte and retained mode 0600. Container-only corrections fixed `psql_host` to
@@ -16736,8 +16740,7 @@ than a filesystem assumption.
 
 ### P9.28R4 — Fail-stop supervision and complete writer coverage
 
-Status: **In progress; source and offline validation complete, exact/live gates
-pending.**
+Status: **Complete and Mac beta-validated at `0585881`.**
 
 Branch/base: `codex/p9-28r4-failstop-fencing`, exact clean base
 `3436ad9976f3ca77fcfa2737c4194e30d579f4db`; implementation checkpoint
@@ -16777,11 +16780,20 @@ therefore records that window as accepted residual risk rather than introducing
 new durable schema and migration lifecycle for it.
 
 Contract version 10, compilation, shell syntax, patch checks, and 152 expanded
-focused tests pass in exact arm64 image
-`sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`.
-Complete discovery passed all 2,144 tests with 98 intentional skips. Gated
-database tests and live keeper-death/restart proof remain. No production, RackNerd,
-Discord sync, tester announcement, or live database action is in scope.
+focused tests pass. Complete discovery passed all 2,144 tests with 98
+intentional skips. The stopped-writer development-database suite passed all 79
+cases with one intentional retained-fixture skip; no schema or database row was
+changed. Docs-inclusive checkpoint `0585881` built exact arm64 image
+`sha256:b97c8387c69e93854a6462817099992167bd49d3023a2ccc852c15f221f4ecf0`.
+It authenticated as application `479029527553638401` against healthy internal-
+only `polytopia_dev` / `polybot_dev`. Live SIGTERM and SIGKILL keeper faults
+each forced the supervisor/container to stop and restart; the restart count
+advanced from zero to two, the exact checkpoint recovered after each fault,
+and final status reported writer census 1/0/0 with all five protected packs
+ready. No production, RackNerd, command sync, tester announcement, schema, or
+application-database mutation occurred. Next recommended unit: P9.29 bounded
+human acceptance of command behavior, retained-prefix parity, and public/private
+visibility.
 
 ## Standard work-unit template
 
@@ -18250,9 +18262,19 @@ deferred into this post-modernization backlog.
   checks, the expanded 152-test focused suite, and complete discovery (2,144
   passed, 98 skipped) succeeded in exact checkpoint image
   `sha256:80938d2aa90fbed39f1978f7a633aed68a34924d303cc072630b7f2ae9a56aaf`.
-  Gated/live evidence is pending; no live schema or database
-  mutation, command sync, tester announcement, production, or RackNerd action
-  occurred.
+  The stopped-writer development-database suite subsequently passed all 79
+  cases with one intentional skip and no schema or database-row mutation.
+- Built docs-inclusive checkpoint `0585881` as exact arm64 image
+  `sha256:b97c8387c69e93854a6462817099992167bd49d3023a2ccc852c15f221f4ecf0`.
+  The Mac beta authenticated as the expected application with healthy internal-
+  only database identity and writer census 1/0/0.
+- Killed the live advisory-lock keeper independently with SIGTERM and SIGKILL.
+  Each fault forced the supervisor/container to stop and restart rather than
+  leaving an unlocked bot; restart count advanced from zero to two. The final
+  exact beta recovered at 1/0/0 and all five protected packs reported ready.
+  No command sync, tester announcement, schema mutation, application-database
+  mutation, production, or RackNerd action occurred. Next recommended unit:
+  P9.29 bounded human acceptance.
 
 ### 2026-08-12 — P9.28R3 database-scoped writer exclusion validated
 
