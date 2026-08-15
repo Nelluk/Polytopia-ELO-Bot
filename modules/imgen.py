@@ -4,7 +4,7 @@ from pathlib import Path
 import typing
 import logging
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 import discord
 
@@ -139,6 +139,24 @@ def paste_image(
     base.paste(image, (left, top), image)
 
 
+def paste_image_contained(
+        base: Image.Image, image: Image.Image, *, left: int, top: int,
+        width: int, height: int):
+    """Preserve aspect ratio while centering an image inside a fixed box."""
+    if width <= 0 or height <= 0:
+        raise ValueError('Image box dimensions must be positive.')
+
+    image = ImageOps.contain(
+        image, (width, height), method=Image.Resampling.LANCZOS
+    )
+    if image.mode != 'RGBA':
+        image.putalpha(255)
+
+    paste_left = left + (width - image.width) // 2
+    paste_top = top + (height - image.height) // 2
+    base.paste(image, (paste_left, paste_top), image)
+
+
 def generate_gradient(
         colour1: str, colour2: str, width: int, height: int) -> Image:
     """Generate a vertical gradient."""
@@ -231,7 +249,9 @@ def player_draft_card(
     draw_text(im, title, left=120, top=15, size=50, colour=text_colour)
     draw_text(im, name, left=293, top=95, size=40, colour=text_colour)
     draw_text(im, summary, left=293, top=145, size=25, colour=text_colour)
-    paste_image(im, team_logo, left=20, top=10, height=80)
+    paste_image_contained(
+        im, team_logo, left=20, top=10, width=100, height=80
+    )
     paste_image(im, player_avatar, left=23, top=108, height=255)
     paste_image(im, wordmark, left=5, top=365, height=30)
     return store_image(im, f'{team_role.name}_selects_{member.name}.png')
@@ -261,15 +281,27 @@ def arrow_card(
     # Draw the top text.
     top_text_left = (width - get_text_width(top_text, 70) - 15) // 2
     draw_inverse_text(im, top_text, left=top_text_left, top=100, size=70)
-    # Draw the images with their outlines.
-    draw.rectangle([98, 234, 331, 467], width=2)
-    paste_image(im, fetch_image(left_image), 100, 236, 230)
+    # Draw fixed, symmetric image boxes and contain each image within its box.
+    image_box_top = 236
+    image_box_size = 230
+    left_image_box = 100
+    right_image_box = width - 100 - image_box_size
+    for image_box_left in (left_image_box, right_image_box):
+        draw.rectangle([
+            image_box_left - 2,
+            image_box_top - 2,
+            image_box_left + image_box_size + 1,
+            image_box_top + image_box_size + 1,
+        ], width=2)
 
-    draw.rectangle([width - 331, 234, width - 100, 467], width=2)  
-    ## Prior to May 2024 the 331 and 100 were swapped and working, then started throwing an error. Swapping those two parameters
-    # seemed to have bypassed the error but not really sure why, especially if the other rectangle() calls are untouched
-
-    paste_image(im, fetch_image(right_image), width - 330, 236, 230)
+    paste_image_contained(
+        im, fetch_image(left_image), left=left_image_box,
+        top=image_box_top, width=image_box_size, height=image_box_size,
+    )
+    paste_image_contained(
+        im, fetch_image(right_image), left=right_image_box,
+        top=image_box_top, width=image_box_size, height=image_box_size,
+    )
     # Draw the bottom text.
     bottom_text_left = (width - get_text_width(bottom_text, 70)) // 2
     draw_text(im, bottom_text, left=bottom_text_left, top=487, size=70)
