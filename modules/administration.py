@@ -12,6 +12,7 @@ import discord
 import re
 from modules.games import PolyGame, post_win_messaging
 import modules.achievements as achievements
+from modules import backup_service
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1212,20 +1213,17 @@ class administration(commands.Cog):
     @commands.command(aliases=['dbb'])
     @commands.is_owner()
     async def backup_db(self, ctx):
-        """*Owner*: Backup PSQL database to a file
+        """*Owner*: Back up the production database locally.
         """
-        import subprocess
-        from subprocess import PIPE
-
         async with ctx.typing():
-            await ctx.send('Executing backup script')
-            process = subprocess.run(['/home/nelluk/backup_db.sh'], stdout=PIPE, stderr=PIPE)
-            if process.returncode == 0:
-                logger.info('Backup script executed')
-                return await ctx.send(f'Execution successful: {str(process.stdout)}')
-            else:
-                logger.error('Error during execution')
-                return await ctx.send(f'Error during execution: {str(process.stderr)}')
+            await ctx.send(backup_service.BACKUP_STARTED_MESSAGE)
+            success = await backup_service.run_local_backup()
+
+        if success:
+            logger.info('Local backup wrapper completed successfully')
+        else:
+            logger.error('Local backup wrapper failed')
+        await ctx.send(backup_service.result_message(success))
 
 
 async def setup(bot):
