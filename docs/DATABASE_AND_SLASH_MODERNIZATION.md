@@ -26563,8 +26563,16 @@ deferred into this post-modernization backlog.
   runtime checkpoint environment, and non-root runtime contract remain
   unchanged.
 - Before the change, a second build with only the checkpoint changed rebuilt
-  the `uv sync` step in 3.2 seconds; validation after the change requires that
-  step to report `CACHED` on the corresponding second build.
+  the `uv sync` step in 3.2 seconds. After the change, exact-checkpoint and
+  alternate-checkpoint builds both reported that step `CACHED`; the alternate
+  build's cached export completed in 0.2 seconds. The first new-layer build
+  installed the same 57 locked production packages in 2.9 seconds.
+- The exact image passed all 34 focused Dockerfile, deployment-doctor, and
+  container-contract tests inside a network-disabled, read-only container.
+  `uv sync --locked --no-dev --no-install-project --check` would make no
+  changes, and `uv pip check` reported all 57 installed packages compatible.
+  Image inspection confirmed matching OCI-label, environment, and root-owned
+  embedded checkpoints plus the configured non-root `1001:1001` runtime.
 - No beta container replacement/restart, database access, Discord connection
   or command synchronization, Docker pruning, production action, push, or
   remote cache was performed.
