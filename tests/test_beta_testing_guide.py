@@ -49,3 +49,27 @@ class BetaWhatToTestTests(unittest.TestCase):
         )
         self.assertTrue(all(1 <= len(page) <= 3 for page in pages))
         self.assertEqual(sum(len(page) for page in pages), len(games.items))
+
+    def test_privileged_tests_have_dedicated_sections(self):
+        sections = {
+            section.key: ' '.join(section.items)
+            for section in beta_testing_guide.load_guide().sections
+        }
+
+        self.assertIn('helper-commands-to-test', sections)
+        self.assertIn('mod-commands-to-test', sections)
+        self.assertIn('owner-operator-commands-to-test', sections)
+        self.assertNotIn('/game result confirm', sections['games'])
+        self.assertNotIn('/game ranked', sections['games'])
+        self.assertNotIn('/team create', sections['teams'])
+        self.assertNotIn('/team emoji', sections['teams'])
+        self.assertNotIn('/team image', sections['teams'])
+        self.assertNotIn('/house create', sections['houses'])
+        self.assertNotIn('/league free-agents post', sections['league'])
+        self.assertNotIn('/league maintenance export', sections['league'])
+        self.assertIn('/game result confirm', sections['helper-commands-to-test'])
+        self.assertIn('/league maintenance export', sections['helper-commands-to-test'])
+        self.assertIn('/team create', sections['mod-commands-to-test'])
+        self.assertIn('/house create', sections['mod-commands-to-test'])
+        self.assertIn('/league free-agents post', sections['mod-commands-to-test'])
+        self.assertIn('/elo recalculate', sections['owner-operator-commands-to-test'])

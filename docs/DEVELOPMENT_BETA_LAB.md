@@ -61,6 +61,11 @@ after ten minutes and are usable only by the requester. A lane survives panel
 expiry, but its temporary persona is revoked; rerunning `/whattotest` reopens
 the lane and revalidates the persona.
 
+Ordinary domain sections contain normal-user and read variants. Privileged
+tests are separated into **Helper commands to test**, **Mod commands to test**,
+and **Owner/operator commands to test** so a wider tester is not invited to
+attempt staff mutations while browsing Teams, Houses, Games, or League.
+
 ### Human tester flow
 
 1. Run `/whattotest` in the beta guild.

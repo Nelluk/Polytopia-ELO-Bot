@@ -26591,6 +26591,11 @@ deferred into this post-modernization backlog.
   and **Finish and clean up** controls made ordinary read-test completion
   unclear. The inactive panel now offers **Close panel** instead; refresh and
   cleanup controls appear only while a guided session exists.
+- Follow-up acceptance found privileged mutations mixed into ordinary domain
+  pages. The tracked dashboard guide now has dedicated **Helper commands to
+  test**, **Mod commands to test**, and **Owner/operator commands to test**
+  sections; normal Games, Teams, Houses, and League pages retain only ordinary
+  or read variants.
 - Reworded the five-minute assignments to use current historical players,
   Teams, Houses, and games instead of promising the old synthetic showcase or
   hard-coded Team names.
