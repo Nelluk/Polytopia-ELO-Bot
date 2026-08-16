@@ -172,7 +172,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('no-new-privileges:true', compose)
         self.assertIn('stop_signal: SIGINT', compose)
         self.assertIn('stop_grace_period: 45s', compose)
-        self.assertIn('restart: "on-failure:5"', compose)
+        self.assertGreaterEqual(compose.count('restart: unless-stopped'), 2)
         self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
         self.assertIn('POLYBOT_BETA_CONTROL: enabled', compose)
         self.assertIn('POLYBOT_BETA_STARTUP_SYNC: disabled', compose)
@@ -306,6 +306,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertNotIn('database-restore-drill', compose)
         self.assertNotIn('database-import', compose)
         self.assertNotIn('restore-postgres', compose)
+        self.assertIn('restart: unless-stopped', compose)
 
     def test_database_provisioner_is_development_and_major_gated(self):
         script = self.assets / 'provision-development-database.sh'

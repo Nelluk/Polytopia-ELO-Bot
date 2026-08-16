@@ -742,7 +742,7 @@ def _validate_assets(
         'user: "${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}"',
         f'stop_signal: {contract["bot_stop_signal"]}',
         f'stop_grace_period: {contract["bot_stop_grace_seconds"]}s',
-        'restart: "on-failure:5"',
+        'restart: unless-stopped',
     )
     missing = [value for value in required_dockerfile if value not in dockerfile]
     missing.extend(value for value in required_compose if value not in compose)

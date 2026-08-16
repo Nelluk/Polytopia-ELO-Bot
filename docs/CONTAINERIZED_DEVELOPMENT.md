@@ -561,15 +561,17 @@ database operation.
 ## Restart and shutdown behavior
 
 Docker sends `SIGINT` and allows 45 seconds, matching the reviewed bot cleanup
-path. The bot service uses `restart: on-failure:5`; therefore the existing
-owner-confirmed `/operator bot restart` exit status 75 is treated as a
+path. The bot service uses `restart: unless-stopped`; therefore it returns
+after Docker/host restarts unless an operator explicitly stopped it, and the
+existing owner-confirmed `/operator bot restart` exit status 75 remains a
 supervised restart. The image embeds the exact clean source checkpoint as an
 OCI label and environment value, so the command does not need `.git` inside
 the container and refuses an absent or malformed checkpoint. Its panel says
 that Compose will restart the same reviewed immutable image. It does **not**
 claim that a restart deploys newly committed source; that requires an explicit
-image build and container recreation. A clean operator stop is not restarted.
-PostgreSQL has its own 60-second grace period and `unless-stopped` policy.
+image build and container recreation. A container explicitly stopped by an
+operator remains stopped until the next explicit start. PostgreSQL has its own
+60-second grace period and `unless-stopped` policy.
 
 Compose does not replace the application's single-writer discipline. Only one
 bot replica is supported. Do not use `--scale bot` or run a host beta against

@@ -52,7 +52,7 @@ services:
   bot:
     <<: *bot-service
     command: ["python", "scripts/run_development_beta.py", "--skip_tasks"]
-    restart: "on-failure:5"
+    restart: unless-stopped
 
 volumes:
   polybot_images:
