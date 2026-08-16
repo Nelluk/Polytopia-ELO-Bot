@@ -717,6 +717,12 @@ class Player(BaseModel):
     elo_moonrise = SmallIntegerField(default=1000)
     elo_max_moonrise = SmallIntegerField(default=1000)
     trophies = BinaryJSONField(null=True, default=None)
+    badges = ArrayField(
+        TextField,
+        null=False,
+        default=list,
+        constraints=[SQL('DEFAULT ARRAY[]::TEXT[]')],
+    )
     is_banned = BooleanField(default=False)
 
     def mention(self):

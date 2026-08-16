@@ -1023,6 +1023,7 @@ beta lifecycle action is part of this unit.
 | `league_export` | `/league maintenance export` | P8.17 staff-only optional-logs private gzip attachment, bounded worker-local read and in-memory generation; `$league_export [logs]` retained through the same worker during beta |
 | `deactivate_players`, `deactivate` | `/league maintenance mark-inactive` | P8.18 implemented at `e61162d`, integrated/deployed through `bf403af`: Mod-only private paginated preview, refreshed candidate confirmation, 100-member bounded Discord role application, per-member continuation, and public actor-attributed aggregate; both unsafe immediate prefix names retire under C-022 |
 | `kick_inactive` | `/league maintenance kick-inactive` | P8.19 implemented: Mod-only private all-reasons preview, preserved 7/30/60 policy, current Team-role discovery, unknown/managed/staff/leadership fail-closed protection, pending/incomplete block, refreshed exact `KICK <count>` confirmation, 25-member Discord-effect cap, post-effect audit/reconciliation; unsafe prefix retired under C-023 |
+| none | `/league badge add`, `/league badge remove` | P12.1 net-new slash-only Mod workflow under the existing `league` capability: free-form exact badge text, cached-guild emoji convenience, requester-bound 1–25-member selection, preview/confirmation, atomic guild-local Player mutation/audit, and public post-commit attribution; no badge/trophy prefix mutation exists |
 | `house` | `/house show` | P8.7 implements optional explicit/inferred House lookup, dense public detail, bounded worker reads, and retained text-oriented `$house` |
 | `houses` | `/house list` | P8.7 implements a public requester-bound paginated directory/select workspace and retains `$houses`/`$balance` |
 | `house_add` | `/house create` | P8.9 Mod-only atomic House/audit creation; legacy prefix fully retired; exact Discord role remains a separate staff step |
@@ -1216,6 +1217,30 @@ Configuration/GameLog work to worker-local reads and atomic transitions.
 Buttons remain a later optional usability experiment rather than a condition
 of the `/league free-agents post` conversion.
 
+#### P12.1 PolyChampions player badges
+
+P12.1 adds nested `/league badge add label:<required> emoji:<optional>` and
+`/league badge remove badge:<required>` beneath the already-owned guild-only
+`/league` root. Label/badge are essential invocation inputs; the variable-
+length recipients are an interactive refinement through a requester-bound
+1–25-member UserSelect, followed by exact preview and explicit confirmation.
+
+The commands are PolyChampions-scope and Mod-only. Add emoji autocomplete is
+database/network-free and uses the fixed Unicode set before invoking-guild
+cached custom emoji. Remove autocomplete is a bounded Mod-only guild-local
+database worker. Both paths use one atomic ordered-target worker and publish
+one ordinary actor-attributed channel result only after commit. The private
+draft becomes an explicit reconciliation warning if publication fails.
+Badges longer than Discord's 100-character autocomplete choice-value ceiling
+remain valid exact manual removal inputs but are omitted from suggestions.
+
+This feature is slash-only because there is no legacy mutation workflow to
+preserve. It does not restore `$ptrophies`, import or delete roles, convert
+legacy trophies, create standardized definitions, or add another root or
+capability family. Player profile prefixes continue deep-linking the shared
+workspace and therefore inherit PolyChampions-only badge display without a
+new prefix command. No compatibility-ledger compromise is introduced.
+
 P8.13b checkpoints `a357f93`, `5ba0195`, and `bdd8057` are integrated and the
 durable beta is running the code checkpoint. No application-command sync was
 needed because this unit changes only the retained reaction backend.
@@ -1346,7 +1371,7 @@ Their current first-level structure is:
   authorization checked at every operation;
 - `/house create|image|list|name|show`;
 - `/leaderboard activity|players|roles|squads|teams`;
-- `/league free-agents|guide|join-novas|maintenance|mark-active|roster|season|tokens`;
+- `/league badge|free-agents|guide|join-novas|maintenance|mark-active|roster|season|tokens`;
 - `/operator beta|bot|channels|database|guild|player|tribe`;
 - `/player register|show|timezone`;
 - `/squad name|show`;

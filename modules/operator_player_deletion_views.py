@@ -88,6 +88,8 @@ class PlayerDeletionPreviewView(discord.ui.LayoutView):
                 attributes.append(','.join(row.rating_summary))
             if row.trophies_present:
                 attributes.append('trophies')
+            if row.badge_count:
+                attributes.append(f'{row.badge_count} badge(s)')
             if row.is_banned:
                 attributes.append('banned')
             attribute_text = '; '.join(attributes) or 'default metadata'

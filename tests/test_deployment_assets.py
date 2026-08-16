@@ -63,6 +63,25 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('create_directories=False', script)
         self.assertIn('psql_db = polytopia2', example_config)
 
+    def test_player_badge_migration_is_inventory_tracked_and_production_blocked(self):
+        badge_runbook = (
+            self.root / 'docs/PLAYER_BADGES_MIGRATION.md'
+        ).read_text(encoding='utf-8')
+        cutover = (
+            self.root / 'docs/MODERNIZATION_PRODUCTION_CUTOVER.md'
+        ).read_text(encoding='utf-8')
+        release = (
+            self.root / 'modules/release_candidate.py'
+        ).read_text(encoding='utf-8')
+        self.assertIn('ARRAY[]::TEXT[]', badge_runbook)
+        self.assertIn(
+            'leaves this harmless additive column in place',
+            badge_runbook.lower(),
+        )
+        self.assertIn('stops at this gate', cutover)
+        self.assertIn("'scripts/migrate_player_badges.py'", release)
+        self.assertIn("'docs/PLAYER_BADGES_MIGRATION.md'", release)
+
     def test_modernization_cutover_is_separate_ordered_and_fail_closed(self):
         historical = (
             self.root / 'docs/PRODUCTION_CUTOVER.md'

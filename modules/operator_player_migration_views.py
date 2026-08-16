@@ -48,7 +48,9 @@ class PlayerMigrationPreviewView(discord.ui.LayoutView):
                 f'- `{row.guild_id}`: {row.disposition}; destination deps '
                 f'G{row.incomplete_games}/L{row.lineups}/H{row.hosted_games}/'
                 f'S{row.squad_memberships}/'
-                f'P{row.house_preferences}/B{row.bids}'
+                f'P{row.house_preferences}/B{row.bids}; badges '
+                f'{row.source_badges}+{row.destination_badges} preserved as '
+                'one guild-local ordered set'
             )
         metadata = ', '.join(self.preview.destination_metadata) or 'none'
         blockers = (
@@ -78,7 +80,10 @@ class PlayerMigrationPreviewView(discord.ui.LayoutView):
                 f'**Destination completed games:** {self.preview.destination_completed_games}\n'
                 f'**Destination metadata that will not be merged:** {metadata}\n'
                 '**Retained:** source account identity/rating history; only '
-                'the destination Discord ID and current Discord name replace it.'
+                'the destination Discord ID and current Discord name replace it. '
+                'Guild-local badges remain on/reparent with their Player; when '
+                'two same-guild Players merge, their badge ordered sets merge '
+                'without importing legacy trophies.'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(

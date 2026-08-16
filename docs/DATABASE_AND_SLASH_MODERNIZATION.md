@@ -542,10 +542,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.29 bounded human acceptance remains the release
-candidate track; P11.5H development historical PolyChampions mirror is in
-progress on the isolated Luna branch.** P9.29 is intentionally separate from
-this stopped-database refresh operation.
+Current active unit: **P12.1 PolyChampions player badges is implemented on its
+isolated unit branch and awaits the unavailable dependency-backed offline
+suite plus separately gated stopped-writer database/Discord beta gates.**
+P9.29 bounded human acceptance remains the separate release-candidate track.
+P11.5H is complete; its older in-progress wording was stale and is superseded
+by the reviewed/integrated/applied P11.5H section and later evidence below.
 P9.28R4 fail-stop supervision and complete writer coverage is complete. The
 preceding adversarial review correctly showed that P9.28R3 still let the bot
 outlive an
@@ -16461,6 +16463,70 @@ and rerun the candidate-bound offline, stopped-writer database, cutover-review,
 and bounded-beta gates before separately approved production-configuration
 verification.
 
+### P12.1 — PolyChampions player badges
+
+Status: **Implemented locally on the dedicated unit branch; dependency-backed
+offline tests and all live gates remain pending.**
+
+Branch/base: `codex/p12-1-polychampions-player-badges`, exact clean base
+`53cdd7b6090761aa5dcfd4489971ae3105f1aad0`. Risk tier: **Tier 3** for one
+additive PostgreSQL column and a permission-sensitive multi-row transaction.
+
+The unit adds guild-local `Player.badges` as a non-null PostgreSQL text array,
+with Python and server-side empty-array defaults so fresh bootstrap and migrated
+schemas converge. Model-free development plan/verify/apply tooling is
+idempotent, identity/confirmation gated, exact about array element type,
+nullability/default, and has no destructive rollback. Ordinary startup performs
+only an exact read-only preflight and refuses to start new model code before
+the column exists.
+
+The existing `/league` capability/root gains Mod-only `/league badge add` and
+`remove`. Each opens a private requester-bound 1–25-member selector, exact
+preview, and Confirm/Cancel draft. Emoji autocomplete uses six fixed Unicode
+choices followed by cached invoking-guild custom emojis; removal autocomplete
+is a Mod-only, guild-scoped bounded worker read. No prefix badge/trophy mutation
+is added.
+Stored badge values longer than Discord's 100-character autocomplete-choice
+value ceiling remain removable by exact manual entry but are omitted from
+removal suggestions; storage/display retain the approved 200-code-point bound.
+
+One bounded worker connection and atomic transaction revalidates scope/bounds,
+resolves every guild-local Player, locks targets by ascending Player primary
+key on PostgreSQL, computes the complete batch before saving, updates only
+`Player.badges`, and writes one actor-attributed `GameLog` only for a real
+change. Casefold duplicate handling preserves first spelling and insertion
+order, all-skips operations are successful without audit, any invalid target
+or 100-badge overflow blocks every write, and cancellation drains submitted
+work. Public actor-attributed output occurs only after commit; a channel-send
+failure is logged and leaves the private draft in explicit post-commit
+reconciliation state.
+
+PolyChampions player snapshots expose immutable badges; Overview shows six and
+the conditional Badges section pages ten without another database read. Other
+guild snapshots receive an empty tuple. Operator player deletion fingerprints
+and warnings include badges. Player migration fingerprints them and preserves
+or ordered-set merges guild-local badge arrays without importing legacy
+trophies; a merge above 100 fails closed.
+
+Available dependency-free validation passes 38 focused migration/source-
+contract/deployment-inventory/release-candidate tests. Repository-wide
+compilation and `git diff --check` pass. The
+canonical checkout has no `.venv/bin/python`; the mandated worktree helper
+refused before linking development profiles, and the host Python lacks
+discord.py, Peewee, and pytest. Therefore the new behavior suite and complete
+offline discovery were not runnable without an unapproved dependency install.
+The complete discovery command was nevertheless attempted: it discovered 327
+tests but ended with 138 dependency import errors and seven skips, led by
+missing `discord`, `peewee`, and `psycopg2`; this is not a behavior-suite pass.
+No database connection, DDL, Discord connection/tree inspection/apply, bot
+launch/restart, Docker, production, push, merge, or deployment occurred.
+
+Before integration, run the complete focused/offline suite in the locked
+Python 3.12 environment, then separately authorize and run the stopped-writer
+`development` / `polytopia_dev` / `polybot_dev` schema apply and mandatory
+database suite. Development-guild command apply, desktop/mobile beta smoke,
+integration, push, and every production operation remain later gates.
+
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
 Status: **Implemented and candidate-validated; bounded human beta and
@@ -26601,6 +26667,33 @@ deferred into this post-modernization backlog.
   hard-coded Team names.
 - No fixture seed/reconciliation, database mutation, Discord command write, or
   production access is part of this change.
+
+### 2026-08-16 — P12.1 PolyChampions player badges implemented locally
+
+- Reconciled the clean accumulation checkout at exact checkpoint `53cdd7b`,
+  superseding the proposal-time `9902c78` base, and created isolated branch
+  `codex/p12-1-polychampions-player-badges` without using the retired
+  `/home/nelluk/PolyBot39-dev` clone.
+- Added the exact guild-local badge storage/migration contract, Mod-only
+  requester-bound bulk add/remove drafts, cached emoji and bounded removal
+  autocomplete, atomic ordered-lock worker/audit, post-commit public result,
+  PolyChampions-only profile presentation, and operator deletion/migration
+  fingerprint/preservation coverage.
+- Added startup fail-closed schema verification and release-candidate inventory
+  awareness. Production is deliberately blocked until a separate production
+  identity-gated badge migration is reviewed; the development migration tool
+  is not production authority.
+- Passed 38 dependency-free focused migration/source-contract/deployment-
+  inventory/release-candidate tests,
+  repository-wide compilation, and `git diff --check`. The canonical checkout
+  has no shared `.venv`, and host Python lacks Discord/Peewee/pytest, so the
+  dependency-backed focused suite and complete offline discovery remain
+  unpassed rather than installing dependencies without approval. Complete
+  discovery was attempted and found 327 tests but ended with 138 dependency
+  import errors and seven skips.
+- No schema apply/database connection, stopped-writer database validation,
+  Discord inspection or guild command apply, beta launch/smoke, Docker,
+  production, integration, push, or deployment occurred.
 
 ## Resume checklist
 
