@@ -16269,8 +16269,8 @@ performed.
 
 ### P11.5H — Development historical PolyChampions mirror
 
-Status: **Implemented, Tier-3 reviewed, integrated, and successfully applied
-to the stopped GreenCloud development database; beta restart pending.**
+Status: **Implemented, Tier-3 reviewed, integrated, successfully applied to
+GreenCloud development, and restarted with verified Discord connectivity.**
 
 Branch/base: `codex/development-historical-mirror`, exact clean base
 `5dbe04c000c5593d90f546e3f0f65842f35f943a`.
@@ -16316,9 +16316,9 @@ requires a separate stopped-beta host-wide writer census and preserved archive
 rollback. Parking rows remain intentionally isolated rather than deleted and
 must be handled by the next fresh archive refresh.
 
-Next action: start only `polybot-development-beta@greencloud.service`, verify
-its exact database/configuration identity and single-writer state, and perform
-the separately approved bounded beta smoke.
+Next action: perform bounded human acceptance against historical player and
+game views in the beta guild; keep command synchronization and tester
+announcement separate.
 
 ### P11.6 — Player, team, and game card parity polish
 
@@ -18417,6 +18417,13 @@ deferred into this post-modernization backlog.
   sentinel. Apply passed its in-transaction proof and the separate read-only
   verify command; modern beta configuration remained complete, active, and
   target-only. Beta restart and Discord smoke remained pending at this entry.
+- Started only `polybot-development-beta@greencloud.service` from clean
+  checkpoint `f050968`. The service became active/running with zero restarts,
+  acquired its guarded writer boundary, connected to the Discord gateway, and
+  authenticated as expected beta application `479029527553638401`. It was
+  stopped once more only to record this evidence before a final clean-checkpoint
+  restart; no database rewrite, command synchronization, or tester announcement
+  accompanied startup.
 
 ### 2026-08-15 — P11.5H historical mirror implemented locally
 
