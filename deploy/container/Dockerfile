@@ -7,7 +7,6 @@ ARG POLYBOT_SOURCE_CHECKPOINT
 FROM ${UV_IMAGE} AS uv
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG POLYBOT_SOURCE_CHECKPOINT
 ARG POLYBOT_RUNTIME_UID=10001
 ARG POLYBOT_RUNTIME_GID=10001
 
@@ -19,10 +18,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_LINK_MODE=copy \
     UV_NO_DEV=1 \
     UV_PYTHON_DOWNLOADS=0 \
-    MPLCONFIGDIR=/tmp/polybot-matplotlib \
-    POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}
-
-LABEL org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}
+    MPLCONFIGDIR=/tmp/polybot-matplotlib
 
 RUN groupadd --gid "${POLYBOT_RUNTIME_GID}" polybot \
     && useradd --uid "${POLYBOT_RUNTIME_UID}" --gid polybot \
@@ -31,7 +27,12 @@ RUN groupadd --gid "${POLYBOT_RUNTIME_GID}" polybot \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
+
+ARG POLYBOT_SOURCE_CHECKPOINT
+ENV POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}
+LABEL org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}
 
 COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .
 RUN test "${#POLYBOT_SOURCE_CHECKPOINT}" -eq 40 \

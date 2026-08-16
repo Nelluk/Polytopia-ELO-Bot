@@ -111,7 +111,23 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn(
             'ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.32@sha256:', dockerfile
         )
-        self.assertIn('uv sync --locked --no-dev --no-install-project', dockerfile)
+        dependency_sync = 'uv sync --locked --no-dev --no-install-project'
+        checkpoint_env = (
+            'ENV POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}'
+        )
+        checkpoint_label = (
+            'LABEL org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}'
+        )
+        self.assertIn(
+            'RUN --mount=type=cache,target=/root/.cache/uv', dockerfile,
+        )
+        self.assertIn(dependency_sync, dockerfile)
+        self.assertLess(
+            dockerfile.index(dependency_sync), dockerfile.index(checkpoint_env),
+        )
+        self.assertLess(
+            dockerfile.index(dependency_sync), dockerfile.index(checkpoint_label),
+        )
         self.assertIn('ARG POLYBOT_RUNTIME_UID=10001', dockerfile)
         self.assertIn('ARG POLYBOT_RUNTIME_GID=10001', dockerfile)
         self.assertIn(
@@ -120,8 +136,8 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         )
         self.assertIn('USER ${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID}', dockerfile)
         self.assertIn('STOPSIGNAL SIGINT', dockerfile)
-        self.assertIn('POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
-        self.assertIn('org.opencontainers.image.revision=${POLYBOT_SOURCE_CHECKPOINT}', dockerfile)
+        self.assertIn(checkpoint_env, dockerfile)
+        self.assertIn(checkpoint_label, dockerfile)
         self.assertIn(
             '["python", "scripts/run_development_beta.py", "--skip_tasks"]',
             dockerfile,

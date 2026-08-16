@@ -26548,6 +26548,27 @@ deferred into this post-modernization backlog.
 - Documentation only: no database, production checkout, service, Discord,
   schema, dependency, or runtime action occurred.
 
+### 2026-08-16 — Development-container dependency cache isolated from checkpoint
+
+- Moved the checkpoint-dependent image environment and OCI revision label
+  after the locked production-only `uv sync` layer. Changing only
+  `POLYBOT_SOURCE_CHECKPOINT` therefore no longer invalidates dependency
+  installation.
+- Kept `uv sync --locked --no-dev --no-install-project` and added only a local
+  BuildKit uv cache mount so a real `uv.lock` change can reuse downloaded
+  artifacts without remote cache infrastructure.
+- Extended the focused Dockerfile asset test to enforce dependency/checkpoint
+  ordering and extended the read-only deployment doctor to require the cache
+  mount. The embedded root-owned checkpoint proof, OCI revision label,
+  runtime checkpoint environment, and non-root runtime contract remain
+  unchanged.
+- Before the change, a second build with only the checkpoint changed rebuilt
+  the `uv sync` step in 3.2 seconds; validation after the change requires that
+  step to report `CACHED` on the corresponding second build.
+- No beta container replacement/restart, database access, Discord connection
+  or command synchronization, Docker pruning, production action, push, or
+  remote cache was performed.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

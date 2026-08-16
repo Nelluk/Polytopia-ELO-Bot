@@ -716,6 +716,7 @@ def _validate_assets(
         f"ARG UV_IMAGE={contract['uv_image']}",
         'ARG POLYBOT_RUNTIME_UID=10001',
         'ARG POLYBOT_RUNTIME_GID=10001',
+        'RUN --mount=type=cache,target=/root/.cache/uv',
         'POLYBOT_IMAGE_CHECKPOINT=${POLYBOT_SOURCE_CHECKPOINT}',
         '/usr/local/share/polybot/image-checkpoint',
         'COPY --chown=${POLYBOT_RUNTIME_UID}:${POLYBOT_RUNTIME_GID} . .',
