@@ -178,6 +178,37 @@ as a Discord guild.
    command synchronization, tester announcements, and production deployment
    are separate approvals.
 
+## Optional historical asset reconciliation
+
+The database archive does not contain local Team/House image files, and custom
+emoji IDs remain owned by the Discord guild that created them. After a mirror,
+perform this optional beta-only reconciliation when visual card coverage is
+useful:
+
+1. Copy the matching production `polytopia_images-<weekday>.tar.gz` into the
+   development staging directory as a separate privileged operator action.
+   Validate its checksum, reject links/absolute paths/path traversal and
+   unexpected members, and validate every image before publishing it under the
+   isolated development `image_root`. Unchanged House/Team primary keys make
+   `houses/<id>.png` and `teams/<id>.png` directly reusable.
+2. Inventory the beta guild's available custom emoji read-only. Match stored
+   custom emoji by case-insensitive name, with explicit aliases for known beta
+   spelling differences such as stored `elyrion` to beta `elyron`. Never assume
+   that syntax-valid production custom-emoji IDs are usable by the beta bot.
+3. Use beta-owned custom emoji for exact matches. Assign stable Unicode emoji
+   to unmatched Teams and any missing Tribes; descriptive House Unicode is also
+   acceptable for beta card coverage because production House emoji may be
+   blank. Keep this explicitly development-only and transactionally bind the
+   update to the stopped beta's writer lock.
+4. Prefer validated local files over fragile historical image URLs. A currently
+   reachable remote House image may be normalized into the development image
+   root; a dead URL may use an explicitly reviewed related Team image as a
+   beta-only fallback.
+
+This is intentionally a visual-testing shim, not a promise to reproduce every
+production Discord emoji. A later database refresh overwrites the stored emoji
+fields and therefore repeats this reconciliation from a fresh plan.
+
 ## Rollback and refresh policy
 
 If the remap is refused, keep the beta stopped and investigate the bounded

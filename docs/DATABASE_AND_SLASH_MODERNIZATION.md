@@ -18381,6 +18381,31 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
+### 2026-08-16 — P11.5H historical visual assets reconciled
+
+- Validated the copied production image archive at SHA-256
+  `1384d41624fccec26fd7125626f846cc92c13dfc1af23e6cb58b7a9e91f97572`.
+  All 41 Team PNGs passed the current bounded decoder/normalizer; the archive
+  contained no House files.
+- Published those 41 Team images into the isolated development image root.
+  Four of five stored House URLs remained reachable and were normalized
+  locally. The dead InnerFavillae House URL received its corresponding Team
+  image as an explicit beta-only fallback, producing five local House images.
+- A read-only beta-guild inventory found existing custom emoji for 13 Tribes
+  (including the explicit `elyrion` -> `elyron` alias) and three Teams: Ronin,
+  Lightning, and Crawfish. Cymanti, Polaris, and Yadakk received stock Unicode
+  `🐛`, `❄️`, and `🐎` respectively.
+- Applied exact stopped-writer emoji plan
+  `779198876d38bcf66211d25d9eb88e30f6578d80b540e2fc66bd206f9c736b6f`.
+  Unmatched historical Teams received deterministic stock Unicode, generic
+  Teams received descriptive Unicode, and all 18 Houses received descriptive
+  stock Unicode. Final proof covered 115 records: 16 beta-owned custom emoji,
+  99 Unicode emoji, and zero invalid values.
+- Added the optional post-refresh asset-reconciliation process to the mirror
+  runbook. This remains a development visual-testing shim rather than a full
+  production Discord emoji replica; no production, command-sync, or tester
+  announcement action occurred.
+
 ### 2026-08-15 — P11.5H GreenCloud historical mirror applied and verified
 
 - Reconciled the post-migration host boundaries before writing: production is
