@@ -99,6 +99,17 @@ class HistoricalMirrorTests(unittest.TestCase):
             with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'no games'):
                 mirror._snapshot(FakeDatabase(), 'a' * 40, mirror.TARGET_GUILD_ID)
 
+    def test_post_remap_snapshot_allows_zero_source_graph(self):
+        with mock.patch.object(mirror, '_identity'), \
+             mock.patch.object(mirror, '_present_tables', return_value=mirror.DIRECT_TABLES[:-1]), \
+             mock.patch.object(mirror, '_configuration_state', return_value=mirror.ConfigurationState('not_ready', (), (), (), False)), \
+             mock.patch.object(mirror, '_schema_fingerprint', return_value='d' * 64), \
+             mock.patch.object(mirror, '_count', return_value=0):
+            result = mirror._snapshot(
+                FakeDatabase(), 'a' * 40, mirror.TARGET_GUILD_ID,
+                allow_parking=True, require_source=False)
+        self.assertEqual(dict(result.source_counts)['game'], 0)
+
     def test_schema_fingerprint_includes_constraint_topology(self):
         queries = []
 

@@ -16304,7 +16304,7 @@ non-empty `gamelog`. Verify requires all five modern configuration tables with
 active target-only authority. The writer lock remains held through
 post-commit verification; acquisition, cancellation, and release faults are
 bounded as reconciliation-required after commit while ordinary pre-commit
-failures retain rollback semantics. Focused offline coverage now has 21
+failures retain rollback semantics. Focused offline coverage now has 22
 passing tests for these cases and the original mirror behavior.
 No database, production, Discord, dependency, beta, or deployment operation
 was performed in this unit.
@@ -18410,7 +18410,10 @@ deferred into this post-modernization backlog.
 - Corrected runbook ordering so configuration is restored before plan/apply
   and only revalidated after verify; the beta launcher invocation takes no
   `--skip_tasks` argument because it supplies that bot flag internally.
-- Correction-focused mirror tests pass 21/21; no PostgreSQL rehearsal,
+- Separated the pre-apply source-game viability check from post-remap
+  verification snapshots, so standalone verify accepts the expected zero
+  source rows while plan/apply still refuse an empty source graph.
+- Correction-focused mirror tests pass 22/22; no PostgreSQL rehearsal,
   production access, beta, Discord, deployment, dependency, push, or merge
   operation occurred.
 

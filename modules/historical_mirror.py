@@ -261,7 +261,7 @@ def _schema_fingerprint(database: Any, tables: tuple[str, ...]) -> str:
 
 
 def _snapshot(database: Any, checkpoint: str, target: int, *,
-              allow_parking: bool = False) -> MirrorPlan:
+              allow_parking: bool = False, require_source: bool = True) -> MirrorPlan:
     _identity(database)
     present = _present_tables(database)
     source = tuple((table, _count(database,
@@ -312,7 +312,7 @@ def _snapshot(database: Any, checkpoint: str, target: int, *,
     if non_object:
         raise HistoricalMirrorError(
             'Legacy polychamps_draft contains non-object JSON; refusing to write.')
-    if dict(source).get('game', 0) <= 0:
+    if require_source and dict(source).get('game', 0) <= 0:
         raise HistoricalMirrorError(
             'Source historical graph has no games; refusing to park the beta graph.')
     configuration = _configuration_state(database, target)
@@ -372,7 +372,8 @@ def verification_plan(profile: Any, confirmation: str, *, checkpoint: str,
         with database.connection_context():
             with database.atomic():
                 database.execute_sql('SET TRANSACTION READ ONLY')
-                current = _snapshot(database, checkpoint, target, allow_parking=True)
+                current = _snapshot(database, checkpoint, target, allow_parking=True,
+                                    require_source=False)
         # The operator-carried token must describe exactly the tables present
         # in this database; accepting a subset would make the evidence
         # ambiguous when optional gamelog is bootstrapped later.
