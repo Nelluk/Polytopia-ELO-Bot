@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 Status: Active
 
@@ -26511,6 +26511,25 @@ deferred into this post-modernization backlog.
 - Recorded Tier-3 correction `4ebe5ca` and roadmap docs commit `94a83c8`.
   Status is **reviewed/accepted for integration approval**; this unit is not
   integrated, Complete, or beta-accepted.
+
+### 2026-08-16 — Production schema expansion kept proportional
+
+- Confirmed that the modernization production schema delta remains exactly two
+  additive `DiscordMember` timezone columns; the five development
+  `guild_configuration_*` tables are not part of the initial production
+  canary.
+- Clarified the production cutover so the two columns are applied and exactly
+  verified before application switchover in the same maintenance window.
+  Rollback keeps the columns because the prior production code ignores them.
+- Explicitly rejected a separate multi-day old-code observation period for
+  unused backward-compatible columns. Atomic apply, exact verification, and
+  the existing task-disabled application canary are the complete proportional
+  gate absent a concrete additional failure mode.
+- Added repository guidance to prefer the smallest complete solution and avoid
+  speculative phases, abstractions, and soak periods while preserving existing
+  production/database/Discord approval boundaries.
+- Documentation only: no database, production checkout, service, Discord,
+  schema, dependency, or runtime action occurred.
 
 ## Resume checklist
 

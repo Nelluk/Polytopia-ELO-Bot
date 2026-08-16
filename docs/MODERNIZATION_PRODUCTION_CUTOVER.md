@@ -33,9 +33,11 @@ backup, test, or health result. Never improvise around a failed gate.
 - Global application-command tree: must be empty; this repository has no
   authority or tooling to mutate it
 
-The additive timezone columns are the only schema change. The old whole-hour
-field and identity fields remain untouched; there is no backfill or destructive
-schema rollback.
+The additive timezone columns are the only schema change. Apply and verify
+them as a backward-compatible expansion before switching application code in
+the same maintenance window. The old whole-hour field and identity fields
+remain untouched; there is no backfill, destructive schema rollback, or
+separate soak period for columns the rollback code does not read.
 
 ## Required approval and release record
 
@@ -166,9 +168,12 @@ Do not announce completion or invite testing at this stage.
 ## Maintenance sequence
 
 The order below is mandatory: backup, stop, prove one-writer shutdown, deploy
-reviewed source without starting it, apply and verify additive schema, run the
-task-disabled canary, cleanly stop it, start the canonical service, then handle
-the Discord command tree as a separate gate.
+reviewed source without starting it, apply and verify the backward-compatible
+schema expansion, switch to the reviewed application through the task-disabled
+canary, cleanly stop it, start the canonical service, then handle the Discord
+command tree as a separate gate. Schema expansion and application switchover
+belong to the same maintenance window; the two unused additive columns do not
+require a separate observation window.
 
 ### 1. Capture start state and fresh backup
 
@@ -315,6 +320,11 @@ Immediately rerun `--verify`. Do not start any modernization model code unless
 verify returns success for both exact columns. Any identity, metadata, lock,
 DDL, or verification failure leaves the service stopped and follows the abort
 matrix below. Never use `DROP COLUMN` as rollback.
+
+Successful exact verification completes the schema compatibility gate. Proceed
+directly to the task-disabled application canary; do not add a separate old-code
+soak for columns that the rollback code ignores. If application rollback is
+later required, retain both columns as described below.
 
 ### 5. Run the reviewed task-disabled process canary
 

@@ -18,6 +18,21 @@ read `docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`. Use separate Git
 worktrees and its checkpoint/handoff protocol; never let two tasks switch or
 edit the same checkout concurrently.
 
+## Engineering Proportionality
+
+Prefer the smallest complete solution and match process to demonstrated risk.
+Do not invent extra services, abstractions, rollout phases, generalized
+frameworks, or extended observation windows for a narrow reversible change
+unless a concrete failure mode requires them. Existing production, database,
+Discord, and destructive-action approval gates still apply; proportionality
+means satisfying those gates directly, not multiplying them speculatively.
+
+For an additive, backward-compatible schema change that the running code does
+not read, an atomic apply plus exact verification in the planned maintenance
+window is normally sufficient. Require a soak period only when there is a
+specific runtime behavior to observe. Label optional hardening as optional and
+lead with the minimal recommended path.
+
 ## Tech Stack
 
 - CPython 3.12
