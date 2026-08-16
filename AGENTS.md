@@ -2,6 +2,17 @@
 
 This file provides guidance to coding agents when working with code in this repository.
 
+## Docker access on GreenCloud
+
+- Codex's default task sandbox may remap supplementary groups to `nogroup`, so
+  a sandboxed `id` or Docker socket permission denial is not evidence that
+  `nelluk` lacks Docker access.
+- For authorized read-only Docker or `./polybot` inspection, retry the exact
+  command outside the sandbox through the normal escalation/approval flow,
+  without `sudo`. Verify with elevated `id` and `docker ps`.
+- Do not chmod `/var/run/docker.sock`, change group membership, add sudo rules,
+  or authorize mutating Docker operations based only on sandbox results.
+
 ## Project Overview
 
 Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides matchmaking, ELO-based leaderboards, and league management across multiple Discord servers (primarily the main Polytopia server and PolyChampions).
