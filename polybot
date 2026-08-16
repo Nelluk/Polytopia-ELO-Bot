@@ -42,6 +42,7 @@ Usage: ./polybot [--mode bundled|external|external-socket] COMMAND [ARGUMENT]
 
 Commands:
   setup                 Prepare private inputs and the exact container image
+  deploy                Build exact HEAD and start or replace the beta
   bootstrap-guild ID    Activate the first configured guild on a fresh database
   import-backup PATH    Import one fresh-volume-verified development archive
   start                 Start the sole development bot and managed services
@@ -769,6 +770,11 @@ command_setup() {
   echo 'Setup complete. No Discord bot was started and no commands were synchronized.'
 }
 
+command_deploy() {
+  command_setup
+  command_start
+}
+
 command_bootstrap_guild() {
   require_bundled_mode
   [ "$#" -eq 1 ] || fail 'Usage: ./polybot bootstrap-guild GUILD_ID'
@@ -782,7 +788,7 @@ command_bootstrap_guild() {
   host_private_input_probe
   host_checkpoint=$(git_checkpoint)
   [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
-    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
+    || fail 'Configured image checkpoint differs from Git HEAD; run ./polybot deploy to build and start exact HEAD, or setup to prepare it without starting.'
   run_immutable_doctor
   live_bind_probe
   bot_id=$(bot_container_id)
@@ -1259,6 +1265,7 @@ main() {
   [ "$#" -gt 0 ] && shift || true
   case "$command" in
     setup) [ "$#" -eq 0 ] || fail 'Usage: ./polybot setup'; command_setup ;;
+    deploy) [ "$#" -eq 0 ] || fail 'Usage: ./polybot deploy'; command_deploy ;;
     bootstrap-guild) command_bootstrap_guild "$@" ;;
     import-backup) command_import_backup "$@" ;;
     start) [ "$#" -eq 0 ] || fail 'Usage: ./polybot start'; command_start ;;

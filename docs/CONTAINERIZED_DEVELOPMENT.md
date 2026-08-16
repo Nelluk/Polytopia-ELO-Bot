@@ -143,6 +143,7 @@ development project is `polybot-mac-beta` on both platforms:
 
 ```bash
 ./polybot setup
+./polybot deploy
 ./polybot bootstrap-guild GUILD_ID
 ./polybot import-backup PATH
 ./polybot start
@@ -160,6 +161,7 @@ mode for setup, start, status, logs, restart, stop, and Beta Lab operations:
 
 ```bash
 ./polybot --mode external setup
+./polybot --mode external deploy
 ./polybot --mode external start
 ./polybot --mode external status
 ```
@@ -170,6 +172,7 @@ the optional Unix-socket transport:
 
 ```bash
 ./polybot --mode external-socket setup
+./polybot --mode external-socket deploy
 ./polybot --mode external-socket start
 ./polybot --mode external-socket status
 ./polybot --mode external-socket beta-lab status
@@ -202,6 +205,14 @@ invoking macOS user while the container view uses the fixed internal
 overwrites an existing database or Discord configuration. If it creates
 scaffolds, the operator fills the Discord and denylist placeholders and
 reruns setup.
+
+`deploy` is the ordinary clean-checkpoint refresh path. It runs the complete
+`setup` contract and then `start`, so one command builds exact Git HEAD and
+starts or replaces the beta. It preserves the same clean-checkout, immutable
+image, private-input, doctor, socket, database, and single-writer gates; it
+does not synchronize Discord commands. Keep using `setup` alone when the image
+should be prepared without starting or replacing the bot, and `restart` when
+the already configured immutable image should simply be restarted.
 
 When the ordinary database is relation-empty, setup prints the existing schema
 plan and exact confirmation. Entering the token initializes a fresh empty

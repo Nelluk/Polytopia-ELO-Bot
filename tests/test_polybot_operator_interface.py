@@ -42,7 +42,7 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         for command in (
-            'setup', 'bootstrap-guild ID', 'import-backup PATH', 'start',
+            'setup', 'deploy', 'bootstrap-guild ID', 'import-backup PATH', 'start',
             'status', 'logs [--follow]', 'restart', 'stop', 'backup',
             'verify-backup PATH',
             'beta-lab [--mode bundled|external|external-socket]',
@@ -217,6 +217,24 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('compose:up -d bot', result.stdout)
         self.assertNotIn('postgres', result.stdout)
+
+    def test_deploy_runs_setup_then_start_as_one_explicit_operation(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                command_setup() { printf 'setup\n'; }
+                command_start() { printf 'start\n'; }
+                command_deploy
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['setup', 'start'])
 
     def test_beta_lab_refuses_checkpoint_mismatch_before_compose_effect(self):
         result = subprocess.run(
