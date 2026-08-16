@@ -542,7 +542,10 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.29 bounded human acceptance is recommended next.**
+Current active unit: **P9.29 bounded human acceptance remains the release
+candidate track; P11.5H development historical PolyChampions mirror is in
+progress on the isolated Luna branch.** P9.29 is intentionally separate from
+this stopped-database refresh operation.
 P9.28R4 fail-stop supervision and complete writer coverage is complete. The
 preceding adversarial review correctly showed that P9.28R3 still let the bot
 outlive an
@@ -16264,6 +16267,52 @@ intentional skips. Shell parsing and diff checks passed. No production,
 database, Discord, service restart, deployment, or command-sync action was
 performed.
 
+### P11.5H — Development historical PolyChampions mirror
+
+Status: **Implemented locally; Tier-3 review and integration pending.**
+
+Branch/base: `codex/development-historical-mirror`, exact clean base
+`5dbe04c000c5593d90f546e3f0f65842f35f943a`.
+
+Objective: after a separately approved operator restore of a validated
+production partial dump, park existing beta direct guild rows, remap only the
+PolyChampions direct guild rows to `478571892832206869`, scrub production
+Discord object references and API credentials, and prove the bounded
+relational graph without touching production or global identity rows.
+
+Design decisions: source guild `447883341463814144` is remapped to the sole
+configured development guild. Existing target rows are parked first at the
+fixed BIGINT sentinel `9223372036854770000`; a collision fails closed. The
+optional `gamelog` table is tolerated absent or empty because the intentional
+partial dump excludes production logs. Modern guild configuration is not
+remapped: the runbook preserves/restores registry, revision, audit, draft, and
+delegation tables, rejects a partial topology, and requires one active target
+authority before apply. Global DiscordMember/House/Tribe rows and all indirect
+foreign-key graphs remain intact. Pending and unconfirmed game state is
+preserved. Apply is guarded by the existing database-scoped beta writer lock,
+revalidates a digest-bound pre-state under one transaction, and reports
+post-commit verification failure as reconciliation-required rather than
+claiming an inverse rollback.
+
+Implementation/evidence: `modules/historical_mirror.py`,
+`scripts/manage_historical_mirror.py`, and
+`docs/DEVELOPMENT_HISTORICAL_MIRROR.md` add plan/apply/verify tooling and the
+operator sequence. Focused offline coverage has 11 passing tests for
+deterministic confirmations, stale plans, profile/live safety refusal,
+parking collision, remap order, scrub scope, absent GameLog, topology,
+invariant failure, transaction rollback, and post-commit reconciliation.
+No database, production, Discord, dependency, beta, or deployment operation
+was performed in this unit.
+
+Limitations: the tool cannot prove which archive produced a live database and
+does not continuously monitor unguarded connections; the runbook therefore
+requires a separate stopped-beta host-wide writer census and preserved archive
+rollback. Parking rows remain intentionally isolated rather than deleted and
+must be handled by the next fresh archive refresh.
+
+Next action: complete independent Tier-3 review, then run only a separately
+approved stopped-writer rehearsal against an isolated development restore.
+
 ### P11.6 — Player, team, and game card parity polish
 
 Status: **Complete; Tier-2 reviewed and integrated at `30f2257`, deployed on
@@ -18324,6 +18373,24 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-15 — P11.5H historical mirror implemented locally
+
+- Fast-forwarded the clean isolated Luna branch from `4637191` to the exact
+  approved base `5dbe04c`; no primary, production, database, Discord, or
+  dependency operation occurred.
+- Added development-only plan/apply/verify tooling for source guild
+  `447883341463814144`, beta guild `478571892832206869`, and the documented
+  parking sentinel `9223372036854770000`. The plan confirmation binds the
+  fixed mapping, touched schema fingerprint, code checkpoint, scrub counts,
+  and source/target/parking pre-state counts. Apply uses the existing
+  database-scoped beta writer lock and one rollback-safe transaction.
+- Added the exact operator runbook for partial production dump validation,
+  stopped-writer census, preserved beta configuration, schema-forward steps,
+  remap verification, startup, smoke, and archive-based rollback/refresh.
+- Focused offline mirror tests pass 11/11. Complete offline, relevant gated
+  runtime/database tests, compilation, and diff checks remain required before
+  Tier-3 integration review. No live database test is authorized in this unit.
 
 ### 2026-08-15 — native phased subagent orchestration adopted
 
