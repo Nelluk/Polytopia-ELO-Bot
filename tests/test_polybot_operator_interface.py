@@ -44,7 +44,8 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         for command in (
             'setup', 'bootstrap-guild ID', 'import-backup PATH', 'start',
             'status', 'logs [--follow]', 'restart', 'stop', 'backup',
-            'verify-backup PATH', 'beta-lab [--mode bundled|external]',
+            'verify-backup PATH',
+            'beta-lab [--mode bundled|external|external-socket]',
         ):
             self.assertIn(command, result.stdout)
         self.assertNotIn('--profile', result.stdout)
@@ -87,7 +88,7 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
             ['/bin/sh', '-c', r'''
                 . ./polybot
                 docker() { printf '%s\n' "$*"; }
-                BETA_COMPOSE_MODE=external
+                DEPLOYMENT_MODE=external
                 beta_compose ps -q bot
             '''],
             cwd=self.source_root,
@@ -98,8 +99,124 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('compose --env-file', result.stdout)
+        self.assertIn('compose --project-name', result.stdout)
         self.assertIn('compose.development.external-db.yaml ps -q bot', result.stdout)
+
+    def test_external_socket_mode_adds_only_the_reviewed_overlay(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                docker() { printf '%s\n' "$*"; }
+                DEPLOYMENT_MODE=external-socket
+                compose ps -q bot
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('compose.development.external-db.yaml', result.stdout)
+        self.assertIn(
+            'compose.development.external-db.local-socket.yaml', result.stdout,
+        )
+        self.assertNotIn('compose.development.yaml ', result.stdout)
+
+    def test_external_mode_refuses_bundled_database_lifecycle(self):
+        result = subprocess.run(
+            [self.script, '--mode', 'external-socket', 'backup'],
+            cwd=self.source_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('only in bundled mode', result.stderr)
+
+    def test_external_socket_setup_preserves_password_without_bundle_secrets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / 'deploy/container'
+            assets.mkdir(parents=True)
+            shutil.copy2(self.script, root / 'polybot')
+            shutil.copy2(
+                self.source_root / 'deploy/container/development.env.example',
+                assets / 'development.env.example',
+            )
+            (root / 'config.development.ini').write_text(
+                '[DEFAULT]\n'
+                'psql_host = 127.0.0.1\n'
+                'psql_password = retain-this-value\n',
+                encoding='utf-8',
+            )
+            (root / 'server_settings_dev.py').write_text(
+                'server_list = {}\n', encoding='utf-8',
+            )
+            command = r'''
+                . ./polybot
+                DEPLOYMENT_MODE=external-socket
+                git_checkpoint() { printf '%040d\n' 0 | tr 0 a; }
+                prepare_ignored_inputs
+            '''
+            result = subprocess.run(
+                ['/bin/sh', '-c', command],
+                cwd=root,
+                env={
+                    **os.environ,
+                    'POLYBOT_SOURCE_ONLY': '1',
+                    'POLYBOT_ROOT_OVERRIDE': str(root),
+                    'POLYBOT_PLATFORM_OVERRIDE': 'Linux',
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            config = (
+                assets / 'config.development.ini'
+            ).read_text(encoding='utf-8')
+            self.assertIn('psql_host = /var/run/postgresql', config)
+            self.assertIn('psql_password = retain-this-value', config)
+            self.assertFalse(
+                (assets / 'secrets/postgres-admin-password.txt').exists()
+            )
+            self.assertFalse(
+                (assets / 'secrets/polybot-database-password.txt').exists()
+            )
+
+    def test_external_start_never_starts_a_postgres_service(self):
+        result = subprocess.run(
+            ['/bin/sh', '-c', r'''
+                . ./polybot
+                DEPLOYMENT_MODE=external-socket
+                require_engine() { :; }
+                validate_project_name() { :; }
+                require_prepared_inputs() { :; }
+                host_private_input_probe() { :; }
+                git_checkpoint() { printf '%040d\n' 0 | tr 0 a; }
+                configured_checkpoint() { printf '%040d\n' 0 | tr 0 a; }
+                run_immutable_doctor() { :; }
+                live_bind_probe() { :; }
+                live_socket_probe() { :; }
+                assert_single_writer_startable() { :; }
+                command_status() { :; }
+                compose() { printf 'compose:%s\n' "$*"; }
+                command_start
+            '''],
+            cwd=self.source_root,
+            env={**os.environ, 'POLYBOT_SOURCE_ONLY': '1'},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('compose:up -d bot', result.stdout)
+        self.assertNotIn('postgres', result.stdout)
 
     def test_beta_lab_refuses_checkpoint_mismatch_before_compose_effect(self):
         result = subprocess.run(

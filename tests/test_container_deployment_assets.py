@@ -12,7 +12,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         with (self.assets / 'container-contract.toml').open('rb') as source:
             contract = tomllib.load(source)
 
-        self.assertEqual(contract['contract_version'], 10)
+        self.assertEqual(contract['contract_version'], 11)
         self.assertEqual(contract['environment'], 'development')
         self.assertEqual(
             contract['python_image'],
@@ -33,6 +33,11 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertEqual(contract['database_name'], 'polytopia_dev')
         self.assertEqual(contract['database_user'], 'polybot_dev')
         self.assertEqual(contract['bundled_database_host'], 'postgres')
+        self.assertEqual(contract['external_socket_host'], '/var/run/postgresql')
+        self.assertEqual(
+            contract['external_socket_directory_environment'],
+            'POLYBOT_POSTGRES_SOCKET_DIR',
+        )
         self.assertEqual(contract['backup_directory'], 'deploy/container/backups')
         self.assertEqual(contract['backup_archive_prefix'], 'polybot-polytopia_dev')
         self.assertEqual(contract['restore_database_name'], 'polytopia_restore_verify')

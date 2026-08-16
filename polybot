@@ -15,6 +15,7 @@ fi
 ASSETS=$ROOT/deploy/container
 COMPOSE_FILE=$ASSETS/compose.development.yaml
 EXTERNAL_COMPOSE_FILE=$ASSETS/compose.development.external-db.yaml
+EXTERNAL_SOCKET_COMPOSE_FILE=$ASSETS/compose.development.external-db.local-socket.yaml
 ENV_FILE=$ASSETS/.env
 CONFIG_FILE=$ASSETS/config.development.ini
 SERVER_SETTINGS_FILE=$ASSETS/server_settings_dev.py
@@ -28,6 +29,7 @@ else
   PROJECT_NAME=polybot-mac-beta
 fi
 VERIFIED_SUFFIX=.verified
+DEPLOYMENT_MODE=${POLYBOT_DEPLOYMENT_MODE:-bundled}
 
 fail() {
   echo "PolyBot deployment refused: $*" >&2
@@ -36,20 +38,20 @@ fail() {
 
 usage() {
   cat <<'EOF'
-Usage: ./polybot COMMAND [ARGUMENT]
+Usage: ./polybot [--mode bundled|external|external-socket] COMMAND [ARGUMENT]
 
 Commands:
-  setup                 Prepare private inputs, image, and an empty database
+  setup                 Prepare private inputs and the exact container image
   bootstrap-guild ID    Activate the first configured guild on a fresh database
   import-backup PATH    Import one fresh-volume-verified development archive
-  start                 Start the sole development bot and database
+  start                 Start the sole development bot and managed services
   status                Report concise deployment and writer state
   logs [--follow]       Show the latest bot logs, optionally following
   restart               Cleanly restart the running bot container
-  stop                  Stop bot and database while retaining persistence
+  stop                  Stop managed services while retaining persistence
   backup                Create a confirmed logical development backup
   verify-backup PATH    Restore-test an archive in the isolated recovery volume
-  beta-lab [--mode bundled|external] OPERATION [ARGUMENTS]
+  beta-lab [--mode bundled|external|external-socket] OPERATION [ARGUMENTS]
                         Run Beta Lab operations in the Compose namespace
 EOF
 }
@@ -101,24 +103,54 @@ validate_project_name() {
 }
 
 compose() {
-  docker compose \
-    --project-name "$PROJECT_NAME" \
-    --env-file "$ENV_FILE" \
-    --file "$COMPOSE_FILE" \
-    "$@"
-}
-
-beta_compose() {
-  case "${BETA_COMPOSE_MODE:-bundled}" in
-    bundled) compose "$@" ;;
+  case "$DEPLOYMENT_MODE" in
+    bundled)
+      docker compose \
+        --project-name "$PROJECT_NAME" \
+        --env-file "$ENV_FILE" \
+        --file "$COMPOSE_FILE" \
+        "$@"
+      ;;
     external)
       docker compose \
+        --project-name "$PROJECT_NAME" \
         --env-file "$ENV_FILE" \
         --file "$EXTERNAL_COMPOSE_FILE" \
         "$@"
       ;;
-    *) fail 'Beta Lab Compose mode must be bundled or external.' ;;
+    external-socket)
+      docker compose \
+        --project-name "$PROJECT_NAME" \
+        --env-file "$ENV_FILE" \
+        --file "$EXTERNAL_COMPOSE_FILE" \
+        --file "$EXTERNAL_SOCKET_COMPOSE_FILE" \
+        "$@"
+      ;;
+    *) fail 'Deployment mode must be bundled, external, or external-socket.' ;;
   esac
+}
+
+beta_compose() {
+  compose "$@"
+}
+
+validate_deployment_mode() {
+  case "$DEPLOYMENT_MODE" in
+    bundled|external|external-socket) : ;;
+    *) fail 'Deployment mode must be bundled, external, or external-socket.' ;;
+  esac
+}
+
+doctor_mode() {
+  case "$DEPLOYMENT_MODE" in
+    bundled) echo bundled ;;
+    external|external-socket) echo "$DEPLOYMENT_MODE" ;;
+  esac
+}
+
+require_bundled_mode() {
+  [ "$DEPLOYMENT_MODE" = bundled ] \
+    || fail 'This database lifecycle operation is available only in bundled mode.'
 }
 
 require_engine() {
@@ -203,15 +235,24 @@ metadata_mode() {
 
 host_private_input_probe() {
   require_command stat
-  for target in "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$ADMIN_SECRET" "$APP_SECRET"; do
+  private_targets="$CONFIG_FILE $SERVER_SETTINGS_FILE"
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    private_targets="$private_targets $ADMIN_SECRET $APP_SECRET"
+  fi
+  for target in $private_targets; do
     [ "$(metadata_mode "$target")" = 600 ] \
       || fail "Private deployment file must retain mode 0600: $target"
   done
-  [ "$(metadata_mode "$BACKUP_DIR")" = 700 ] \
-    || fail 'The ignored backup directory must retain mode 0700.'
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    [ "$(metadata_mode "$BACKUP_DIR")" = 700 ] \
+      || fail 'The ignored backup directory must retain mode 0700.'
+  fi
 
   if [ "$(platform_name)" = darwin ]; then
-    for target in "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$BACKUP_DIR"; do
+    darwin_targets="$CONFIG_FILE $SERVER_SETTINGS_FILE"
+    [ "$DEPLOYMENT_MODE" != bundled ] \
+      || darwin_targets="$darwin_targets $BACKUP_DIR"
+    for target in $darwin_targets; do
       [ "$(metadata_uid "$target")" = "$(host_uid)" ] \
         || fail 'Docker Desktop bind inputs must be owned by the invoking macOS user.'
     done
@@ -221,9 +262,11 @@ host_private_input_probe() {
         && [ "$(metadata_gid "$target")" = "$(runtime_gid)" ] \
         || fail 'Linux private configuration owner must match the runtime UID/GID.'
     done
-    [ "$(metadata_uid "$BACKUP_DIR")" = "$(runtime_uid)" ] \
-      && [ "$(metadata_gid "$BACKUP_DIR")" = "$(runtime_gid)" ] \
-      || fail 'Linux backup owner must match the recovery UID/GID.'
+    if [ "$DEPLOYMENT_MODE" = bundled ]; then
+      [ "$(metadata_uid "$BACKUP_DIR")" = "$(runtime_uid)" ] \
+        && [ "$(metadata_gid "$BACKUP_DIR")" = "$(runtime_gid)" ] \
+        || fail 'Linux backup owner must match the recovery UID/GID.'
+    fi
   fi
   echo 'Host private-input ownership and modes: PASS.'
 }
@@ -301,21 +344,24 @@ prepare_ignored_inputs() {
     || fail 'Container server settings must be one regular non-symlink file.'
   chmod 600 "$CONFIG_FILE" "$SERVER_SETTINGS_FILE"
 
-  [ -e "$ADMIN_SECRET" ] || generate_secret "$ADMIN_SECRET"
-  [ -e "$APP_SECRET" ] || generate_secret "$APP_SECRET"
-  validate_secret_file "$ADMIN_SECRET"
-  validate_secret_file "$APP_SECRET"
-  cmp -s "$ADMIN_SECRET" "$APP_SECRET" \
-    && fail 'Administrative and application database secrets must differ.'
-
-  APP_PASSWORD=$(sed -n '1p' "$APP_SECRET")
   rewrite_config_key guild_configuration_source database
   rewrite_config_key psql_db polytopia_dev
   rewrite_config_key psql_user polybot_dev
-  rewrite_config_key psql_password "$APP_PASSWORD"
-  APP_PASSWORD=
-  rewrite_config_key psql_host postgres
   rewrite_config_key psql_port 5432
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    [ -e "$ADMIN_SECRET" ] || generate_secret "$ADMIN_SECRET"
+    [ -e "$APP_SECRET" ] || generate_secret "$APP_SECRET"
+    validate_secret_file "$ADMIN_SECRET"
+    validate_secret_file "$APP_SECRET"
+    cmp -s "$ADMIN_SECRET" "$APP_SECRET" \
+      && fail 'Administrative and application database secrets must differ.'
+    APP_PASSWORD=$(sed -n '1p' "$APP_SECRET")
+    rewrite_config_key psql_password "$APP_PASSWORD"
+    APP_PASSWORD=
+    rewrite_config_key psql_host postgres
+  elif [ "$DEPLOYMENT_MODE" = external-socket ]; then
+    rewrite_config_key psql_host /var/run/postgresql
+  fi
   rewrite_config_key background_tasks_enabled false
   rewrite_config_key allow_development_background_tasks false
   rewrite_config_key api_enabled false
@@ -362,25 +408,39 @@ run_immutable_doctor() {
   [ -n "$image" ] || fail 'Run ./polybot setup to configure the image.'
   docker image inspect "$image" >/dev/null 2>&1 \
     || fail 'The exact image is absent; rerun ./polybot setup.'
-  docker run --rm \
-    --network none \
-    --read-only \
-    --cap-drop ALL \
-    --security-opt no-new-privileges:true \
-    --user "$(runtime_uid):$(runtime_gid)" \
-    --mount "type=bind,src=$ENV_FILE,dst=/app/deploy/container/.env,readonly" \
-    --mount "type=bind,src=$CONFIG_FILE,dst=/app/deploy/container/config.development.ini,readonly" \
-    --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/app/deploy/container/server_settings_dev.py,readonly" \
-    --mount "type=bind,src=$SECRETS_DIR,dst=/app/deploy/container/secrets,readonly" \
-    --mount "type=bind,src=$BACKUP_DIR,dst=/app/deploy/container/backups,readonly" \
-    --env POLYBOT_ENV=development \
-    --env POLYBOT_DEPLOYMENT_CLI_INTERNAL=1 \
-    "$image" \
-    python scripts/check_container_deployment.py \
-      --mode bundled \
-      --immutable-image-checkpoint "$checkpoint" \
-      --host-platform linux \
-      --host-uid "$(runtime_uid)"
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    docker run --rm \
+      --network none --read-only --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      --user "$(runtime_uid):$(runtime_gid)" \
+      --mount "type=bind,src=$ENV_FILE,dst=/app/deploy/container/.env,readonly" \
+      --mount "type=bind,src=$CONFIG_FILE,dst=/app/deploy/container/config.development.ini,readonly" \
+      --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/app/deploy/container/server_settings_dev.py,readonly" \
+      --mount "type=bind,src=$SECRETS_DIR,dst=/app/deploy/container/secrets,readonly" \
+      --mount "type=bind,src=$BACKUP_DIR,dst=/app/deploy/container/backups,readonly" \
+      --env POLYBOT_ENV=development \
+      --env POLYBOT_DEPLOYMENT_CLI_INTERNAL=1 \
+      "$image" python scripts/check_container_deployment.py \
+        --mode "$(doctor_mode)" \
+        --immutable-image-checkpoint "$checkpoint" \
+        --host-platform linux \
+        --host-uid "$(runtime_uid)"
+  else
+    docker run --rm \
+      --network none --read-only --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      --user "$(runtime_uid):$(runtime_gid)" \
+      --mount "type=bind,src=$ENV_FILE,dst=/app/deploy/container/.env,readonly" \
+      --mount "type=bind,src=$CONFIG_FILE,dst=/app/deploy/container/config.development.ini,readonly" \
+      --mount "type=bind,src=$SERVER_SETTINGS_FILE,dst=/app/deploy/container/server_settings_dev.py,readonly" \
+      --env POLYBOT_ENV=development \
+      --env POLYBOT_DEPLOYMENT_CLI_INTERNAL=1 \
+      "$image" python scripts/check_container_deployment.py \
+        --mode "$(doctor_mode)" \
+        --immutable-image-checkpoint "$checkpoint" \
+        --host-platform linux \
+        --host-uid "$(runtime_uid)"
+  fi
 }
 
 live_bind_probe() {
@@ -397,6 +457,23 @@ live_bind_probe() {
       'test -r /probe/config.development.ini && test -r /probe/server_settings_dev.py' \
     || fail 'Docker could not present the private configuration to the non-root runtime.'
   echo 'Private configuration bind probe: readable by the non-root runtime.'
+}
+
+live_socket_probe() {
+  [ "$DEPLOYMENT_MODE" = external-socket ] || return 0
+  socket_directory=$(sed -n 's/^POLYBOT_POSTGRES_SOCKET_DIR=//p' "$ENV_FILE" | tail -n 1)
+  [ -n "$socket_directory" ] || socket_directory=/var/run/postgresql
+  [ -d "$socket_directory" ] && [ ! -L "$socket_directory" ] \
+    || fail 'Configured PostgreSQL socket directory must be one existing non-symlink directory.'
+  image=$(configured_image)
+  docker run --rm \
+    --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --user "$(runtime_uid):$(runtime_gid)" \
+    --mount "type=bind,src=$socket_directory,dst=/var/run/postgresql,readonly" \
+    "$image" /bin/sh -c 'test -S /var/run/postgresql/.s.PGSQL.5432' \
+    || fail 'Docker could not present the PostgreSQL Unix socket to the non-root runtime.'
+  echo 'PostgreSQL Unix-socket bind probe: PASS.'
 }
 
 bot_container_id() {
@@ -657,6 +734,12 @@ command_setup() {
   compose build bot
   run_immutable_doctor
   live_bind_probe
+  live_socket_probe
+  if [ "$DEPLOYMENT_MODE" != bundled ]; then
+    echo 'External database configuration retained; no database lifecycle or schema action was performed.'
+    echo 'Setup complete. No Discord bot was started and no commands were synchronized.'
+    return 0
+  fi
   compose up -d postgres
   wait_for_postgres
   compose --profile tools run --rm database-provision
@@ -687,6 +770,7 @@ command_setup() {
 }
 
 command_bootstrap_guild() {
+  require_bundled_mode
   [ "$#" -eq 1 ] || fail 'Usage: ./polybot bootstrap-guild GUILD_ID'
   guild_id=$1
   case "$guild_id" in
@@ -730,7 +814,11 @@ command_bootstrap_guild() {
 }
 
 require_prepared_inputs() {
-  for target in "$ENV_FILE" "$CONFIG_FILE" "$SERVER_SETTINGS_FILE" "$ADMIN_SECRET" "$APP_SECRET"; do
+  prepared_targets="$ENV_FILE $CONFIG_FILE $SERVER_SETTINGS_FILE"
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    prepared_targets="$prepared_targets $ADMIN_SECRET $APP_SECRET"
+  fi
+  for target in $prepared_targets; do
     [ -f "$target" ] && [ ! -L "$target" ] \
       || fail 'Deployment inputs are incomplete; run ./polybot setup.'
   done
@@ -784,16 +872,12 @@ beta_database_python() {
 }
 
 command_beta_lab() {
-  BETA_COMPOSE_MODE=bundled
   if [ "${1:-}" = --mode ]; then
-    [ "$#" -ge 3 ] || fail 'Usage: ./polybot beta-lab [--mode bundled|external] OPERATION [ARGUMENTS]'
-    BETA_COMPOSE_MODE=$2
+    [ "$#" -ge 3 ] || fail 'Usage: ./polybot beta-lab [--mode bundled|external|external-socket] OPERATION [ARGUMENTS]'
+    DEPLOYMENT_MODE=$2
     shift 2
   fi
-  case "$BETA_COMPOSE_MODE" in
-    bundled|external) : ;;
-    *) fail 'Beta Lab Compose mode must be bundled or external.' ;;
-  esac
+  validate_deployment_mode
   operation=${1:-}
   [ "$#" -gt 0 ] && shift || true
   require_exact_beta_image
@@ -826,12 +910,15 @@ command_start() {
     || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
   run_immutable_doctor
   live_bind_probe
+  live_socket_probe
   assert_single_writer_startable
-  compose up -d postgres
-  wait_for_postgres
-  guild_state=$(trusted_guild_state)
-  if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
-    fail 'No active trusted guild exists. Run bootstrap-guild or import a verified database before start.'
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    compose up -d postgres
+    wait_for_postgres
+    guild_state=$(trusted_guild_state)
+    if [ "$guild_state" = P11.5B_REQUIRED ] || [ "$guild_state" = NONE ]; then
+      fail 'No active trusted guild exists. Run bootstrap-guild or import a verified database before start.'
+    fi
   fi
   compose up -d bot
   echo 'Development bot start requested; automatic Discord command synchronization remains disabled.'
@@ -843,6 +930,7 @@ command_status() {
   validate_project_name
   echo 'PolyBot development container status'
   echo "project: $PROJECT_NAME"
+  echo "mode: $DEPLOYMENT_MODE"
   echo "platform: $(platform_name)"
   expected_application=unknown
   if [ -f "$ENV_FILE" ]; then
@@ -871,7 +959,13 @@ command_status() {
     bot_state=stopped
     echo 'bot: stopped'
   fi
-  if container_running "$postgres_id"; then
+  if [ "$DEPLOYMENT_MODE" != bundled ]; then
+    case "$DEPLOYMENT_MODE" in
+      external) database_transport=tcp ;;
+      external-socket) database_transport=unix-socket ;;
+    esac
+    echo "database: external; transport=$database_transport; lifecycle=operator-managed"
+  elif container_running "$postgres_id"; then
     db_health=$(docker inspect "$postgres_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')
     db_identity=$(docker exec --user postgres "$postgres_id" \
       psql -X -At -d polytopia_dev -c "SELECT current_database() || '/' || pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()" 2>/dev/null || echo unavailable)
@@ -914,10 +1008,14 @@ command_stop() {
   if container_running "$bot_id"; then
     docker stop --time 45 "$bot_id" >/dev/null
   fi
-  if container_running "$postgres_id"; then
+  if [ "$DEPLOYMENT_MODE" = bundled ] && container_running "$postgres_id"; then
     docker stop --time 60 "$postgres_id" >/dev/null
   fi
-  echo 'Development bot and database stopped; named volumes and backups were retained.'
+  if [ "$DEPLOYMENT_MODE" = bundled ]; then
+    echo 'Development bot and database stopped; named volumes and backups were retained.'
+  else
+    echo 'Development bot stopped; external database and named volumes were retained.'
+  fi
 }
 
 command_restart() {
@@ -1003,6 +1101,7 @@ write_verification_receipt() {
 }
 
 command_verify_backup() {
+  require_bundled_mode
   [ "$#" -eq 1 ] || fail 'Usage: ./polybot verify-backup PATH'
   require_engine
   validate_project_name
@@ -1040,6 +1139,7 @@ command_verify_backup() {
 }
 
 command_import_backup() {
+  require_bundled_mode
   [ "$#" -eq 1 ] || fail 'Usage: ./polybot import-backup PATH'
   require_engine
   validate_project_name
@@ -1080,6 +1180,7 @@ command_import_backup() {
 }
 
 command_backup() {
+  require_bundled_mode
   require_engine
   validate_project_name
   require_prepared_inputs
@@ -1146,6 +1247,13 @@ command_backup() {
 }
 
 main() {
+  if [ "${1:-}" = --mode ]; then
+    [ "$#" -ge 3 ] \
+      || fail 'Usage: ./polybot [--mode bundled|external|external-socket] COMMAND [ARGUMENT]'
+    DEPLOYMENT_MODE=$2
+    shift 2
+  fi
+  validate_deployment_mode
   validate_project_name
   command=${1:-}
   [ "$#" -gt 0 ] && shift || true

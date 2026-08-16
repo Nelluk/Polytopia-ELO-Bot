@@ -1,0 +1,18 @@
+# Optional Linux overlay for a PostgreSQL server running on the Docker host.
+# The generic external-database definition remains suitable for remote TCP
+# databases. This overlay exposes only the configured Unix-socket directory.
+
+services:
+  schema:
+    volumes:
+      - type: bind
+        source: ${POLYBOT_POSTGRES_SOCKET_DIR:-/var/run/postgresql}
+        target: /var/run/postgresql
+        read_only: true
+
+  bot:
+    volumes:
+      - type: bind
+        source: ${POLYBOT_POSTGRES_SOCKET_DIR:-/var/run/postgresql}
+        target: /var/run/postgresql
+        read_only: true

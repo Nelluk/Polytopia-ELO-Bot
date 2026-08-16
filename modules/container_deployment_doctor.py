@@ -18,7 +18,7 @@ import tomllib
 from typing import Callable, Mapping
 
 
-MODES = ('bundled', 'external')
+MODES = ('bundled', 'external', 'external-socket')
 PASS = 'pass'
 WARN = 'warn'
 BLOCK = 'block'
@@ -36,6 +36,7 @@ _ALLOWED_ENV_KEYS = frozenset({
     'POLYBOT_SOURCE_CHECKPOINT',
     'POLYBOT_RUNTIME_UID',
     'POLYBOT_RUNTIME_GID',
+    'POLYBOT_POSTGRES_SOCKET_DIR',
     'POLYBOT_BOT_MEMORY_LIMIT',
     'POLYBOT_BOT_CPU_LIMIT',
     'POLYBOT_POSTGRES_MEMORY_LIMIT',
@@ -155,6 +156,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'database_name',
         'database_user',
         'bundled_database_host',
+        'external_socket_host',
+        'external_socket_directory_environment',
         'backup_directory',
         'backup_archive_prefix',
         'restore_database_name',
@@ -192,7 +195,7 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'global_discord_sync',
     }
     if (
-            value.get('contract_version') != 10
+            value.get('contract_version') != 11
             or value.get('environment') != 'development'
             or not isinstance(policy, dict)
             or set(policy) != expected_policy_keys
@@ -242,6 +245,8 @@ def _read_toml(path: Path) -> Mapping[str, object]:
         'database_name': 'polytopia_dev',
         'database_user': 'polybot_dev',
         'bundled_database_host': 'postgres',
+        'external_socket_host': '/var/run/postgresql',
+        'external_socket_directory_environment': 'POLYBOT_POSTGRES_SOCKET_DIR',
         'database_port': 5432,
         'backup_directory': 'deploy/container/backups',
         'backup_archive_prefix': 'polybot-polytopia_dev',
@@ -541,6 +546,9 @@ def _validate_config(
     if mode == 'bundled':
         if host != str(contract['bundled_database_host']):
             mismatches.append('psql_host')
+    elif mode == 'external-socket':
+        if host != str(contract['external_socket_host']):
+            mismatches.append('psql_host')
     elif not host or host in {'localhost', '127.0.0.1', 'postgres'}:
         mismatches.append('psql_host')
     for key in ('background_tasks_enabled', 'api_enabled', 'bullet_enabled'):
@@ -680,6 +688,11 @@ def _validate_assets(
     try:
         dockerfile = (assets / 'Dockerfile').read_text(encoding='utf-8')
         compose = (assets / compose_name).read_text(encoding='utf-8')
+        socket_overlay = (
+            (assets / 'compose.development.external-db.local-socket.yaml')
+            .read_text(encoding='utf-8')
+            if mode == 'external-socket' else ''
+        )
         backup_script = (
             (assets / 'backup-development-database.sh').read_text(encoding='utf-8')
             if mode == 'bundled' else ''
@@ -786,6 +799,17 @@ def _validate_assets(
     ):
         if forbidden in compose:
             missing.append(f'forbidden:{forbidden}')
+    if mode == 'external-socket':
+        required_socket_overlay = (
+            'POLYBOT_POSTGRES_SOCKET_DIR:-/var/run/postgresql',
+            'target: /var/run/postgresql',
+            'read_only: true',
+        )
+        missing.extend(
+            f'socket-overlay:{value}'
+            for value in required_socket_overlay
+            if value not in socket_overlay
+        )
     if missing:
         return _finding(
             'repository-assets',
@@ -846,6 +870,8 @@ def reviewed_commands(mode: str) -> tuple[str, ...]:
         else 'deploy/container/compose.development.external-db.yaml'
     )
     base = f'docker compose --env-file deploy/container/.env --file {compose_file}'
+    if mode == 'external-socket':
+        base += ' --file deploy/container/compose.development.external-db.local-socket.yaml'
     commands = [
         f'{base} --profile tools config',
         f'{base} build bot',
@@ -926,6 +952,12 @@ def run_doctor(
             value = env_values.get(key, '')
             if not value.isdigit() or int(value) <= 0:
                 mismatched.append(key)
+        if mode == 'external-socket':
+            socket_directory = env_values.get(
+                'POLYBOT_POSTGRES_SOCKET_DIR', ''
+            )
+            if not socket_directory.startswith('/'):
+                mismatched.append('POLYBOT_POSTGRES_SOCKET_DIR')
         if mode == 'bundled':
             for key in ('POLYBOT_RECOVERY_UID', 'POLYBOT_RECOVERY_GID'):
                 value = env_values.get(key, '')

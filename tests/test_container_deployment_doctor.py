@@ -240,6 +240,45 @@ log_root = logs/development
                     for item in report.findings
                 ))
 
+    def test_external_socket_mode_requires_socket_profile_and_overlay(self):
+        self._write_private(
+            'deploy/container/config.development.ini',
+            self._config(host='/var/run/postgresql'),
+        )
+        report = doctor.run_doctor(
+            self.root,
+            mode='external-socket',
+            which=self._docker_only,
+            git_probe=self._git,
+        )
+
+        self.assertTrue(report.ready)
+        rendered = '\n'.join(report.commands)
+        self.assertIn(
+            'compose.development.external-db.local-socket.yaml', rendered,
+        )
+        self.assertNotIn('database-provision', rendered)
+
+        env_path = self.root / 'deploy/container/.env'
+        env_path.write_text(
+            env_path.read_text(encoding='utf-8').replace(
+                'POLYBOT_POSTGRES_SOCKET_DIR=/var/run/postgresql',
+                'POLYBOT_POSTGRES_SOCKET_DIR=relative/path',
+            ),
+            encoding='utf-8',
+        )
+        invalid = doctor.run_doctor(
+            self.root,
+            mode='external-socket',
+            which=self._docker_only,
+            git_probe=self._git,
+        )
+        self.assertFalse(invalid.ready)
+        self.assertTrue(any(
+            item.key == 'compose-env' and item.status == doctor.BLOCK
+            for item in invalid.findings
+        ))
+
     def test_asset_drift_and_unsupported_env_key_fail_closed(self):
         compose = self.root / 'deploy/container/compose.development.yaml'
         compose.write_text(

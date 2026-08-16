@@ -87,7 +87,7 @@ operationally clean on this host.
   normal startup.
 
 The immutable contract is
-`deploy/container/container-contract.toml`. Contract version 10 includes the
+`deploy/container/container-contract.toml`. Contract version 11 includes the
 container Beta Lab control/checkpoint identity, a root-owned embedded checkpoint
 proof, and requires the durable launcher to supervise both the bot and its
 database-lock keeper for the complete service lifetime. Keeper exit, pipe loss,
@@ -97,7 +97,10 @@ lock through a one-second fail-stop grace before it may inspect or mutate data,
 so the supervised bot is gone before takeover succeeds. Version changes to
 images, identity, persistence, writer exclusion, or startup-effect policy
 require review together with the Compose and Dockerfile changes. This boundary
-uses no additional database table or schema migration.
+uses no additional database table or schema migration. Version 11 also records
+the optional Linux external-database Unix-socket transport; it keeps the generic
+external TCP definition unchanged and exposes only the configured PostgreSQL
+socket directory to the bot and schema services.
 
 ## Configuration and secret boundary
 
@@ -151,6 +154,39 @@ development project is `polybot-mac-beta` on both platforms:
 ./polybot verify-backup PATH
 ./polybot beta-lab status
 ```
+
+The default mode is `bundled`. External PostgreSQL is a first-class operator
+mode for setup, start, status, logs, restart, stop, and Beta Lab operations:
+
+```bash
+./polybot --mode external setup
+./polybot --mode external start
+./polybot --mode external status
+```
+
+Use `external` for a network-reachable development PostgreSQL server. On Linux,
+when PostgreSQL runs on the Docker host and should remain TCP loopback-only, use
+the optional Unix-socket transport:
+
+```bash
+./polybot --mode external-socket setup
+./polybot --mode external-socket start
+./polybot --mode external-socket status
+./polybot --mode external-socket beta-lab status
+```
+
+`POLYBOT_POSTGRES_SOCKET_DIR` in the ignored Compose environment selects the
+host socket directory and defaults to `/var/run/postgresql`; the container path
+is fixed to `/var/run/postgresql`, which must also be `psql_host` in the mounted
+container configuration. The directory is mounted read-only and the live setup
+probe requires the PostgreSQL 5432 socket to be visible to the configured
+non-root runtime. This profile is Linux-specific. It does not enable a TCP
+listener, publish PostgreSQL, manage the host database, or apply schema.
+
+Bundled-only lifecycle operations (`bootstrap-guild`, `import-backup`,
+`backup`, and `verify-backup`) refuse in both external modes. The external
+database operator remains responsible for backup, restore, provisioning, and
+schema approval.
 
 `setup` creates or updates only ignored deployment inputs. It copies an
 existing ignored development profile when available or creates private
@@ -282,7 +318,10 @@ command is still the first proof of plugin availability and fully rendered
 Compose syntax.
 
 Use `--mode external` with the external Compose file and a non-loopback,
-non-`postgres` database host. That mode does not require or inspect the bundled
+non-`postgres` database host. Use `--mode external-socket` with the same base
+definition plus `compose.development.external-db.local-socket.yaml`; that mode
+requires `psql_host=/var/run/postgresql` and an absolute
+`POLYBOT_POSTGRES_SOCKET_DIR`. Neither mode requires or inspects the bundled
 PostgreSQL secrets. `--json` emits the same findings and commands without
 including token or password values. Any `BLOCK` finding exits 2 while still
 printing the ordered commands; warnings do not prevent readiness.
@@ -294,11 +333,10 @@ guarded fixture tool in a one-shot bot container, then start `bot` again.
 Application command inspection/apply likewise remains explicit, development-
 guild-only, and separately reviewed. It is never part of `compose up`.
 
-For an external database, use
-`deploy/container/compose.development.external-db.yaml`, set the mounted
-config's `psql_host` to the real development endpoint, and omit the bundled
-provisioning step. The database must already satisfy the same application-role
-and schema gates.
+For an external database, prefer the matching `./polybot --mode external...`
+operator commands. Set the mounted config's `psql_host` to the real development
+endpoint, or use `external-socket` for same-host Linux PostgreSQL. The database
+must already satisfy the same application-role and schema gates.
 
 ## Advanced backup and fresh-volume restore reference
 
