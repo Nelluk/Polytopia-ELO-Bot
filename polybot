@@ -772,7 +772,7 @@ command_setup() {
 
 command_deploy() {
   command_setup
-  command_start
+  start_services
 }
 
 command_bootstrap_guild() {
@@ -788,7 +788,7 @@ command_bootstrap_guild() {
   host_private_input_probe
   host_checkpoint=$(git_checkpoint)
   [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
-    || fail 'Configured image checkpoint differs from Git HEAD; run ./polybot deploy to build and start exact HEAD, or setup to prepare it without starting.'
+    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
   run_immutable_doctor
   live_bind_probe
   bot_id=$(bot_container_id)
@@ -906,17 +906,7 @@ command_beta_lab() {
   esac
 }
 
-command_start() {
-  require_engine
-  validate_project_name
-  require_prepared_inputs
-  host_private_input_probe
-  host_checkpoint=$(git_checkpoint)
-  [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
-    || fail 'Configured image checkpoint differs from Git HEAD; rerun ./polybot setup.'
-  run_immutable_doctor
-  live_bind_probe
-  live_socket_probe
+start_services() {
   assert_single_writer_startable
   if [ "$DEPLOYMENT_MODE" = bundled ]; then
     compose up -d postgres
@@ -929,6 +919,20 @@ command_start() {
   compose up -d bot
   echo 'Development bot start requested; automatic Discord command synchronization remains disabled.'
   command_status
+}
+
+command_start() {
+  require_engine
+  validate_project_name
+  require_prepared_inputs
+  host_private_input_probe
+  host_checkpoint=$(git_checkpoint)
+  [ "$host_checkpoint" = "$(configured_checkpoint)" ] \
+    || fail 'Configured image checkpoint differs from Git HEAD; run ./polybot deploy to build and start exact HEAD, or setup to prepare it without starting.'
+  run_immutable_doctor
+  live_bind_probe
+  live_socket_probe
+  start_services
 }
 
 command_status() {

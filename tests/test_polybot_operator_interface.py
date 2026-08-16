@@ -223,7 +223,7 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
             ['/bin/sh', '-c', r'''
                 . ./polybot
                 command_setup() { printf 'setup\n'; }
-                command_start() { printf 'start\n'; }
+                start_services() { printf 'start\n'; }
                 command_deploy
             '''],
             cwd=self.source_root,
