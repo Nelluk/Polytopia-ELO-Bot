@@ -18381,6 +18381,22 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
+### 2026-08-16 — Historical league-season tier collision corrected
+
+- Container-beta smoke against the historical PolyChampions mirror found that
+  `/league season` failed while converting a null `Team.league_tier`, even
+  though the aggregate query excludes null `Game.league_tier` values.
+- The selected game tier used the same `league_tier` alias as the nullable Team
+  model field, so Peewee exposed the Team attribute on historical rows. The
+  query now uses the distinct `game_league_tier` result alias and grouping reads
+  that value; query scope, ordering, counts, permissions, and output are
+  unchanged.
+- Added a regression for a historical Team with a null stored tier and a valid
+  tiered league game. The focused no-network immutable-image run passed all 13
+  league-season tests. No database row, schema, fixture, or Discord command
+  tree changed; deployment of the fix requires a separately approved beta
+  image replacement and repeat smoke.
+
 ### 2026-08-16 — P11.5H historical visual assets reconciled
 
 - Validated the copied production image archive at SHA-256

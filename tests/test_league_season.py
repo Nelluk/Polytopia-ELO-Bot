@@ -57,7 +57,7 @@ def row(team_id, tier, name, *, regular=0, postseason=0):
         id=team_id,
         name=name,
         emoji='⚔️',
-        league_tier=tier,
+        game_league_tier=tier,
         regular_wins=regular,
         regular_losses=1,
         regular_incomplete=2,
@@ -168,6 +168,17 @@ class WorkerAndRenderingTests(unittest.TestCase):
             [team.team_name for team in loaded.tiers[0].teams],
             ['Second', 'First'],
         )
+
+    def test_game_tier_does_not_collide_with_nullable_team_tier(self):
+        database = FakeDatabase()
+        collision_row = row(1, 2, 'Historical Team')
+        collision_row.league_tier = None
+        with mock.patch.object(workers.models, 'db', database), mock.patch.object(
+            workers, '_season_query', return_value=(collision_row,)
+        ):
+            loaded = workers.load_league_season(request())
+        self.assertEqual(loaded.tiers[0].tier_number, 2)
+        self.assertEqual(loaded.tiers[0].teams[0].team_name, 'Historical Team')
 
     def test_legacy_early_season_names_and_dense_counts(self):
         early = result(season=16, team_count=1)

@@ -160,7 +160,10 @@ def _season_query(request: LeagueSeasonRequest):
             models.Team.id,
             models.Team.name,
             models.Team.emoji,
-            models.Game.league_tier.alias('league_tier'),
+            # Keep the aggregate result distinct from Team.league_tier. A
+            # Team model row may expose that nullable model field instead of
+            # a same-named selected alias.
+            models.Game.league_tier.alias('game_league_tier'),
             regular_wins,
             regular_losses,
             regular_incomplete,
@@ -234,7 +237,7 @@ def load_league_season(request: LeagueSeasonRequest) -> LeagueSeasonResult:
     rows = rows[:MAX_SEASON_ROWS]
     grouped = defaultdict(list)
     for row in rows:
-        grouped[int(row.league_tier)].append(LeagueSeasonTeamRow(
+        grouped[int(row.game_league_tier)].append(LeagueSeasonTeamRow(
             team_id=int(row.id),
             team_name=str(row.name),
             team_emoji=str(row.emoji or ''),
