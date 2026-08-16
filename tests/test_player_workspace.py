@@ -53,7 +53,6 @@ def snapshot(discord_id=100):
         polytopia_name='Nelluk Poly',
         team_name='Ronin',
         team_emoji='⚔️',
-        squad_names=('Alpha Squad',),
         timezone='UTC-4',
         local_elo=1450,
         local_peak=1510,
@@ -76,6 +75,29 @@ def snapshot(discord_id=100):
         global_rank=8,
         global_ranked_count=100,
         games=rows,
+        squads=(
+            player_workers.PlayerSquadSummary(
+                squad_id=42,
+                name='Alpha Squad',
+                member_names=('Nelluk', 'Teammate'),
+                elo=1125,
+                wins=7,
+                losses=3,
+                games_played=12,
+                last_played='2026-07-29',
+            ),
+            player_workers.PlayerSquadSummary(
+                squad_id=77,
+                name='',
+                member_names=('Nelluk', 'Another'),
+                elo=1030,
+                wins=2,
+                losses=2,
+                games_played=5,
+                last_played='2026-06-15',
+            ),
+        ),
+        squad_total=14,
         guild_display_name='PolyChampions',
         local_history=(
             player_workers.PlayerRatingPoint(
@@ -165,14 +187,102 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
     def test_profile_surfaces_copyable_name_avatar_and_all_time_records(self):
         view = self.make_view(avatar_url='https://example.test/avatar.webp')
         self.assertIn('`Nelluk Poly`', view._body())
+        self.assertIn('**Last-known team:**', view._body())
         ratings = self.make_view(initial_section='ratings')._body()
         self.assertIn('18W–14L', ratings)
         teams = self.make_view(initial_section='teams')._body()
-        self.assertIn('Recent and historical squad context', teams)
-        self.assertIn('do not establish current team membership', teams)
+        self.assertIn('Last-known team', teams)
+        self.assertIn('showing 2 most-played of 14 eligible squads', teams)
+        self.assertIn('#42 · Alpha Squad', teams)
+        self.assertIn('Nelluk / Teammate', teams)
+        self.assertIn('12 games', teams)
+        self.assertIn('7W–3L', teams)
+        self.assertIn('1125 ELO', teams)
+        self.assertIn('not current membership', teams)
         self.assertIn('Player profile', str(view.to_components()))
         self.assertIn('https://example.test/avatar.webp', str(view.to_components()))
         self.assertNotIn('media_gallery', str(view.to_components()).lower())
+
+    async def test_squad_selector_opens_detail_without_requery(self):
+        view = self.make_view(initial_section='teams')
+        original = view.snapshot
+        self.assertEqual(len(view.squad_select.options), 3)
+        self.assertEqual(view.squad_select.options[0].value, 'all')
+        view.squad_select._values = ['42']
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        await view._select_squad(interaction)
+        self.assertIs(view.snapshot, original)
+        self.assertEqual(view.selected_squad_id, 42)
+        self.assertIn('## Squad #42 · Alpha Squad', view._body())
+        self.assertIn('Confirmed ranked record', view._body())
+        self.assertIn('/squad show squad_id:42', view._body())
+        interaction.response.edit_message.assert_awaited_once_with(view=view)
+
+        view.squad_select._values = ['all']
+        await view._select_squad(interaction)
+        self.assertIsNone(view.selected_squad_id)
+        self.assertIn('## Squads played with', view._body())
+
+    def test_squad_text_is_escaped_and_empty_state_is_clear(self):
+        unsafe = dataclasses.replace(
+            snapshot(),
+            squads=(
+                dataclasses.replace(
+                    snapshot().squads[0],
+                    name='@everyone *Stars*',
+                    member_names=('@here', 'Player_Name'),
+                ),
+            ),
+            squad_total=1,
+        )
+        body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=unsafe,
+            initial_section='teams',
+        )._body()
+        self.assertNotIn('@everyone', body)
+        self.assertNotIn('@here', body)
+        self.assertIn(r'\*Stars\*', body)
+
+        empty = dataclasses.replace(snapshot(), squads=(), squad_total=0)
+        empty_body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=empty,
+            initial_section='teams',
+        )._body()
+        self.assertIn('No eligible squads found', empty_body)
+
+    def test_max_squad_preview_stays_within_component_limits(self):
+        squads = tuple(
+            player_workers.PlayerSquadSummary(
+                squad_id=index,
+                name='S' * 50,
+                member_names=tuple('P' * 60 for _ in range(4)),
+                elo=1000 + index,
+                wins=index,
+                losses=index,
+                games_played=20 - index,
+                last_played='2026-08-16',
+            )
+            for index in range(1, player_workers.MAX_PROFILE_SQUADS + 1)
+        )
+        view = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=dataclasses.replace(
+                snapshot(),
+                squads=squads,
+                squad_total=100,
+            ),
+            initial_section='teams',
+        )
+        self.assertLessEqual(len(view._body()), 4000)
+        self.assertLessEqual(view.total_children_count, 40)
+        self.assertEqual(
+            len(view.squad_select.options),
+            player_workers.MAX_PROFILE_SQUADS + 1,
+        )
 
     async def test_profile_actions_prefer_native_register_and_timezone(self):
         view = self.make_view()
@@ -364,6 +474,11 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
                 '_head_to_head',
                 return_value=None,
             ),
+            mock.patch.object(
+                player_workers,
+                '_squad_summaries',
+                return_value=((), 0),
+            ),
         ):
             result = player_workers.load_player_workspace(
                 player_workers.PlayerWorkspaceRequest(
@@ -384,6 +499,16 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             result.local_elo = 1
         connection.__enter__.assert_called_once()
         connection.__exit__.assert_called_once()
+
+    def test_squad_summary_contract_is_bounded_and_immutable(self):
+        source = inspect.getsource(player_workers._squad_summaries)
+        self.assertIn('get_all_matching_squads', source)
+        self.assertIn('.limit(MAX_PROFILE_SQUADS)', source)
+        self.assertIn('Game.is_confirmed == 1', source)
+        self.assertEqual(player_workers.MAX_PROFILE_SQUADS, 10)
+        summary = snapshot().squads[0]
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            summary.elo = 1
 
     def test_graph_renderer_is_owned_bounded_and_immutable(self):
         source = inspect.getsource(

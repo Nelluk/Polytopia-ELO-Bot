@@ -18,6 +18,7 @@ import settings
 
 MAX_GAMES = 500
 MAX_HISTORY_POINTS = 500
+MAX_PROFILE_SQUADS = 10
 _player_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-player-read',
@@ -80,6 +81,18 @@ class PlayerGameRow:
 
 
 @dataclass(frozen=True)
+class PlayerSquadSummary:
+    squad_id: int
+    name: str
+    member_names: tuple[str, ...]
+    elo: int
+    wins: int
+    losses: int
+    games_played: int
+    last_played: str
+
+
+@dataclass(frozen=True)
 class PlayerRatingPoint:
     completed_at: datetime.datetime
     game_id: int
@@ -115,7 +128,6 @@ class PlayerWorkspaceSnapshot:
     polytopia_name: str | None
     team_name: str
     team_emoji: str
-    squad_names: tuple[str, ...]
     timezone: str
     local_elo: int
     local_peak: int
@@ -138,6 +150,8 @@ class PlayerWorkspaceSnapshot:
     global_rank: int | None
     global_ranked_count: int
     games: tuple[PlayerGameRow, ...]
+    squads: tuple[PlayerSquadSummary, ...] = ()
+    squad_total: int = 0
     badges: tuple[str, ...] = ()
     guild_display_name: str = 'This server'
     local_history: tuple[PlayerRatingPoint, ...] = ()
@@ -316,6 +330,117 @@ def _head_to_head(
     )
 
 
+def _squad_summaries(
+    player,
+    guild_id: int,
+) -> tuple[tuple[PlayerSquadSummary, ...], int]:
+    """Load the most-played eligible squads with bounded aggregate reads."""
+
+    matching_query = models.Squad.get_all_matching_squads(
+        [player],
+        guild_id=int(guild_id),
+    )
+    guild_squads = models.Squad.select(models.Squad.id).where(
+        models.Squad.guild_id == int(guild_id)
+    )
+    matching_query = (
+        matching_query
+        .where(models.GameSide.squad.in_(guild_squads))
+        .order_by(
+            -models.SQL('games_played'),
+            models.GameSide.squad,
+        )
+    )
+    total = int(matching_query.count())
+    matching_rows = tuple(
+        matching_query
+        .limit(MAX_PROFILE_SQUADS)
+        .dicts()
+    )
+    squad_ids = tuple(int(row['squad']) for row in matching_rows)
+    if not squad_ids:
+        return (), total
+
+    squads_by_id = {
+        int(squad.id): squad
+        for squad in models.Squad.select().where(
+            models.Squad.id.in_(squad_ids)
+        )
+    }
+    members_by_squad = {squad_id: [] for squad_id in squad_ids}
+    member_rows = (
+        models.SquadMember
+        .select(models.SquadMember.squad, models.Player.name)
+        .join(models.Player)
+        .where(models.SquadMember.squad.in_(squad_ids))
+        .order_by(models.SquadMember.id)
+        .tuples()
+    )
+    for squad_id, member_name in member_rows:
+        members_by_squad[int(squad_id)].append(str(member_name))
+
+    ranked_result = (
+        (models.Game.is_completed == 1)
+        & (models.Game.is_confirmed == 1)
+        & (models.Game.is_ranked == 1)
+    )
+    wins_case = models.Case(
+        None,
+        (((ranked_result & (models.GameSide.id == models.Game.winner)), 1),),
+        0,
+    )
+    losses_case = models.Case(
+        None,
+        (((ranked_result & (models.GameSide.id != models.Game.winner)), 1),),
+        0,
+    )
+    played_date_case = models.Case(
+        None,
+        (((models.Game.is_pending == 0), models.Game.date),),
+        None,
+    )
+    activity_by_squad = {
+        int(row['squad']): row
+        for row in (
+            models.GameSide
+            .select(
+                models.GameSide.squad,
+                models.fn.COALESCE(
+                    models.fn.SUM(wins_case),
+                    0,
+                ).alias('wins'),
+                models.fn.COALESCE(
+                    models.fn.SUM(losses_case),
+                    0,
+                ).alias('losses'),
+                models.fn.MAX(played_date_case).alias('last_played'),
+            )
+            .join(models.Game)
+            .where(models.GameSide.squad.in_(squad_ids))
+            .group_by(models.GameSide.squad)
+            .dicts()
+        )
+    }
+
+    summaries = []
+    for row in matching_rows:
+        squad_id = int(row['squad'])
+        squad = squads_by_id[squad_id]
+        activity = activity_by_squad.get(squad_id, {})
+        last_played = activity.get('last_played')
+        summaries.append(PlayerSquadSummary(
+            squad_id=squad_id,
+            name=str(squad.name or ''),
+            member_names=tuple(members_by_squad[squad_id]),
+            elo=int(squad.elo),
+            wins=int(activity.get('wins') or 0),
+            losses=int(activity.get('losses') or 0),
+            games_played=int(row['games_played']),
+            last_played=str(last_played) if last_played is not None else '',
+        ))
+    return tuple(summaries), total
+
+
 def load_player_workspace(
     request: PlayerWorkspaceRequest,
 ) -> PlayerWorkspaceSnapshot:
@@ -344,11 +469,8 @@ def load_player_workspace(
             )[:MAX_GAMES]
         )
         rows = []
-        squad_names = set()
         for game in games:
             _, side = game.has_player(discord_id=member.discord_id)
-            if side and side.squad:
-                squad_names.add(side.squad.name or f'Squad #{side.squad.id}')
             if game.is_pending:
                 status = 'Open'
             elif not game.is_completed:
@@ -386,6 +508,7 @@ def load_player_workspace(
             global_scope=True,
         )
         head_to_head = _head_to_head(player, request)
+        squads, squad_total = _squad_summaries(player, request.guild_id)
         try:
             guild_display_name = str(settings.guild_setting(
                 request.guild_id,
@@ -407,7 +530,6 @@ def load_player_workspace(
             ),
             team_name=str(player.team.name) if player.team else '',
             team_emoji=str(player.team.emoji or '') if player.team else '',
-            squad_names=tuple(sorted(squad_names)),
             timezone=timezone,
             local_elo=int(player.elo_moonrise),
             local_peak=int(player.elo_max_moonrise),
@@ -430,6 +552,8 @@ def load_player_workspace(
             global_rank=int(global_rank) if global_rank is not None else None,
             global_ranked_count=int(global_count),
             games=tuple(rows),
+            squads=squads,
+            squad_total=squad_total,
             badges=_profile_badges(player, request.guild_id),
             guild_display_name=guild_display_name,
             local_history=local_history,

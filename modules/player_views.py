@@ -50,6 +50,23 @@ def _safe_badge(value: object) -> str:
     )
 
 
+def _safe_text(value: object) -> str:
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(str(value or '')),
+    )
+
+
+def _squad_members_text(
+    member_names: tuple[str, ...],
+    *,
+    limit: int,
+) -> str:
+    text = ' / '.join(_safe_text(member) for member in member_names)
+    if not text:
+        return 'No registered members'
+    return text if len(text) <= limit else f'{text[:limit - 1]}…'
+
+
 def _response_is_done(interaction: discord.Interaction) -> bool:
     value = getattr(interaction.response, 'is_done', False)
     return bool(value() if callable(value) else value)
@@ -132,6 +149,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.can_edit = can_edit
         self.avatar_url = str(avatar_url or '')
         self.history_era = 'current'
+        self.selected_squad_id: int | None = None
         self.history_graph_loader = history_graph_loader
         self.history_graphs: dict[str, player_workers.PlayerHistoryGraph] = {}
         self.rebuild()
@@ -159,6 +177,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             return
         self.section = selected
         self.page_index = 0
+        self.selected_squad_id = None
         self.rebuild()
         await interaction.response.edit_message(view=self, attachments=[])
 
@@ -257,6 +276,14 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.rebuild()
         await interaction.response.edit_message(view=self)
 
+    async def _select_squad(self, interaction: discord.Interaction) -> None:
+        selected = self.squad_select.values[0]
+        self.selected_squad_id = (
+            None if selected == 'all' else int(selected)
+        )
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
+
     async def _profile_actions(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             'Profile editing remains available through the permission-checked '
@@ -300,7 +327,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             return (
                 f'## <@{snapshot.discord_id}>\n'
                 f'{polytopia_name_line}\n'
-                f'**Team:** {team}\n'
+                f'**Last-known team:** {team}\n'
                 f'{timezone_line}\n'
                 f'**Local:** `{snapshot.local_elo} ELO` · '
                 f'{snapshot.local_wins}W–{snapshot.local_losses}L\n'
@@ -396,19 +423,73 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'## Your local 1v1 record\n{matchup}'
             )
         if self.section == 'teams':
-            squads = (
-                '\n'.join(f'- {name}' for name in snapshot.squad_names)
-                if snapshot.squad_names else '*No recent squad context.*'
-            )
             team = (
                 f'{snapshot.team_emoji} {snapshot.team_name}'.strip()
                 if snapshot.team_name else 'No team'
             )
+            selected = next(
+                (
+                    squad for squad in snapshot.squads
+                    if squad.squad_id == self.selected_squad_id
+                ),
+                None,
+            )
+            if selected is not None:
+                name = (_safe_text(selected.name) or 'Unnamed squad')[:80]
+                members = _squad_members_text(
+                    selected.member_names,
+                    limit=600,
+                )
+                last_played = (
+                    f'\n**Last activity:** `{selected.last_played}`'
+                    if selected.last_played else ''
+                )
+                squads = (
+                    f'## Squad #{selected.squad_id} · {name}\n'
+                    f'**Members:** {members}\n'
+                    f'**Games together:** `{selected.games_played}`\n'
+                    f'**Confirmed ranked record:** '
+                    f'`{selected.wins}W – {selected.losses}L`\n'
+                    f'**Current squad ELO:** `{selected.elo}`'
+                    f'{last_played}\n'
+                    f'-# Run `/squad show squad_id:{selected.squad_id}` for '
+                    'leaderboard rank and recent games.'
+                )
+            elif snapshot.squads:
+                rows = []
+                for squad in snapshot.squads:
+                    name = (_safe_text(squad.name) or 'Unnamed squad')[:80]
+                    members = _squad_members_text(
+                        squad.member_names,
+                        limit=220,
+                    )
+                    activity = (
+                        f' · last {squad.last_played}'
+                        if squad.last_played else ''
+                    )
+                    rows.append(
+                        f'**#{squad.squad_id} · {name}**\n'
+                        f'> {members}\n'
+                        f'> `{squad.games_played} games` · '
+                        f'`{squad.wins}W–{squad.losses}L` · '
+                        f'`{squad.elo} ELO`{activity}'
+                    )
+                count_label = (
+                    f'showing {len(snapshot.squads)} most-played of '
+                    f'{snapshot.squad_total} eligible squads'
+                )
+                squads = (
+                    f'## Squads played with\n'
+                    f'-# {count_label}\n\n'
+                    f'{"\n\n".join(rows)}'
+                )
+            else:
+                squads = '## Squads played with\n*No eligible squads found.*'
             return (
-                f'## Team\n{team}\n\n'
-                f'## Recent and historical squad context\n{squads}\n'
-                '-# Squads summarize games played together; they do not '
-                'establish current team membership.'
+                f'## Last-known team\n{team}\n\n'
+                f'{squads}\n'
+                '-# Squads are game lineups, not current membership; '
+                'eligibility follows the server squad-game threshold.'
             )
         page_rows, _, _ = components_v2.page_slice(
             self.rows,
@@ -551,6 +632,37 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                         ),
                     ),
                 ])
+        if self.section == 'teams' and self.snapshot.squads:
+            self.squad_select = discord.ui.Select(
+                placeholder='Open a squad summary',
+                options=[
+                    discord.SelectOption(
+                        label='Most-played squads',
+                        value='all',
+                        default=self.selected_squad_id is None,
+                    ),
+                    *[
+                        discord.SelectOption(
+                            label=(
+                                f'#{squad.squad_id} · '
+                                f'{squad.name or "Unnamed squad"}'
+                            )[:100],
+                            value=str(squad.squad_id),
+                            description=(
+                                f'{" / ".join(squad.member_names)} · '
+                                f'{squad.games_played} games · '
+                                f'{squad.wins}W–{squad.losses}L'
+                            )[:100],
+                            default=(
+                                squad.squad_id == self.selected_squad_id
+                            ),
+                        )
+                        for squad in self.snapshot.squads
+                    ],
+                ],
+            )
+            self.squad_select.callback = self._select_squad
+            components.append(discord.ui.ActionRow(self.squad_select))
         if self.section in (
             'recent', 'incomplete', 'completed', 'season', 'badges'
         ):

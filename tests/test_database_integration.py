@@ -1079,6 +1079,16 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertIsInstance(result.games, tuple)
         for row in result.games:
             self.assertIsInstance(row, player_workers.PlayerGameRow)
+        self.assertIsInstance(result.squads, tuple)
+        self.assertLessEqual(
+            len(result.squads),
+            player_workers.MAX_PROFILE_SQUADS,
+        )
+        self.assertGreaterEqual(result.squad_total, len(result.squads))
+        for squad in result.squads:
+            self.assertIsInstance(squad, player_workers.PlayerSquadSummary)
+            self.assertIsInstance(squad.member_names, tuple)
+            self.assertGreaterEqual(squad.games_played, 0)
         self.assertIsInstance(result.local_history, tuple)
         self.assertIsInstance(result.global_history, tuple)
         for point in (*result.local_history, *result.global_history):

@@ -354,7 +354,7 @@ would become unavailable if a prefix is retired.
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
-| C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, paged game sections/filters, lazily rendered current/all-time rating history, and the requester's local ranked 1v1 record against the viewed player. | Trophies, favorite-tribe summaries, and pre-Moonrise miscellaneous statistics from the legacy card remain unavailable after prefix commands deep-link the workspace. | Restore another detail only when beta usage demonstrates value; keep every database read and media render bounded/off-loop rather than rebuilding the legacy monolith. | P7.7a integrated and development-beta deployed through `d9a7258`; wider-beta acceptance pending |
+| C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, paged game sections/filters, lazily rendered current/all-time rating history, and the requester's local ranked 1v1 record. P12.2 replaces the unbounded-looking alphabetical squad-name dump with ten bounded most-played eligible summaries containing stable ID/name, roster, games, confirmed ranked record, ELO, last activity, and cached detail selection; `/squad show` remains the complete rank/recent-game workspace. | Trophies, favorite-tribe summaries, and pre-Moonrise miscellaneous statistics from the legacy card remain unavailable after prefix commands deep-link the workspace. The player profile intentionally shows only ten most-played eligible squads and directs deeper or older discovery to `/squad show`. | Restore another detail only when beta usage demonstrates value; keep every database read and media render bounded/off-loop rather than rebuilding the legacy monolith. | P12.2 implemented locally with complete offline validation; beta deployment/visual acceptance pending |
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
@@ -542,9 +542,11 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P12.1 PolyChampions player badges is integrated and
+Current active unit: **P12.2 player-profile squad context is implemented and
+offline-validated; beta deployment and human visual acceptance remain
+separately gated.** P12.1 PolyChampions player badges remains integrated and
 development-schema gated; development-guild command apply, beta deployment,
-and human acceptance remain separately gated.**
+and human acceptance remain separately gated.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -16528,6 +16530,46 @@ historical-mirror WB1.3b synthetic-fixture case intentionally skipped.
 Development-guild command apply, desktop/mobile beta smoke, push, and every
 production operation remain later gates.
 
+### P12.2 — Player-profile squad context
+
+Status: **Implemented and offline-validated; beta deployment and human visual
+acceptance remain pending.** Risk tier: **Tier 2** bounded read/presentation
+polish. No command shape, permission, schema, ELO, squad eligibility, database
+state, Discord state, or production behavior changes.
+
+The prior Team & squads section incidentally collected a set of names while
+walking the newest 500 player games, alphabetized the rendered strings, and
+dropped the stable ID whenever a squad had a custom name. For a long-running
+player this produced dozens of equally weighted `Squad #...` rows with no
+roster, relevance, record, ELO, or navigation, while its “historical” label
+could omit squads older than the bounded game snapshot.
+
+P12.2 adds an immutable `PlayerSquadSummary` and one worker-local bounded
+aggregate path. It reuses `Squad.get_all_matching_squads` so eligibility and
+most-played ordering match the established production/native squad discovery,
+adds the native worker's explicit guild boundary, counts the complete eligible
+set, and materializes only the first ten. Batched reads then attach stable
+ID/name, ordered member names, current ELO, confirmed ranked W/L, total squad
+games, and the last non-pending activity date. No live Peewee model or lazy
+query crosses the existing player-worker boundary.
+
+The Components v2 section now labels stored Team state as **Last-known team**,
+shows the ten most-played squads with the complete eligible count, and provides
+one cached selector for a denser single-squad summary without a database
+reload. Stable squad IDs are always visible, including for named squads, and
+the selected summary points to `/squad show squad_id:<id>` for leaderboard rank
+and recent games. User-controlled names are mention/Markdown escaped, roster
+text is bounded, the maximum ten-row presentation remains below the 4,000-byte
+TextDisplay limit, and the empty state is explicit.
+
+Focused player/squad workspace validation passes **68 tests**. Complete offline
+discovery passes **2,229 tests with 92 intentional gated skips**. The existing
+strict development-database player-workspace gate now asserts the bounded
+squad DTO contract but was not run while the durable development writer is
+active. Repository compilation and diff checks pass. No database connection,
+deployment, bot restart, Discord command apply/sync, production access, push,
+or external message occurred.
+
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
 Status: **Implemented and candidate-validated; bounded human beta and
@@ -26733,6 +26775,25 @@ deferred into this post-modernization backlog.
   is not production authority.
 - No production access, Discord command write, beta deployment, push, or
   announcement occurred.
+
+### 2026-08-16 — P12.2 player-profile squad context implemented
+
+- Replaced the alphabetical name-only squad dump derived from the newest 500
+  player games with ten most-played eligible summaries using the established
+  production/native squad-discovery threshold and ordering.
+- Each frozen summary retains squad ID and name, ordered roster, total games,
+  confirmed ranked W/L, current ELO, and last non-pending activity. Reads are
+  batched, explicitly guild-scoped, and remain inside the bounded player
+  worker connection.
+- Added a cached in-place squad selector, maximum-size Components coverage,
+  safe stored-text rendering, an explicit empty state, and a handoff to the
+  complete `/squad show squad_id:<id>` workspace.
+- Focused player/squad validation passed 68 tests; complete offline discovery
+  passed 2,229 tests with 92 intentional gated skips. The strict real-schema
+  player gate was extended but intentionally not run against the active
+  durable development writer.
+- No database connection or write, schema action, Discord command action,
+  deployment/restart, production access, push, or external message occurred.
 
 ## Resume checklist
 
