@@ -188,12 +188,20 @@ class SetupDevelopmentWorktreeTests(unittest.TestCase):
     def test_missing_and_non_executable_shared_interpreter_are_refused(self):
         missing = self.run_helper(self.target)
         self.assert_refused(missing, 'shared development interpreter is unavailable')
+        self.assertIn(
+            "uv sync --locked --python 3.12.13",
+            missing.stderr,
+        )
 
         interpreter = self.install_interpreter(executable=False)
         non_executable = self.run_helper(self.target)
         self.assert_refused(
             non_executable,
             'shared development interpreter is unavailable',
+        )
+        self.assertIn(
+            "under separate dependency-installation approval",
+            non_executable.stderr,
         )
         self.assertEqual(interpreter.stat().st_mode & 0o111, 0)
 

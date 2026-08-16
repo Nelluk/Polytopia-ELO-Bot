@@ -178,7 +178,7 @@ instruction to rediscover product policy from the reporter.
 The primary planning/integration checkout remains:
 
 ```text
-/home/nelluk/PolyBot39-dev
+/home/nelluk/PolyBot39-deploy
 ```
 
 Internal subagents share the parent task's filesystem and do not imply a new
@@ -187,7 +187,7 @@ branches or editing files. The sole write-enabled worker receives the manually
 prepared isolated Luna checkout:
 
 ```text
-/home/nelluk/PolyBot39-dev/.worktrees/luna
+/home/nelluk/PolyBot39-deploy/.worktrees/luna
 ```
 
 A user-visible write-enabled fallback task may instead receive an app-managed
@@ -215,6 +215,18 @@ The worktree reuses only development-local resources:
   or symlinking another environment;
 - production configuration and credentials are never linked into the
   worktree.
+
+The bot deployment remains containerized. The primary checkout's host
+`.venv` is development/test tooling shared by coding worktrees; it is not a
+native bot runtime. Bootstrap a fresh primary checkout once, under separate
+dependency-installation approval, before invoking the helper:
+
+```bash
+cd /home/nelluk/PolyBot39-deploy
+uv sync --locked --python 3.12.13
+```
+
+Do not synchronize a separate environment inside each worktree.
 
 Before a worker runs tests or imports the runtime profile in a new worktree,
 run the helper by an absolute path from the primary checkout, passing the
@@ -426,20 +438,20 @@ Post-beta `What can we do next?` recommendation (when applicable):
 Every implementation prompt should begin with:
 
 ```text
-Work only in /home/nelluk/PolyBot39-dev/.worktrees/luna.
+Work only in /home/nelluk/PolyBot39-deploy/.worktrees/luna.
 Do not edit or operate on /home/nelluk/PolyBot39 or the primary planning
-checkout /home/nelluk/PolyBot39-dev.
+checkout /home/nelluk/PolyBot39-deploy.
 
 Read AGENTS.md, docs/DATABASE_AND_SLASH_MODERNIZATION.md, and any unit-specific
 runbook in full. Verify that the worktree is clean and detached at EXPECTED_SHA.
 Create and switch to BRANCH_NAME before editing. Stop if the base, branch,
 worktree, or runtime state differs from the prompt.
 
-Run `/absolute/path/to/primary-checkout/scripts/setup_development_worktree.sh "$PWD"`
+Run `/home/nelluk/PolyBot39-deploy/scripts/setup_development_worktree.sh "$PWD"`
 before profile-dependent tests or imports. The helper path must be absolute and
 must be in the primary checkout; stop if it refuses the worktree.
 
-Run Python through `/absolute/path/to/primary-checkout/.venv/bin/python`; do not
+Run Python through `/home/nelluk/PolyBot39-deploy/.venv/bin/python`; do not
 install or synchronize dependencies unless separately approved.
 ```
 

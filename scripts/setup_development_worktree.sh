@@ -83,7 +83,7 @@ if [[ "$target_checkout" == "$production_checkout" || \
     fail "production checkout and descendants are never valid targets"
 fi
 [[ -f "$shared_python" && -x "$shared_python" ]] || \
-    fail "shared development interpreter is unavailable: $shared_python"
+    fail "shared development interpreter is unavailable: $shared_python; bootstrap the primary checkout with 'uv sync --locked --python 3.12.13' under separate dependency-installation approval"
 [[ -f "$target_checkout/scripts/check_runtime_config.py" ]] || \
     fail "target does not look like a PolyBot development checkout: $target_checkout"
 

@@ -53,6 +53,24 @@ lead with the minimal recommended path.
 - Matplotlib/Pandas/SciPy for statistics and graphing
 - uv with `pyproject.toml` and `uv.lock` for reproducible environments
 
+## Development Workspace Bootstrap
+
+The deployed bot runs in Docker, but coding and test worktrees intentionally
+share a host-only development environment from the primary checkout. A fresh
+primary checkout must be bootstrapped, with dependency-installation approval,
+before its worktree helper can run:
+
+```bash
+cd /home/nelluk/PolyBot39-deploy
+uv sync --locked --python 3.12.13
+```
+
+Do not run `uv sync` separately in each worktree. Run
+`/home/nelluk/PolyBot39-deploy/scripts/setup_development_worktree.sh "$PWD"`
+and use `/home/nelluk/PolyBot39-deploy/.venv/bin/python` for worktree tests.
+The host `.venv` is development tooling only; its presence does not change the
+Docker deployment model or authorize a native bot process.
+
 ## Running the Bot
 
 ```bash
