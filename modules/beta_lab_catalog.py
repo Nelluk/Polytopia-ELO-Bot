@@ -19,7 +19,8 @@ QUICK_TESTS = (
         title='Explore a player profile',
         duration='About 3 minutes',
         steps=(
-            'Run `/player show` for yourself and open Analytics.',
+            'Run `/player show` for yourself and open Analytics. If you do not '
+            'have a mirrored profile, choose a beta member who has one instead.',
             'Switch between current-reset and all-time ELO.',
             'Open another registered player and check desktop/mobile layout.',
             'Report any stale control, unclear label, or implausible record.',
@@ -33,7 +34,7 @@ QUICK_TESTS = (
             'Run `/leaderboard players` and change one Common filter.',
             'Open Advanced filters, then clear or replace the active filter.',
             'Use Next, Previous, and Jump to page.',
-            'Run `/leaderboard teams` and confirm the showcase Teams appear.',
+            'Run `/leaderboard teams` and confirm historical Teams appear.',
         ),
     ),
     QuickTest(
@@ -41,9 +42,9 @@ QUICK_TESTS = (
         title='Browse Teams and Houses',
         duration='About 4 minutes',
         steps=(
-            'Run `/team show` for The Ronin, The Jets, or The Sparkies.',
+            'Run `/team show` and choose an active Team offered by autocomplete.',
             'Check roster, ELO, image/graph, and recent activity controls.',
-            'Run `/house list`, select a House, then return to the list.',
+            'Run `/house list`, select a House with Teams, then return to the list.',
             'Report missing roles, stale controls, or confusing empty data.',
         ),
     ),

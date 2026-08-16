@@ -9,12 +9,16 @@ and unexpected private/public responses with the dashboard's **Report
 problem** button or `/staffhelp`.
 
 For a low-friction pass, run `/whattotest` and choose **Give me a 5-minute
-test**. Click it again for another short assignment. Testers can choose
-**Start guided session** for an owned Team/House persona plus fresh Ready,
-Unconfirmed, and Completed games. Choose any one task; its page supplies exact
-slash fields and the expected result. Use **Refresh results**, then **Finish
-and clean up** whenever done. The full sections below are a reference, not a
-request to test everything in one sitting.
+test**. Click it again for another short assignment. These read tests use the
+current development data, including historical mirrored players, Teams, and
+games; missing synthetic fixture packs do not block them. When the dashboard
+reports guided mutable sessions ready, eligible testers can choose **Start
+guided session** for an owned Team/House persona plus fresh Ready, Unconfirmed,
+and Completed games. Choose any one task; its page supplies exact slash fields
+and the expected result. Use **Refresh results**, then **Finish and clean up**
+whenever done. If the guided button is unavailable, stick to read tests. The
+full sections below are a reference, not a request to test everything in one
+sitting.
 
 ## Games
 

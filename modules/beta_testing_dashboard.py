@@ -47,13 +47,26 @@ def _safe(value: str) -> str:
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
 
-def overview_markdown(status: beta_lab_workers.BetaLabStatus) -> str:
+def overview_markdown(
+    status: beta_lab_workers.BetaLabStatus,
+    *,
+    guided_ready: bool,
+) -> str:
     lines = [
         '# 🧪 Beta Lab',
-        '**Start here:** choose **Give me a 5-minute test** for a read-only '
-        'task, or **Start guided session** for Team, House, and game-result tasks.',
+        '**Start here:** choose **Give me a 5-minute test** for a short '
+        'read-only task using the current development data.',
         '',
-        f'**Lab health:** {status.overall.title()}',
+        '**Read testing:** ✅ Ready',
+        (
+            '**Guided mutable sessions:** ✅ Ready for eligible testers'
+            if guided_ready else
+            '**Guided mutable sessions:** ⚠️ Not prepared — use the read-only tests for now'
+        ),
+        '',
+        f'**Optional fixture-pack health:** {status.overall.title()}',
+        '-# Fixture warnings below do not block quick tests or read-oriented '
+        'items in the full checklist.',
     ]
     for pack in status.packs:
         lines.append(
@@ -196,6 +209,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         channel_id: int,
         role_ids: tuple[int, ...],
         lane_authorized: bool,
+        guided_ready: bool,
         session: beta_lab_sessions.BetaLabSessionSnapshot | None,
         status: beta_lab_workers.BetaLabStatus,
         guide: beta_testing_guide.ChecklistGuide,
@@ -209,6 +223,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.channel_id = int(channel_id)
         self.role_ids = tuple(int(value) for value in role_ids)
         self.lane_authorized = bool(lane_authorized)
+        self.guided_ready = bool(guided_ready)
         self.session = session
         self.status = status
         self.guide = guide
@@ -266,7 +281,10 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         elif self.mode == 'lane' and self.session is not None:
             body = lane_markdown(self.session, self.task_key)
         else:
-            body = overview_markdown(self.status)
+            body = overview_markdown(
+                self.status,
+                guided_ready=self.guided_ready,
+            )
         if self.notice:
             body += f'\n\n**Update:** {_safe(self.notice)}'
         return body
@@ -317,9 +335,17 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         )
         quick.callback = self._quick
         lane = discord.ui.Button(
-            label='Session home' if self.session else 'Start guided session',
+            label=(
+                'Session home'
+                if self.session else
+                'Start guided session'
+                if self.guided_ready else
+                'Guided session unavailable'
+            ),
             style=discord.ButtonStyle.success,
-            disabled=disabled or not self.lane_authorized,
+            disabled=(
+                disabled or not self.guided_ready or not self.lane_authorized
+            ),
         )
         lane.callback = self._lane
         refresh = discord.ui.Button(

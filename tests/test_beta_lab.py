@@ -329,6 +329,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             'channel_id': 400,
             'role_ids': (500,),
             'lane_authorized': True,
+            'guided_ready': True,
             'session': None,
             'status': self.status,
             'guide': self.guide,
@@ -338,8 +339,9 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_overview_is_compact_and_sectioned(self):
         view = self.view()
-        text = dashboard.overview_markdown(self.status)
+        text = dashboard.overview_markdown(self.status, guided_ready=True)
         self.assertIn('Give me a 5-minute test', text)
+        self.assertIn('Read testing:** ✅ Ready', text)
         self.assertLess(len(text), 1900)
         selects = [
             item for item in view.walk_children()
@@ -347,6 +349,38 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(selects), 1)
         self.assertEqual([item.label for item in selects[0].options], ['Games', 'Teams'])
+
+    def test_blocked_fixture_packs_do_not_block_mirrored_read_tests(self):
+        status = lab.BetaLabStatus(
+            guild_id=300,
+            overall='blocked',
+            packs=(
+                pack(lab.STRUCTURE, 'blocked'),
+                pack(lab.LEADERBOARD, 'missing'),
+                pack(lab.RESULTS, 'missing'),
+                pack(lab.SESSION_LANES),
+                pack(lab.GUIDED_PERSONAS, 'blocked'),
+            ),
+            result_snapshot=None,
+        )
+        view = self.view(
+            status=status,
+            guided_ready=False,
+            lane_authorized=False,
+        )
+        text = view._body()
+        self.assertIn('Read testing:** ✅ Ready', text)
+        self.assertIn('Guided mutable sessions:** ⚠️ Not prepared', text)
+        self.assertIn('Fixture warnings below do not block quick tests', text)
+        buttons = [
+            item for item in view.walk_children()
+            if item.__class__.__name__.endswith('Button')
+        ]
+        guided = next(
+            item for item in buttons
+            if item.label == 'Guided session unavailable'
+        )
+        self.assertTrue(guided.disabled)
 
     def test_section_numbering_accounts_for_character_limited_pages(self):
         guide = guide_module.parse_checklist(
@@ -394,7 +428,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             packs=self.status.packs,
             result_snapshot=snapshot,
         )
-        text = dashboard.overview_markdown(status)
+        text = dashboard.overview_markdown(status, guided_ready=True)
         self.assertIn('Participants: Nelluk (`10`)', text)
 
     async def test_dashboard_is_requester_bound_and_expiry_disables_controls(self):

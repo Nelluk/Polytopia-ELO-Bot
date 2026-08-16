@@ -382,6 +382,10 @@ class misc(commands.Cog):
             pack.key == beta_lab_workers.GUIDED_PERSONAS and pack.state == 'ready'
             for pack in status.packs
         )
+        session_lanes_ready = any(
+            pack.key == beta_lab_workers.SESSION_LANES and pack.state == 'ready'
+            for pack in status.packs
+        )
         persona_role_status = beta_lab_personas.role_status(
             settings.runtime_profile,
             interaction.guild,
@@ -420,10 +424,14 @@ class misc(commands.Cog):
                 lane_notice = str(exc)
         elif lane_notice is None:
             lane_notice = persona_role_status.detail
-        lane_authorized = (
-            lane_authorized
+        guided_ready = (
+            session_lanes_ready
             and persona_database_ready
             and persona_role_status.ready
+        )
+        lane_authorized = (
+            lane_authorized
+            and guided_ready
         )
         view = beta_testing_dashboard.BetaTestingDashboard(
             bot=self.bot,
@@ -433,6 +441,7 @@ class misc(commands.Cog):
             channel_id=int(interaction.channel_id),
             role_ids=role_ids,
             lane_authorized=lane_authorized,
+            guided_ready=guided_ready,
             session=session,
             status=status,
             guide=guide,

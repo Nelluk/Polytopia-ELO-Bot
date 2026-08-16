@@ -26577,6 +26577,20 @@ deferred into this post-modernization backlog.
   or command synchronization, Docker pruning, production action, push, or
   remote cache was performed.
 
+### 2026-08-16 — Historical-mirror wider-beta dashboard made coherent
+
+- Kept all five Beta Lab pack checks strict for operator safety, but stopped
+  presenting missing or incompatible synthetic fixtures as a blocker to
+  read-only testing of the coherent historical PolyChampions mirror.
+- `/whattotest` now reports read testing separately from guided mutable-session
+  readiness. It disables and relabels the guided action unless both the
+  self-service lane and database/Discord persona resources are ready.
+- Reworded the five-minute assignments to use current historical players,
+  Teams, Houses, and games instead of promising the old synthetic showcase or
+  hard-coded Team names.
+- No fixture seed/reconciliation, database mutation, Discord command write, or
+  production access is part of this change.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

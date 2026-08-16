@@ -23,8 +23,12 @@ The lab recognizes five exact packs:
   database fixture and two dedicated zero-permission Discord roles used only
   during an active guided session.
 
-Status is ready only when every pack is canonical. A missing or ambiguous pack
-is reported rather than inferred from unrelated guild or database objects.
+Operator status is ready only when every pack is canonical. A missing or
+ambiguous pack is reported rather than inferred from unrelated guild or
+database objects. After a historical mirror, the old synthetic structure,
+leaderboard, result, and persona packs may intentionally be missing or
+incompatible with the mirrored rows. That strict fixture status does not make
+the mirrored data unusable for read testing.
 The lab never modifies channels, existing Team roles, or arbitrary member
 roles. The pinned `testers` role supplies lab access only. A separately owned
 `Beta Lab Team` role makes Team/House inference realistic, while `Beta Lab
@@ -35,9 +39,11 @@ session is active.
 ## Compact tester workspace
 
 `/whattotest` remains a no-option development-only root, but opens one private
-requester-bound Components v2 workspace. The initial view shows:
+requester-bound Components v2 workspace. The initial view distinguishes read
+testing, which uses the current development data, from guided mutable sessions,
+which require their exact lane and persona packs. It also shows:
 
-- overall and per-pack readiness;
+- strict operator fixture-pack readiness;
 - current result-scenario names and game IDs;
 - participant display names, with IDs retained only as diagnostics; and
 - a **Give me a 5-minute test** action, a tester-only guided-session action,
@@ -56,8 +62,10 @@ the lane and revalidates the persona.
 1. Run `/whattotest` in the beta guild.
 2. Choose **Give me a 5-minute test** for one short read-oriented assignment.
    Repeated clicks rotate among player, leaderboard, Team/House, game-search,
-   and league workspaces.
-3. Members with the pinned `testers` role may choose **Start guided session**.
+   and league workspaces. With a historical mirror, these use the mirrored
+   players, Teams, Houses, and games rather than synthetic showcase packs.
+3. When the dashboard reports guided sessions ready, members with the pinned
+   `testers` role may choose **Start guided session**.
    The bot creates three fresh 1v1 games owned by that requester and temporarily
    assigns the owned Team and staff-persona roles.
 4. Choose one of **Team & House**, **Win claim**, **Confirm result**, or **Undo
@@ -68,6 +76,10 @@ the lane and revalidates the persona.
 6. Choose **Finish and clean up** whenever done. It removes the temporary roles,
    reverses lane ELO, and deletes exactly the three marked games. Use **Report
    problem** to open `/staffhelp` with the lane and game IDs already filled in.
+
+If guided sessions are not prepared, their button is disabled and no mutable
+session should be attempted. Quick assignments and read-oriented items in the
+full reference remain available.
 
 There are at most three active lanes and each lease lasts 30 minutes. Expired
 lanes are reclaimed by the next claim. A tester may own only one active lane.
