@@ -1,6 +1,6 @@
 # Modernization collaboration workflow
 
-Last updated: 2026-08-08
+Last updated: 2026-08-15
 
 Status: Active
 
@@ -22,7 +22,7 @@ keep implementation and evidence checkpoints distinct where useful, and pass
 the same focused/offline/database/beta gates; the exception removes the Luna
 handoff, not any safety or validation boundary.
 
-Do not spawn or actively monitor a Luna worker while this explicit mode is in
+Do not dispatch or actively monitor a Luna worker while this explicit mode is in
 effect. Return to the ordinary Sol/Luna roles when Nelluk asks. This section is
 process authority only for an explicit current-thread instruction; it is not
 a standing license for future tasks to silently collapse review roles.
@@ -54,27 +54,32 @@ is one bounded branch at its integration gate.
 - provide the handoff packet below without merging into the accumulation
   branch unless explicitly authorized.
 
-### Visible model and effort gate
+### Model and effort gate
 
-“Luna worker” means a separate user-visible Codex thread whose model and
-reasoning effort are visibly configured as the approved Luna/Max combination.
-An internal subagent is not a substitute: its model/effort may be opaque and
-the user cannot monitor the task as an independent thread.
+“Luna worker” normally means a Codex internal subagent spawned with the model
+explicitly pinned to `gpt-5.6-luna` and reasoning effort explicitly pinned to
+`max`. The orchestration call and returned agent identity are the audit
+evidence; prompt text that merely calls an inherited agent “Luna-Max” is not.
+This model-pinned internal path is preferred because Sol can dispatch, receive
+the structured handoff, and perform integration review in one coordinated
+task without creating a separate user-owned sidebar task.
 
-Do not fork the Sol planning thread to create a Luna worker. A fork inherits
-the planning thread's visible/default model and effort; a later per-turn model
-override is not sufficient evidence that the worker thread itself is Luna-Max.
-Instead, either:
+Before dispatch, Sol must verify that the current orchestration capability
+offers the exact Luna model and Max effort. Spawn with no inherited model
+selection; when the tool requires it, use `fork_turns="none"` or a bounded
+turn fork and supply all required repository, worktree, scope, safety,
+validation, and handoff context explicitly. Record the returned agent ID or
+canonical task name in the unit evidence. If the exact model/effort cannot be
+selected or verified, do not silently substitute an inherited agent, another
+model, or lower effort.
 
-- create a new visible thread with Luna and Max selected at creation; or
-- reuse an existing visible thread whose Luna/Max settings the user has
-  already verified.
-
-Before source edits, verify the visible thread header/settings show the
-requested model and effort. Prompt text that calls a task “Luna-Max” is not
-evidence of its runtime configuration. If the app cannot create or verify the
-requested combination, stop and ask the user to create/confirm the thread;
-never silently substitute a subagent, inherited Sol thread, or lower effort.
+A separate user-visible Codex task configured as Luna-Max remains an allowed
+fallback when internal model pinning is unavailable or when Nelluk explicitly
+wants independently visible execution. Do not fork the Sol planning task for
+that fallback because a fork may inherit the planning model. Create or reuse a
+task whose Luna-Max settings are selected at creation and visible in its
+header. The inability to create that fallback does not block work when the
+preferred internal model-pinned route is available.
 
 If this gate fails after work begins, interrupt the task and inspect its Git
 state. Uncommitted interrupted work is non-authoritative and should normally
@@ -95,16 +100,17 @@ tracked files and their tests are the durable authority.
 
 ## Handoff-driven worker supervision
 
-Sol verifies a worker once at dispatch: the visible Luna/Max setting, exact
+Sol verifies a worker once at dispatch: the explicit Luna/Max selection, exact
 worktree/base/branch, clean starting state, and successful worktree setup.
 The implementation prompt must instruct Luna to send a delegation/handoff to
 the originating Sol task when the unit is complete, genuinely blocked, or
 requires a user decision.
 
-After that setup is confirmed, Sol stops the dispatch turn and yields. Do not
-spend Sol turns repeatedly polling the worker task, reading incremental
-commentary, watching its terminal, or narrating unchanged progress. Normal
-implementation duration and silence are not blockers. Sol resumes when:
+After that setup is confirmed, Sol may perform independent read-only oversight
+work and then use the orchestration wait mechanism with a long bounded wait.
+Do not repeatedly poll the worker, read incremental commentary, watch its
+terminal, or narrate unchanged progress. Normal implementation duration and
+silence are not blockers. Sol resumes review when:
 
 - Luna sends the requested completion/blocker handoff;
 - the user explicitly asks for a status check;
@@ -154,24 +160,24 @@ The primary planning/integration checkout remains:
 /home/nelluk/PolyBot39-dev
 ```
 
-When Sol spawns Luna through Codex, the app-managed isolated task worktree
-supplied by Codex is the preferred execution checkout. Its path is supplied
-in the task prompt and is authoritative for that task; do not substitute the
-primary checkout or another worktree.
-
-The manually prepared Luna checkout is only the fallback when no app-managed
-task worktree is available:
+Internal subagents share the parent task's filesystem and do not imply a new
+checkout. For the preferred model-pinned internal route, Sol therefore assigns
+the manually prepared isolated Luna checkout:
 
 ```text
 /home/nelluk/PolyBot39-dev/.worktrees/luna
 ```
 
-Whether app-managed or fallback, the execution checkout starts detached at a
-clean accumulation checkpoint. At the start of a unit, Luna creates a
-dedicated `codex/<unit-name>` branch in that checkout. After integration, the
-manually prepared fallback returns to a clean detached accumulation checkpoint
-before being assigned another unit; an app-managed checkout is disposed of by
-Codex according to its task lifecycle.
+A user-visible fallback task may instead receive an app-managed isolated
+worktree. Its supplied path is authoritative and must be named in the prompt.
+Do not substitute the primary checkout or another worktree.
+
+Whether manually prepared or app-managed, the execution checkout starts
+detached at a clean accumulation checkpoint. At the start of a unit, Luna
+creates a dedicated `codex/<unit-name>` branch in that checkout. After
+integration, the manual Luna checkout returns to a clean detached accumulation
+checkpoint before another assignment; an app-managed checkout is disposed of
+by Codex according to its task lifecycle.
 
 The worktree reuses only development-local resources:
 
@@ -262,9 +268,9 @@ passes.
 3. Sol supplies Luna an exact base commit, worktree path, branch name, scope,
    exclusions, tests, beta requirements, and expected handoff. The prompt
    requires Luna to notify the originating Sol task when done or blocked.
-4. Sol confirms the visible worker configuration and clean setup once, then
-   ends the dispatch turn without actively monitoring implementation. Luna
-   creates the unit branch in its worktree and implements it.
+4. Sol confirms the explicit worker configuration and clean setup once, then
+   performs only independent read-only work or waits without active polling.
+   Luna creates the unit branch in its worktree and implements it.
 5. Luna validates, self-reviews, commits, updates roadmap evidence, and sends
    a handoff packet.
 6. Sol reviews the whole branch at the appropriate depth.

@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-12
+Last updated: 2026-08-15
 
 Status: Active
 
@@ -17664,13 +17664,14 @@ visibility proposal, timezone range, and accepted decisions are in
 
 Status: **Accepted**
 
-Sol verifies the visible Luna/Max configuration, exact worktree/base/branch,
-clean state, and setup once at dispatch. Every worker prompt must require a
-delegation/handoff to the originating Sol task when the unit is complete,
-blocked, or needs a user decision. After setup, Sol ends the dispatch turn and
-does not repeatedly read commentary, watch the terminal, or poll unchanged
-status. Sol resumes on the handoff, an explicit user status request, or a
-reported stopped/failed/approval-needed state.
+Sol verifies the explicitly selected Luna/Max configuration, exact
+worktree/base/branch, clean state, and setup once at dispatch. Every worker
+prompt must require a delegation/handoff to the originating Sol task when the
+unit is complete, blocked, or needs a user decision. After setup, Sol performs
+only independent read-only oversight work or uses a long bounded orchestration
+wait; it does not repeatedly read commentary, watch the terminal, or poll
+unchanged status. Sol resumes review on the handoff, an explicit user status
+request, or a reported stopped/failed/approval-needed state.
 
 This keeps oversight tokens focused on unit selection, decisions, Tier-2/3
 review, and integration rather than duplicating the worker's implementation
@@ -18316,6 +18317,24 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-15 — model-pinned Luna subagents adopted
+
+- Replaced the obsolete requirement that every Luna-Max execution worker be a
+  separate user-visible Codex task. Current orchestration can explicitly pin
+  an internal worker to `gpt-5.6-luna` with `max` reasoning and return an
+  auditable agent identity.
+- Made that model-pinned internal subagent the preferred implementation route,
+  using the existing isolated manual Luna worktree because internal agents
+  share the parent filesystem. A separately visible Luna-Max task remains an
+  allowed fallback or explicit user preference.
+- Preserved the Sol/Luna ownership split, exact base/branch checks, structured
+  handoff, risk-tiered review, validation gates, and prohibition on active
+  polling. This is a collaboration-process change only; no source, database,
+  Discord, deployment, production, or dependency action occurred.
+- Next: dispatch the approved historical-mirror database-remap design as a
+  bounded Tier-3 Luna-Max implementation unit after recording its exact scope,
+  exclusions, validation, and operational approval boundaries.
 
 ### 2026-08-12 — P9.28R4 source and offline gate implemented
 
