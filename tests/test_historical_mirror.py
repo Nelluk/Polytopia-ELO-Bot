@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -71,6 +72,49 @@ class HistoricalMirrorTests(unittest.TestCase):
         self.assertEqual(target, first.target_counts)
         self.assertEqual(parking, first.parking_counts)
 
+    def test_confirmation_requires_exact_live_table_sequence(self):
+        token = plan().confirmation
+        with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'tables do not match'):
+            mirror.parse_confirmation(token, expected_tables=('configuration',))
+        self.assertEqual(
+            mirror.parse_confirmation(token, expected_tables=mirror.DIRECT_TABLES)[0],
+            'c' * 64)
+
+    def test_gamelog_must_be_empty_when_table_exists(self):
+        with mock.patch.object(mirror, '_identity'), \
+             mock.patch.object(mirror, '_present_tables', return_value=mirror.DIRECT_TABLES), \
+             mock.patch.object(mirror, '_configuration_state', return_value=mirror.ConfigurationState('not_ready', (), (), (), False)), \
+             mock.patch.object(mirror, '_schema_fingerprint', return_value='d' * 64), \
+             mock.patch.object(mirror, '_count', side_effect=lambda _db, query, params=():
+                              1 if 'FROM gamelog' in query else 0):
+            with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'gamelog must be empty'):
+                mirror._snapshot(FakeDatabase(), 'a' * 40, mirror.TARGET_GUILD_ID)
+
+    def test_empty_source_graph_refuses_to_park_beta(self):
+        with mock.patch.object(mirror, '_identity'), \
+             mock.patch.object(mirror, '_present_tables', return_value=mirror.DIRECT_TABLES[:-1]), \
+             mock.patch.object(mirror, '_configuration_state', return_value=mirror.ConfigurationState('not_ready', (), (), (), False)), \
+             mock.patch.object(mirror, '_schema_fingerprint', return_value='d' * 64), \
+             mock.patch.object(mirror, '_count', return_value=0):
+            with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'no games'):
+                mirror._snapshot(FakeDatabase(), 'a' * 40, mirror.TARGET_GUILD_ID)
+
+    def test_schema_fingerprint_includes_constraint_topology(self):
+        queries = []
+
+        def rows(_db, query, _params=()):
+            queries.append(query)
+            if 'table_constraints' in query:
+                return [('FOREIGN KEY', 'game_host_fk', 'host_id', 'player', 'id')]
+            return [('id', 'bigint', 'NO')]
+
+        with mock.patch.object(mirror, '_table_exists', return_value=True), \
+             mock.patch.object(mirror, '_rows', side_effect=rows):
+            first = mirror._schema_fingerprint(FakeDatabase(), ('game',))
+            second = mirror._schema_fingerprint(FakeDatabase(), ('game',))
+        self.assertEqual(first, second)
+        self.assertTrue(any('table_constraints' in query for query in queries))
+
     def test_parking_collision_fails_before_writes(self):
         with mock.patch.object(mirror, '_identity'), \
              mock.patch.object(mirror, '_present_tables', return_value=mirror.DIRECT_TABLES), \
@@ -106,6 +150,20 @@ class HistoricalMirrorTests(unittest.TestCase):
              self.assertRaisesRegex(mirror.HistoricalMirrorError, 'exactly development'):
             mirror.validate_profile(profile())
 
+    def test_cli_boundary_refuses_dirty_tracked_checkout(self):
+        from scripts import manage_historical_mirror as cli
+        with mock.patch.object(cli.beta_operations, 'assert_clean_checkout',
+                               side_effect=cli.beta_operations.BetaOperationsError('tracked changes')):
+            with self.assertRaisesRegex(cli.beta_operations.BetaOperationsError, 'tracked changes'):
+                cli._profile()
+
+    def test_cli_boundary_refuses_dirty_untracked_checkout(self):
+        from scripts import manage_historical_mirror as cli
+        with mock.patch.object(cli.beta_operations, 'assert_clean_checkout',
+                               side_effect=cli.beta_operations.BetaOperationsError('untracked files')):
+            with self.assertRaisesRegex(cli.beta_operations.BetaOperationsError, 'untracked files'):
+                cli._profile()
+
     def test_invariant_failure_reports_source_rows(self):
         database = FakeDatabase()
         with mock.patch.object(mirror, '_present_tables', return_value=('configuration',)), \
@@ -113,6 +171,20 @@ class HistoricalMirrorTests(unittest.TestCase):
             with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'source rows remain'):
                 mirror._verify_in_transaction(database, plan(tables=('configuration',)),
                                                mirror.TARGET_GUILD_ID)
+
+    def test_verify_requires_complete_active_configuration(self):
+        database = FakeDatabase()
+        zero = replace(plan(tables=('configuration',)),
+                       source_counts=(('configuration', 0),),
+                       target_counts=(('configuration', 0),),
+                       parking_counts=(('configuration', 0),))
+        with mock.patch.object(mirror, '_present_tables', return_value=('configuration',)), \
+             mock.patch.object(mirror, '_count', return_value=0), \
+             mock.patch.object(mirror, '_diagnostics', return_value=[]), \
+             mock.patch.object(mirror, '_configuration_state', return_value=mirror.ConfigurationState('not_ready', (), (), (), False)):
+            with self.assertRaisesRegex(mirror.HistoricalMirrorError, 'not ready'):
+                mirror._verify_in_transaction(database, zero, mirror.TARGET_GUILD_ID,
+                                               require_configuration=True)
 
     def test_partial_modern_configuration_topology_refuses(self):
         database = FakeDatabase()
@@ -133,7 +205,7 @@ class HistoricalMirrorTests(unittest.TestCase):
              mock.patch.object(mirror, 'verify_database'), \
              self.assertRaisesRegex(mirror.HistoricalMirrorError, 'stale'):
             mirror.apply_database(
-                profile(), 'HISTORICAL MIRROR APPLY ' + 'e' * 64 + ' - - -',
+                profile(), current.confirmation.replace('c' * 64, 'e' * 64),
                 checkpoint='a' * 40, database_factory=lambda _profile: database,
                 writer_lock_factory=lambda _profile: mock.patch('builtins.open'),
             )
@@ -175,6 +247,54 @@ class HistoricalMirrorTests(unittest.TestCase):
                 database_factory=lambda _profile: database,
             )
         self.assertTrue(database.committed)
+
+    def test_writer_lock_acquisition_failure_is_bounded(self):
+        with mock.patch.object(mirror, 'validate_profile', return_value=mirror.TARGET_GUILD_ID), \
+             self.assertRaisesRegex(mirror.HistoricalMirrorError, 'writer lock'):
+            mirror.apply_database(
+                profile(), plan().confirmation, checkpoint='a' * 40,
+                database_factory=lambda _profile: FakeDatabase(),
+                writer_lock_factory=lambda _profile: (_ for _ in ()).throw(
+                    mirror.beta_database_writer_lock.BetaDatabaseWriterLockError('no lock')),
+            )
+
+    def test_post_commit_cancellation_requires_reconciliation_and_releases_lock(self):
+        database = FakeDatabase()
+        current = plan()
+        lock = mock.MagicMock()
+        lock.__enter__.return_value = lock
+        lock.__exit__.return_value = False
+        with mock.patch.object(mirror, 'validate_profile', return_value=mirror.TARGET_GUILD_ID), \
+             mock.patch.object(mirror, '_snapshot', return_value=current), \
+             mock.patch.object(mirror, '_write'), \
+             mock.patch.object(mirror, '_verify_in_transaction'), \
+             mock.patch.object(mirror, 'verify_database', side_effect=KeyboardInterrupt()), \
+             mock.patch.object(mirror.beta_database_writer_lock, 'BetaDatabaseWriterLock', return_value=lock), \
+             self.assertRaises(mirror.HistoricalMirrorReconciliationRequired):
+            mirror.apply_database(profile(), current.confirmation, checkpoint='a' * 40,
+                                  database_factory=lambda _profile: database)
+        lock.__exit__.assert_called_once()
+
+    def test_post_commit_lock_release_failure_requires_reconciliation(self):
+        database = FakeDatabase()
+        current = plan()
+
+        class ReleaseFailureLock:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                raise RuntimeError('release failed')
+
+        with mock.patch.object(mirror, 'validate_profile', return_value=mirror.TARGET_GUILD_ID), \
+             mock.patch.object(mirror, '_snapshot', return_value=current), \
+             mock.patch.object(mirror, '_write'), \
+             mock.patch.object(mirror, '_verify_in_transaction'), \
+             mock.patch.object(mirror, 'verify_database'), \
+             mock.patch.object(mirror.beta_database_writer_lock, 'BetaDatabaseWriterLock', return_value=ReleaseFailureLock()), \
+             self.assertRaises(mirror.HistoricalMirrorReconciliationRequired):
+            mirror.apply_database(profile(), current.confirmation, checkpoint='a' * 40,
+                                  database_factory=lambda _profile: database)
 
 
 if __name__ == '__main__':

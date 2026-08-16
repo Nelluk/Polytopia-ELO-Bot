@@ -45,6 +45,9 @@ def _parser() -> argparse.ArgumentParser:
 def _profile():
     if os.environ.get('POLYBOT_ENV', '').strip() != 'development':
         raise HistoricalMirrorError('POLYBOT_ENV must be exactly development.')
+    # The executable boundary is part of the evidence: a dirty checkout could
+    # otherwise produce a digest that cannot be tied to reviewed source.
+    beta_operations.assert_clean_checkout(PROJECT_ROOT)
     return load_runtime_profile(
         project_root=PROJECT_ROOT, environ=os.environ, create_directories=False,
     )

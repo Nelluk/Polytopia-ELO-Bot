@@ -16297,10 +16297,15 @@ claiming an inverse rollback.
 Implementation/evidence: `modules/historical_mirror.py`,
 `scripts/manage_historical_mirror.py`, and
 `docs/DEVELOPMENT_HISTORICAL_MIRROR.md` add plan/apply/verify tooling and the
-operator sequence. Focused offline coverage has 11 passing tests for
-deterministic confirmations, stale plans, profile/live safety refusal,
-parking collision, remap order, scrub scope, absent GameLog, topology,
-invariant failure, transaction rollback, and post-commit reconciliation.
+operator sequence. The correction pass adds the executable clean-checkout
+boundary, exact live table-sequence confirmation parsing, PK/FK/UNIQUE schema
+topology fingerprinting, empty-source refusal, and fail-closed rejection of
+non-empty `gamelog`. Verify requires all five modern configuration tables with
+active target-only authority. The writer lock remains held through
+post-commit verification; acquisition, cancellation, and release faults are
+bounded as reconciliation-required after commit while ordinary pre-commit
+failures retain rollback semantics. Focused offline coverage now has 21
+passing tests for these cases and the original mirror behavior.
 No database, production, Discord, dependency, beta, or deployment operation
 was performed in this unit.
 
@@ -16311,7 +16316,8 @@ rollback. Parking rows remain intentionally isolated rather than deleted and
 must be handled by the next fresh archive refresh.
 
 Next action: complete independent Tier-3 review, then run only a separately
-approved stopped-writer rehearsal against an isolated development restore.
+approved stopped-writer rehearsal against an isolated development restore;
+this unit intentionally ran no PostgreSQL rehearsal.
 
 ### P11.6 — Player, team, and game card parity polish
 
@@ -18391,6 +18397,22 @@ deferred into this post-modernization backlog.
 - Focused offline mirror tests pass 11/11. Complete offline, relevant gated
   runtime/database tests, compilation, and diff checks remain required before
   Tier-3 integration review. No live database test is authorized in this unit.
+
+### 2026-08-15 — P11.5H Tier-3 correction pass
+
+- Added clean tracked/untracked checkout refusal at the CLI boundary, exact
+  present-table confirmation tokens, empty-source and non-empty-GameLog
+  refusal, stronger touched-schema constraint topology evidence, and strict
+  five-table active target-only configuration verification.
+- Kept the beta writer lock through post-commit verification and normalized
+  lock acquisition, cancellation, and release faults into bounded
+  reconciliation-required outcomes while retaining pre-commit rollback.
+- Corrected runbook ordering so configuration is restored before plan/apply
+  and only revalidated after verify; the beta launcher invocation takes no
+  `--skip_tasks` argument because it supplies that bot flag internally.
+- Correction-focused mirror tests pass 21/21; no PostgreSQL rehearsal,
+  production access, beta, Discord, deployment, dependency, push, or merge
+  operation occurred.
 
 ### 2026-08-15 — native phased subagent orchestration adopted
 

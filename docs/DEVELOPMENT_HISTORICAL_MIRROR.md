@@ -134,8 +134,9 @@ as a Discord guild.
    cross-guild anomalies fail with bounded IDs for manual investigation rather
    than silently rewriting unrelated data.
 
-9. Only after plan/apply/verify evidence is accepted, restore the preserved
-   beta configuration authority (if it was restored earlier, verify it again),
+9. Before plan/apply, restore the preserved five-table beta configuration
+   authority and validate that it is active and target-only. After verify,
+   revalidate that configuration; do not restore it after the mirror. Then
    validate the development profile and disabled integrations, and obtain a
    separate approval to start the beta:
 
@@ -145,7 +146,7 @@ as a Discord guild.
    scripts/check_runtime_config.py
    POLYBOT_ENV=development \
    /home/nelluk/PolyBot39-dev/.venv/bin/python \
-   scripts/run_development_beta.py --skip_tasks
+   scripts/run_development_beta.py
    ```
 
    Startup must show `polytopia_dev`/`polybot_dev`, one configured guild,

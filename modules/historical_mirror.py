@@ -115,7 +115,7 @@ def _parse_counts(value: str) -> tuple[tuple[str, int], ...]:
     return tuple(result)
 
 
-def parse_confirmation(value: str) -> tuple[str, tuple[tuple[str, int], ...],
+def parse_confirmation(value: str, *, expected_tables: tuple[str, ...] | None = None) -> tuple[str, tuple[tuple[str, int], ...],
                                              tuple[tuple[str, int], ...],
                                              tuple[tuple[str, int], ...]]:
     parts = str(value or '').split()
@@ -124,7 +124,15 @@ def parse_confirmation(value: str) -> tuple[str, tuple[tuple[str, int], ...],
     digest = parts[3]
     if len(digest) != 64 or any(char not in _HEX for char in digest):
         raise HistoricalMirrorError('Historical mirror confirmation digest is invalid.')
-    return digest, _parse_counts(parts[4]), _parse_counts(parts[5]), _parse_counts(parts[6])
+    source = _parse_counts(parts[4])
+    target = _parse_counts(parts[5])
+    parking = _parse_counts(parts[6])
+    if expected_tables is not None:
+        for label, counts in (('source', source), ('target', target), ('parking', parking)):
+            if tuple(table for table, _ in counts) != tuple(expected_tables):
+                raise HistoricalMirrorError(
+                    f'{label} confirmation tables do not match the live direct-table sequence.')
+    return digest, source, target, parking
 
 
 def validate_profile(profile: Any, *, target_guild_id: int = TARGET_GUILD_ID) -> int:
@@ -234,7 +242,21 @@ def _schema_fingerprint(database: Any, tables: tuple[str, ...]) -> str:
             'FROM information_schema.columns '
             'WHERE table_schema = current_schema() AND table_name = %s '
             'ORDER BY ordinal_position LIMIT 128'), (table,))
-        columns.append((table, tuple(rows)))
+        constraints = _rows(database, (
+            'SELECT tc.constraint_type, tc.constraint_name, kcu.column_name, '
+            'ccu.table_name, ccu.column_name '
+            'FROM information_schema.table_constraints tc '
+            'LEFT JOIN information_schema.key_column_usage kcu '
+            'ON kcu.constraint_schema=tc.constraint_schema '
+            'AND kcu.constraint_name=tc.constraint_name '
+            'AND kcu.table_name=tc.table_name '
+            'LEFT JOIN information_schema.constraint_column_usage ccu '
+            'ON ccu.constraint_schema=tc.constraint_schema '
+            'AND ccu.constraint_name=tc.constraint_name '
+            'WHERE tc.table_schema=current_schema() AND tc.table_name=%s '
+            "AND tc.constraint_type IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE') "
+            'ORDER BY tc.constraint_name, kcu.ordinal_position LIMIT 256'), (table,))
+        columns.append((table, tuple(rows), tuple(constraints)))
     return _digest(columns)
 
 
@@ -254,7 +276,7 @@ def _snapshot(database: Any, checkpoint: str, target: int, *,
     if any(count for _, count in parking) and not allow_parking:
         raise HistoricalMirrorError(
             f'Parking sentinel {PARKING_GUILD_ID} is already in use.')
-    scrub = (
+    scrub_values = [
         ('games_with_discord_refs', _count(database, (
             'SELECT COUNT(*) FROM game WHERE guild_id = %s AND '
             '(announcement_message IS NOT NULL OR announcement_channel IS NOT NULL '
@@ -278,11 +300,21 @@ def _snapshot(database: Any, checkpoint: str, target: int, *,
             'SELECT COUNT(*) FROM configuration WHERE guild_id = %s '
             "AND polychamps_draft IS NOT NULL AND jsonb_typeof(polychamps_draft) <> 'object'"),
             (SOURCE_GUILD_ID,))),
-    )
+    ]
+    if 'gamelog' in present:
+        gamelog_total = _count(database, 'SELECT COUNT(*) FROM gamelog')
+        if gamelog_total:
+            raise HistoricalMirrorError(
+                'gamelog must be empty; production GameLog content is not imported.')
+        scrub_values.append(('gamelog_total', gamelog_total))
+    scrub = tuple(scrub_values)
     non_object = dict(scrub)['legacy_non_object_drafts']
     if non_object:
         raise HistoricalMirrorError(
             'Legacy polychamps_draft contains non-object JSON; refusing to write.')
+    if dict(source).get('game', 0) <= 0:
+        raise HistoricalMirrorError(
+            'Source historical graph has no games; refusing to park the beta graph.')
     configuration = _configuration_state(database, target)
     schema_fingerprint = _schema_fingerprint(database, present)
     payload = {
@@ -341,6 +373,11 @@ def verification_plan(profile: Any, confirmation: str, *, checkpoint: str,
             with database.atomic():
                 database.execute_sql('SET TRANSACTION READ ONLY')
                 current = _snapshot(database, checkpoint, target, allow_parking=True)
+        # The operator-carried token must describe exactly the tables present
+        # in this database; accepting a subset would make the evidence
+        # ambiguous when optional gamelog is bootstrapped later.
+        digest, source, target_counts, parking = parse_confirmation(
+            confirmation, expected_tables=current.present_tables)
         return replace(current, source_counts=source, target_counts=target_counts,
                        parking_counts=parking, digest=digest)
     except HistoricalMirrorError:
@@ -461,6 +498,8 @@ def _verify_in_transaction(database: Any, plan: MirrorPlan, target: int,
     )
     if any(scrubbed):
         raise HistoricalMirrorError(f'Scrubbed references remain: {scrubbed}.')
+    if 'gamelog' in present and _count(database, 'SELECT COUNT(*) FROM gamelog'):
+        raise HistoricalMirrorError('gamelog is non-empty after mirror.')
     diagnostics = _diagnostics(database, target)
     if diagnostics:
         raise HistoricalMirrorError('Historical cross-guild graph anomaly: ' + '; '.join(diagnostics))
@@ -479,14 +518,19 @@ def apply_database(profile: Any, confirmation: str, *, checkpoint: str,
                    target_guild_id: int = TARGET_GUILD_ID) -> MirrorResult:
     target = validate_profile(profile, target_guild_id=target_guild_id)
     digest, expected_source, expected_target, expected_parking = parse_confirmation(confirmation)
-    lock = (writer_lock_factory or beta_database_writer_lock.BetaDatabaseWriterLock)(profile)
-    database = (database_factory or _database_factory)(profile)
+    lock = None
+    database = None
     plan: MirrorPlan | None = None
-    with lock:
-        try:
+    committed = False
+    try:
+        lock = (writer_lock_factory or beta_database_writer_lock.BetaDatabaseWriterLock)(profile)
+        database = (database_factory or _database_factory)(profile)
+        with lock:
             with database.connection_context():
                 with database.atomic():
                     plan = _snapshot(database, checkpoint, target)
+                    digest, expected_source, expected_target, expected_parking = parse_confirmation(
+                        confirmation, expected_tables=plan.present_tables)
                     if plan.digest != digest or plan.confirmation != confirmation:
                         raise HistoricalMirrorError('Historical mirror confirmation is stale.')
                     _assert_counts(plan.source_counts, expected_source, 'Source')
@@ -494,18 +538,36 @@ def apply_database(profile: Any, confirmation: str, *, checkpoint: str,
                     _assert_counts(plan.parking_counts, expected_parking, 'Parking')
                     _write(database, plan, target)
                     _verify_in_transaction(database, plan, target, require_configuration=True)
-        except HistoricalMirrorError:
-            raise
-        except Exception as exc:
-            raise HistoricalMirrorError('Historical mirror transaction rolled back.') from exc
+            committed = True
+            try:
+                verify_database(profile, plan, database_factory=database_factory,
+                                target_guild_id=target_guild_id)
+            except BaseException as exc:
+                raise HistoricalMirrorReconciliationRequired(
+                    'Historical mirror committed, but post-commit verification or '
+                    'lock release failed; reconciliation is required and no inverse '
+                    'rollback was attempted.') from exc
+    except HistoricalMirrorReconciliationRequired:
+        raise
+    except beta_database_writer_lock.BetaDatabaseWriterLockError as exc:
+        if committed:
+            raise HistoricalMirrorReconciliationRequired(
+                'Historical mirror committed, but writer-lock acquisition/release '
+                'failed; reconciliation is required.') from exc
+        raise HistoricalMirrorError('Historical mirror writer lock was not held.') from exc
+    except HistoricalMirrorError as exc:
+        if committed:
+            raise HistoricalMirrorReconciliationRequired(
+                'Historical mirror committed, but post-commit supervision failed; '
+                'reconciliation is required.') from exc
+        raise
+    except BaseException as exc:
+        if committed:
+            raise HistoricalMirrorReconciliationRequired(
+                'Historical mirror committed, but post-commit supervision failed; '
+                'reconciliation is required.') from exc
+        raise HistoricalMirrorError('Historical mirror transaction rolled back.') from exc
     assert plan is not None
-    try:
-        verify_database(profile, plan, database_factory=database_factory,
-                        target_guild_id=target_guild_id)
-    except Exception as exc:
-        raise HistoricalMirrorReconciliationRequired(
-            'Historical mirror committed, but post-commit verification failed; '
-            'reconciliation is required and no inverse rollback was attempted.') from exc
     return MirrorResult(plan, True, 'verified')
 
 
@@ -518,7 +580,7 @@ def verify_database(profile: Any, plan: MirrorPlan, *,
         with database.connection_context():
             with database.atomic():
                 database.execute_sql('SET TRANSACTION READ ONLY')
-                _verify_in_transaction(database, plan, target)
+                _verify_in_transaction(database, plan, target, require_configuration=True)
     except HistoricalMirrorError:
         raise
     except Exception as exc:
