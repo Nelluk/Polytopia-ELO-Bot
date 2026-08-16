@@ -42,44 +42,63 @@ a standing license for future tasks to silently collapse review roles.
 Sol does not need to review each intermediate commit. The normal review unit
 is one bounded branch at its integration gate.
 
-### Luna execution task
+### Specialized subagent roles
 
-- verify the exact worktree, branch, base commit, and clean status named in
-  the prompt before editing;
-- implement only the selected unit;
-- preserve unrelated changes and stop on an unexpected or dirty base;
-- run the required focused, offline, gated-database, and beta validation;
-- update the roadmap evidence for that unit;
-- self-review the full branch diff;
-- provide the handoff packet below without merging into the accumulation
-  branch unless explicitly authorized.
+Use subagents as a phased team rather than treating one agent as a replacement
+remote implementation task:
+
+- parallel read-only explorers independently map code/data behavior,
+  operations, tests, or adversarial risks and return concise evidence;
+- Sol resolves conflicts between those reports and writes one authoritative
+  implementation contract;
+- exactly one write-enabled Luna worker owns the isolated execution worktree,
+  implementation, validation, self-review, commit, roadmap evidence, and
+  handoff;
+- after that worker is idle, parallel read-only reviewers inspect the committed
+  branch for correctness and test gaps without changing tracked files; and
+- Sol synthesizes review findings, performs the risk-tier integration review,
+  and either accepts the branch or sends bounded corrections to the sole
+  writer.
+
+Do not create parallel writers for one branch. Do not delegate merely to keep
+agents busy, repeat work already established by the repository, or push
+coordination overhead onto a small sequential change. A single narrow worker
+is sufficient when there are no useful independent discovery or review
+streams.
 
 ### Model and effort gate
 
-“Luna worker” normally means a Codex internal subagent spawned with the model
-explicitly pinned to `gpt-5.6-luna` and reasoning effort explicitly pinned to
-`max`. The orchestration call and returned agent identity are the audit
-evidence; prompt text that merely calls an inherited agent “Luna-Max” is not.
-This model-pinned internal path is preferred because Sol can dispatch, receive
-the structured handoff, and perform integration review in one coordinated
-task without creating a separate user-owned sidebar task.
+“Luna worker” means a Codex internal subagent explicitly pinned to
+`gpt-5.6-luna`. The orchestration call and returned agent identity are the
+audit evidence; prompt text that merely calls an inherited agent “Luna” is
+not. Internal subagents are preferred because Sol can coordinate parallel
+specialists, collect distilled results, and keep noisy exploration and test
+output out of the planning context without creating user-owned sidebar tasks.
 
 Before dispatch, Sol must verify that the current orchestration capability
-offers the exact Luna model and Max effort. Spawn with no inherited model
-selection; when the tool requires it, use `fork_turns="none"` or a bounded
-turn fork and supply all required repository, worktree, scope, safety,
-validation, and handoff context explicitly. Record the returned agent ID or
-canonical task name in the unit evidence. If the exact model/effort cannot be
-selected or verified, do not silently substitute an inherited agent, another
-model, or lower effort.
+offers the exact Luna model and an explicit supported reasoning effort. Choose
+effort by subtask: medium for straightforward inventory, high for complex
+tracing or adversarial review, and Max only when a demanding bounded
+implementation demonstrably warrants it. If a task remains too ambiguous for
+a narrow Luna assignment, decompose it further or keep the decision with Sol
+instead of compensating only with higher effort.
 
-A separate user-visible Codex task configured as Luna-Max remains an allowed
+Spawn with no inherited model selection; when the tool requires it, use
+`fork_turns="none"` or a bounded turn fork and supply the relevant repository,
+scope, safety, evidence, and return-contract context explicitly. Give a writer
+the exact worktree/base/branch and full implementation contract; give an
+explorer or reviewer only the bounded question and read-only constraints it
+needs. Record returned agent IDs or canonical task names in unit evidence. Do
+not let subagents recursively delegate unless Sol explicitly authorizes a
+concrete second-level split.
+
+A separate user-visible Codex task configured as Luna remains an allowed
 fallback when internal model pinning is unavailable or when Nelluk explicitly
 wants independently visible execution. Do not fork the Sol planning task for
 that fallback because a fork may inherit the planning model. Create or reuse a
-task whose Luna-Max settings are selected at creation and visible in its
-header. The inability to create that fallback does not block work when the
-preferred internal model-pinned route is available.
+task whose Luna model and intended effort are selected at creation and visible
+in its header. The inability to create that fallback does not block work when
+the preferred internal model-pinned route is available.
 
 If this gate fails after work begins, interrupt the task and inspect its Git
 state. Uncommitted interrupted work is non-authoritative and should normally
@@ -100,11 +119,12 @@ tracked files and their tests are the durable authority.
 
 ## Handoff-driven worker supervision
 
-Sol verifies a worker once at dispatch: the explicit Luna/Max selection, exact
-worktree/base/branch, clean starting state, and successful worktree setup.
-The implementation prompt must instruct Luna to send a delegation/handoff to
-the originating Sol task when the unit is complete, genuinely blocked, or
-requires a user decision.
+Sol verifies each subagent once at dispatch: explicit model/effort, bounded
+role, read/write authority, and expected result. For the sole writer this also
+includes the exact worktree/base/branch, clean starting state, and successful
+worktree setup. The writer prompt must require the structured handoff below;
+explorer and reviewer prompts require concise findings with file/symbol or test
+evidence and an explicit no-finding result when green.
 
 After that setup is confirmed, Sol may perform independent read-only oversight
 work and then use the orchestration wait mechanism with a long bounded wait.
@@ -117,11 +137,12 @@ silence are not blockers. Sol resumes review when:
 - the task reports a stopped/failed/approval-needed state; or
 - an external operational deadline makes a one-time check necessary.
 
-The normal review input is the final handoff packet plus the committed branch,
-not the worker's intermediate reasoning. A correction prompt follows the same
-rule: send the bounded finding, require a fresh handoff, then yield again. This
-keeps the more expensive oversight task focused on decisions and integration
-review rather than duplicating the execution task's work.
+The implementation review input is the writer's final handoff, committed
+branch, and independent reviewer summaries—not any agent's intermediate
+reasoning. A correction prompt follows the same rule: send the sole writer the
+bounded accepted findings, require a fresh handoff, then wait. This keeps Sol
+focused on decomposition, decisions, synthesis, and integration rather than
+duplicating delegated work.
 
 ## Repository-first beta feedback triage
 
@@ -161,16 +182,22 @@ The primary planning/integration checkout remains:
 ```
 
 Internal subagents share the parent task's filesystem and do not imply a new
-checkout. For the preferred model-pinned internal route, Sol therefore assigns
-the manually prepared isolated Luna checkout:
+checkout. Read-only explorers inspect the primary checkout without switching
+branches or editing files. The sole write-enabled worker receives the manually
+prepared isolated Luna checkout:
 
 ```text
 /home/nelluk/PolyBot39-dev/.worktrees/luna
 ```
 
-A user-visible fallback task may instead receive an app-managed isolated
-worktree. Its supplied path is authoritative and must be named in the prompt.
-Do not substitute the primary checkout or another worktree.
+A user-visible write-enabled fallback task may instead receive an app-managed
+isolated worktree. Its supplied path is authoritative and must be named in the
+prompt. Do not substitute the primary checkout or another worktree.
+
+Post-implementation reviewers inspect the committed branch read-only through
+Git or the idle execution checkout. They must not edit tracked files, switch
+its branch, run concurrent write-producing validation, or overlap a correction
+turn by the writer.
 
 Whether manually prepared or app-managed, the execution checkout starts
 detached at a clean accumulation checkpoint. At the start of a unit, Luna
@@ -263,22 +290,27 @@ passes.
 ## Unit lifecycle
 
 1. Sol verifies that the accumulation branch and its GitHub tracking branch
-   are reconciled and clean.
-2. Sol selects a bounded roadmap unit and records its risk tier.
-3. Sol supplies Luna an exact base commit, worktree path, branch name, scope,
-   exclusions, tests, beta requirements, and expected handoff. The prompt
-   requires Luna to notify the originating Sol task when done or blocked.
-4. Sol confirms the explicit worker configuration and clean setup once, then
-   performs only independent read-only work or waits without active polling.
-   Luna creates the unit branch in its worktree and implements it.
-5. Luna validates, self-reviews, commits, updates roadmap evidence, and sends
-   a handoff packet.
-6. Sol reviews the whole branch at the appropriate depth.
-7. Luna addresses focused findings and refreshes validation when needed.
-8. Sol verifies the final commits/evidence, then integrates the unit into
+   are reconciled and clean, selects one bounded unit, and records its risk
+   tier.
+2. When independent uncertainty exists, Sol dispatches two or more bounded
+   read-only explorers in parallel and waits for all requested summaries.
+3. Sol reconciles their evidence into one implementation contract with exact
+   scope, exclusions, worktree/base/branch, tests, beta requirements, and
+   handoff expectations.
+4. Sol dispatches exactly one write-enabled Luna worker. The worker creates
+   the unit branch in its isolated worktree and implements only the contract.
+5. The writer validates, self-reviews, commits, updates roadmap evidence, and
+   sends the structured handoff.
+6. After the writer is idle, Sol dispatches independent read-only reviewers in
+   parallel when the risk tier or diff complexity benefits from specialization.
+7. Sol synthesizes the reviewer results and performs the complete applicable
+   integration review.
+8. The sole writer addresses accepted bounded findings and refreshes evidence
+   when needed; reviewers never patch the branch.
+9. Sol verifies final commits/evidence, then integrates into
    `codex/database-slash-modernization` when authorized.
-9. Sol pushes the accumulation checkpoint when authorized and returns the
-   Luna worktree to a clean detached copy of that checkpoint.
+10. Sol pushes the accumulation checkpoint when authorized and returns the
+    Luna worktree to a clean detached copy of that checkpoint.
 
 Do not stack a new unit on an unreviewed branch merely to keep Luna busy.
 Adjacent low-risk units may share one beta session, but their commits,
@@ -389,7 +421,7 @@ Recommended integration action:
 Post-beta `What can we do next?` recommendation (when applicable):
 ```
 
-## Prompt header for Luna
+## Prompt header for the sole Luna writer
 
 Every implementation prompt should begin with:
 

@@ -17494,10 +17494,12 @@ canary expansion remain separate P9 operational gates.
 
 Status: Accepted
 
-Use Sol-Medium for roadmap reconciliation, bounded-unit planning, prompts,
-and integration review. Use Luna-Max experimentally for implementation,
-self-review, tests, and the unit handoff. Sol normally reviews once per
-bounded branch at its integration gate rather than every Luna commit.
+Use Sol for roadmap reconciliation, bounded-unit planning, synthesis, and
+integration review. Use explicitly model-pinned Luna subagents with
+role-appropriate reasoning effort for parallel read-only discovery, one
+isolated implementation writer, tests, and parallel read-only final-branch
+review. Sol normally reviews once per bounded branch at its integration gate
+rather than every writer commit.
 
 Review depth is risk-tiered:
 
@@ -17660,23 +17662,28 @@ units. The detailed field inventory, migration cases, worker boundary,
 visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
-### D-039 — Supervise Luna through explicit handoffs, not active polling
+### D-039 — Orchestrate phased subagents through explicit handoffs
 
 Status: **Accepted**
 
-Sol verifies the explicitly selected Luna/Max configuration, exact
-worktree/base/branch, clean state, and setup once at dispatch. Every worker
-prompt must require a delegation/handoff to the originating Sol task when the
-unit is complete, blocked, or needs a user decision. After setup, Sol performs
-only independent read-only oversight work or uses a long bounded orchestration
-wait; it does not repeatedly read commentary, watch the terminal, or poll
-unchanged status. Sol resumes review on the handoff, an explicit user status
-request, or a reported stopped/failed/approval-needed state.
+Use parallel read-only Luna explorers for independent evidence, Sol synthesis
+for the authoritative contract, exactly one isolated write-enabled Luna for
+implementation, and parallel read-only reviewers for specialized final-branch
+inspection. Sol retains product decisions and the risk-tier integration
+review. Model and reasoning effort are explicit per dispatch and matched to
+the bounded task; Max is not a universal requirement.
 
-This keeps oversight tokens focused on unit selection, decisions, Tier-2/3
-review, and integration rather than duplicating the worker's implementation
-effort. Corrections use the same pattern: send one bounded finding, require a
-fresh handoff, and yield.
+Every writer prompt requires a structured handoff when the unit is complete,
+blocked, or needs a user decision. Explorer and reviewer prompts require
+concise evidence summaries. After dispatch, Sol performs only independent work
+or uses a long bounded orchestration wait; it does not repeatedly read
+commentary, watch terminals, or poll unchanged status. Concurrent writers and
+reviewer edits are prohibited.
+
+This keeps the main context focused on requirements, decisions, synthesis,
+Tier-2/3 review, and integration while moving noisy exploration and test output
+into specialized agent threads. Corrections use the same single-writer
+pattern: send accepted bounded findings, require a fresh handoff, and wait.
 
 ### D-040 — Make acceptance and announcement disposition part of beta rollout
 
@@ -18318,23 +18325,22 @@ deferred into this post-modernization backlog.
 
 ## Progress log
 
-### 2026-08-15 — model-pinned Luna subagents adopted
+### 2026-08-15 — native phased subagent orchestration adopted
 
-- Replaced the obsolete requirement that every Luna-Max execution worker be a
-  separate user-visible Codex task. Current orchestration can explicitly pin
-  an internal worker to `gpt-5.6-luna` with `max` reasoning and return an
-  auditable agent identity.
-- Made that model-pinned internal subagent the preferred implementation route,
-  using the existing isolated manual Luna worktree because internal agents
-  share the parent filesystem. A separately visible Luna-Max task remains an
-  allowed fallback or explicit user preference.
-- Preserved the Sol/Luna ownership split, exact base/branch checks, structured
-  handoff, risk-tiered review, validation gates, and prohibition on active
-  polling. This is a collaboration-process change only; no source, database,
-  Discord, deployment, production, or dependency action occurred.
-- Next: dispatch the approved historical-mirror database-remap design as a
-  bounded Tier-3 Luna-Max implementation unit after recording its exact scope,
-  exclusions, validation, and operational approval boundaries.
+- Replaced the obsolete user-visible-task requirement with explicit internal
+  model pinning, then corrected the initial one-worker substitution after user
+  review: native subagents now operate as parallel read-only explorers, one
+  isolated writer, and parallel read-only reviewers under Sol synthesis.
+- Reasoning effort is selected per bounded role rather than requiring Max for
+  every Luna agent. Concurrent branch writers remain prohibited; only the sole
+  writer receives the manual Luna worktree.
+- The first monolithic historical-mirror Luna dispatch was interrupted before
+  any file edit or commit; its worktree remained clean at `4637191`. No source,
+  database, Discord, deployment, production, or dependency operation occurred.
+- Preserved explicit handoffs, risk-tier review, exact base/branch checks,
+  validation gates, and non-polling supervision. Next: redispatch the approved
+  historical-mirror unit through parallel read-only discovery before defining
+  its single-writer implementation contract.
 
 ### 2026-08-12 — P9.28R4 source and offline gate implemented
 
