@@ -13,20 +13,11 @@ from modules import (
     beta_lab_catalog,
     beta_lab_personas,
     beta_lab_sessions,
-    beta_lab_workers,
     beta_testing_guide,
 )
 
 
 logger = logging.getLogger('polybot.' + __name__)
-
-_STATE_ICON = {
-    'ready': '✅',
-    'refreshable': '🔄',
-    'missing': '⚠️',
-    'blocked': '⛔',
-}
-
 
 async def _finish_started(task: asyncio.Task):
     """Drain a started session/persona transition despite caller cancellation."""
@@ -47,11 +38,7 @@ def _safe(value: str) -> str:
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
 
-def overview_markdown(
-    status: beta_lab_workers.BetaLabStatus,
-    *,
-    guided_ready: bool,
-) -> str:
+def overview_markdown(*, guided_ready: bool) -> str:
     lines = [
         '# 🧪 Beta Lab',
         '**Start here:** choose **Give me a 5-minute test** for a short '
@@ -63,31 +50,8 @@ def overview_markdown(
             if guided_ready else
             '**Guided mutable sessions:** ⚠️ Not prepared — use the read-only tests for now'
         ),
-        '',
-        f'**Optional fixture-pack health:** {status.overall.title()}',
-        '-# Fixture warnings below do not block quick tests or read-oriented '
-        'items in the full checklist.',
+        '-# Staff-only fixture diagnostics do not block read testing.',
     ]
-    for pack in status.packs:
-        lines.append(
-            f'{_STATE_ICON.get(pack.state, "•")} {_safe(pack.title)} '
-            f'— {_safe(pack.state.title())}'
-        )
-    snapshot = status.result_snapshot
-    if snapshot is not None and snapshot.scenarios:
-        lines.extend(('', '**Shared operator scenarios**'))
-        lines.extend(
-            f'- {item.scenario.title()}: game `{item.game_id}` ({_safe(item.status)})'
-            for item in snapshot.scenarios
-        )
-        if snapshot.participants:
-            lines.append(
-                '-# Participants: '
-                + ', '.join(
-                    f'{_safe(item.display_name)} (`{item.user_id}`)'
-                    for item in snapshot.participants
-                )
-            )
     lines.extend((
         '',
         '-# The area menu keeps the full reference checklist available without '
@@ -211,7 +175,6 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         lane_authorized: bool,
         guided_ready: bool,
         session: beta_lab_sessions.BetaLabSessionSnapshot | None,
-        status: beta_lab_workers.BetaLabStatus,
         guide: beta_testing_guide.ChecklistGuide,
         timeout: float = 600.0,
     ):
@@ -225,7 +188,6 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.lane_authorized = bool(lane_authorized)
         self.guided_ready = bool(guided_ready)
         self.session = session
-        self.status = status
         self.guide = guide
         self.section_key: str | None = None
         self.page = 0
@@ -281,10 +243,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         elif self.mode == 'lane' and self.session is not None:
             body = lane_markdown(self.session, self.task_key)
         else:
-            body = overview_markdown(
-                self.status,
-                guided_ready=self.guided_ready,
-            )
+            body = overview_markdown(guided_ready=self.guided_ready)
         if self.notice:
             body += f'\n\n**Update:** {_safe(self.notice)}'
         return body

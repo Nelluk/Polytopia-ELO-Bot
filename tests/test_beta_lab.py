@@ -313,13 +313,6 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             '## Games\n\n- Run /game show.\n- Run /game win.\n\n'
             '## Teams\n\n- Run /team show.'
         )
-        self.status = lab.BetaLabStatus(
-            guild_id=300,
-            overall='ready',
-            packs=(pack(lab.STRUCTURE), pack(lab.LEADERBOARD), pack(lab.RESULTS)),
-            result_snapshot=None,
-        )
-
     def view(self, **overrides):
         values = {
             'bot': object(),
@@ -331,7 +324,6 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             'lane_authorized': True,
             'guided_ready': True,
             'session': None,
-            'status': self.status,
             'guide': self.guide,
         }
         values.update(overrides)
@@ -339,7 +331,7 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_overview_is_compact_and_sectioned(self):
         view = self.view()
-        text = dashboard.overview_markdown(self.status, guided_ready=True)
+        text = dashboard.overview_markdown(guided_ready=True)
         self.assertIn('Give me a 5-minute test', text)
         self.assertIn('Read testing:** ✅ Ready', text)
         self.assertLess(len(text), 1900)
@@ -350,28 +342,16 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(selects), 1)
         self.assertEqual([item.label for item in selects[0].options], ['Games', 'Teams'])
 
-    def test_blocked_fixture_packs_do_not_block_mirrored_read_tests(self):
-        status = lab.BetaLabStatus(
-            guild_id=300,
-            overall='blocked',
-            packs=(
-                pack(lab.STRUCTURE, 'blocked'),
-                pack(lab.LEADERBOARD, 'missing'),
-                pack(lab.RESULTS, 'missing'),
-                pack(lab.SESSION_LANES),
-                pack(lab.GUIDED_PERSONAS, 'blocked'),
-            ),
-            result_snapshot=None,
-        )
+    def test_unavailable_guided_session_does_not_block_read_tests(self):
         view = self.view(
-            status=status,
             guided_ready=False,
             lane_authorized=False,
         )
         text = view._body()
         self.assertIn('Read testing:** ✅ Ready', text)
         self.assertIn('Guided mutable sessions:** ⚠️ Not prepared', text)
-        self.assertIn('Fixture warnings below do not block quick tests', text)
+        self.assertIn('Staff-only fixture diagnostics do not block', text)
+        self.assertNotIn('Server Structure', text)
         buttons = [
             item for item in view.walk_children()
             if item.__class__.__name__.endswith('Button')
@@ -405,31 +385,10 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
                 view.page = page_number
                 self.assertLessEqual(len(view._body()), 4000)
 
-    def test_overview_shows_participant_names_before_ids(self):
-        scenario = lab.result_workers.BetaFixtureScenario('ready', 41, 'ready')
-        participant = lab.result_workers.BetaFixtureParticipant(
-            user_id=10,
-            display_name='Nelluk',
-        )
-        snapshot = lab.result_workers.BetaFixtureSnapshot(
-            guild_id=300,
-            user_ids=(10,),
-            scenarios=(scenario,),
-            game_ids=(41,),
-            readiness='ready',
-            detail='Ready.',
-            resettable=True,
-            fingerprint='fingerprint',
-            participants=(participant,),
-        )
-        status = lab.BetaLabStatus(
-            guild_id=300,
-            overall='ready',
-            packs=self.status.packs,
-            result_snapshot=snapshot,
-        )
-        text = dashboard.overview_markdown(status, guided_ready=True)
-        self.assertIn('Participants: Nelluk (`10`)', text)
+    def test_overview_does_not_show_operator_diagnostics(self):
+        text = dashboard.overview_markdown(guided_ready=True)
+        self.assertNotIn('Participants', text)
+        self.assertNotIn('fixture-pack health', text)
 
     async def test_dashboard_is_requester_bound_and_expiry_disables_controls(self):
         view = self.view()

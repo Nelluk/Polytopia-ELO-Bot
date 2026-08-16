@@ -26585,6 +26585,8 @@ deferred into this post-modernization backlog.
 - `/whattotest` now reports read testing separately from guided mutable-session
   readiness. It disables and relabels the guided action unless both the
   self-service lane and database/Discord persona resources are ready.
+- Removed staff-only per-pack, shared-game-ID, and participant diagnostics from
+  the tester panel; they remain available through the protected Beta Lab CLI.
 - Reworded the five-minute assignments to use current historical players,
   Teams, Houses, and games instead of promising the old synthetic showcase or
   hard-coded Team names.

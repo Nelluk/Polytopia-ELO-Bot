@@ -41,13 +41,16 @@ session is active.
 `/whattotest` remains a no-option development-only root, but opens one private
 requester-bound Components v2 workspace. The initial view distinguishes read
 testing, which uses the current development data, from guided mutable sessions,
-which require their exact lane and persona packs. It also shows:
+which require their exact lane and persona packs. It shows:
 
-- strict operator fixture-pack readiness;
-- current result-scenario names and game IDs;
-- participant display names, with IDs retained only as diagnostics; and
 - a **Give me a 5-minute test** action, a tester-only guided-session action,
-  and a direct **Report problem** action.
+  and a direct **Report problem** action; and
+- a simple ready/unavailable distinction for guided mutable sessions.
+
+Per-pack state, shared operator scenario IDs, and participant diagnostics stay
+in the repository-owned `./polybot beta-lab status` output. They are not
+actionable for ordinary testers and are intentionally omitted from the private
+dashboard.
 
 The tracked `docs/BETA_WHAT_TO_TEST.md` remains the full checklist authority.
 The dashboard parses its `##` sections and presents at most five bounded items

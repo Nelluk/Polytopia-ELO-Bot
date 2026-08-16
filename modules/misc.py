@@ -443,7 +443,6 @@ class misc(commands.Cog):
             lane_authorized=lane_authorized,
             guided_ready=guided_ready,
             session=session,
-            status=status,
             guide=guide,
         )
         if lane_notice:
