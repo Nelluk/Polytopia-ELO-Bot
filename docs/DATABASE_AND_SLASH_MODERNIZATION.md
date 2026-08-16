@@ -16471,6 +16471,8 @@ offline tests and all live gates remain pending.**
 Branch/base: `codex/p12-1-polychampions-player-badges`, exact clean base
 `53cdd7b6090761aa5dcfd4489971ae3105f1aad0`. Risk tier: **Tier 3** for one
 additive PostgreSQL column and a permission-sensitive multi-row transaction.
+Implementation/tests checkpoint:
+`ce236155c1926f7a69a688bd61aafcb3c021e791`.
 
 The unit adds guild-local `Player.badges` as a non-null PostgreSQL text array,
 with Python and server-side empty-array defaults so fresh bootstrap and migrated
@@ -26674,6 +26676,8 @@ deferred into this post-modernization backlog.
   superseding the proposal-time `9902c78` base, and created isolated branch
   `codex/p12-1-polychampions-player-badges` without using the retired
   `/home/nelluk/PolyBot39-dev` clone.
+- Recorded implementation/tests checkpoint `ce23615`; this documentation-only
+  evidence checkpoint follows it without changing application behavior.
 - Added the exact guild-local badge storage/migration contract, Mod-only
   requester-bound bulk add/remove drafts, cached emoji and bounded removal
   autocomplete, atomic ordered-lock worker/audit, post-commit public result,
