@@ -26602,6 +26602,17 @@ deferred into this post-modernization backlog.
 - No fixture seed/reconciliation, database mutation, Discord command write, or
   production access is part of this change.
 
+### 2026-08-16 — Development prefix aligned with production
+
+- Changed the development static rollback/example prefix from `!` to `$` so
+  retained prefix commands use the familiar production spelling during wider
+  beta testing.
+- The active database guild configuration remains authoritative and must be
+  changed through the owner-only ordinary-settings draft/activation workflow;
+  this static edit alone does not mutate the database or Discord state.
+- Application-command shape is unchanged and no command synchronization is
+  required.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

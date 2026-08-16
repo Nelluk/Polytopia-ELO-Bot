@@ -45,7 +45,7 @@ server_list = {
         'allow_teams': True,
         'allow_uneven_teams': True,
         'max_team_size': 1,
-        'command_prefix': '!',
+        'command_prefix': '$',
         'include_in_global_lb': False,
         'match_challenge_channel': None,
         'bot_channels_private': [],
@@ -63,7 +63,7 @@ server_list = {
     },
     TEST_GUILD_ID: {
         'display_name': 'Development Test Guild',
-        'command_prefix': '!',
+        'command_prefix': '$',
         'bot_channels': [TEST_BOT_CHANNEL_ID],
     },
 }
