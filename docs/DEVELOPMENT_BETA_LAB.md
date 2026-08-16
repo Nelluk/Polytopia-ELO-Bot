@@ -44,7 +44,8 @@ testing, which uses the current development data, from guided mutable sessions,
 which require their exact lane and persona packs. It shows:
 
 - a **Give me a 5-minute test** action, a tester-only guided-session action,
-  and a direct **Report problem** action; and
+  a direct **Report problem** action, and an inactive-panel **Close panel**
+  action; and
 - a simple ready/unavailable distinction for guided mutable sessions.
 
 Per-pack state, shared operator scenario IDs, and participant diagnostics stay
@@ -67,6 +68,8 @@ the lane and revalidates the persona.
    Repeated clicks rotate among player, leaderboard, Team/House, game-search,
    and league workspaces. With a historical mirror, these use the mirrored
    players, Teams, Houses, and games rather than synthetic showcase packs.
+   Choose **Close panel** whenever you are done with read testing; it creates
+   or changes no test state.
 3. When the dashboard reports guided sessions ready, members with the pinned
    `testers` role may choose **Start guided session**.
    The bot creates three fresh 1v1 games owned by that requester and temporarily
@@ -82,7 +85,9 @@ the lane and revalidates the persona.
 
 If guided sessions are not prepared, their button is disabled and no mutable
 session should be attempted. Quick assignments and read-oriented items in the
-full reference remain available.
+full reference remain available. **Refresh results** and **Finish and clean
+up** appear only after a guided session exists, when those actions have state
+to refresh or remove.
 
 There are at most three active lanes and each lease lasts 30 minutes. Expired
 lanes are reclaimed by the next claim. A tester may own only one active lane.

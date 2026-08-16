@@ -26587,6 +26587,10 @@ deferred into this post-modernization backlog.
   self-service lane and database/Discord persona resources are ready.
 - Removed staff-only per-pack, shared-game-ID, and participant diagnostics from
   the tester panel; they remain available through the protected Beta Lab CLI.
+- Live acceptance found that permanently showing disabled **Refresh results**
+  and **Finish and clean up** controls made ordinary read-test completion
+  unclear. The inactive panel now offers **Close panel** instead; refresh and
+  cleanup controls appear only while a guided session exists.
 - Reworded the five-minute assignments to use current historical players,
   Teams, Houses, and games instead of promising the old synthetic showcase or
   hard-coded Team names.

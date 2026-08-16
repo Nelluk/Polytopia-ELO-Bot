@@ -341,6 +341,13 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(selects), 1)
         self.assertEqual([item.label for item in selects[0].options], ['Games', 'Teams'])
+        labels = {
+            item.label for item in view.walk_children()
+            if item.__class__.__name__.endswith('Button')
+        }
+        self.assertIn('Close panel', labels)
+        self.assertNotIn('Refresh results', labels)
+        self.assertNotIn('Finish and clean up', labels)
 
     def test_unavailable_guided_session_does_not_block_read_tests(self):
         view = self.view(
@@ -442,6 +449,22 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
             (original + 1) % len(dashboard.beta_lab_catalog.QUICK_TESTS),
         )
 
+    async def test_close_dismisses_inactive_panel_without_testing_work(self):
+        view = self.view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+        )
+        with mock.patch.object(
+            dashboard.beta_lab_sessions,
+            'run_claim_session',
+            new=mock.AsyncMock(),
+        ) as claim:
+            await view._close(interaction)
+        interaction.response.defer.assert_awaited_once_with()
+        interaction.delete_original_response.assert_awaited_once_with()
+        claim.assert_not_awaited()
+
     async def test_lane_claim_and_release_publish_only_frozen_snapshots(self):
         scenario = dashboard.beta_lab_sessions.BetaLabSessionScenario(
             'ready', 41, 'ready'
@@ -487,6 +510,12 @@ class BetaLabDashboardTests(unittest.IsolatedAsyncioTestCase):
         ):
             await view._lane(interaction)
         self.assertIs(view.session, session)
+        labels = {
+            item.label for item in view.walk_children()
+            if item.__class__.__name__.endswith('Button')
+        }
+        self.assertIn('Finish and clean up', labels)
+        self.assertNotIn('Close panel', labels)
         self.assertIn('Fixture Friend', view._body())
         self.assertIn('Choose one task', view._body())
         interaction.response.edit_message = mock.AsyncMock()

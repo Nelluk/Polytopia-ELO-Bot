@@ -18,7 +18,8 @@ and Completed games. Choose any one task; its page supplies exact slash fields
 and the expected result. Use **Refresh results**, then **Finish and clean up**
 whenever done. If the guided button is unavailable, stick to read tests. The
 full sections below are a reference, not a request to test everything in one
-sitting.
+sitting. Use **Close panel** to dismiss an ordinary read-testing workspace;
+**Finish and clean up** appears only for an active guided session.
 
 ## Games
 

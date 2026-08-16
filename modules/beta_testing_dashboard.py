@@ -51,6 +51,8 @@ def overview_markdown(*, guided_ready: bool) -> str:
             '**Guided mutable sessions:** ⚠️ Not prepared — use the read-only tests for now'
         ),
         '-# Staff-only fixture diagnostics do not block read testing.',
+        '-# **Close panel** dismisses this workspace. **Finish and clean up** '
+        'appears only after a guided session starts.',
     ]
     lines.extend((
         '',
@@ -325,6 +327,17 @@ class BetaTestingDashboard(discord.ui.LayoutView):
             disabled=disabled,
         )
         report.callback = self._report
+        close = discord.ui.Button(
+            label='Close panel',
+            style=discord.ButtonStyle.secondary,
+            disabled=disabled,
+        )
+        close.callback = self._close
+        primary_buttons = (
+            (quick, lane, refresh, finished, report)
+            if self.session is not None else
+            (quick, lane, report, close)
+        )
         footer = (
             'This private dashboard expired; rerun `/whattotest`.'
             if self.expired else
@@ -333,7 +346,7 @@ class BetaTestingDashboard(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(self._body()),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(quick, lane, refresh, finished, report),
+            discord.ui.ActionRow(*primary_buttons),
             *(
                 (discord.ui.ActionRow(
                     self._task_button('Team & House', 'team', disabled),
@@ -651,6 +664,13 @@ class BetaTestingDashboard(discord.ui.LayoutView):
             channel_id=self.channel_id,
             context_default=context,
         ))
+
+    async def _close(self, interaction: discord.Interaction) -> None:
+        """Dismiss an inactive private panel without creating testing state."""
+
+        self.stop()
+        await interaction.response.defer()
+        await interaction.delete_original_response()
 
     async def on_timeout(self) -> None:
         self.expired = True
