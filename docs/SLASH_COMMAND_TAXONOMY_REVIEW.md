@@ -1241,6 +1241,13 @@ capability family. Player profile prefixes continue deep-linking the shared
 workspace and therefore inherit PolyChampions-only badge display without a
 new prefix command. No compatibility-ledger compromise is introduced.
 
+Dependency-backed registration and behavior validation passed the complete
+**79-test P12.1-focused suite**. Repository-wide offline discovery passed
+**2,224 tests with 92 intentional gated skips**, including exact `/league`
+child-shape checks updated for the nested `badge` group. No Discord connection,
+command-tree inspection, guild command apply, synchronization, or beta smoke
+was performed; those operations remain separately gated.
+
 P8.13b checkpoints `a357f93`, `5ba0195`, and `bdd8057` are integrated and the
 durable beta is running the code checkpoint. No application-command sync was
 needed because this unit changes only the retained reaction backend.

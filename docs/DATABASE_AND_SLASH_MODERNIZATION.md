@@ -543,8 +543,8 @@ check:
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
 Current active unit: **P12.1 PolyChampions player badges is implemented on its
-isolated unit branch and awaits the unavailable dependency-backed offline
-suite plus separately gated stopped-writer database/Discord beta gates.**
+isolated unit branch, has passed the dependency-backed offline suite, and
+awaits separately gated stopped-writer database/Discord beta gates.**
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -16465,8 +16465,8 @@ verification.
 
 ### P12.1 — PolyChampions player badges
 
-Status: **Implemented locally on the dedicated unit branch; dependency-backed
-offline tests and all live gates remain pending.**
+Status: **Implemented and dependency-backed offline validated locally on the
+dedicated unit branch; all live gates remain pending.**
 
 Branch/base: `codex/p12-1-polychampions-player-badges`, exact clean base
 `53cdd7b6090761aa5dcfd4489971ae3105f1aad0`. Risk tier: **Tier 3** for one
@@ -16510,21 +16510,18 @@ and warnings include badges. Player migration fingerprints them and preserves
 or ordered-set merges guild-local badge arrays without importing legacy
 trophies; a merge above 100 fails closed.
 
-Available dependency-free validation passes 38 focused migration/source-
-contract/deployment-inventory/release-candidate tests. Repository-wide
-compilation and `git diff --check` pass. The
-canonical checkout has no `.venv/bin/python`; the mandated worktree helper
-refused before linking development profiles, and the host Python lacks
-discord.py, Peewee, and pytest. Therefore the new behavior suite and complete
-offline discovery were not runnable without an unapproved dependency install.
-The complete discovery command was nevertheless attempted: it discovered 327
-tests but ended with 138 dependency import errors and seven skips, led by
-missing `discord`, `peewee`, and `psycopg2`; this is not a behavior-suite pass.
-No database connection, DDL, Discord connection/tree inspection/apply, bot
-launch/restart, Docker, production, push, merge, or deployment occurred.
+After the shared locked Python 3.12 development environment was explicitly
+authorized and bootstrapped, the complete P12.1-focused suite passed **79
+tests**. Dependency-backed execution corrected newline validation before
+whitespace normalization, aligned the Peewee array-field assertion with its
+public field type, made the startup-schema fake cursor faithfully return
+`None` for no row, and updated three exact `/league` registration expectations.
+Complete offline discovery passed **2,224 tests with 92 intentional gated
+skips**. Repository-wide compilation and `git diff --check` pass. No database
+connection, DDL, Discord connection/tree inspection/apply, bot launch/restart,
+Docker, production, push, merge, or deployment occurred.
 
-Before integration, run the complete focused/offline suite in the locked
-Python 3.12 environment, then separately authorize and run the stopped-writer
+Before integration, separately authorize and run the stopped-writer
 `development` / `polytopia_dev` / `polybot_dev` schema apply and mandatory
 database suite. Development-guild command apply, desktop/mobile beta smoke,
 integration, push, and every production operation remain later gates.
@@ -26687,14 +26684,14 @@ deferred into this post-modernization backlog.
   awareness. Production is deliberately blocked until a separate production
   identity-gated badge migration is reviewed; the development migration tool
   is not production authority.
-- Passed 38 dependency-free focused migration/source-contract/deployment-
-  inventory/release-candidate tests,
-  repository-wide compilation, and `git diff --check`. The canonical checkout
-  has no shared `.venv`, and host Python lacks Discord/Peewee/pytest, so the
-  dependency-backed focused suite and complete offline discovery remain
-  unpassed rather than installing dependencies without approval. Complete
-  discovery was attempted and found 327 tests but ended with 138 dependency
-  import errors and seven skips.
+- After explicit approval, bootstrapped the canonical shared locked Python
+  3.12 development environment and linked the isolated worktree through the
+  mandated helper. The complete P12.1-focused suite passed **79 tests** and
+  complete offline discovery passed **2,224 tests with 92 intentional gated
+  skips**. Dependency-backed validation corrected newline rejection before
+  whitespace normalization, one Peewee public-API assertion, the no-row
+  startup-schema fake, and three exact `/league` registration expectations.
+  Repository-wide compilation and `git diff --check` passed.
 - No schema apply/database connection, stopped-writer database validation,
   Discord inspection or guild command apply, beta launch/smoke, Docker,
   production, integration, push, or deployment occurred.

@@ -44,10 +44,13 @@ def access_error(member, guild_id: int) -> str | None:
     return None
 
 
-def _has_forbidden_character(value: str) -> bool:
+def _has_forbidden_character(value: str, *, allow_tab: bool = False) -> bool:
     return any(
         character in '\r\n'
-        or unicodedata.category(character).startswith('C')
+        or (
+            unicodedata.category(character).startswith('C')
+            and not (allow_tab and character == '\t')
+        )
         or unicodedata.category(character) in {'Zl', 'Zp'}
         for character in value
     )
@@ -58,13 +61,14 @@ def _has_newline(value: str) -> bool:
 
 
 def normalize_add(label: str, emoji: str | None) -> BadgeDraft:
-    normalized_label = re.sub(r'\s+', ' ', str(label or '').strip())
-    if not normalized_label:
-        raise workers.BadgeValidationError('A badge label is required.')
-    if _has_forbidden_character(normalized_label):
+    raw_label = str(label or '').strip()
+    if _has_forbidden_character(raw_label, allow_tab=True):
         raise workers.BadgeValidationError(
             'Badge labels cannot contain newlines or control characters.'
         )
+    normalized_label = re.sub(r'\s+', ' ', raw_label)
+    if not normalized_label:
+        raise workers.BadgeValidationError('A badge label is required.')
     if len(normalized_label) > 100:
         raise workers.BadgeValidationError(
             'Badge labels must be 100 Unicode code points or fewer.'

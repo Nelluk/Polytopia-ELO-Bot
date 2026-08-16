@@ -125,7 +125,7 @@ class RegistrationTests(unittest.TestCase):
             {command.name for command in root.commands},
             {
                 'tokens', 'guide', 'mark-active', 'join-novas', 'season',
-                'free-agents', 'roster', 'maintenance',
+                'free-agents', 'roster', 'maintenance', 'badge',
             },
         )
         command = root.get_command('tokens')

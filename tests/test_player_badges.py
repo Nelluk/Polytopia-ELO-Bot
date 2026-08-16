@@ -97,7 +97,7 @@ class ModelAndRegistrationTests(unittest.TestCase):
         self.assertIsInstance(field, ArrayField)
         self.assertFalse(field.null)
         self.assertIs(field.default, list)
-        self.assertEqual(field.field_class, models.TextField)
+        self.assertEqual(field.field_type, 'TEXT')
         self.assertEqual(len(field.constraints), 1)
 
     def test_add_and_remove_are_under_existing_league_root_only(self):
