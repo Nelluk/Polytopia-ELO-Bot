@@ -33,6 +33,32 @@ class AmbiguousPlayer(ValueError):
     pass
 
 
+def _profile_badges(player, guild_id: int) -> tuple[str, ...]:
+    """Return only one valid PolyChampions ordered set for presentation."""
+
+    if int(guild_id) != int(settings.server_ids['polychampions']):
+        return ()
+    values = player.badges
+    if not isinstance(values, (list, tuple)) or len(values) > 100:
+        logger.warning('Player %s has a malformed badge array', player.id)
+        return ()
+    result = []
+    seen = set()
+    for value in values:
+        if (
+            not isinstance(value, str)
+            or not value
+            or len(value) > 200
+            or any(character in '\r\n' for character in value)
+            or value.casefold() in seen
+        ):
+            logger.warning('Player %s has a malformed stored badge', player.id)
+            return ()
+        seen.add(value.casefold())
+        result.append(value)
+    return tuple(result)
+
+
 @dataclass(frozen=True)
 class PlayerWorkspaceRequest:
     guild_id: int
@@ -112,6 +138,7 @@ class PlayerWorkspaceSnapshot:
     global_rank: int | None
     global_ranked_count: int
     games: tuple[PlayerGameRow, ...]
+    badges: tuple[str, ...] = ()
     guild_display_name: str = 'This server'
     local_history: tuple[PlayerRatingPoint, ...] = ()
     global_history: tuple[PlayerRatingPoint, ...] = ()
@@ -403,6 +430,7 @@ def load_player_workspace(
             global_rank=int(global_rank) if global_rank is not None else None,
             global_ranked_count=int(global_count),
             games=tuple(rows),
+            badges=_profile_badges(player, request.guild_id),
             guild_display_name=guild_display_name,
             local_history=local_history,
             global_history=global_history,

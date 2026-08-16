@@ -85,6 +85,7 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
             'scripts/bootstrap_first_guild_configuration.py',
             'scripts/bootstrap_development_database.py',
             'scripts/migrate_player_timezone.py',
+            'scripts/migrate_player_badges.py',
         )
         for relative in required_sources:
             with self.subTest(source=relative):

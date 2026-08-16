@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from io import BytesIO
 import logging
+import re
 
 import discord
 
@@ -15,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 PAGE_SIZE = 6
-SECTIONS = (
+BADGE_PAGE_SIZE = 10
+BASE_SECTIONS = (
     ('overview', 'Overview'),
     ('ratings', 'Ratings'),
     ('analytics', 'Analytics'),
@@ -25,7 +27,27 @@ SECTIONS = (
     ('season', 'Season games'),
     ('teams', 'Team & squads'),
 )
-SECTION_LABELS = dict(SECTIONS)
+SECTIONS = BASE_SECTIONS
+SECTION_LABELS = dict(BASE_SECTIONS) | {'badges': 'Badges'}
+
+
+def _safe_badge(value: object) -> str:
+    raw = str(value or '')
+    match = re.fullmatch(
+        r'(?P<emoji><a?:[A-Za-z0-9_]{2,32}:\d+>)(?: (?P<label>.*))?',
+        raw,
+    )
+    if match is not None:
+        label = match.group('label')
+        return match.group('emoji') + (
+            ' ' + discord.utils.escape_mentions(
+                discord.utils.escape_markdown(label),
+            )
+            if label else ''
+        )
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(raw),
+    )
 
 
 def _response_is_done(interaction: discord.Interaction) -> bool:
@@ -116,6 +138,8 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
 
     @property
     def rows(self):
+        if self.section == 'badges':
+            return self.snapshot.badges
         return _game_rows(
             self.snapshot,
             self.section,
@@ -125,7 +149,8 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
 
     @property
     def page_count(self) -> int:
-        return components_v2.page_count(self.rows, PAGE_SIZE)
+        page_size = BADGE_PAGE_SIZE if self.section == 'badges' else PAGE_SIZE
+        return components_v2.page_count(self.rows, page_size)
 
     async def _select_section(self, interaction: discord.Interaction) -> None:
         selected = self.section_select.values[0]
@@ -262,6 +287,16 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 )
             else:
                 polytopia_name_line = '**Polytopia name:** *Not set*'
+            badge_block = ''
+            if snapshot.badges:
+                shown = '\n'.join(
+                    f'- {_safe_badge(value)}'
+                    for value in snapshot.badges[:6]
+                )
+                more = len(snapshot.badges) - 6
+                badge_block = f'\n\n**Badges:**\n{shown}'
+                if more:
+                    badge_block += f'\n…and {more} more — open Badges'
             return (
                 f'## <@{snapshot.discord_id}>\n'
                 f'{polytopia_name_line}\n'
@@ -271,6 +306,22 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 f'{snapshot.local_wins}W–{snapshot.local_losses}L\n'
                 f'**Global:** `{snapshot.global_elo} ELO` · '
                 f'{snapshot.global_wins}W–{snapshot.global_losses}L'
+                f'{badge_block}'
+            )
+        if self.section == 'badges':
+            page_rows, start, end = components_v2.page_slice(
+                snapshot.badges,
+                self.page_index,
+                BADGE_PAGE_SIZE,
+            )
+            body = '\n'.join(
+                f'{index}. {_safe_badge(value)}'
+                for index, value in enumerate(page_rows, start=start)
+            )
+            return (
+                '## Badges\n'
+                f'{body}\n'
+                f'-# Showing {start}–{end} of {len(snapshot.badges)}'
             )
         if self.section == 'ratings':
             local_rank = (
@@ -384,7 +435,10 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                     value=key,
                     default=key == self.section,
                 )
-                for key, label in SECTIONS
+                for key, label in (
+                    BASE_SECTIONS
+                    + ((('badges', 'Badges'),) if self.snapshot.badges else ())
+                )
             ],
         )
         self.section_select.callback = self._select_section
@@ -497,7 +551,9 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                         ),
                     ),
                 ])
-        if self.section in ('recent', 'incomplete', 'completed', 'season'):
+        if self.section in (
+            'recent', 'incomplete', 'completed', 'season', 'badges'
+        ):
             previous = discord.ui.Button(
                 label='Previous',
                 emoji='◀️',

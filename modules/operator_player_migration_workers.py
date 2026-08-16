@@ -65,6 +65,8 @@ class PlayerMigrationGuildPreview:
     squad_memberships: int
     house_preferences: int
     bids: int
+    source_badges: int = 0
+    destination_badges: int = 0
 
 
 @dataclass(frozen=True)
@@ -269,6 +271,10 @@ def _build_graph(request) -> _Graph:
         destination_player = destination_by_guild.get(guild_id)
         if source_player and destination_player:
             disposition = 'merge destination player into source player'
+            try:
+                _merged_badges(source_player.badges, destination_player.badges)
+            except PlayerMigrationValidationError as exc:
+                blockers.append(f'Guild {guild_id}: {exc}')
             if (
                 source_player.team_id is not None
                 and destination_player.team_id is not None
@@ -309,6 +315,10 @@ def _build_graph(request) -> _Graph:
                 row.player_id in destination_ids or row.bidder_id in destination_ids
                 for row in bids
             ),
+            source_badges=len(source_player.badges or ()) if source_player else 0,
+            destination_badges=(
+                len(destination_player.badges or ()) if destination_player else 0
+            ),
         ))
 
     member_fields = (
@@ -322,7 +332,7 @@ def _build_graph(request) -> _Graph:
     player_fields = (
         'id', 'discord_member_id', 'guild_id', 'nick', 'name', 'team_id',
         'elo', 'elo_max', 'elo_alltime', 'elo_max_alltime', 'elo_moonrise',
-        'elo_max_moonrise', 'trophies', 'is_banned',
+        'elo_max_moonrise', 'trophies', 'badges', 'is_banned',
     )
     state = {
         'source': _primitive_row(source, member_fields),
@@ -438,6 +448,45 @@ def _display_name(discord_name: str, nick: str | None) -> str:
     )
 
 
+def _merged_badges(source, destination) -> list[str]:
+    """Preserve both guild-local ordered sets without touching trophies."""
+
+    merged = []
+    seen = set()
+    arrays = (source, destination)
+    for values in arrays:
+        if not isinstance(values, (list, tuple)):
+            raise PlayerMigrationValidationError(
+                'A guild-local Player has a malformed badge array.'
+            )
+        if len(values) > 100:
+            raise PlayerMigrationValidationError(
+                'A guild-local Player exceeds the 100-badge limit.'
+            )
+        for value in values:
+            if (
+                not isinstance(value, str)
+                or not value
+                or len(value) > 200
+                or any(character in '\r\n' for character in value)
+            ):
+                raise PlayerMigrationValidationError(
+                    'A guild-local Player has a malformed stored badge.'
+                )
+            badge = value
+            key = badge.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(badge)
+    if len(merged) > 100:
+        raise PlayerMigrationValidationError(
+            'Merging these guild-local Players would exceed the 100-badge '
+            'limit. Correct badges before migrating the identity.'
+        )
+    return merged
+
+
 def migrate_player(request: PlayerMigrationCommitRequest) -> PlayerMigrationResult:
     with models.db.connection_context():
         with models.db.atomic():
@@ -494,7 +543,15 @@ def migrate_player(request: PlayerMigrationCommitRequest) -> PlayerMigrationResu
                     source_player.team = destination_player.team_id
                 if destination_player.nick:
                     source_player.nick = destination_player.nick
-                source_player.save(only=[models.Player.team, models.Player.nick])
+                source_player.badges = _merged_badges(
+                    source_player.badges,
+                    destination_player.badges,
+                )
+                source_player.save(only=[
+                    models.Player.team,
+                    models.Player.nick,
+                    models.Player.badges,
+                ])
 
                 counts['lineups_reassigned'] += (
                     models.Lineup.update(player=source_player)

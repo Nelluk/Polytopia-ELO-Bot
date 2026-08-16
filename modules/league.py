@@ -48,6 +48,9 @@ import modules.league_inactivity_workers as league_inactivity_workers
 import modules.league_inactive_kick as league_inactive_kick
 import modules.league_inactive_kick_views as league_inactive_kick_views
 import modules.league_inactive_kick_workers as league_inactive_kick_workers
+import modules.league_badges as league_badges
+import modules.league_badges_views as league_badges_views
+import modules.league_badges_workers as league_badges_workers
 import modules.league_channel_workers as league_channel_workers
 import modules.league_role_workers as league_role_workers
 import modules.league_invitation as league_invitation
@@ -219,6 +222,12 @@ class league(commands.Cog):
     league_free_agents_group = discord.app_commands.Group(
         name='free-agents',
         description='Manage Free Agent signup announcements.',
+        parent=league_group,
+        guild_only=True,
+    )
+    league_badge_group = discord.app_commands.Group(
+        name='badge',
+        description='Award or correct persistent player badges.',
         parent=league_group,
         guild_only=True,
     )
@@ -760,6 +769,145 @@ class league(commands.Cog):
         await interaction.response.send_message(
             league_user_commands.guide_message()
         )
+
+    async def _open_badge_draft(
+        self,
+        interaction: discord.Interaction,
+        draft: league_badges.BadgeDraft,
+    ) -> None:
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Player badges require a server.', ephemeral=True
+            )
+        error = league_badges.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+
+        actor = interaction.user
+
+        async def run_confirmation(component_interaction, recipient_ids):
+            # Recheck requester, guild, and current Mod status immediately
+            # before worker submission; the view separately binds requester ID.
+            component_guild = component_interaction.guild
+            if component_guild is None:
+                raise league_badges_workers.BadgePermissionError(
+                    'Player badges require a server.'
+                )
+            current_error = league_badges.access_error(
+                component_interaction.user,
+                component_guild.id,
+            )
+            if current_error:
+                raise league_badges_workers.BadgePermissionError(current_error)
+            request = league_badges.build_request(
+                draft=draft,
+                guild_id=component_guild.id,
+                actor=component_interaction.user,
+                recipient_ids=recipient_ids,
+            )
+            result = await league_badges_workers.run_badge_mutation(request)
+            await league_badges.publish_result(component_interaction, result)
+            return result
+
+        await interaction.response.defer(ephemeral=True)
+        view = league_badges_views.BadgeDraftWorkspace(
+            requester_id=int(actor.id),
+            guild_id=int(guild.id),
+            draft=draft,
+            runner=run_confirmation,
+        )
+        await league_badges_views.publish_private(interaction, view)
+
+    async def _badge_emoji_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ):
+        guild = interaction.guild
+        if guild is None or league_badges.access_error(
+            interaction.user, guild.id
+        ):
+            return []
+        return [
+            discord.app_commands.Choice(name=name[:100], value=value[:100])
+            for name, value in league_badges.emoji_autocomplete(guild, current)
+        ]
+
+    async def _badge_remove_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ):
+        try:
+            values = await league_badges.removal_autocomplete(
+                interaction, current
+            )
+        except Exception:
+            logger.exception('Badge removal autocomplete failed')
+            return []
+        return [
+            discord.app_commands.Choice(name=value[:100], value=value)
+            for value in values if len(value) <= 100
+        ]
+
+    @league_badge_group.command(
+        name='add',
+        description='Award one persistent badge to 1–25 selected players.',
+    )
+    @discord.app_commands.describe(
+        label='Free-form badge label.',
+        emoji='Optional Unicode or custom Discord emoji.',
+    )
+    @discord.app_commands.autocomplete(emoji=_badge_emoji_autocomplete)
+    async def league_badge_add_slash(
+        self,
+        interaction: discord.Interaction,
+        label: str,
+        emoji: str | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Player badges require a server.', ephemeral=True
+            )
+        error = league_badges.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        try:
+            draft = league_badges.normalize_add(label, emoji)
+        except league_badges_workers.BadgeValidationError as exc:
+            return await interaction.response.send_message(
+                str(exc), ephemeral=True
+            )
+        await self._open_badge_draft(interaction, draft)
+
+    @league_badge_group.command(
+        name='remove',
+        description='Remove one exact stored badge from 1–25 selected players.',
+    )
+    @discord.app_commands.describe(badge='Exact stored badge to remove.')
+    @discord.app_commands.autocomplete(badge=_badge_remove_autocomplete)
+    async def league_badge_remove_slash(
+        self,
+        interaction: discord.Interaction,
+        badge: str,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'Player badges require a server.', ephemeral=True
+            )
+        error = league_badges.access_error(interaction.user, guild.id)
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        try:
+            draft = league_badges.normalize_remove(badge)
+        except league_badges_workers.BadgeValidationError as exc:
+            return await interaction.response.send_message(
+                str(exc), ephemeral=True
+            )
+        await self._open_badge_draft(interaction, draft)
 
     @league_group.command(
         name='mark-active',

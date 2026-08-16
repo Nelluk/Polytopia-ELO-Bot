@@ -31,22 +31,31 @@ class FakeCursor:
     def __exit__(self, *_args):
         return False
 
-    def execute(self, statement):
+    def execute(self, statement, params=None):
         self.connection.statements.append(statement)
         normalized = ' '.join(statement.split()).casefold()
         if normalized.startswith('show transaction_read_only'):
             self.rows = [('on',)]
         elif normalized.startswith('select current_database(), current_user'):
             self.rows = [self.connection.identity]
+        elif (
+            'select exists' in normalized
+            and 'information_schema.tables' in normalized
+        ):
+            self.rows = [(True,)]
         elif 'information_schema.tables' in normalized:
             self.rows = [(table,) for table in self.connection.tables]
+        elif 'information_schema.columns' in normalized:
+            self.rows = [(
+                'ARRAY', '_text', 'NO', 'ARRAY[]::text[]',
+            )] if self.connection.badges else []
         elif 'from pg_constraint' in normalized:
             self.rows = [(self.connection.winner_foreign_key,)]
         else:
             raise AssertionError(f'Unexpected SQL: {statement}')
 
     def fetchone(self):
-        return self.rows[0]
+        return self.rows[0] if self.rows else None
 
     def fetchall(self):
         return list(self.rows)
@@ -59,10 +68,12 @@ class FakeConnection:
         identity=('polytopia_dev', 'polybot_dev'),
         tables=REQUIRED_TABLES,
         winner_foreign_key=True,
+        badges=True,
     ):
         self.identity = identity
         self.tables = tables
         self.winner_foreign_key = winner_foreign_key
+        self.badges = badges
         self.statements = []
         self.session = None
         self.closed = False
@@ -109,7 +120,7 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             {'readonly': True, 'autocommit': True},
         )
         self.assertTrue(connection.closed)
-        self.assertEqual(len(connection.statements), 4)
+        self.assertEqual(len(connection.statements), 6)
         for statement in connection.statements:
             normalized = ' '.join(statement.split()).upper()
             self.assertTrue(
@@ -143,6 +154,16 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 preflight.StartupSchemaPreflightError,
                 'winner_id -> gameside.id',
+            ):
+                preflight.inspect_startup_schema(request())
+        self.assertTrue(connection.closed)
+
+    def test_missing_player_badges_column_fails_closed(self):
+        connection = FakeConnection(badges=False)
+        with mock.patch.object(preflight, '_connect', return_value=connection):
+            with self.assertRaisesRegex(
+                preflight.StartupSchemaPreflightError,
+                'missing the required player.badges',
             ):
                 preflight.inspect_startup_schema(request())
         self.assertTrue(connection.closed)

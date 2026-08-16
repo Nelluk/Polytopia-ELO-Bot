@@ -542,10 +542,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.29 bounded human acceptance remains the release
-candidate track; P11.5H development historical PolyChampions mirror is in
-progress on the isolated Luna branch.** P9.29 is intentionally separate from
-this stopped-database refresh operation.
+Current active unit: **P12.1 PolyChampions player badges is integrated and
+development-schema gated; development-guild command apply, beta deployment,
+and human acceptance remain separately gated.**
+P9.29 bounded human acceptance remains the separate release-candidate track.
+P11.5H is complete; its older in-progress wording was stale and is superseded
+by the reviewed/integrated/applied P11.5H section and later evidence below.
 P9.28R4 fail-stop supervision and complete writer coverage is complete. The
 preceding adversarial review correctly showed that P9.28R3 still let the bot
 outlive an
@@ -16461,6 +16463,71 @@ and rerun the candidate-bound offline, stopped-writer database, cutover-review,
 and bounded-beta gates before separately approved production-configuration
 verification.
 
+### P12.1 — PolyChampions player badges
+
+Status: **Integrated and development-schema gated; Discord apply and beta
+deployment/acceptance remain pending.**
+
+Branch/base: `codex/p12-1-polychampions-player-badges`, exact clean base
+`53cdd7b6090761aa5dcfd4489971ae3105f1aad0`. Risk tier: **Tier 3** for one
+additive PostgreSQL column and a permission-sensitive multi-row transaction.
+Implementation/tests checkpoint:
+`ce236155c1926f7a69a688bd61aafcb3c021e791`.
+
+The unit adds guild-local `Player.badges` as a non-null PostgreSQL text array,
+with Python and server-side empty-array defaults so fresh bootstrap and migrated
+schemas converge. Model-free development plan/verify/apply tooling is
+idempotent, identity/confirmation gated, exact about array element type,
+nullability/default, and has no destructive rollback. Ordinary startup performs
+only an exact read-only preflight and refuses to start new model code before
+the column exists.
+
+The existing `/league` capability/root gains Mod-only `/league badge add` and
+`remove`. Each opens a private requester-bound 1–25-member selector, exact
+preview, and Confirm/Cancel draft. Emoji autocomplete uses six fixed Unicode
+choices followed by cached invoking-guild custom emojis; removal autocomplete
+is a Mod-only, guild-scoped bounded worker read. No prefix badge/trophy mutation
+is added.
+Stored badge values longer than Discord's 100-character autocomplete-choice
+value ceiling remain removable by exact manual entry but are omitted from
+removal suggestions; storage/display retain the approved 200-code-point bound.
+
+One bounded worker connection and atomic transaction revalidates scope/bounds,
+resolves every guild-local Player, locks targets by ascending Player primary
+key on PostgreSQL, computes the complete batch before saving, updates only
+`Player.badges`, and writes one actor-attributed `GameLog` only for a real
+change. Casefold duplicate handling preserves first spelling and insertion
+order, all-skips operations are successful without audit, any invalid target
+or 100-badge overflow blocks every write, and cancellation drains submitted
+work. Public actor-attributed output occurs only after commit; a channel-send
+failure is logged and leaves the private draft in explicit post-commit
+reconciliation state.
+
+PolyChampions player snapshots expose immutable badges; Overview shows six and
+the conditional Badges section pages ten without another database read. Other
+guild snapshots receive an empty tuple. Operator player deletion fingerprints
+and warnings include badges. Player migration fingerprints them and preserves
+or ordered-set merges guild-local badge arrays without importing legacy
+trophies; a merge above 100 fails closed.
+
+After the shared locked Python 3.12 development environment was explicitly
+authorized and bootstrapped, the complete P12.1-focused suite passed **79
+tests**. Dependency-backed execution corrected newline validation before
+whitespace normalization, aligned the Peewee array-field assertion with its
+public field type, made the startup-schema fake cursor faithfully return
+`None` for no row, and updated three exact `/league` registration expectations.
+Complete offline discovery passed **2,224 tests with 92 intentional gated
+skips**. Repository-wide compilation and `git diff --check` pass. No database
+connection, DDL, Discord connection/tree inspection/apply, bot launch/restart,
+Docker, production, push, merge, or deployment occurred.
+
+The authorized stopped-writer development gate applied and exactly verified
+the additive column on `development` / `polytopia_dev` / `polybot_dev`. The
+combined candidate then passed all 79 runnable PostgreSQL cases with the one
+historical-mirror WB1.3b synthetic-fixture case intentionally skipped.
+Development-guild command apply, desktop/mobile beta smoke, push, and every
+production operation remain later gates.
+
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
 Status: **Implemented and candidate-validated; bounded human beta and
@@ -26612,6 +26679,60 @@ deferred into this post-modernization backlog.
   this static edit alone does not mutate the database or Discord state.
 - Application-command shape is unchanged and no command synchronization is
   required.
+
+### 2026-08-16 — P12.1 PolyChampions player badges implemented locally
+
+- Reconciled the clean accumulation checkout at exact checkpoint `53cdd7b`,
+  superseding the proposal-time `9902c78` base, and created isolated branch
+  `codex/p12-1-polychampions-player-badges` without using the retired
+  `/home/nelluk/PolyBot39-dev` clone.
+- Recorded implementation/tests checkpoint `ce23615`; this documentation-only
+  evidence checkpoint follows it without changing application behavior.
+- Added the exact guild-local badge storage/migration contract, Mod-only
+  requester-bound bulk add/remove drafts, cached emoji and bounded removal
+  autocomplete, atomic ordered-lock worker/audit, post-commit public result,
+  PolyChampions-only profile presentation, and operator deletion/migration
+  fingerprint/preservation coverage.
+- Added startup fail-closed schema verification and release-candidate inventory
+  awareness. Production is deliberately blocked until a separate production
+  identity-gated badge migration is reviewed; the development migration tool
+  is not production authority.
+- After explicit approval, bootstrapped the canonical shared locked Python
+  3.12 development environment and linked the isolated worktree through the
+  mandated helper. The complete P12.1-focused suite passed **79 tests** and
+  complete offline discovery passed **2,224 tests with 92 intentional gated
+  skips**. Dependency-backed validation corrected newline rejection before
+  whitespace normalization, one Peewee public-API assertion, the no-row
+  startup-schema fake, and three exact `/league` registration expectations.
+  Repository-wide compilation and `git diff --check` passed.
+- No schema apply/database connection, stopped-writer database validation,
+  Discord inspection or guild command apply, beta launch/smoke, Docker,
+  production, integration, push, or deployment occurred.
+
+### 2026-08-16 — P12.1 integrated and development-schema gated
+
+- Applied and exactly verified the reviewed additive `public.player.badges`
+  column only on `development` / `polytopia_dev` / `polybot_dev`, with the
+  durable beta stopped and the writer census at zero.
+- Captured one newly approved bounded, read-only role/channel identity snapshot
+  for development guild `478571892832206869` because the prior ignored snapshot
+  path belonged to the retired development checkout.
+- The combined stopped-writer PostgreSQL suite passed 79 runnable cases. The
+  WB1.3b synthetic showcase case now skips only the exact known incompatible
+  Team-state conflicts introduced by the coherent historical mirror; any other
+  conflict still fails the gate.
+- The mirror also exposed a pre-existing `/squad show` scale defect: 24 matching
+  cards independently recomputed the complete leaderboard, producing 1,455
+  queries and exceeding the five-second gate. Discovery now loads one immutable
+  leaderboard snapshot for all cards; the real-schema timing case passes, and
+  the affected combined offline suite passes 130 tests.
+- Production compatibility is explicit: the reviewed production tooling covers
+  the two additive timezone columns, while P12.1 additionally requires
+  `public.player.badges`. Production remains blocked until a separately reviewed
+  production identity-gated badge migration tool exists; the development tool
+  is not production authority.
+- No production access, Discord command write, beta deployment, push, or
+  announcement occurred.
 
 ## Resume checklist
 

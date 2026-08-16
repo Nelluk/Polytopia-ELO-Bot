@@ -64,6 +64,7 @@ class PlayerDeletionGuildPreview:
     lineups: int
     hosted_games: int
     bid_references: int
+    badge_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -298,6 +299,8 @@ def _build_graph(request) -> _Graph:
             details.append('non-default rating history')
         if player.trophies:
             details.append('legacy trophies')
+        if player.badges:
+            details.append(f'{len(player.badges)} badge(s)')
         if player.is_banned:
             details.append('guild ban state')
         if details:
@@ -313,6 +316,7 @@ def _build_graph(request) -> _Graph:
             team_id=(None if player.team_id is None else int(player.team_id)),
             rating_summary=ratings,
             trophies_present=bool(player.trophies),
+            badge_count=len(player.badges or ()),
             is_banned=bool(player.is_banned),
             squad_memberships=player_squads,
             house_preferences=player_preferences,
@@ -332,7 +336,7 @@ def _build_graph(request) -> _Graph:
     player_fields = (
         'id', 'discord_member_id', 'guild_id', 'nick', 'name', 'team_id',
         'elo', 'elo_max', 'elo_alltime', 'elo_max_alltime', 'elo_moonrise',
-        'elo_max_moonrise', 'trophies', 'is_banned',
+        'elo_max_moonrise', 'trophies', 'badges', 'is_banned',
     )
     state = {
         'member': _primitive_row(member, member_fields),

@@ -12,6 +12,7 @@ from modules.database_schema_contract import (
     REQUIRED_TABLES,
     WINNER_FOREIGN_KEY_SQL,
 )
+from modules import player_badges_migration
 
 
 class StartupSchemaPreflightError(RuntimeError):
@@ -112,6 +113,26 @@ def inspect_startup_schema(
                     + ', '.join(missing_tables)
                     + '. Run only the separately reviewed schema/bootstrap '
                     'operation for this environment.'
+                )
+
+            try:
+                table_exists, badge_column = (
+                    player_badges_migration.schema_metadata(cursor)
+                )
+                badge_plan = player_badges_migration.plan_migration(
+                    badge_column,
+                    table_exists=table_exists,
+                )
+            except player_badges_migration.MigrationSafetyError as exc:
+                raise StartupSchemaPreflightError(
+                    'Startup schema has an incompatible player.badges column. '
+                    'Run the separately reviewed badge migration verification.'
+                ) from exc
+            if not badge_plan.already_applied:
+                raise StartupSchemaPreflightError(
+                    'Startup schema is missing the required player.badges '
+                    'column. Stop the writer and run only the separately '
+                    'reviewed badge migration operation for this environment.'
                 )
 
             cursor.execute(WINNER_FOREIGN_KEY_SQL)

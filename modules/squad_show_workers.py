@@ -296,10 +296,17 @@ def _recent_games(squad) -> tuple[SquadShowRecentGame, ...]:
     )
 
 
-def _load_card(squad) -> SquadShowCard:
+def _load_card(
+    squad,
+    *,
+    leaderboard: tuple[int | None, int] | None = None,
+) -> SquadShowCard:
     members = tuple(_card_member(player) for player in squad.get_members())
     wins, losses = squad.get_record()
-    rank, leaderboard_length = squad.leaderboard_rank(settings.date_cutoff)
+    if leaderboard is None:
+        rank, leaderboard_length = squad.leaderboard_rank(settings.date_cutoff)
+    else:
+        rank, leaderboard_length = leaderboard
     return SquadShowCard(
         guild_id=int(squad.guild_id),
         squad_id=int(squad.id),
@@ -317,10 +324,12 @@ def _load_card(squad) -> SquadShowCard:
 def _card_for_request(
     squad,
     request: SquadShowRequest,
+    *,
+    leaderboard: tuple[int | None, int] | None = None,
 ) -> SquadShowCard:
     """Add requester-only display eligibility to an otherwise dense card."""
 
-    card = _load_card(squad)
+    card = _load_card(squad, leaderboard=leaderboard)
     if bool(request.requester_is_staff):
         can_edit_name = True
     else:
@@ -334,6 +343,21 @@ def _card_for_request(
 
 def _squad_from_match_row(row):
     return getattr(row, 'squad', row)
+
+
+def _leaderboard_positions(guild_id: int) -> tuple[dict[int, int], int]:
+    """Load one shared rank snapshot instead of rescanning it per card."""
+
+    rows = tuple(
+        models.Squad.leaderboard(
+            date_cutoff=settings.date_cutoff,
+            guild_id=int(guild_id),
+        ).tuples()
+    )
+    return (
+        {int(row[0]): index for index, row in enumerate(rows, start=1)},
+        len(rows),
+    )
 
 
 def load_squad_show(request: SquadShowRequest) -> SquadShowResult:
@@ -398,8 +422,19 @@ def load_squad_show(request: SquadShowRequest) -> SquadShowResult:
         if not total_matches:
             total_matches = len(squads)
         truncated = total_matches > MAX_SQUAD_MATCHES or len(squads) > MAX_SQUAD_MATCHES
+        if squads:
+            rank_by_squad_id, leaderboard_length = _leaderboard_positions(guild_id)
+        else:
+            rank_by_squad_id, leaderboard_length = {}, 0
         cards = tuple(
-            _card_for_request(squad, request)
+            _card_for_request(
+                squad,
+                request,
+                leaderboard=(
+                    rank_by_squad_id.get(int(squad.id)),
+                    leaderboard_length,
+                ),
+            )
             for squad in squads[:MAX_SQUAD_MATCHES]
         )
 

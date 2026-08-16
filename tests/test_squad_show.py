@@ -256,6 +256,7 @@ class WorkerBoundaryTests(unittest.TestCase):
             mock.patch.object(workers.models, 'db', database),
             mock.patch.object(workers, '_load_players', return_value=(object(),)),
             mock.patch.object(workers, '_guild_scoped_matching_query', return_value=query),
+            mock.patch.object(workers, '_leaderboard_positions', return_value=({}, 0)),
             mock.patch.object(workers, '_load_card', return_value=loaded),
         ):
             result_value = workers.load_squad_show(self.request())
@@ -281,8 +282,13 @@ class WorkerBoundaryTests(unittest.TestCase):
             mock.patch.object(workers, '_guild_scoped_matching_query', return_value=query),
             mock.patch.object(
                 workers,
+                '_leaderboard_positions',
+                return_value=({}, 0),
+            ),
+            mock.patch.object(
+                workers,
                 '_load_card',
-                side_effect=lambda squad: card(squad.id),
+                side_effect=lambda squad, **_kwargs: card(squad.id),
             ),
         ):
             result_value = workers.load_squad_show(self.request())

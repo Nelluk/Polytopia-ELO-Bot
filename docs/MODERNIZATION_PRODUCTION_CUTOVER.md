@@ -33,11 +33,14 @@ backup, test, or health result. Never improvise around a failed gate.
 - Global application-command tree: must be empty; this repository has no
   authority or tooling to mutate it
 
-The additive timezone columns are the only schema change. Apply and verify
-them as a backward-compatible expansion before switching application code in
-the same maintenance window. The old whole-hour field and identity fields
-remain untouched; there is no backfill, destructive schema rollback, or
-separate soak period for columns the rollback code does not read.
+The currently reviewed production migration tooling covers two additive
+timezone columns. A release containing P12.1 also requires the additive
+`public.player.badges` column, but production remains blocked until a separate
+production identity-gated badge migration tool is reviewed. Apply and verify
+every release-required backward-compatible expansion before switching
+application code in the same maintenance window. The old whole-hour field and
+identity fields remain untouched; there is no backfill, destructive schema
+rollback, or separate soak period for columns the rollback code does not read.
 
 ## Required approval and release record
 
@@ -136,6 +139,14 @@ Complete these before notifying users of downtime:
 
    It must print only the two schema-qualified additive statements and state
    that no runtime profile, connection, or DDL was used.
+
+   A release containing P12.1 must also contain
+   `docs/PLAYER_BADGES_MIGRATION.md` and `scripts/migrate_player_badges.py` in
+   its exact source inventory. That script is intentionally development-only
+   and is **not** authority to touch production. Until a separately reviewed
+   production identity-gated player-badges plan/verify/apply path exists, a
+   P12.1 production release stops at this gate. Do not substitute the
+   development confirmation or run ad-hoc DDL.
 4. Run the application-command desired-state plan offline with exact
    production selection and the release record's comma-separated list of all
    allowlisted production guild IDs:
@@ -297,6 +308,11 @@ release or rollback that changes the checkpoint, backup shell, reporting
 exporter, or interpreter. Never hand-edit it to bypass a validation failure.
 
 ### 4. Apply and verify the additive schema
+
+For a release containing P12.1, first satisfy the separate production badge-
+migration blocker described in the pre-maintenance gate above. The existing
+timezone tool verifies only its two columns and cannot authorize or verify
+`public.player.badges`.
 
 First run read-only verify under its separate production-access approval:
 
