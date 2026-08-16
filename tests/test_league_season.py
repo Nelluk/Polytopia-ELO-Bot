@@ -53,18 +53,18 @@ def request(**overrides):
 
 
 def row(team_id, tier, name, *, regular=0, postseason=0):
-    return SimpleNamespace(
-        id=team_id,
-        name=name,
-        emoji='⚔️',
-        game_league_tier=tier,
-        regular_wins=regular,
-        regular_losses=1,
-        regular_incomplete=2,
-        postseason_wins=postseason,
-        postseason_losses=3,
-        postseason_incomplete=4,
-    )
+    return {
+        'id': team_id,
+        'name': name,
+        'emoji': '⚔️',
+        'game_league_tier': tier,
+        'regular_wins': regular,
+        'regular_losses': 1,
+        'regular_incomplete': 2,
+        'postseason_wins': postseason,
+        'postseason_losses': 3,
+        'postseason_incomplete': 4,
+    }
 
 
 def result(*, season=17, team_count=2):
@@ -172,7 +172,7 @@ class WorkerAndRenderingTests(unittest.TestCase):
     def test_game_tier_does_not_collide_with_nullable_team_tier(self):
         database = FakeDatabase()
         collision_row = row(1, 2, 'Historical Team')
-        collision_row.league_tier = None
+        collision_row['league_tier'] = None
         with mock.patch.object(workers.models, 'db', database), mock.patch.object(
             workers, '_season_query', return_value=(collision_row,)
         ):

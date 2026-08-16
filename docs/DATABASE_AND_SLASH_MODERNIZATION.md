@@ -18387,10 +18387,11 @@ deferred into this post-modernization backlog.
   `/league season` failed while converting a null `Team.league_tier`, even
   though the aggregate query excludes null `Game.league_tier` values.
 - The selected game tier used the same `league_tier` alias as the nullable Team
-  model field, so Peewee exposed the Team attribute on historical rows. The
-  query now uses the distinct `game_league_tier` result alias and grouping reads
-  that value; query scope, ordering, counts, permissions, and output are
-  unchanged.
+  model field, so Peewee exposed the Team attribute on historical rows. A first
+  distinct alias then proved that arbitrary selected aliases are not attached
+  to returned Team model instances. The aggregate query now returns explicit
+  dictionary rows and grouping reads the distinct `game_league_tier` key;
+  query scope, ordering, counts, permissions, and output are unchanged.
 - Added a regression for a historical Team with a null stored tier and a valid
   tiered league game. The focused no-network immutable-image run passed all 13
   league-season tests. No database row, schema, fixture, or Discord command

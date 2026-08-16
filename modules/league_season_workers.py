@@ -193,6 +193,7 @@ def _season_query(request: LeagueSeasonRequest):
             models.Team.id,
         )
         .limit(MAX_SEASON_ROWS + 1)
+        .dicts()
     )
 
 
@@ -237,16 +238,16 @@ def load_league_season(request: LeagueSeasonRequest) -> LeagueSeasonResult:
     rows = rows[:MAX_SEASON_ROWS]
     grouped = defaultdict(list)
     for row in rows:
-        grouped[int(row.game_league_tier)].append(LeagueSeasonTeamRow(
-            team_id=int(row.id),
-            team_name=str(row.name),
-            team_emoji=str(row.emoji or ''),
-            regular_wins=int(row.regular_wins or 0),
-            regular_losses=int(row.regular_losses or 0),
-            regular_incomplete=int(row.regular_incomplete or 0),
-            postseason_wins=int(row.postseason_wins or 0),
-            postseason_losses=int(row.postseason_losses or 0),
-            postseason_incomplete=int(row.postseason_incomplete or 0),
+        grouped[int(row['game_league_tier'])].append(LeagueSeasonTeamRow(
+            team_id=int(row['id']),
+            team_name=str(row['name']),
+            team_emoji=str(row['emoji'] or ''),
+            regular_wins=int(row['regular_wins'] or 0),
+            regular_losses=int(row['regular_losses'] or 0),
+            regular_incomplete=int(row['regular_incomplete'] or 0),
+            postseason_wins=int(row['postseason_wins'] or 0),
+            postseason_losses=int(row['postseason_losses'] or 0),
+            postseason_incomplete=int(row['postseason_incomplete'] or 0),
         ))
     labels = {int(number): str(name) for number, name in request.tier_labels}
     tiers = tuple(
