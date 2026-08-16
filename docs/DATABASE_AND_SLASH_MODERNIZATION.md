@@ -16269,7 +16269,8 @@ performed.
 
 ### P11.5H — Development historical PolyChampions mirror
 
-Status: **Implemented locally; Tier-3 review and integration pending.**
+Status: **Implemented, Tier-3 reviewed, integrated, and successfully applied
+to the stopped GreenCloud development database; beta restart pending.**
 
 Branch/base: `codex/development-historical-mirror`, exact clean base
 `5dbe04c000c5593d90f546e3f0f65842f35f943a`.
@@ -16306,8 +16307,8 @@ post-commit verification; acquisition, cancellation, and release faults are
 bounded as reconciliation-required after commit while ordinary pre-commit
 failures retain rollback semantics. Focused offline coverage now has 22
 passing tests for these cases and the original mirror behavior.
-No database, production, Discord, dependency, beta, or deployment operation
-was performed in this unit.
+The first stopped-writer rehearsal completed through independent post-commit
+verification on GreenCloud. Beta startup and Discord smoke remain separate.
 
 Limitations: the tool cannot prove which archive produced a live database and
 does not continuously monitor unguarded connections; the runbook therefore
@@ -16315,9 +16316,9 @@ requires a separate stopped-beta host-wide writer census and preserved archive
 rollback. Parking rows remain intentionally isolated rather than deleted and
 must be handled by the next fresh archive refresh.
 
-Next action: complete independent Tier-3 review, then run only a separately
-approved stopped-writer rehearsal against an isolated development restore;
-this unit intentionally ran no PostgreSQL rehearsal.
+Next action: start only `polybot-development-beta@greencloud.service`, verify
+its exact database/configuration identity and single-writer state, and perform
+the separately approved bounded beta smoke.
 
 ### P11.6 — Player, team, and game card parity polish
 
@@ -18379,6 +18380,43 @@ before M7/R-002 so they can improve final-candidate evidence. They are not
 deferred into this post-modernization backlog.
 
 ## Progress log
+
+### 2026-08-15 — P11.5H GreenCloud historical mirror applied and verified
+
+- Reconciled the post-migration host boundaries before writing: production is
+  `polyelo.service` at `/srv/polyelo/PolyBot39`, its maintained partial backup
+  is under `/srv/polyelo/backups`, and the durable development instance is
+  `polybot-development-beta@greencloud.service`. The earlier `@main` and
+  `/home/nelluk/PolyBot39` assumptions did not describe this host.
+- Stopped only the exact GreenCloud development service after a host-wide
+  process/cgroup audit identified its supervisor, lock keeper, and bot. The
+  final host-wide writer census was clear; production remained active and was
+  not restarted or mutated.
+- Preserved `polytopia_dev` as
+  `polybot-polytopia_dev-20260816T023422Z-f449866f8615474fb0141ef09f29c6552914247e.dump`
+  (SHA-256 `91c595d227a03ccaa45be680a21c6b54159e0d8ad26079667002533140411422`)
+  and the five beta configuration tables as
+  `polybot-beta-configuration-20260816T023422Z.dump` (SHA-256
+  `708fd0e1cf7fec04cf382e7137eeeb22db30b724cf3ab0377c5dfbb31eaf4793`).
+- Validated and staged the 17:03 PostgreSQL 18.4 production partial archive
+  (SHA-256 `4eabf745b4b103b836238e8baf4857284ebbd99398f28fb1d80547c49d8f8703`).
+  It contained no `gamelog` table/data but retained `gamelog_id_seq`.
+- The preferred fresh-database path was unavailable because `polybot_dev`
+  lacks `CREATEDB` and does not own `public`. An initial transactional
+  `pg_restore --clean` also rolled back cleanly when a development-only foreign
+  key blocked archive-ordered constraint removal. The accepted bounded fallback
+  dropped only the known production-domain tables plus `gamelog`, restored the
+  production archive with `--no-owner --no-acl --single-transaction`, restored
+  the five beta configuration tables exactly, removed the orphan sequence, and
+  bootstrapped 17 current model tables plus the winner foreign key and empty
+  `gamelog`. The existing timezone migration then committed successfully.
+- The exact mirror digest
+  `a6cf2d58386febc5bb250fdbac38538b95359c003ef71be1d2021b106fd587cf`
+  remapped 81 teams, 6,662 players, 41,545 games, and 24,424 squads. It parked
+  13 existing beta teams, four beta players, and two beta squads at the fixed
+  sentinel. Apply passed its in-transaction proof and the separate read-only
+  verify command; modern beta configuration remained complete, active, and
+  target-only. Beta restart and Discord smoke remained pending at this entry.
 
 ### 2026-08-15 — P11.5H historical mirror implemented locally
 

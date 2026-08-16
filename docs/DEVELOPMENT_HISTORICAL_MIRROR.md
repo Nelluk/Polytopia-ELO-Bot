@@ -16,6 +16,13 @@ as a Discord guild.
    using it. The exact production backup command, credentials, and dump path
    are operator-specific placeholders and are not supplied by this runbook.
 
+   On the GreenCloud host, production runs as `polyelo.service` from
+   `/srv/polyelo/PolyBot39`. The maintained `polyelo-backup.service` publishes
+   the partial archive as
+   `/srv/polyelo/backups/polytopia_bak-<weekday>.sqlc`; that private directory
+   is owned by the `polyelo` account, so copying an archive into development
+   staging is a separate privileged operator action.
+
 2. Stop the beta under its own approval. Run the host-wide development writer
    census and resolve every reported PID; do not use `pkill`, `killall`, or a
    broad stop. The existing read-only census is:
@@ -25,6 +32,12 @@ as a Discord guild.
    /home/nelluk/PolyBot39-dev/.venv/bin/python \
    scripts/audit_development_beta_processes.py --require-clear
    ```
+
+   The durable GreenCloud instance is
+   `polybot-development-beta@greencloud.service`. A sandboxed process view can
+   miss the user-systemd service and its advisory-lock keeper, so resolve the
+   unit from the candidate process cgroup and perform the final census from a
+   host-wide operator context.
 
 3. Preserve rollback material before replacing the development database.
    Export the current development database through the existing guarded
@@ -36,12 +49,15 @@ as a Discord guild.
    PostgreSQL-admin action; the mirror tool does not export or rewrite them.
 
 4. With the beta stopped and no unguarded writer, replace only the configured
-   development `polytopia_dev` database under separate approval. Use a fresh
-   database/role target and restore the validated partial archive in one
-   transaction with `--no-owner --no-acl`. The exact `dropdb`/`createdb` or
-   provider-specific replacement commands are placeholders requiring the
-   development PostgreSQL administrator. Never point this operation at
-   `polytopia2`, a production host, or an existing production database.
+   development `polytopia_dev` database under separate approval. Prefer a fresh
+   database/role target when the operator has database-administrator access.
+   On GreenCloud, `polybot_dev` owns the database but intentionally lacks
+   `CREATEDB` and does not own the `public` schema. The bounded fallback is to
+   drop the known production-domain tables plus `gamelog` with `CASCADE`, then
+   restore the validated archive in one transaction with `--no-owner --no-acl`.
+   Preserve the five `guild_configuration_*` tables until their separate exact
+   restore. Never point this operation at `polytopia2`, a production host, or
+   any other database.
 
    Validate the archive catalog first (for a custom archive):
 
@@ -55,6 +71,11 @@ as a Discord guild.
    them from Codex. Record the archive name, checksum, PostgreSQL major, and
    bounded restore result separately; the remap digest does not prove which
    archive produced the live database.
+
+   Current partial archives exclude the `gamelog` table and data but may retain
+   an orphan `gamelog_id_seq` catalog entry. Remove that sequence after the
+   production-domain restore and before schema bootstrap; bootstrap must create
+   the empty table and its sequence together.
 
 5. Recreate schema omitted by the partial dump and apply current development
    schema-forward work. The existing guarded schema plan/apply is:
@@ -144,12 +165,13 @@ as a Discord guild.
    POLYBOT_ENV=development \
    /home/nelluk/PolyBot39-dev/.venv/bin/python \
    scripts/check_runtime_config.py
-   POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
-   scripts/run_development_beta.py
+   systemctl --user start polybot-development-beta@greencloud.service
    ```
 
-   Startup must show `polytopia_dev`/`polybot_dev`, one configured guild,
+   The durable launcher itself receives its required `--skip_tasks` argument
+   from the installed service unit; do not invoke it manually without the
+   complete reviewed service environment. Startup must show
+   `polytopia_dev`/`polybot_dev`, one configured guild,
    disabled API/background tasks/Bullet, and no automatic command sync. A
    bounded operator smoke is separately approved; it may exercise identity,
    a read-only historical game view, and one agreed beta workflow. Discord
