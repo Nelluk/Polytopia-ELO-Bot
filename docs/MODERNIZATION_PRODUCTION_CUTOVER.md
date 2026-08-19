@@ -33,14 +33,13 @@ backup, test, or health result. Never improvise around a failed gate.
 - Global application-command tree: must be empty; this repository has no
   authority or tooling to mutate it
 
-The currently reviewed production migration tooling covers two additive
-timezone columns. A release containing P12.1 also requires the additive
-`public.player.badges` column, but production remains blocked until a separate
-production identity-gated badge migration tool is reviewed. Apply and verify
-every release-required backward-compatible expansion before switching
-application code in the same maintenance window. The old whole-hour field and
-identity fields remain untouched; there is no backfill, destructive schema
-rollback, or separate soak period for columns the rollback code does not read.
+The reviewed production migration tooling covers two additive timezone columns
+and the additive `public.player.badges` column. Apply and verify every
+release-required backward-compatible expansion before switching application
+code in the same maintenance window. The old whole-hour field and identity
+fields remain untouched; there is no data migration or backfill, destructive
+schema rollback, or separate soak period for columns the rollback code does
+not read.
 
 ## Required approval and release record
 
@@ -140,13 +139,19 @@ Complete these before notifying users of downtime:
    It must print only the two schema-qualified additive statements and state
    that no runtime profile, connection, or DDL was used.
 
-   A release containing P12.1 must also contain
-   `docs/PLAYER_BADGES_MIGRATION.md` and `scripts/migrate_player_badges.py` in
-   its exact source inventory. That script is intentionally development-only
-   and is **not** authority to touch production. Until a separately reviewed
-   production identity-gated player-badges plan/verify/apply path exists, a
-   P12.1 production release stops at this gate. Do not substitute the
-   development confirmation or run ad-hoc DDL.
+   A release containing P12.1 must also contain the reviewed production badge
+   migration module, `scripts/migrate_player_badges_production.py`, and
+   `docs/PLAYER_BADGES_MIGRATION.md` in its exact source inventory. Review its
+   connection-free plan:
+
+   ```bash
+   .venv/bin/python scripts/migrate_player_badges_production.py
+   ```
+
+   It must print only the schema-qualified additive `public.player.badges`
+   statement and state that no runtime profile, connection, or DDL was used.
+   The development confirmation/tool is not production authority; do not
+   substitute it or run ad-hoc DDL.
 4. Run the application-command desired-state plan offline with exact
    production selection and the release record's comma-separated list of all
    allowlisted production guild IDs:
@@ -309,10 +314,9 @@ exporter, or interpreter. Never hand-edit it to bypass a validation failure.
 
 ### 4. Apply and verify the additive schema
 
-For a release containing P12.1, first satisfy the separate production badge-
-migration blocker described in the pre-maintenance gate above. The existing
-timezone tool verifies only its two columns and cannot authorize or verify
-`public.player.badges`.
+The timezone and badge tools have independent fixed identities and confirmation
+tokens. Each verifies only its reviewed columns; both exact verifications must
+pass before model code starts.
 
 First run read-only verify under its separate production-access approval:
 
@@ -332,15 +336,35 @@ POLYBOT_ENV=production \
   --confirm P9-B1-PRODUCTION-TIMEZONE-APPLY
 ```
 
-Immediately rerun `--verify`. Do not start any modernization model code unless
-verify returns success for both exact columns. Any identity, metadata, lock,
-DDL, or verification failure leaves the service stopped and follows the abort
-matrix below. Never use `DROP COLUMN` as rollback.
+Immediately rerun `--verify`. Any identity, metadata, lock, DDL, or
+verification failure leaves the service stopped and follows the abort matrix
+below. Never use `DROP COLUMN` as rollback.
 
-Successful exact verification completes the schema compatibility gate. Proceed
-directly to the task-disabled application canary; do not add a separate old-code
-soak for columns that the rollback code ignores. If application rollback is
-later required, retain both columns as described below.
+Then run the separately approved read-only badge verification:
+
+```bash
+POLYBOT_ENV=production \
+.venv/bin/python scripts/migrate_player_badges_production.py --verify
+```
+
+If it reports the exact schema already complete, record that result and do not
+force DDL. If it reports only the reviewed missing column, obtain/confirm the
+exact DDL approval and run:
+
+```bash
+POLYBOT_ENV=production \
+.venv/bin/python scripts/migrate_player_badges_production.py \
+  --apply \
+  --confirm P12.1-PRODUCTION-PLAYER-BADGES-APPLY
+```
+
+Immediately rerun `--verify`. Do not start modernization model code unless the
+timezone tool verifies both columns and the badge tool verifies
+`public.player.badges`. Never use `DROP COLUMN` as rollback. Successful exact
+verification of all three columns completes the schema compatibility gate.
+Proceed directly to the task-disabled application canary; do not add a separate
+old-code soak for columns that the rollback code ignores. If application
+rollback is later required, retain all three columns as described below.
 
 ### 5. Run the reviewed task-disabled process canary
 

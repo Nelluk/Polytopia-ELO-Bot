@@ -63,7 +63,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('create_directories=False', script)
         self.assertIn('psql_db = polytopia2', example_config)
 
-    def test_player_badge_migration_is_inventory_tracked_and_production_blocked(self):
+    def test_player_badge_migration_is_inventory_tracked_and_production_gated(self):
         badge_runbook = (
             self.root / 'docs/PLAYER_BADGES_MIGRATION.md'
         ).read_text(encoding='utf-8')
@@ -78,8 +78,21 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             'leaves this harmless additive column in place',
             badge_runbook.lower(),
         )
-        self.assertIn('stops at this gate', cutover)
+        production_script = (
+            self.root / 'scripts/migrate_player_badges_production.py'
+        ).read_text(encoding='utf-8')
+        self.assertIn('P12.1-PRODUCTION-PLAYER-BADGES-APPLY', badge_runbook)
+        self.assertIn('scripts/migrate_player_badges_production.py', cutover)
+        self.assertIn("mode.add_argument('--verify'", production_script)
+        self.assertIn("mode.add_argument('--apply'", production_script)
+        self.assertNotIn("add_argument('--rollback'", production_script)
         self.assertIn("'scripts/migrate_player_badges.py'", release)
+        self.assertIn(
+            "'scripts/migrate_player_badges_production.py'", release
+        )
+        self.assertIn(
+            "'modules/player_badges_production_migration.py'", release
+        )
         self.assertIn("'docs/PLAYER_BADGES_MIGRATION.md'", release)
 
     def test_modernization_cutover_is_separate_ordered_and_fail_closed(self):

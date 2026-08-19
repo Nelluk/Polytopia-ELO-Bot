@@ -21,9 +21,11 @@ class PlayerBadgeSourceContractTests(unittest.TestCase):
             'modules/league_badges_workers.py',
             'modules/models.py',
             'modules/player_badges_migration.py',
+            'modules/player_badges_production_migration.py',
             'modules/player_workers.py',
             'modules/player_views.py',
             'scripts/migrate_player_badges.py',
+            'scripts/migrate_player_badges_production.py',
         )
         for path in paths:
             with self.subTest(path=path):

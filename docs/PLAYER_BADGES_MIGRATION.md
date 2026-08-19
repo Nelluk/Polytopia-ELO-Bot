@@ -7,8 +7,14 @@ ALTER TABLE "public"."player"
 ADD COLUMN "badges" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 ```
 
-The tool is model-free and does nothing on import or ordinary bot startup.
-Its default mode is an offline plan:
+The migration tools are model-free and do nothing on import or ordinary bot
+startup. This is a schema-only expansion: it does not populate badges,
+transform existing player records, backfill identities, or change any existing
+value. Existing players receive the reviewed empty-array default.
+
+## Development
+
+The development tool's default mode is an offline plan:
 
 ```bash
 python scripts/migrate_player_badges.py
@@ -37,5 +43,39 @@ to rerun when the exact column already exists.
 
 Application rollback leaves this harmless additive column in place. There is
 intentionally no drop-column rollback command because awarded badges are
-durable data. Production schema apply and deployment require later, separate
-approval and identity-specific tooling/review.
+durable data.
+
+## Production
+
+The separate production tool is fixed to `POLYBOT_ENV=production` and database
+`polytopia2`. Its live modes require the configured database role to equal
+PostgreSQL `current_user`; the role must be nonempty, but is not hard-coded or
+printed. The default plan is connection-free:
+
+```bash
+.venv/bin/python scripts/migrate_player_badges_production.py
+```
+
+Production verification is read-only and remains a separately approved
+production-database access:
+
+```bash
+POLYBOT_ENV=production \
+.venv/bin/python scripts/migrate_player_badges_production.py --verify
+```
+
+After the production writer is stopped, the writer/session census is clear,
+and the exact DDL is separately approved, apply uses one transaction, a
+five-second lock timeout, and exact post-DDL verification:
+
+```bash
+POLYBOT_ENV=production \
+.venv/bin/python scripts/migrate_player_badges_production.py \
+  --apply \
+  --confirm P12.1-PRODUCTION-PLAYER-BADGES-APPLY
+```
+
+The production tool refuses the development profile/database, another live
+database or role, a mismatched existing column, or a missing confirmation. It
+has no destructive rollback mode. Production access, verification, apply, and
+deployment remain separately approval-gated by the modernization cutover.

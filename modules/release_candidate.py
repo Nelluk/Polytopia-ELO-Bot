@@ -26,6 +26,8 @@ REQUIRED_SOURCE_PATHS = (
     'deploy/systemd/polytopia-modernization-canary.conf',
     'scripts/migrate_player_timezone_production.py',
     'scripts/migrate_player_badges.py',
+    'modules/player_badges_production_migration.py',
+    'scripts/migrate_player_badges_production.py',
     'scripts/manage_application_commands.py',
     'docs/MODERNIZATION_PRODUCTION_CUTOVER.md',
     'docs/PLAYER_BADGES_MIGRATION.md',
