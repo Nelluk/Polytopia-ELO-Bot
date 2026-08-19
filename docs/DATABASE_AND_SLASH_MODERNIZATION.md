@@ -542,11 +542,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P12.2 player-profile squad context is implemented and
-offline-validated; beta deployment and human visual acceptance remain
-separately gated.** P12.1 PolyChampions player badges remains integrated and
-development-schema gated; development-guild command apply, beta deployment,
-and human acceptance remain separately gated.
+Current active unit: **P12.3 production player-badges schema tooling is
+implemented and offline-validated; production access and apply remain
+separately gated.** P12.2 player-profile squad context is implemented and
+offline-validated; human visual acceptance remains separately gated. P12.1
+PolyChampions player badges is integrated and development-schema gated; human
+acceptance remains separately gated.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -16570,6 +16571,40 @@ active. Repository compilation and diff checks pass. No database connection,
 deployment, bot restart, Discord command apply/sync, production access, push,
 or external message occurred.
 
+### P12.3 — Production player-badges schema tooling
+
+Status: **Implemented and offline-validated at `0ccb002`; production access,
+verification, DDL, and deployment remain separately gated.** Risk tier:
+**Tier 3** production schema authority for one backward-compatible additive
+column.
+
+The release includes P12.1 and therefore requires the exact
+`public.player.badges` column before model code starts. The development tool
+remains fixed to `development` / `polytopia_dev` / `polybot_dev`; it was not
+broadened or reused as production authority. A separate model-free production
+module and CLI now provide a connection-free default plan, read-only verify,
+and explicitly confirmed apply fixed to `POLYBOT_ENV=production` and database
+`polytopia2`. Live modes require the nonempty configured role to match
+PostgreSQL `current_user` without printing it.
+
+Apply executes only
+`ALTER TABLE "public"."player" ADD COLUMN "badges" TEXT[] NOT NULL DEFAULT
+ARRAY[]::TEXT[]`, uses a five-second lock timeout, post-verifies the exact
+array element type/nullability/default in the same transaction, is idempotent,
+and rolls back on identity, metadata, DDL, or verification failure. It performs
+no row transformation, badge population, identity backfill, or destructive
+rollback. Application rollback retains the additive column.
+
+The connection-free plan printed the one reviewed schema-qualified statement
+and confirmed that it loaded no runtime configuration, connection, or DDL.
+The focused migration/release/runbook suite passed **49 tests**. Complete
+offline discovery under exact `POLYBOT_ENV=development` passed **2,239 tests
+with 92 intentional gated skips**; compilation and `git diff --check` passed.
+An initial discovery invocation without `POLYBOT_ENV` was invalid and failed
+closed during 43 imports as designed; it is not release evidence. No database
+connection, schema apply, production checkout/service access, Discord action,
+deployment, or external message occurred.
+
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
 Status: **Implemented and candidate-validated; bounded human beta and
@@ -26794,6 +26829,35 @@ deferred into this post-modernization backlog.
   durable development writer.
 - No database connection or write, schema action, Discord command action,
   deployment/restart, production access, push, or external message occurred.
+
+### 2026-08-19 — P12.3 production badge schema tooling implemented
+
+- Committed the separate production-only player-badges plan/verify/apply path
+  at `0ccb002`. It keeps the existing development CLI's exact identity gates
+  unchanged and shares only the reviewed model-free column metadata/plan
+  contract.
+- The default production plan is connection-free. Live verify/apply require
+  exact `production` / `polytopia2`, a nonempty configured role equal to live
+  `current_user`, and—only for apply—the exact
+  `P12.1-PRODUCTION-PLAYER-BADGES-APPLY` acknowledgement. Apply uses one
+  transaction, a five-second lock timeout, exact post-DDL verification, and no
+  drop-column rollback.
+- Confirmed this is schema-only: there is no badge population, player-row
+  transformation, identity backfill, or other data migration. Existing rows
+  receive PostgreSQL's empty text-array default.
+- Focused migration/release/runbook validation passed 49 tests. Complete
+  compliant offline discovery passed 2,239 tests with 92 intentional gated
+  skips; compilation and whitespace checks passed. The first complete-suite
+  command omitted mandatory `POLYBOT_ENV=development` and failed closed at
+  import, so it was discarded and rerun correctly.
+- Updated the cutover to require exact verification of both timezone columns
+  and `public.player.badges` before the task-disabled production canary, and
+  added the production badge module/CLI to the release-candidate digest
+  inventory.
+- No production configuration/database/service access, DDL, schema verify,
+  Discord action, beta action, deployment, or announcement occurred. Next
+  action: push the accumulation branch for review, then freeze a successor
+  release candidate from the reviewed exact source.
 
 ## Resume checklist
 

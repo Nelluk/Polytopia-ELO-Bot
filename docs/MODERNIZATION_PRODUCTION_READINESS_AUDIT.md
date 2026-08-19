@@ -142,6 +142,23 @@ verify mode, and no destructive rollback command. The complete stopped-writer
 development suite passed 69 tests with one preserved-fixture skip; its B1 case
 first proved the columns already existed, so the apply path executed no DDL.
 
+### R-003B — Add the production player-badges migration
+
+Status: Implemented and offline-validated at `0ccb002`; production use remains
+separately gated.
+
+P12.1 adds one further backward-compatible column,
+`public.player.badges`. The production path is separate from the unchanged
+development-only tool and provides a connection-free plan, exact
+`production` / `polytopia2` configured/live identity checks, read-only verify,
+an explicit production acknowledgement, a five-second DDL lock timeout,
+single-transaction apply and exact post-verification, idempotency, and no
+destructive rollback. It performs no badge population, player-row
+transformation, or identity backfill. The focused migration/release/runbook
+suite passed 49 tests and complete compliant offline discovery passed 2,239
+tests with 92 intentional gated skips. Production verification and apply remain
+operations in the approved maintenance sequence, not standing authorization.
+
 ### R-004 — Replace the historical cutover procedure
 
 Status: Complete through P9.16 implementation checkpoint `d754beb`, evidence

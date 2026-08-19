@@ -71,6 +71,13 @@ made all five protected Beta Lab packs ready at exact source `da7b204` without
 command synchronization. Human command, retained-prefix, and public/private
 visibility acceptance remain separate gates before a successor freeze.
 
+The successor source also includes P12.1 player badges and P12.2 squad-profile
+presentation. Its critical digest inventory therefore includes the separate
+production player-badges module and CLI added at `0ccb002`. The schema tool is
+no longer a source blocker, but its production verify/apply remains part of the
+separately approved maintenance window. A successor manifest must be created
+from the later exact candidate; RC2 cannot certify these additions.
+
 ## Tester-message boundary
 
 `release-candidate-manifests/tester-instructions-draft.md` is deliberately
