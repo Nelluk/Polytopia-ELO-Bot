@@ -542,17 +542,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 successor-RC preparation.** RC3 is historical
-after the `eddc0cd` player-profile presentation correction. Nelluk accepted
-badge and squad presentation after bounded live use and provisionally accepted
+Current active unit: **P9.31/M7 RC4 is frozen at
+`d1f63ea3f505a7d1256d30ac02cadbfde5cde27a`.** RC3 is historical after the
+`eddc0cd` player-profile presentation correction. Nelluk accepted badge and
+squad presentation after bounded live use and provisionally accepted
 retained-prefix and public/private visibility with limited sampling and known
-residual production-discovery risk. The successor record must disclose that
-coverage rather than claim exhaustive testing. Its production command plan is
-Main `/staffhelp` only, the reviewed PolyChampions native canary plus
-`/staffhelp`, no all-guild capability, and no inspection or synchronization of
-the other live allowlisted guilds. The live production PolyChampions route and
-existing beta feedback destination are canonical. All separately approved
-redacted production-configuration checks remain pending.
+residual production-discovery risk. RC4 discloses that coverage rather than
+claiming exhaustive testing. Its production command plan is Main `/staffhelp`
+only, the reviewed PolyChampions native canary plus `/staffhelp`, no all-guild
+capability, and no inspection or synchronization of the other live allowlisted
+guilds. The live production PolyChampions route and existing beta feedback
+destination are canonical. Cutover, offline, development-database, and bounded
+beta gates pass; separately approved redacted production-configuration checks
+remain pending.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -26923,6 +26925,29 @@ deferred into this post-modernization backlog.
   pending at 3/7 for four human checks, and production configuration remains
   pending at 0/3. No production access, schema apply, global sync, announcement,
   or tester ping occurred.
+
+### 2026-08-19 — P9.31 RC4 frozen with provisional beta acceptance
+
+- Froze exact source `d1f63ea3f505a7d1256d30ac02cadbfde5cde27a` and
+  recorded the eleven current candidate-tree critical digests in RC4.
+- Complete offline discovery passed 2,243 tests with 92 intentional gated
+  skips. Two stale assertions were corrected to enforce the approved
+  Main/PolyChampions-only native plan and actual `polyelo.service` paths.
+- Stopped only the external-socket beta and proved writer census 0/0/0. The
+  80-method development PostgreSQL gate completed at exit zero with one
+  intentional historical-mirror fixture skip under the exact development
+  identity.
+- Built and deployed exact image `polybot-mac-beta:d1f63ea`. It authenticated
+  as development application `479029527553638401`; final writer census is
+  1/0/0 and container restart count is zero.
+- Recorded Nelluk's tentative pass of the seven-item bounded beta matrix. This
+  reflects accepted presentation behavior and deliberately limited sampling;
+  it does not claim comprehensive retained-prefix or visibility testing.
+- RC4 passes cutover, offline, development-database, and bounded-beta gates.
+  Production configuration remains pending at 1/3: live service/static
+  settings discovery passed, while the privileged redacted runtime check and
+  final ignored configuration update/verification remain outstanding. No
+  production file, database, service, Discord tree, or announcement changed.
 
 ## Resume checklist
 
