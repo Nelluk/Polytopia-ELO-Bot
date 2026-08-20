@@ -542,19 +542,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC4-successor correction.** RC4 at
-`d1f63ea3f505a7d1256d30ac02cadbfde5cde27a` is superseded because its
+Current active unit: **P9.31/M7 RC5 is release-ready at
+`14f4a494000d05d529b37ae2d62172837181b462`.** RC4 is superseded because its
 nonempty-password rule did not match GreenCloud's canonical host-local
-PostgreSQL peer authentication. The correction permits a blank password only
-for production on the default Unix socket; TCP production and development
-remain password-required, and no fallback literal returns. Nelluk accepted
-badge and squad presentation after bounded live use and provisionally accepted
-retained-prefix and public/private visibility with limited sampling and known
-residual production-discovery risk. The successor must retain that disclosure,
-the Main `/staffhelp`-only and PolyChampions canary plan, the canonical live
-help channels, and the existing beta feedback destination. The live ignored
-`server_settings.py` now contains that reviewed policy; the running production
-service was not restarted and no database or Discord action occurred.
+PostgreSQL peer authentication. RC5 permits a blank password only for
+production on the default Unix socket; TCP production and development remain
+password-required, and no fallback literal returns. All five R-002 gates pass.
+The bounded-beta pass retains Nelluk's explicit limited-sampling disclosure and
+known residual production-discovery risk. The production plan remains Main
+`/staffhelp` only, the PolyChampions canary plus `/staffhelp`, canonical live
+help channels, no other native synchronization, and the existing beta feedback
+destination. The live ignored `server_settings.py` contains that policy; the
+running production service was not restarted and no database or Discord action
+occurred.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -26972,6 +26972,26 @@ deferred into this post-modernization backlog.
 - Focused runtime, deployment, documentation-consistency, and release-record
   coverage passes 50 tests. Full exact-candidate, stopped-writer database, beta,
   and successor-manifest evidence follow this correction.
+
+### 2026-08-20 — RC5 frozen and release-ready
+
+- Froze exact source `14f4a494000d05d529b37ae2d62172837181b462`.
+  Complete offline discovery passed 2,244 tests with 92 intentional gated
+  skips; the 80-method stopped-writer development PostgreSQL gate completed at
+  exit zero with one intentional historical-mirror fixture skip.
+- Built and deployed exact beta image `polybot-mac-beta:14f4a49` in mandatory
+  external-socket mode. It authenticated as development application
+  `479029527553638401`, writer census is 1/0/0, and restart count is zero.
+- RC5 carries forward the provisionally accepted, unchanged seven-item beta
+  matrix because the post-RC4 source change is limited to production runtime
+  profile handling plus tests/documentation. The record still disclaims
+  comprehensive beta sampling.
+- Production configuration passes 3/3 from the privileged redacted runtime
+  output, strict explicit-value evidence, canonical local peer-auth
+  reconciliation, and exact validation of the ignored live settings policy.
+- The RC5 manifest validates and `require-ready` passes with all five R-002
+  gates green. No production checkout update, service action, database action,
+  Discord inspection/synchronization, or announcement occurred.
 
 ## Resume checklist
 
