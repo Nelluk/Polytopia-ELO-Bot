@@ -542,12 +542,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P12.3 production player-badges schema tooling is
-implemented and offline-validated; production access and apply remain
-separately gated.** P12.2 player-profile squad context is implemented and
-offline-validated; human visual acceptance remains separately gated. P12.1
-PolyChampions player badges is integrated and development-schema gated; human
-acceptance remains separately gated.
+Current active unit: **P9.31/M7 RC3 is frozen and passes cutover review,
+complete offline discovery, the stopped-writer development PostgreSQL gate,
+exact beta startup, and command-tree convergence.** Four bounded human beta
+checks and all three separately approved redacted production-configuration
+checks remain pending. P12.2 player-profile squad context and P12.1
+PolyChampions player badges remain awaiting that human acceptance.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -16605,6 +16605,43 @@ closed during 43 imports as designed; it is not release evidence. No database
 connection, schema apply, production checkout/service access, Discord action,
 deployment, or external message occurred.
 
+### P9.31 — M7/R-002 RC3 candidate refresh
+
+Status: **Candidate-validated; bounded human beta and production-configuration
+gates remain pending.** Frozen source candidate:
+`036bea1c8a2dffe52f7b73ac2f1760711257aae0`. Evidence record:
+`release-candidate-manifests/modernization-rc3.json`.
+
+RC3 includes the integrated badges and squad-profile changes plus P12.3's
+production-only badge schema tooling. Candidate-tree validation proves the
+reviewed production rollback and every required B/H/M/L/N resolution
+checkpoint are ancestors, and verifies all eleven critical source digests,
+the two-guild canary/support plan, empty-global policy, three-column additive
+schema gate, and independent rollback dispositions.
+
+Complete offline discovery passed 2,239 tests with 92 intentional gated skips.
+After a fresh bounded read-only Discord snapshot, only the development beta was
+stopped and the writer census was exactly 0/0/0. The complete gated
+`development` / `polytopia_dev` / `polybot_dev` suite completed all 80 methods
+successfully with one intentional historical-mirror fixture skip. A first
+sandboxed attempt ran zero tests because it could not reach the host Unix
+socket; it was discarded and rerun through the approved outside-sandbox path.
+
+The exact amd64 candidate image built and authenticated as development
+application `479029527553638401` with writer census 1/0/0. Initial read-only
+command inspection found only the expected stale `league` root. After explicit
+approval, the guild-only apply updated that root in development guild
+`478571892832206869`; immediate reinspection found all 12 roots converged and
+the global tree empty. No other guild/root changed, and no global sync ran.
+The exact candidate beta was restored afterward and remains healthy.
+
+The bounded-beta gate is pending at three of seven: exact startup,
+stop/test/restore, and command-tree convergence pass. Human badge/squad
+presentation, retained-prefix parity, and public/private visibility checks
+remain four explicit required items. Production configuration remains pending
+at zero of three because no production read was authorized or performed.
+`require-ready` correctly returns nonzero.
+
 ### P9.26 — M7/R-002 post-P11 release-candidate refresh
 
 Status: **Implemented and candidate-validated; bounded human beta and
@@ -26858,6 +26895,29 @@ deferred into this post-modernization backlog.
   Discord action, beta action, deployment, or announcement occurred. Next
   action: push the accumulation branch for review, then freeze a successor
   release candidate from the reviewed exact source.
+
+### 2026-08-19 — P9.31 RC3 automated gates passed
+
+- Froze exact source `036bea1c8a2dffe52f7b73ac2f1760711257aae0`
+  and recorded all eleven candidate-tree critical digests in RC3.
+- Passed cutover review and complete offline discovery: 2,239 tests with 92
+  intentional gated skips.
+- Captured the sole allowlisted development guild's role/channel snapshot via
+  bounded read-only Discord HTTP, then stopped only the beta and proved writer
+  census 0/0/0. The 80-method PostgreSQL gate completed successfully with one
+  intentional historical-mirror fixture skip under exact
+  `development` / `polytopia_dev` / `polybot_dev` identity.
+- Built and restored exact candidate image `polybot-mac-beta:036bea1` on amd64.
+  It authenticated as application `479029527553638401`; final writer census is
+  1/0/0. Startup logs contain no traceback or identity/schema/database error.
+- Read-only application-command inspection found an empty global tree and one
+  expected `league` update for the nested badge commands. After explicit
+  approval, applied only development guild `478571892832206869`; immediate
+  reinspection showed all 12 roots converged and zero global commands.
+- RC3 passes cutover, offline, and development-database gates. Its beta gate is
+  pending at 3/7 for four human checks, and production configuration remains
+  pending at 0/3. No production access, schema apply, global sync, announcement,
+  or tester ping occurred.
 
 ## Resume checklist
 

@@ -78,6 +78,14 @@ no longer a source blocker, but its production verify/apply remains part of the
 separately approved maintenance window. A successor manifest must be created
 from the later exact candidate; RC2 cannot certify these additions.
 
+RC3 freezes exact source `036bea1c8a2dffe52f7b73ac2f1760711257aae0`.
+Cutover review, complete offline discovery, and the stopped-writer development
+PostgreSQL gate pass. The exact beta is running that candidate and its approved
+guild-only `league` update converged all 12 development roots while the global
+tree remained empty. The bounded-beta gate remains pending at three of seven
+until four human checks are recorded; production configuration remains pending
+at zero of three. `require-ready` therefore correctly returns nonzero.
+
 ## Tester-message boundary
 
 `release-candidate-manifests/tester-instructions-draft.md` is deliberately

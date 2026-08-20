@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "release_id": "modernization-rc3",
+  "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+  "rollback_sha": "c35e2f1d0011709d233c0aa8afa258602b457635",
+  "branch": "codex/database-slash-modernization",
+  "source_digests": {
+    "uv.lock": "d9b8292c59af1ac5b8466d273e84550e3b192b346c817a12cdc4bcf3606d111d",
+    "deploy/systemd/polytopia.service": "9e90b085feaac52c5b75171da6732d9a48ec9b3d64b7287f9ad8cfbbb0bb7c8d",
+    "deploy/systemd/polytopia-modernization-canary.conf": "7083a7908536371e8f28b188db2cc4d5dd033a9bf5e4db3632df276e17847f16",
+    "scripts/migrate_player_timezone_production.py": "b41b76e565314819240fa6ce50a6b3d5f6f800a2207fda66b4f04a6764ff8fd1",
+    "scripts/migrate_player_badges.py": "af713059fd91a9b47169b8fdbd530f20c8f0d946910f5dbc6f718bea1bef9d75",
+    "modules/player_badges_production_migration.py": "efe157903d00412da8ab405847dd9ca534602f38117a88fe766e8d05be47ad54",
+    "scripts/migrate_player_badges_production.py": "f5c565bb9f0ede8f9730d90c7740da442843647c6fb5a6a923318434c93d0a26",
+    "scripts/manage_application_commands.py": "c501083a4666b4d46ed54f0dbbf6ec93526e2ebf6c6dbe67af6f57fbb30de3c8",
+    "docs/MODERNIZATION_PRODUCTION_CUTOVER.md": "1fa5fc8871ce19b28fd7f2d7f4d2b84acc1dfd2fe78da6b137a7f0f81ae91bd1",
+    "docs/PLAYER_BADGES_MIGRATION.md": "0585e620f26cc1fc454b8c1a2c51113434ac0e186814c35c1a1789049f410e0c",
+    "release-candidate-manifests/tester-instructions-draft.md": "cd59b8a1da74f19f59a38a7d0dcf1160ec0804081d9d4436d786990bdb32dd5a"
+  },
+  "production_plan": {
+    "expected_bot_id": 484067640302764042,
+    "database": "polytopia2",
+    "api_enabled": false,
+    "global_commands_expected_empty": true,
+    "guilds": [
+      {
+        "guild_id": 283436219780825088,
+        "name": "Polytopia Main",
+        "staff_help_channel": 742857671237042176,
+        "first_helper_role": "ELO-Helper",
+        "capabilities": ["tools_support"]
+      },
+      {
+        "guild_id": 447883341463814144,
+        "name": "PolyChampions",
+        "staff_help_channel": 742832436047511572,
+        "first_helper_role": "Helper",
+        "capabilities": ["core_user", "house", "league", "squad", "team", "tools_support"]
+      }
+    ],
+    "omitted_capabilities": ["beta_testing", "elo_maintenance", "operator"]
+  },
+  "adversarial_findings": [
+    {"id": "B1", "status": "resolved", "checkpoints": ["8b9ede1b9fec6bda6ab60e91ffb9c068b1ab3163"]},
+    {"id": "B2", "status": "resolved", "checkpoints": ["d4a37d0aab1475b36d270a34e22c64cf74da5c91"]},
+    {"id": "B3", "status": "resolved", "checkpoints": ["3444d5d37360ddaacea5999570a6db863e226bce"]},
+    {"id": "H1", "status": "resolved", "checkpoints": ["102d64a945950cf077ad4b3406e59fe39161d6ae"]},
+    {"id": "H2", "status": "resolved", "checkpoints": ["102d64a945950cf077ad4b3406e59fe39161d6ae"]},
+    {"id": "H3", "status": "resolved", "checkpoints": ["4a645ed2828b150a4267663bd3427a1d85631bb9"]},
+    {"id": "H4", "status": "resolved", "checkpoints": ["8038077589e204853d749f9eb932264ba532160f"]},
+    {"id": "H5", "status": "resolved", "checkpoints": ["364d53a271cbfdd74515cfc0fb964e05eb6e8f3f"]},
+    {"id": "H6", "status": "resolved", "checkpoints": ["dc8608bb16d361215726948cacd2740023a4f774"]},
+    {"id": "H7", "status": "resolved", "checkpoints": ["2d561aec079fac4d7301a5eab2a62dd6b456dd2c"]},
+    {"id": "H8", "status": "resolved", "checkpoints": ["00e23c943b030c1de6a0b850621e16269abc558e"]},
+    {"id": "M1", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M2", "status": "resolved", "checkpoints": ["981d41e3db5f519f2e238d120360df233aa953f7"]},
+    {"id": "M3", "status": "resolved", "checkpoints": ["981d41e3db5f519f2e238d120360df233aa953f7"]},
+    {"id": "M4", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M5", "status": "resolved", "checkpoints": ["e34e007f6c5aec20bb822d71676fa0fed5e4ea73"]},
+    {"id": "M6", "status": "resolved", "checkpoints": ["9b248d335353b0b8c394f0be5a33bb08ae1db2e9"]},
+    {"id": "L1", "status": "resolved", "checkpoints": ["a344ab44587a42e4c9801fdcb03398c788f38273"]},
+    {"id": "N1", "status": "resolved", "checkpoints": ["0b4d954f8b13648d53f8d8af817115a7a8c5f107"]},
+    {"id": "N2", "status": "resolved", "checkpoints": ["0b4d954f8b13648d53f8d8af817115a7a8c5f107"]},
+    {"id": "N3", "status": "resolved", "checkpoints": ["f33b14b2396e25a0dccc3f580e075cf7b0773977"]},
+    {"id": "N4", "status": "resolved", "checkpoints": ["d27d6c83508ad00ef4e28d4eabad5fcddcf3189f"]},
+    {"id": "N5", "status": "resolved", "checkpoints": ["3928b1663a0ea2d057ccf085fb6413a86e7836f3", "15c46e7886a07a9bb6f5028e2f766c36de6280d1"]},
+    {"id": "N6", "status": "resolved", "checkpoints": ["f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"]},
+    {"id": "N7", "status": "resolved", "checkpoints": ["f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"]}
+  ],
+  "gates": {
+    "cutover_review": {
+      "status": "pass",
+      "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+      "command": "Candidate-tree digest, ancestry, release-scope, schema, service, command-policy, rollback, and post-RC2 correction review",
+      "total": 12,
+      "passed": 12,
+      "skipped": 0,
+      "failures": [],
+      "evidence": [
+        "Verified rollback and every required adversarial resolution checkpoint are ancestors of the exact candidate.",
+        "Verified all eleven cutover-critical source digests, fixed production guild plan, empty-global policy, three-column additive schema gate, and independent rollback dispositions.",
+        "Reviewed post-RC2 Beta Lab fencing, container deployment, support routing, player badges, squad-profile presentation, and production badge tooling."
+      ]
+    },
+    "offline_suite": {
+      "status": "pass",
+      "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+      "command": "POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot39-production-badge-migration-matplotlib .venv/bin/python -m unittest discover -q",
+      "total": 2239,
+      "passed": 2147,
+      "skipped": 92,
+      "failures": [],
+      "evidence": [
+        "Exact-candidate complete discovery passed 2,239 tests with 92 intentional gated skips.",
+        "The focused migration/release/runbook subset passed 49 tests; compilation and whitespace checks passed."
+      ]
+    },
+    "development_database_suite": {
+      "status": "pass",
+      "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+      "command": "Stopped beta at writer census 0/0/0; POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1 POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-deploy/logs/development/guild-configuration/discord-snapshot.json .venv/bin/python -m unittest tests.test_database_integration",
+      "total": 80,
+      "passed": 79,
+      "skipped": 1,
+      "failures": [],
+      "evidence": [
+        "Fresh bounded read-only Discord snapshot covered the sole allowlisted development guild and made no Discord or database mutation.",
+        "Preflight proved development / polytopia_dev / polybot_dev, disabled background tasks/API, and zero project, host, or other-container writers.",
+        "All 80 cases completed successfully with one intentional historical-mirror fixture skip; the first sandboxed zero-test socket refusal was discarded and rerun outside the sandbox."
+      ]
+    },
+    "bounded_beta_matrix": {
+      "status": "pending",
+      "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+      "command": "Complete the remaining exact-candidate badge/squad presentation, retained-prefix parity, and public/private visibility checks",
+      "total": 7,
+      "passed": 3,
+      "skipped": 4,
+      "failures": [],
+      "evidence": [
+        "Exact candidate 036bea1 built and authenticated as development application 479029527553638401 with writer census 1/0/0.",
+        "The stopped-writer gate and exact-image restoration completed without database replacement or production access.",
+        "Approved guild-only apply updated only league; post-apply inspection found all 12 roots unchanged, no removals, and an empty global tree.",
+        "Human badge/squad presentation, retained-prefix parity, and public/private visibility acceptance remain pending."
+      ]
+    },
+    "production_configuration": {
+      "status": "pending",
+      "candidate_sha": "036bea1c8a2dffe52f7b73ac2f1760711257aae0",
+      "command": "Under separate production-read approval, run the redacted runtime check and compare ignored capability and support routes with this RC3 record",
+      "total": 3,
+      "passed": 0,
+      "skipped": 3,
+      "failures": [],
+      "evidence": [
+        "RC3 pins only reviewed non-secret desired production identities, routes, capabilities, omissions, and empty-global policy.",
+        "No production checkout, ignored production configuration, database, service, Discord tree, or secret was accessed."
+      ]
+    }
+  }
+}
