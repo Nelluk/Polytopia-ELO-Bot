@@ -27128,12 +27128,14 @@ deferred into this post-modernization backlog.
 - Complete offline discovery passed 2,255 tests with 92 intentional gated
   skips. Focused cross-checkout cutover and actual historical-manifest tests,
   compilation, and whitespace checks passed.
-- Carried forward the exact-parent RC7 stopped-writer PostgreSQL gate and beta
-  acceptance because RC8 changes only the cutover document, release-validator
-  naming, roadmap, and tests. No bot runtime, database path, schema,
-  dependency, container asset, configuration, command, or presentation code
-  changed. The RC7 beta remains healthy at writer census 1/0/0 and zero
-  restarts.
+- Proved exact RC8 writer census 0/0/0, then reran all 80 stopped-writer
+  development PostgreSQL cases at exit zero with one intentional historical-
+  mirror skip. Built and deployed exact image `polybot-mac-beta:9b12de4` in
+  external-socket mode; it authenticated as development application
+  `479029527553638401` with writer census 1/0/0, zero restarts, and no startup
+  traceback or identity/schema/database error. The provisional human beta
+  acceptance remains unchanged because RC8 changes no bot runtime, command,
+  or presentation behavior.
 - RC8's 15-file digest inventory binds the corrected runbook. The cutover gate
   explicitly proves the rollback tree lacks the wrapper, the pre-stop command
   reads it from the candidate SHA, the remote ref is frozen before downtime,

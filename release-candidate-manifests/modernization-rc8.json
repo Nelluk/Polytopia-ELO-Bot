@@ -283,28 +283,28 @@
     "development_database_suite": {
       "status": "pass",
       "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
-      "command": "Carry forward the exact-parent RC7 stopped-writer development PostgreSQL gate; RC8 changes only release governance documentation, validator naming, and tests",
+      "command": "Stopped exact RC8 beta at writer census 0/0/0; POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1 POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-deploy/logs/development/guild-configuration/discord-snapshot.json .venv/bin/python -m unittest tests.test_database_integration -q",
       "total": 80,
       "passed": 79,
       "skipped": 1,
       "failures": [],
       "evidence": [
-        "Exact parent RC7 proved writer census 0/0/0 and completed all 80 development PostgreSQL cases at exit zero with one intentional historical-mirror fixture skip.",
-        "The RC8 delta does not change bot runtime, database access, schema, configuration, dependencies, migrations, or application commands.",
+        "Exact RC8 preflight proved writer census 0/0/0 and completed all 80 development PostgreSQL cases at exit zero with one intentional historical-mirror fixture skip.",
+        "The exact RC8 candidate passed without changing development schema or configuration.",
         "The prior sandboxed zero-test socket refusal remains discarded and is not release evidence."
       ]
     },
     "bounded_beta_matrix": {
       "status": "pass",
       "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
-      "command": "Carry forward exact-parent RC7 beta deployment and Nelluk's provisional seven-item acceptance; RC8 changes only release governance documentation, validator naming, and tests",
+      "command": "Deploy exact RC8 candidate in external-socket mode and carry forward Nelluk's provisional seven-item bounded beta acceptance",
       "total": 7,
       "passed": 7,
       "skipped": 0,
       "failures": [],
       "evidence": [
-        "Exact parent RC7 b49086e remains running in external-socket mode as development application 479029527553638401 with writer census 1/0/0 and restart count zero.",
-        "RC8 does not change bot runtime, command surface, presentation, dependencies, container assets, or configuration.",
+        "Exact RC8 candidate 9b12de4 built and authenticated in external-socket mode as development application 479029527553638401 with writer census 1/0/0 and restart count zero.",
+        "Exact-candidate startup logs contain no traceback, identity, schema, or database error.",
         "Badge and squad-profile presentation received bounded live acceptance; the one-badge correction remains included.",
         "Nelluk tentatively accepted retained-prefix parity and public/private visibility with limited sampling rather than comprehensive beta coverage."
       ]
