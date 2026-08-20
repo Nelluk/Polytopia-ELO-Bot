@@ -542,8 +542,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC7 correction is in progress; RC6 is
-superseded.** A second GitHub-only external review correctly found that RC6's
+Current active unit: **P9.31/M7 RC7 is release-ready at
+`b49086eca94d7c50ff6ec4c71afd3cc26249fd68`; RC6 is superseded.** A second
+GitHub-only external review correctly found that RC6's
 operator-backup provenance still encoded the retired `/home/nelluk` topology
 and that its candidate branch had diverged from production `master`. Live
 inspection additionally established that the exact running production
@@ -552,9 +553,9 @@ fix beyond GitHub `master`. RC7 therefore preserves the RC6 peer-auth fix,
 descends from that exact live checkpoint, retains the intentional retirement
 of `$backup_db` / `$dbb`, and aligns the reviewed backup program, tracked
 root-wrapper source, provenance manager, artifacts, account, and runbook with
-`/srv/polyelo` / `polyelo`. New schema-2 release records bind the four critical
-backup files while historical schema-1 records remain readable. Exact
-candidate freeze, complete gates, beta refresh, and evidence are pending. The
+`/srv/polyelo` / `polyelo`. Schema-2 release records bind the four critical
+backup files while historical schema-1 records remain readable. All five R-002
+gates pass, and the exact candidate is active in beta with zero restarts. The
 running production service remains untouched without restart, database action,
 or Discord action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
@@ -27059,6 +27060,34 @@ deferred into this post-modernization backlog.
   retaining read compatibility for immutable schema-1 records. Focused backup,
   deployment, release-record, and inherited image tests pass. Complete RC7
   validation and freeze follow; production remains untouched.
+
+### 2026-08-20 — RC7 frozen with production topology and ancestry corrected
+
+- Froze exact application checkpoint
+  `b49086eca94d7c50ff6ec4c71afd3cc26249fd68`, a two-parent descendant of the
+  RC6 evidence line and exact live production checkpoint
+  `8fed2a6049e980f77614859be1d8b9e8564d975a`. It therefore contains current
+  GitHub `master` plus the live-only production backup adapter checkpoint and
+  is fast-forward promotable without dropping either master-only fix.
+- Complete offline discovery passed 2,254 tests with 92 intentional gated
+  skips. Compilation, tracked backup and wrapper shell syntax, whitespace,
+  focused provenance, deployment, image-containment, release-record, runtime,
+  and startup checks passed.
+- Stopped only the beta and proved writer census 0/0/0. The approved host-local
+  PostgreSQL gate completed all 80 development cases at exit zero with one
+  intentional historical-mirror fixture skip. A sandboxed socket refusal ran
+  zero tests and was discarded rather than counted as evidence.
+- Built and deployed exact image `polybot-mac-beta:b49086e` in external-socket
+  mode. It authenticated as development application `479029527553638401`;
+  writer census is 1/0/0, restart count is zero, and startup logs contain no
+  traceback or identity/schema/database error.
+- RC7 carries forward Nelluk's provisional seven-item beta acceptance with the
+  existing limited-sampling disclosure. Its application delta is the
+  production backup/provenance correction plus inherited production image
+  containment; the accepted command surface is unchanged.
+- `modernization-rc7.json` validates and `require-ready` passes all five gates.
+  Production remains on its prior exact checkout with no restart, database or
+  schema action, Discord inspection/synchronization, or announcement.
 
 ## Resume checklist
 
