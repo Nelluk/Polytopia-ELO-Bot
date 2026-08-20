@@ -542,17 +542,18 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC5-successor startup-preflight correction.**
-RC5 at `14f4a494000d05d529b37ae2d62172837181b462` is superseded after the
+Current active unit: **P9.31/M7 RC6 is release-ready at
+`beee5358b6b939018005347d5eaf73522425d2d9`.** RC5 is superseded after the
 GitHub-only external review found that its runtime loader accepted canonical
 production peer authentication while the separate startup schema preflight
-still rejected the same blank password. The successor carries the environment
-into the frozen preflight request and uses one shared authentication rule:
-blank password is production/default-local-socket-only; TCP production and
-development remain password-required. The production plan and provisional
-bounded-beta acceptance are otherwise unchanged. The running production
-service remains on its prior code without restart, database action, or Discord
-action.
+still rejected the same blank password. RC6 carries the environment into the
+frozen preflight request and uses one shared authentication rule: blank
+password is production/default-local-socket-only; TCP production and
+development remain password-required. All five R-002 gates pass, including
+direct connector and composed bot-startup regression coverage. The production
+plan and provisional bounded-beta acceptance are otherwise unchanged. The
+running production service remains on its prior code without restart, database
+action, or Discord action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -27008,6 +27009,26 @@ deferred into this post-modernization backlog.
   development/TCP coverage, and a composed bot-profile-to-preflight regression.
   Focused runtime/startup coverage passes 53 tests. Exact successor freeze,
   complete offline/database gates, beta refresh, and evidence follow.
+
+### 2026-08-20 — RC6 frozen after external-review correction
+
+- Froze exact source `beee5358b6b939018005347d5eaf73522425d2d9` with
+  the shared runtime/startup authentication contract and composed regression.
+- Complete offline discovery passed 2,247 tests with 92 intentional gated
+  skips. The 80-method stopped-writer development PostgreSQL gate completed at
+  exit zero with one intentional historical-mirror fixture skip.
+- Built and deployed exact beta image `polybot-mac-beta:beee535` in mandatory
+  external-socket mode. It authenticated as development application
+  `479029527553638401`, writer census is 1/0/0, and restart count is zero.
+- RC6 carries forward the unchanged provisional seven-item beta acceptance and
+  its explicit limited-sampling/residual-risk disclosure.
+- Production configuration now includes a fourth exact check: direct and
+  composed tests prove the canonical production local peer profile reaches
+  schema inspection while passwordless development/TCP requests fail before
+  connect.
+- The RC6 manifest validates and `require-ready` passes with all five gates
+  green. No production checkout update, service action, database action,
+  Discord inspection/synchronization, or announcement occurred.
 
 ## Resume checklist
 
