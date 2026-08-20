@@ -103,7 +103,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             self.root / 'docs/MODERNIZATION_PRODUCTION_CUTOVER.md'
         ).read_text(encoding='utf-8')
         canary = (
-            self.root / 'deploy/systemd/polytopia-modernization-canary.conf'
+            self.root / 'deploy/systemd/polyelo-modernization-canary.conf'
         ).read_text(encoding='utf-8')
         example_settings = (
             self.root / 'server_settings-EXAMPLE.py'
@@ -117,7 +117,8 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('POLYBOT_RELEASE_SHA', runbook)
         self.assertIn('POLYBOT_ROLLBACK_SHA', runbook)
         self.assertIn(
-            'Initial native canary guild: PolyChampions, `447883341463814144`',
+            'Native synchronization targets: Main `283436219780825088` and\n'
+            '  PolyChampions `447883341463814144` only',
             runbook,
         )
         self.assertNotIn(
@@ -129,8 +130,14 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             example_settings,
         )
         self.assertIn('unresolved adversarial-review items', runbook)
-        self.assertIn("application_command_all_guild_capabilities` is exactly\n  `('tools_support',)`", runbook)
-        self.assertIn("every allowlisted guild has a valid `staff_help_channel`", runbook)
+        self.assertIn(
+            'application_command_all_guild_capabilities` is exactly empty',
+            runbook,
+        )
+        self.assertIn(
+            'Main and PolyChampions retain their live staff-help channels',
+            runbook,
+        )
         self.assertIn('pg_stat_activity', runbook)
         self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
         self.assertIn(
@@ -160,7 +167,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             '### 4. Apply and verify the additive schema',
             '### 5. Run the reviewed task-disabled process canary',
             '### 6. Cleanly stop the canary and start the canonical service',
-            '### 7. Inspect and apply all-guild staff help plus the PolyChampions canary',
+            '### 7. Inspect and apply Main staff help plus the PolyChampions canary',
             '### 8. Finish and announce',
         )
         positions = [runbook.index(marker) for marker in ordered_markers]
@@ -168,11 +175,11 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
 
         self.assertIn('[Service]', canary)
         self.assertIn('POLYBOT_ENV=production', (
-            self.root / 'deploy/systemd/polytopia.service'
+            self.root / 'deploy/systemd/polyelo.service'
         ).read_text(encoding='utf-8'))
         self.assertIn(
-            'ExecStart=/home/nelluk/PolyBot39/.venv/bin/python '
-            '/home/nelluk/PolyBot39/bot.py --skip_tasks',
+            'ExecStart=/srv/polyelo/PolyBot39/.venv/bin/python '
+            '/srv/polyelo/PolyBot39/bot.py --skip_tasks',
             canary,
         )
         self.assertIn('Restart=no', canary)

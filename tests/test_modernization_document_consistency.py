@@ -80,7 +80,7 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
         self.assertIn('| P9 | In progress |', roadmap)
         self.assertIn(
-            'Current active unit: **P9.31/M7 RC3 is frozen',
+            'Current active unit: **P9.31/M7 successor-RC preparation.',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)
@@ -116,12 +116,11 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
 
         cutover = _read('docs/MODERNIZATION_PRODUCTION_CUTOVER.md')
         self.assertIn(
-            "application_command_all_guild_capabilities` is exactly\n"
-            "  `('tools_support',)`",
+            'application_command_all_guild_capabilities` is exactly empty',
             cutover,
         )
         self.assertIn(
-            "every allowlisted guild has a valid `staff_help_channel`",
+            'Main and PolyChampions retain their live staff-help channels',
             cutover,
         )
         self.assertIn('Production writes no JSONL', compatibility_rows['C-007'])
