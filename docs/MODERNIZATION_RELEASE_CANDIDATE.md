@@ -86,6 +86,29 @@ tree remained empty. The bounded-beta gate remains pending at three of seven
 until four human checks are recorded; production configuration remains pending
 at zero of three. `require-ready` therefore correctly returns nonzero.
 
+RC3 is now historical for the successor release. Post-RC3 checkpoint `eddc0cd`
+fixes the one-badge negative overflow label and title-cases **Team & Squads**;
+the exact development beta runs that checkpoint. Nelluk accepted badge and
+squad presentation after bounded live use and provisionally accepted the
+retained-prefix and public/private visibility checks without comprehensive
+execution. The successor beta gate may record all seven acceptance items as
+passed only if its evidence explicitly states this limited sampling and
+residual production-discovery risk; it must not claim exhaustive testing.
+
+The successor production plan preserves the complete live production guild
+allowlist and all compatibility-ledger-retained prefix behavior. Native command
+synchronization targets only Main `283436219780825088` and PolyChampions
+`447883341463814144`: Main receives only `tools_support`; PolyChampions receives
+`core_user`, `team`, `league`, `house`, `squad`, and `tools_support`. The
+all-guild capability list is empty and no other guild is inspected or changed.
+The live production PolyChampions staff-help channel
+`1327320361200648213` is canonical. Product bug/improvement feedback routes to
+the existing beta feedback destination, guild `478571892832206869`, channel
+`480078679930830849`; the production embed already includes source server and
+source channel metadata and disables mentions. The successor RC manifest must
+bind these decisions to its later exact candidate SHA; RC3's record is not
+rewritten to certify post-RC3 source or acceptance.
+
 ## Tester-message boundary
 
 `release-candidate-manifests/tester-instructions-draft.md` is deliberately

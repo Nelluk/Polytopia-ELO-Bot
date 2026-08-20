@@ -19,11 +19,13 @@ PRODUCTION_BOT_ID = 484067640302764042
 PRODUCTION_DATABASE = 'polytopia2'
 MAIN_GUILD_ID = 283436219780825088
 POLYCHAMPIONS_GUILD_ID = 447883341463814144
+BETA_GUILD_ID = 478571892832206869
+BETA_FEEDBACK_CHANNEL_ID = 480078679930830849
 
 REQUIRED_SOURCE_PATHS = (
     'uv.lock',
-    'deploy/systemd/polytopia.service',
-    'deploy/systemd/polytopia-modernization-canary.conf',
+    'deploy/systemd/polyelo.service',
+    'deploy/systemd/polyelo-modernization-canary.conf',
     'scripts/migrate_player_timezone_production.py',
     'scripts/migrate_player_badges.py',
     'modules/player_badges_production_migration.py',
@@ -148,7 +150,9 @@ def _production_plan(value: Any) -> None:
     plan = _mapping(value, 'production_plan')
     _exact_keys(plan, {
         'expected_bot_id', 'database', 'api_enabled',
-        'global_commands_expected_empty', 'guilds', 'omitted_capabilities',
+        'global_commands_expected_empty', 'all_guild_capabilities',
+        'native_sync_guild_ids', 'feedback_route', 'guilds',
+        'omitted_capabilities',
     }, 'production_plan')
     if plan['expected_bot_id'] != PRODUCTION_BOT_ID:
         raise ReleaseCandidateError('production_plan targets the wrong bot.')
@@ -158,6 +162,17 @@ def _production_plan(value: Any) -> None:
         raise ReleaseCandidateError('The production API must remain disabled.')
     if plan['global_commands_expected_empty'] is not True:
         raise ReleaseCandidateError('The global command tree must be expected empty.')
+    if plan['all_guild_capabilities'] != []:
+        raise ReleaseCandidateError('Production all-guild capabilities must remain empty.')
+    if plan['native_sync_guild_ids'] != [MAIN_GUILD_ID, POLYCHAMPIONS_GUILD_ID]:
+        raise ReleaseCandidateError('Only Main and PolyChampions may be synchronized.')
+    if plan['feedback_route'] != {
+            'guild_id': BETA_GUILD_ID,
+            'channel_id': BETA_FEEDBACK_CHANNEL_ID,
+            'include_source_server': True,
+            'include_source_channel': True,
+    }:
+        raise ReleaseCandidateError('The production feedback route changed.')
     if plan['omitted_capabilities'] != [
             'beta_testing', 'elo_maintenance', 'operator']:
         raise ReleaseCandidateError('The omitted production capabilities changed.')
@@ -176,7 +191,7 @@ def _production_plan(value: Any) -> None:
         POLYCHAMPIONS_GUILD_ID: {
             'guild_id': POLYCHAMPIONS_GUILD_ID,
             'name': 'PolyChampions',
-            'staff_help_channel': 742832436047511572,
+            'staff_help_channel': 1327320361200648213,
             'first_helper_role': 'Helper',
             'capabilities': [
                 'core_user', 'house', 'league', 'squad', 'team', 'tools_support',

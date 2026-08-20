@@ -542,12 +542,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC3 is frozen and passes cutover review,
-complete offline discovery, the stopped-writer development PostgreSQL gate,
-exact beta startup, and command-tree convergence.** Four bounded human beta
-checks and all three separately approved redacted production-configuration
-checks remain pending. P12.2 player-profile squad context and P12.1
-PolyChampions player badges remain awaiting that human acceptance.
+Current active unit: **P9.31/M7 successor-RC preparation.** RC3 is historical
+after the `eddc0cd` player-profile presentation correction. Nelluk accepted
+badge and squad presentation after bounded live use and provisionally accepted
+retained-prefix and public/private visibility with limited sampling and known
+residual production-discovery risk. The successor record must disclose that
+coverage rather than claim exhaustive testing. Its production command plan is
+Main `/staffhelp` only, the reviewed PolyChampions native canary plus
+`/staffhelp`, no all-guild capability, and no inspection or synchronization of
+the other live allowlisted guilds. The live production PolyChampions route and
+existing beta feedback destination are canonical. All separately approved
+redacted production-configuration checks remain pending.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.

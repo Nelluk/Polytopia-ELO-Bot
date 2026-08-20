@@ -45,6 +45,17 @@ def manifest_value(*, gate_status='pending'):
             'database': release_candidate.PRODUCTION_DATABASE,
             'api_enabled': False,
             'global_commands_expected_empty': True,
+            'all_guild_capabilities': [],
+            'native_sync_guild_ids': [
+                release_candidate.MAIN_GUILD_ID,
+                release_candidate.POLYCHAMPIONS_GUILD_ID,
+            ],
+            'feedback_route': {
+                'guild_id': release_candidate.BETA_GUILD_ID,
+                'channel_id': release_candidate.BETA_FEEDBACK_CHANNEL_ID,
+                'include_source_server': True,
+                'include_source_channel': True,
+            },
             'guilds': [
                 {
                     'guild_id': release_candidate.MAIN_GUILD_ID,
@@ -56,7 +67,7 @@ def manifest_value(*, gate_status='pending'):
                 {
                     'guild_id': release_candidate.POLYCHAMPIONS_GUILD_ID,
                     'name': 'PolyChampions',
-                    'staff_help_channel': 742832436047511572,
+                    'staff_help_channel': 1327320361200648213,
                     'first_helper_role': 'Helper',
                     'capabilities': [
                         'core_user', 'house', 'league', 'squad', 'team',
@@ -74,6 +85,21 @@ def manifest_value(*, gate_status='pending'):
 
 
 class ReleaseCandidateTests(unittest.TestCase):
+    def test_greencloud_service_assets_and_cutover_use_live_topology(self):
+        root = Path(__file__).resolve().parents[1]
+        unit = (root / 'deploy/systemd/polyelo.service').read_text()
+        canary = (
+            root / 'deploy/systemd/polyelo-modernization-canary.conf'
+        ).read_text()
+        cutover = (root / 'docs/MODERNIZATION_PRODUCTION_CUTOVER.md').read_text()
+
+        self.assertIn('User=polyelo', unit)
+        self.assertIn('WorkingDirectory=/srv/polyelo/PolyBot39', unit)
+        self.assertIn('/srv/polyelo/PolyBot39/bot.py --skip_tasks', canary)
+        self.assertIn('Service: `polyelo.service`', cutover)
+        self.assertNotIn('/home/nelluk/PolyBot39', cutover)
+        self.assertNotIn('polytopia.service', cutover)
+
     def test_later_adversarial_findings_are_release_required(self):
         self.assertTrue(
             {'N3', 'N4', 'N5', 'N6', 'N7'}.issubset(
@@ -147,6 +173,20 @@ class ReleaseCandidateTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 release_candidate.ReleaseCandidateError, 'support/canary plan'):
+            release_candidate.validate(value)
+
+    def test_all_guild_capability_or_changed_feedback_route_is_rejected(self):
+        value = manifest_value()
+        value['production_plan']['all_guild_capabilities'] = ['tools_support']
+
+        with self.assertRaisesRegex(
+                release_candidate.ReleaseCandidateError, 'all-guild'):
+            release_candidate.validate(value)
+
+        value = manifest_value()
+        value['production_plan']['feedback_route']['channel_id'] += 1
+        with self.assertRaisesRegex(
+                release_candidate.ReleaseCandidateError, 'feedback route'):
             release_candidate.validate(value)
 
     def test_wrong_or_partial_critical_digest_set_is_rejected(self):

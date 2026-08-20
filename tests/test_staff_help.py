@@ -377,6 +377,8 @@ class StaffHelpBackendTests(unittest.TestCase):
         self.assertFalse(kwargs['allowed_mentions'].roles)
         self.assertIn('PolyELO bug report', kwargs['embed'].title)
         fields = {field.name: field.value for field in kwargs['embed'].fields}
+        self.assertEqual(fields['Source server'], 'Source Guild (`200`)')
+        self.assertEqual(fields['Source channel'], '<#300> (`300`)')
         self.assertIn('42500', fields['Related game'])
         self.assertEqual(fields['Bot checkpoint'], '`abcdef1`')
         self.assertNotIn(helper_role.mention, central_channel.send.await_args.args[0])

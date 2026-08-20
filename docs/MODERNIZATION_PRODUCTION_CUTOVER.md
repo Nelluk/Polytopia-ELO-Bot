@@ -14,18 +14,26 @@ backup, test, or health result. Never improvise around a failed gate.
 
 ## Fixed boundaries
 
-- Checkout: `/home/nelluk/PolyBot39`
-- Service: `polytopia.service`
-- Canonical unit source: `deploy/systemd/polytopia.service`
+- Checkout: `/srv/polyelo/PolyBot39`
+- Service: `polyelo.service`, running as service account `polyelo`
+- Canonical unit source: `deploy/systemd/polyelo.service`
+- Canary drop-in source: `deploy/systemd/polyelo-modernization-canary.conf`
 - Locked runtime: `.venv/bin/python`, CPython 3.12, `uv.lock`, production
   dependencies only
 - Environment: exact `POLYBOT_ENV=production`
 - Database: `polytopia2`; role from the reviewed production profile and live
   `current_user`
 - Discord application: `484067640302764042`
-- Initial native canary guild: PolyChampions, `447883341463814144`
-- Initial native capabilities: `core_user`, `team`, `league`, `house`, `squad`
-- All configured production guilds: `tools_support` exposing only `/staffhelp`
+- Native synchronization targets: Main `283436219780825088` and
+  PolyChampions `447883341463814144` only
+- Main capabilities: `tools_support`, exposing only `/staffhelp`
+- PolyChampions capabilities: `core_user`, `team`, `league`, `house`, `squad`,
+  and `tools_support`
+- Every other live allowlisted guild receives no native capability assignment
+  and is not inspected or synchronized during this cutover
+- Product bug/improvement feedback route: beta guild `478571892832206869`,
+  channel `480078679930830849`, with source server/channel metadata and no
+  role mention
 - Initially omitted capabilities: `operator`, `elo_maintenance`, and
   `beta_testing`
 - HTTP API: disabled and inactive
@@ -51,12 +59,11 @@ that contains all of the following exact values and evidence:
 - `uv.lock` digest and the canonical systemd-unit digest;
 - expected redacted runtime identity, configured database role, allowlisted
   guild IDs, and disabled API state;
-- the exact ignored production capability assignment and a diff showing only
-  `/staffhelp` in every configured guild plus the approved PolyChampions
-  canary roots;
-- proof every configured guild's `staff_help_channel` and first
-  `helper_roles` entry resolve to the reviewed private relay destination and
-  configured helper role;
+- the exact ignored production capability assignment, with no all-guild
+  capabilities, `/staffhelp` only in Main, and the approved PolyChampions
+  canary roots plus `/staffhelp`;
+- proof Main and PolyChampions have their exact reviewed `staff_help_channel`
+  and first `helper_roles` entry;
 - proof the bot-level `polyelo_feedback_route` resolves to the reviewed private
   maintainer channel in an allowlisted guild, with no role mention;
 - fresh R-002 evidence bound to the release commit: complete offline suite,
@@ -98,16 +105,18 @@ check must prove:
   configured nonempty `psql_password` (the redacted output must not print it);
 - `background_tasks_enabled = true`, `api_enabled = false`, and the existing
   reviewed Bullet policy;
-- only reviewed production guilds are allowlisted;
-- PolyChampions `447883341463814144` receives exactly
-  `('core_user', 'team', 'league', 'house', 'squad')` for the initial canary;
-- `application_command_all_guild_capabilities` is exactly
-  `('tools_support',)`, exposing only `/staffhelp` in every allowlisted guild;
-- every allowlisted guild has a valid `staff_help_channel` and nonempty first
-  `helper_roles` entry;
-- top-level `polyelo_feedback_route` contains exactly positive `guild_id` and
-  `channel_id` values for one reviewed private maintainer channel in an
-  allowlisted guild;
+- the existing live production guild allowlist and every retained legacy
+  guild setting remain unchanged;
+- Main `283436219780825088` receives exactly `('tools_support',)`;
+- PolyChampions `447883341463814144` receives exactly `('core_user', 'team',
+  'league', 'house', 'squad', 'tools_support')`;
+- `application_command_all_guild_capabilities` is exactly empty and no other
+  allowlisted guild has a native capability assignment;
+- Main and PolyChampions retain their live staff-help channels and first
+  helper roles; PolyChampions channel `1327320361200648213` is canonical;
+- top-level `polyelo_feedback_route` is exactly beta guild
+  `478571892832206869` and channel `480078679930830849`; production feedback
+  output includes source server/channel metadata and disables mentions;
 - `operator`, `elo_maintenance`, and `beta_testing` are not assigned; and
 - the configured prefix, image root, and log root remain production values.
 
@@ -152,21 +161,20 @@ Complete these before notifying users of downtime:
    statement and state that no runtime profile, connection, or DDL was used.
    The development confirmation/tool is not production authority; do not
    substitute it or run ad-hoc DDL.
-4. Run the application-command desired-state plan offline with exact
-   production selection and the release record's comma-separated list of all
-   allowlisted production guild IDs:
+4. Run the application-command desired-state plan offline for exactly Main and
+   PolyChampions:
 
    ```bash
    POLYBOT_ENV=production \
    .venv/bin/python scripts/manage_application_commands.py \
      --environment production \
      --mode plan \
-     --guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS
+     --guild-ids 283436219780825088,447883341463814144
    ```
 
-   Review exact create/update/unchanged/remove roots. Every selected guild must
-   receive only `/staffhelp`, except PolyChampions, which also receives the
-   approved user-canary roots. The desired roots must match the release record.
+   Review exact create/update/unchanged/remove roots. Main must receive only
+   `/staffhelp`; PolyChampions receives `/staffhelp` plus the approved canary
+   roots. No other guild is inspected or changed.
 5. Verify the approved release and rollback commits, lockfile, unit, canary
    drop-in, migration tool, and command manager are present in the reviewed
    Git history. Do not update the production checkout yet.
@@ -174,10 +182,11 @@ Complete these before notifying users of downtime:
    pre-stop backup. Validate custom-format dumps with `pg_restore --list` and
    image archives with `tar -tzf`; timestamps, sizes, and paths must match the
    release record.
-7. Confirm every configured production staff-help channel and first Helper role
-   still resolves exactly, and confirm the one bot-level PolyELO feedback route
-   resolves to the reviewed private maintainer channel with mentions disabled.
-   Do not proceed if either production flow lacks its working destination.
+7. Confirm Main and PolyChampions staff-help channels and first Helper roles
+   resolve exactly. Confirm the production bot can send an embed and files to
+   beta channel `480078679930830849` without mentions and that its embed names
+   the originating server and channel. Do not proceed if either flow lacks its
+   working destination.
 
 Do not announce completion or invite testing at this stage.
 
@@ -209,10 +218,10 @@ acceptable recovery point. The bounded command sequence is:
 ```bash
 test "$(git rev-parse HEAD)" = "$POLYBOT_ROLLBACK_SHA"
 git status --short --branch
-cmp --silent scripts/backup_db.sh /home/nelluk/backup_db.sh
-/home/nelluk/backup_db.sh
-/usr/bin/pg_restore --list /home/nelluk/polytopia_full_backup.sqlc >/dev/null
-/usr/bin/tar -tzf "/home/nelluk/backups/polytopia_images-$(date +%A).tar.gz" >/dev/null
+cmp --silent scripts/backup_db.sh /srv/polyelo/PolyBot39/scripts/backup_db.sh
+/srv/polyelo/bin/polyelo-backup
+/usr/bin/pg_restore --list /srv/polyelo/polytopia_full_backup.sqlc >/dev/null
+/usr/bin/tar -tzf "/srv/polyelo/backups/polytopia_images-$(date +%A).tar.gz" >/dev/null
 ```
 
 ### 2. Stop the production writer and prove it is absent
@@ -220,8 +229,8 @@ cmp --silent scripts/backup_db.sh /home/nelluk/backup_db.sh
 After the exact lifecycle approval:
 
 ```bash
-sudo systemctl stop polytopia.service
-systemctl show polytopia.service \
+sudo systemctl stop polyelo.service
+systemctl show polyelo.service \
   -p ActiveState -p SubState -p MainPID -p NRestarts --no-pager
 ```
 
@@ -307,7 +316,7 @@ POLYBOT_ENV=production .venv/bin/python \
 ```
 
 The manifest is non-secret provenance at
-`/home/nelluk/PolyBot39/.operator-backup-release.json`, mode `0600`. Archive
+`/srv/polyelo/PolyBot39/.operator-backup-release.json`, mode `0600`. Archive
 its JSON with the reviewed release record. Regenerate it after any approved
 release or rollback that changes the checkpoint, backup shell, reporting
 exporter, or interpreter. Never hand-edit it to bypass a validation failure.
@@ -369,7 +378,7 @@ rollback is later required, retain all three columns as described below.
 ### 5. Run the reviewed task-disabled process canary
 
 Install the tracked
-`deploy/systemd/polytopia-modernization-canary.conf` as a temporary systemd
+`deploy/systemd/polyelo-modernization-canary.conf` as a temporary systemd
 drop-in only after its digest matches the release record. Inspect the effective
 unit before start. It must use the canonical Python 3.12 environment, exact
 production profile, `--skip_tasks`, and `Restart=no`.
@@ -394,35 +403,35 @@ Do not create, correct, or delete a production game for smoke testing.
 The reviewed installation/start commands are:
 
 ```bash
-sudo install -d -m 0755 /etc/systemd/system/polytopia.service.d
+sudo install -d -m 0755 /etc/systemd/system/polyelo.service.d
 sudo install -m 0644 \
-  deploy/systemd/polytopia-modernization-canary.conf \
-  /etc/systemd/system/polytopia.service.d/modernization-canary.conf
+  deploy/systemd/polyelo-modernization-canary.conf \
+  /etc/systemd/system/polyelo.service.d/modernization-canary.conf
 cmp --silent \
-  deploy/systemd/polytopia-modernization-canary.conf \
-  /etc/systemd/system/polytopia.service.d/modernization-canary.conf
+  deploy/systemd/polyelo-modernization-canary.conf \
+  /etc/systemd/system/polyelo.service.d/modernization-canary.conf
 sudo systemctl daemon-reload
-systemctl cat polytopia.service --no-pager
-sudo systemctl start polytopia.service
+systemctl cat polyelo.service --no-pager
+sudo systemctl start polyelo.service
 ```
 
 ### 6. Cleanly stop the canary and start the canonical service
 
 Stop the task-disabled canary. Require `MainPID=0`, remove only the temporary
 modernization canary drop-in, reload systemd, and prove the effective unit
-matches `deploy/systemd/polytopia.service` and no longer contains
+matches `deploy/systemd/polyelo.service` and no longer contains
 `--skip_tasks` or `Restart=no`.
 
 ```bash
-sudo systemctl stop polytopia.service
+sudo systemctl stop polyelo.service
 sudo rm -f \
-  /etc/systemd/system/polytopia.service.d/modernization-canary.conf
+  /etc/systemd/system/polyelo.service.d/modernization-canary.conf
 sudo systemctl daemon-reload
 cmp --silent \
-  deploy/systemd/polytopia.service \
-  /etc/systemd/system/polytopia.service
-systemctl cat polytopia.service --no-pager
-sudo systemctl start polytopia.service
+  deploy/systemd/polyelo.service \
+  /etc/systemd/system/polyelo.service
+systemctl cat polyelo.service --no-pager
+sudo systemctl start polyelo.service
 ```
 
 Start the canonical service. Verify exact release checkpoint, production
@@ -432,14 +441,14 @@ five minutes and through one bounded cycle of each enabled recurring task.
 Contain/reconciliation logging must remain healthy. A failed recurring item
 must not terminate its later cycle.
 
-### 7. Inspect and apply all-guild staff help plus the PolyChampions canary
+### 7. Inspect and apply Main staff help plus the PolyChampions canary
 
 Do this only after retained-prefix production health is established and under
 separate Discord inspection/apply approvals. Stop the production service so a
 second management client does not overlap the running bot.
 
-Run `--mode inspect` for the exact approved production guild-ID list. It must
-report an empty global tree and each selected guild's exact diff. A nonempty
+Run `--mode inspect` for exactly Main and PolyChampions. It must report an
+empty global tree and each selected guild's exact diff. A nonempty
 global tree is a hard stop requiring a separately designed cleanup; never
 bypass the guard.
 
@@ -450,17 +459,16 @@ POLYBOT_ENV=production \
 .venv/bin/python scripts/manage_application_commands.py \
   --environment production \
   --mode apply \
-  --guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS \
+  --guild-ids 283436219780825088,447883341463814144 \
   --confirm-environment production \
-  --confirm-guild-ids REPLACE_WITH_APPROVED_PRODUCTION_GUILD_IDS \
+  --confirm-guild-ids 283436219780825088,447883341463814144 \
   --confirm-scope guild \
   --confirm-no-global-sync
 ```
 
-Immediately inspect again and require convergence for every selected guild
-plus an empty global tree. Non-PolyChampions guilds may gain only `/staffhelp`;
-PolyChampions may also gain the reviewed canary roots. No unlisted guild may
-change.
+Immediately inspect again and require convergence for both selected guilds
+plus an empty global tree. Main gains only `/staffhelp`; PolyChampions gains
+the reviewed canary roots plus `/staffhelp`. No unlisted guild may change.
 
 Restart the canonical service and repeat identity, checkpoint, PID/restart,
 retained-prefix, API, task, and log health checks. Exercise only the approved
@@ -500,8 +508,8 @@ not drop columns.
 ### Failure after command apply
 
 First restore service health with the reviewed code/config disposition. For a
-native-surface-only failure, restore both the reviewed PolyChampions assignment
-and all-guild `tools_support` assignment to the rollback desired state, then
+native-surface-only failure, restore the reviewed Main and PolyChampions
+assignments to the rollback desired state, then
 stop the bot, plan, inspect, and explicitly apply only the exact affected
 guilds with the same confirmations. Re-inspect convergence and the empty global
 tree, then restart and verify the rollback's staff-help surface and retained
