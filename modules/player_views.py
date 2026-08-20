@@ -25,7 +25,7 @@ BASE_SECTIONS = (
     ('incomplete', 'Incomplete'),
     ('completed', 'Completed'),
     ('season', 'Season games'),
-    ('teams', 'Team & squads'),
+    ('teams', 'Team & Squads'),
 )
 SECTIONS = BASE_SECTIONS
 SECTION_LABELS = dict(BASE_SECTIONS) | {'badges': 'Badges'}
@@ -322,7 +322,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 )
                 more = len(snapshot.badges) - 6
                 badge_block = f'\n\n**Badges:**\n{shown}'
-                if more:
+                if more > 0:
                     badge_block += f'\n…and {more} more — open Badges'
             return (
                 f'## <@{snapshot.discord_id}>\n'

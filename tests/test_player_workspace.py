@@ -203,6 +203,33 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('https://example.test/avatar.webp', str(view.to_components()))
         self.assertNotIn('media_gallery', str(view.to_components()).lower())
 
+    def test_overview_only_reports_badges_beyond_six(self):
+        one_badge = dataclasses.replace(snapshot(), badges=('Top Champ! 🍾',))
+        one_body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=one_badge,
+        )._body()
+        self.assertIn('Top Champ! 🍾', one_body)
+        self.assertNotIn('more — open Badges', one_body)
+
+        seven_badges = dataclasses.replace(
+            snapshot(),
+            badges=tuple(f'Badge {index}' for index in range(1, 8)),
+        )
+        seven_body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=seven_badges,
+        )._body()
+        self.assertIn('…and 1 more — open Badges', seven_body)
+
+    def test_team_and_squads_section_label_is_title_cased(self):
+        view = self.make_view()
+        labels = {
+            option.value: option.label
+            for option in view.section_select.options
+        }
+        self.assertEqual(labels['teams'], 'Team & Squads')
+
     async def test_squad_selector_opens_detail_without_requery(self):
         view = self.make_view(initial_section='teams')
         original = view.snapshot
