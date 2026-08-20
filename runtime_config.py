@@ -534,13 +534,15 @@ def load_runtime_profile(
         )
 
     database_password = parser['DEFAULT'].get('psql_password', '').strip()
-    if not database_password:
+    database_host = parser['DEFAULT'].get('psql_host', '').strip() or None
+    if not database_password and (
+            environment != 'production' or database_host is not None):
         raise RuntimeConfigurationError(
-            f'Missing required setting {"psql_password"!r} in '
-            f'{config_path}.'
+            f'Missing required setting {"psql_password"!r} in {config_path}; '
+            'passwordless authentication is permitted only for production '
+            'over the default local PostgreSQL socket.'
         )
 
-    database_host = parser['DEFAULT'].get('psql_host', '').strip() or None
     if environment == 'development' and database_host is None:
         raise RuntimeConfigurationError(
             f'Missing required setting {"psql_host"!r} in {config_path}.'
@@ -647,6 +649,15 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
 
     host = profile.database_host or '(default PostgreSQL socket)'
     port = str(profile.database_port) if profile.database_port else '(default)'
+    database_authentication = (
+        'local peer (no password configured)'
+        if (
+            profile.environment == 'production'
+            and profile.database_host is None
+            and not profile.database_password
+        )
+        else 'password configured (redacted)'
+    )
     guilds = ', '.join(str(guild_id) for guild_id in profile.allowed_guild_ids)
     shared_guilds = (
         ', '.join(
@@ -662,6 +673,7 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
         f'database: {profile.database_name}',
         f'database host: {host}',
         f'database port: {port}',
+        f'database authentication: {database_authentication}',
         f'server-settings module: {profile.server_settings_module}',
         f'guild configuration source: {profile.guild_configuration_source}',
         f'allowed guild IDs: {guilds}',

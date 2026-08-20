@@ -265,7 +265,7 @@ class RuntimeProfileTests(unittest.TestCase):
                 load_server_settings.assert_not_called()
                 create_directories.assert_not_called()
 
-    def test_missing_blank_and_whitespace_production_password_fail_early(self):
+    def test_missing_blank_and_whitespace_production_tcp_password_fail_early(self):
         for value in (None, '', '   '):
             with self.subTest(value=value):
                 self.write_config('production', psql_password=value)
@@ -284,6 +284,32 @@ class RuntimeProfileTests(unittest.TestCase):
                         )
                 load_server_settings.assert_not_called()
                 create_directories.assert_not_called()
+
+    def test_passwordless_production_local_socket_is_explicitly_supported(self):
+        for value in (None, '', '   '):
+            with self.subTest(value=value):
+                self.write_config(
+                    'production',
+                    psql_password=value,
+                    psql_host=None,
+                    psql_port=None,
+                )
+                self.write_server_settings('production')
+
+                profile = load_runtime_profile(
+                    project_root=self.root,
+                    environ={'POLYBOT_ENV': 'production'},
+                    create_directories=False,
+                )
+
+                self.assertEqual(profile.database_password, '')
+                self.assertIsNone(profile.database_host)
+                self.assertIsNone(profile.database_port)
+                self.assertIn(
+                    'database authentication: local peer '
+                    '(no password configured)',
+                    format_runtime_profile(profile),
+                )
 
     def test_missing_production_resource_denylist_is_rejected(self):
         self.write_config('development', production_guild_ids=None)
@@ -309,6 +335,10 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertIn(str(DEVELOPMENT_GUILD_ID), summary)
         self.assertIn('authorized superuser identities: 1', summary)
         self.assertIn('guild configuration source: static', summary)
+        self.assertIn(
+            'database authentication: password configured (redacted)',
+            summary,
+        )
         self.assertNotIn('development-secret-token', summary)
         self.assertNotIn('development-secret-password', summary)
         self.assertNotIn('database user', summary.lower())

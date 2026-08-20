@@ -129,12 +129,12 @@ image_root = data/images
 log_root = logs
 ```
 
-Do not change `discord_key`, `psql_user`, `psql_db`, `owner_id`, or the
-existing nonempty `psql_password` value during this cutover. Both
-`expected_bot_id` and `psql_password` must be explicitly present and nonempty;
-the runtime no longer substitutes legacy literals for either field. Blank
-PostgreSQL host and port values preserve the current local Unix-socket
-connection. The
+Do not change `discord_key`, `psql_user`, `psql_db`, or `owner_id` during this
+cutover. `expected_bot_id` must be explicitly present and nonempty; the runtime
+does not substitute a legacy identity literal. The current GreenCloud profile
+uses blank PostgreSQL host, port, and password values to select the host-local
+Unix socket with peer authentication. A nonempty PostgreSQL host requires a
+nonempty password. The
 `spreadsheet_creds.json` file must remain present because the production
 Bullet extension stays enabled.
 

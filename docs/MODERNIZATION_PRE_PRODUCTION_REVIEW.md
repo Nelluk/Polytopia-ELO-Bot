@@ -24,7 +24,7 @@ the P9.21 base.
 | Finding | Severity | P9.21 disposition |
 |---|---|---|
 | N1 import/startup schema DDL | High | Resolved by P9.21 checkpoint `e532ce4`: model import performs no connection/DDL, startup verifies the required schema read-only before ban reconciliation, and schema creation exists only in the explicit development bootstrap apply path. |
-| N2 production identity/password literal fallback | Medium | Resolved by P9.21 checkpoint `e532ce4`: explicit nonempty production `expected_bot_id` and `psql_password` are required before server-settings or later effects. |
+| N2 production identity/password literal fallback | Medium | Resolved by P9.21 checkpoint `e532ce4` and corrected for GreenCloud peer authentication in the RC4 successor: no identity/password literal is inferred; `expected_bot_id` is explicit, and a blank password is accepted only for production on the default local Unix socket. TCP production and development still fail closed without a password. |
 
 The source findings are corrected, Tier-3 reviewed, integrated, pushed, and
 runtime-verified through P9.21 integration checkpoint `0b4d954`. The guarded

@@ -542,19 +542,19 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC4 is frozen at
-`d1f63ea3f505a7d1256d30ac02cadbfde5cde27a`.** RC3 is historical after the
-`eddc0cd` player-profile presentation correction. Nelluk accepted badge and
-squad presentation after bounded live use and provisionally accepted
+Current active unit: **P9.31/M7 RC4-successor correction.** RC4 at
+`d1f63ea3f505a7d1256d30ac02cadbfde5cde27a` is superseded because its
+nonempty-password rule did not match GreenCloud's canonical host-local
+PostgreSQL peer authentication. The correction permits a blank password only
+for production on the default Unix socket; TCP production and development
+remain password-required, and no fallback literal returns. Nelluk accepted
+badge and squad presentation after bounded live use and provisionally accepted
 retained-prefix and public/private visibility with limited sampling and known
-residual production-discovery risk. RC4 discloses that coverage rather than
-claiming exhaustive testing. Its production command plan is Main `/staffhelp`
-only, the reviewed PolyChampions native canary plus `/staffhelp`, no all-guild
-capability, and no inspection or synchronization of the other live allowlisted
-guilds. The live production PolyChampions route and existing beta feedback
-destination are canonical. Cutover, offline, development-database, and bounded
-beta gates pass; separately approved redacted production-configuration checks
-remain pending.
+residual production-discovery risk. The successor must retain that disclosure,
+the Main `/staffhelp`-only and PolyChampions canary plan, the canonical live
+help channels, and the existing beta feedback destination. The live ignored
+`server_settings.py` now contains that reviewed policy; the running production
+service was not restarted and no database or Discord action occurred.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -14335,12 +14335,13 @@ this unit; the existing development schema was inspected only through the
 unchanged gated test profile. Normal startup, `--add_default_data`, and model
 import do not own schema creation.
 
-The production runtime loader no longer substitutes either legacy literal.
-Missing, blank, and whitespace-only `expected_bot_id` or `psql_password` now
-fail before server-settings loading, directory creation, model import, or any
-connection. Explicit password authentication remains the supported current
-contract; introducing a named passwordless mode would be a separate reviewed
-configuration decision.
+The production runtime loader no longer substitutes either legacy literal. At
+this checkpoint, missing, blank, and whitespace-only `expected_bot_id` or
+`psql_password` failed before server-settings loading, directory creation,
+model import, or any connection. The later GreenCloud RC4-successor correction
+retains that no-fallback guarantee while accepting a blank password only for
+production on the default local Unix socket, matching the canonical peer-auth
+deployment. TCP production and development remain password-required.
 
 Focused coverage verifies zero model-import connection/DDL calls, contract-to-
 model inventory parity, read-only SQL and live identity, missing-table and
@@ -26948,6 +26949,29 @@ deferred into this post-modernization backlog.
   settings discovery passed, while the privileged redacted runtime check and
   final ignored configuration update/verification remain outstanding. No
   production file, database, service, Discord tree, or announcement changed.
+
+### 2026-08-20 — RC4 production peer-auth mismatch corrected
+
+- The privileged redacted production check verified the exact production bot
+  identity, `polytopia2`, default Unix socket/port, all 54 live guilds,
+  background tasks enabled, HTTP API disabled, Bullet enabled, and production
+  image/log roots. The strict companion check stopped on the blank
+  `psql_password` field.
+- Confirmed that blank password is canonical and intentional: GreenCloud host
+  PostgreSQL uses local peer authentication for service account `polyelo`.
+  Adding a dummy password would misrepresent the live security model.
+- Corrected the candidate loader to accept a blank password only for
+  production with blank `psql_host`, while preserving fail-closed behavior for
+  TCP production and every development profile. The redacted summary now names
+  local peer authentication without printing credentials.
+- Updated the ignored live `server_settings.py` with exactly the reviewed Main
+  and PolyChampions native assignments, empty all-guild capability tuple, and
+  established beta feedback route. All 54 legacy guild entries remain. The
+  live service retained its PID and zero-restart state; it does not reload the
+  settings until the later approved deployment restart.
+- Focused runtime, deployment, documentation-consistency, and release-record
+  coverage passes 50 tests. Full exact-candidate, stopped-writer database, beta,
+  and successor-manifest evidence follow this correction.
 
 ## Resume checklist
 

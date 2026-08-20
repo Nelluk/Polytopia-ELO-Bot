@@ -101,8 +101,9 @@ copying secrets into Git, logs, or the release record. The redacted runtime
 check must prove:
 
 - `expected_bot_id = 484067640302764042`;
-- `psql_db = polytopia2`, the reviewed nonempty role, and an explicitly
-  configured nonempty `psql_password` (the redacted output must not print it);
+- `psql_db = polytopia2`, the reviewed nonempty role, and either a nonempty
+  `psql_password` or the reviewed passwordless default local Unix-socket mode
+  (the redacted output must never print a password);
 - `background_tasks_enabled = true`, `api_enabled = false`, and the existing
   reviewed Bullet policy;
 - the existing live production guild allowlist and every retained legacy
@@ -121,9 +122,12 @@ check must prove:
 - the configured prefix, image root, and log root remain production values.
 
 The production profile must fail before server-settings loading, directory
-creation, model import, or connection when either `expected_bot_id` or
-`psql_password` is missing or blank. No legacy identity or password literal is
-an acceptable substitute.
+creation, model import, or connection when `expected_bot_id` is missing or
+blank. A missing or blank `psql_password` is accepted only when `psql_host` is
+also blank, selecting the reviewed host-local Unix socket with PostgreSQL peer
+authentication. TCP production and every development profile still require a
+nonempty password. No legacy identity or password literal is an acceptable
+substitute.
 
 Do not enable the inactive API, change database credentials, backfill identity
 data, retire another prefix, or add another guild/capability during this
