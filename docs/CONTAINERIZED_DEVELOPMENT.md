@@ -134,6 +134,25 @@ loading is optional later work, not hidden inside this deployment proof.
 
 ## Primary operator interface
 
+### GreenCloud canonical deployment
+
+GreenCloud uses the host PostgreSQL cluster through the read-only Unix-socket
+mount. Its canonical mode is therefore `external-socket`, as recorded in
+`/home/nelluk/SERVER_INFO.md`. For ordinary GreenCloud beta deployment:
+
+```bash
+cd /home/nelluk/PolyBot39-deploy
+./polybot --mode external-socket status
+./polybot --mode external-socket deploy
+./polybot --mode external-socket status
+```
+
+Do not omit `--mode external-socket` on GreenCloud. The wrapper default is
+`bundled`; selecting it rewrites the ignored container database profile and
+creates or manages a separate PostgreSQL container and volume. If the initial
+status conflicts with the documented external-socket topology, stop and
+investigate before running setup or deploy.
+
 Run from the clean repository root. Ordinary operation requires only Git,
 Docker with the Compose plugin, and standard macOS/Linux utilities. Python,
 Compose profiles, project-name flags, numeric identity decisions, checkpoint

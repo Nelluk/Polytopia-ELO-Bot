@@ -13,6 +13,27 @@ This file provides guidance to coding agents when working with code in this repo
 - Do not chmod `/var/run/docker.sock`, change group membership, add sudo rules,
   or authorize mutating Docker operations based only on sandbox results.
 
+## GreenCloud development-beta deployment
+
+- Before every beta setup, deploy, start, stop, restart, status, log, or Beta
+  Lab operation, read the Development section of `/home/nelluk/SERVER_INFO.md`.
+- GreenCloud's canonical beta mode is `external-socket`. It uses host
+  PostgreSQL through the read-only `/var/run/postgresql` mount. Always include
+  `--mode external-socket`; never run a plain `./polybot deploy`, `setup`,
+  `start`, `stop`, or `restart` on this host.
+- Before mutation, run `./polybot --mode external-socket status`. If its mode,
+  checkpoint, application identity, database transport, or writer census
+  conflicts with `SERVER_INFO.md`, stop and investigate before running setup
+  or deploy.
+- For a source-only beta correction with no schema or command-tree change:
+  run proportionate tests, create a clean exact Git checkpoint, run
+  `./polybot --mode external-socket deploy`, and verify the authenticated
+  application, checkpoint, stable container, and one-writer census. Do not
+  synchronize commands when command definitions did not change.
+- Do not select bundled mode on GreenCloud unless Nelluk explicitly approves
+  a topology change. Bundled setup rewrites the container database credential
+  and manages a separate PostgreSQL container and volume.
+
 ## Project Overview
 
 Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides matchmaking, ELO-based leaderboards, and league management across multiple Discord servers (primarily the main Polytopia server and PolyChampions).
