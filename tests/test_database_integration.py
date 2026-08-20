@@ -176,6 +176,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         from modules.database_schema_contract import REQUIRED_TABLES
 
         request = preflight.StartupSchemaPreflightRequest(
+            environment=self.profile.environment,
             database_name=self.profile.database_name,
             database_user=self.profile.database_user,
             database_password=self.profile.database_password,

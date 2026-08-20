@@ -542,19 +542,17 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC5 is release-ready at
-`14f4a494000d05d529b37ae2d62172837181b462`.** RC4 is superseded because its
-nonempty-password rule did not match GreenCloud's canonical host-local
-PostgreSQL peer authentication. RC5 permits a blank password only for
-production on the default Unix socket; TCP production and development remain
-password-required, and no fallback literal returns. All five R-002 gates pass.
-The bounded-beta pass retains Nelluk's explicit limited-sampling disclosure and
-known residual production-discovery risk. The production plan remains Main
-`/staffhelp` only, the PolyChampions canary plus `/staffhelp`, canonical live
-help channels, no other native synchronization, and the existing beta feedback
-destination. The live ignored `server_settings.py` contains that policy; the
-running production service was not restarted and no database or Discord action
-occurred.
+Current active unit: **P9.31/M7 RC5-successor startup-preflight correction.**
+RC5 at `14f4a494000d05d529b37ae2d62172837181b462` is superseded after the
+GitHub-only external review found that its runtime loader accepted canonical
+production peer authentication while the separate startup schema preflight
+still rejected the same blank password. The successor carries the environment
+into the frozen preflight request and uses one shared authentication rule:
+blank password is production/default-local-socket-only; TCP production and
+development remain password-required. The production plan and provisional
+bounded-beta acceptance are otherwise unchanged. The running production
+service remains on its prior code without restart, database action, or Discord
+action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -26992,6 +26990,24 @@ deferred into this post-modernization backlog.
 - The RC5 manifest validates and `require-ready` passes with all five R-002
   gates green. No production checkout update, service action, database action,
   Discord inspection/synchronization, or announcement occurred.
+
+### 2026-08-20 — External review found RC5 startup peer-auth blocker
+
+- Accepted the GitHub-only review's sole finding as a real deployment blocker.
+  RC5's runtime loader allowed the canonical production blank-password local
+  socket profile, but `StartupSchemaPreflightRequest` carried no environment
+  and `_validate_request()` rejected every blank password before psycopg2.
+- Superseded RC5 before production deployment. No production checkout,
+  service, database, or Discord operation had begun; the mandatory canary would
+  have stopped safely but only after planned downtime started.
+- Added the runtime environment to the frozen preflight request, applied the
+  shared runtime authentication predicate at both validation boundaries, and
+  omitted the password connector argument only in local peer mode. Development
+  bootstrap and stopped-writer requests now pass their explicit environment.
+- Added direct positive production-peer connector coverage, negative
+  development/TCP coverage, and a composed bot-profile-to-preflight regression.
+  Focused runtime/startup coverage passes 53 tests. Exact successor freeze,
+  complete offline/database gates, beta refresh, and evidence follow.
 
 ## Resume checklist
 

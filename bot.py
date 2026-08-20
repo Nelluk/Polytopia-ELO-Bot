@@ -433,6 +433,7 @@ class MyBot(commands.Bot):
             )
             profile = settings.runtime_profile
             request = schema_preflight.StartupSchemaPreflightRequest(
+                environment=profile.environment,
                 database_name=profile.database_name,
                 database_user=profile.database_user,
                 database_password=profile.database_password,

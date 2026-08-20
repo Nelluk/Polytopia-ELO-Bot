@@ -129,6 +129,12 @@ authentication. TCP production and every development profile still require a
 nonempty password. No legacy identity or password literal is an acceptable
 substitute.
 
+The model-free startup schema preflight must carry the validated runtime
+environment and apply this same authentication rule before connecting. It may
+omit the password connection parameter only for the reviewed production local
+socket/peer mode. A runtime profile accepted here but rejected by startup
+preflight is a release blocker; exact composed regression coverage is required.
+
 Do not enable the inactive API, change database credentials, backfill identity
 data, retire another prefix, or add another guild/capability during this
 cutover. Configuration changes outside the reviewed redacted diff require a

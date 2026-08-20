@@ -90,6 +90,7 @@ class FakeConnection:
 
 def request():
     return preflight.StartupSchemaPreflightRequest(
+        environment='development',
         database_name='polytopia_dev',
         database_user='polybot_dev',
         database_password='schema-secret',
@@ -99,6 +100,54 @@ def request():
 
 
 class StartupSchemaPreflightTests(unittest.TestCase):
+    def test_production_local_peer_authentication_reaches_connector(self):
+        peer_request = preflight.StartupSchemaPreflightRequest(
+            environment='production',
+            database_name='polytopia2',
+            database_user='polyelo',
+            database_password='',
+            database_host=None,
+            database_port=None,
+        )
+        connection = FakeConnection(identity=('polytopia2', 'polyelo'))
+        with mock.patch.object(
+            preflight.psycopg2,
+            'connect',
+            return_value=connection,
+        ) as connect:
+            result = preflight.inspect_startup_schema(peer_request)
+
+        self.assertEqual(result.database_name, 'polytopia2')
+        self.assertEqual(result.database_user, 'polyelo')
+        connect.assert_called_once_with(
+            dbname='polytopia2',
+            user='polyelo',
+            host=None,
+            port=None,
+        )
+
+    def test_passwordless_development_and_tcp_production_fail_before_connect(self):
+        for environment, host in (
+                ('development', None),
+                ('development', 'localhost'),
+                ('production', 'localhost')):
+            with self.subTest(environment=environment, host=host), \
+                    mock.patch.object(preflight, '_connect') as connect:
+                invalid_request = preflight.StartupSchemaPreflightRequest(
+                    environment=environment,
+                    database_name='database',
+                    database_user='role',
+                    database_password='',
+                    database_host=host,
+                    database_port=None,
+                )
+                with self.assertRaisesRegex(
+                    preflight.StartupSchemaPreflightError,
+                    'configured password',
+                ):
+                    preflight.inspect_startup_schema(invalid_request)
+                connect.assert_not_called()
+
     def test_complete_schema_uses_read_only_selects_and_closes(self):
         connection = FakeConnection()
         with mock.patch.object(

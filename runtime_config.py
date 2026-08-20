@@ -204,6 +204,20 @@ def _guild_configuration_source(
     return value
 
 
+def database_authentication_is_supported(
+        *,
+        environment: str,
+        database_password: str,
+        database_host: Optional[str]) -> bool:
+    """Return whether one profile has an explicit supported DB auth mode."""
+
+    if environment not in SUPPORTED_ENVIRONMENTS:
+        return False
+    if database_password:
+        return True
+    return environment == 'production' and database_host is None
+
+
 def _read_config(config_path: Path) -> configparser.ConfigParser:
     if not config_path.is_file():
         raise RuntimeConfigurationError(
@@ -535,8 +549,10 @@ def load_runtime_profile(
 
     database_password = parser['DEFAULT'].get('psql_password', '').strip()
     database_host = parser['DEFAULT'].get('psql_host', '').strip() or None
-    if not database_password and (
-            environment != 'production' or database_host is not None):
+    if not database_authentication_is_supported(
+            environment=environment,
+            database_password=database_password,
+            database_host=database_host):
         raise RuntimeConfigurationError(
             f'Missing required setting {"psql_password"!r} in {config_path}; '
             'passwordless authentication is permitted only for production '

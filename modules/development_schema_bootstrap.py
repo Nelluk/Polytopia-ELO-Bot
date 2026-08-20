@@ -132,6 +132,7 @@ def bootstrap_development_schema(
                 models.Game._schema.create_foreign_key(models.Game.winner)
 
     return inspect_startup_schema(StartupSchemaPreflightRequest(
+        environment=target.environment,
         database_name=target.database_name,
         database_user=target.database_user,
         database_password=target.database_password,

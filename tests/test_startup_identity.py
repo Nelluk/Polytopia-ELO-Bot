@@ -14,6 +14,7 @@ from tests.test_newgame_worker import import_offline_runtime
 
 
 workers = import_offline_runtime('modules.startup_ban_workers')
+schema_preflight = import_offline_runtime('modules.startup_schema_preflight')
 bot_module = import_offline_runtime('bot')
 
 
@@ -226,6 +227,7 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         ensure_images = mock.Mock()
         load_extension = mock.AsyncMock()
         profile = SimpleNamespace(
+            environment='development',
             bullet_enabled=False,
             validate_logged_in_bot=mock.Mock(
                 side_effect=RuntimeError('wrong bot identity')
@@ -258,10 +260,57 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(instance._startup_identity_validated)
         self.assertFalse(instance._startup_bans_reconciled)
 
+    async def test_production_peer_profile_reaches_schema_preflight(self):
+        instance = self.make_bot()
+        instance._startup_identity_validated = True
+        profile = SimpleNamespace(
+            environment='production',
+            database_name='polytopia2',
+            database_user='polyelo',
+            database_password='',
+            database_host=None,
+            database_port=None,
+        )
+        result = schema_preflight.StartupSchemaPreflightResult(
+            database_name='polytopia2',
+            database_user='polyelo',
+            verified_tables=('game',),
+            winner_foreign_key_verified=True,
+        )
+
+        async def validate(request):
+            schema_preflight._validate_request(request)
+            return result
+
+        try:
+            with mock.patch.object(
+                bot_module.settings,
+                'runtime_profile',
+                profile,
+            ), mock.patch.object(
+                schema_preflight,
+                'run_startup_schema_preflight',
+                side_effect=validate,
+            ) as run, mock.patch.dict(
+                sys.modules,
+                {'modules.startup_schema_preflight': schema_preflight},
+            ):
+                observed = await instance._preflight_startup_schema()
+        finally:
+            await instance.close()
+
+        self.assertEqual(observed, result)
+        sent = run.await_args.args[0]
+        self.assertEqual(sent.environment, 'production')
+        self.assertEqual(sent.database_password, '')
+        self.assertIsNone(sent.database_host)
+        self.assertTrue(instance._startup_schema_preflight_complete)
+
     async def test_expected_identity_reconciles_once_before_other_effects(self):
         instance = self.make_bot()
         events = []
         profile = SimpleNamespace(
+            environment='development',
             bullet_enabled=False,
             database_name='polytopia_dev',
             database_user='polybot_dev',
@@ -355,6 +404,7 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
     async def test_incomplete_schema_aborts_before_ban_reconciliation(self):
         instance = self.make_bot()
         profile = SimpleNamespace(
+            environment='development',
             bullet_enabled=False,
             database_name='polytopia_dev',
             database_user='polybot_dev',

@@ -8,6 +8,11 @@ from dataclasses import dataclass, field
 
 import psycopg2
 
+from runtime_config import (
+    SUPPORTED_ENVIRONMENTS,
+    database_authentication_is_supported,
+)
+
 from modules.database_schema_contract import (
     REQUIRED_TABLES,
     WINNER_FOREIGN_KEY_SQL,
@@ -21,6 +26,7 @@ class StartupSchemaPreflightError(RuntimeError):
 
 @dataclass(frozen=True)
 class StartupSchemaPreflightRequest:
+    environment: str
     database_name: str
     database_user: str
     database_password: str = field(repr=False)
@@ -53,21 +59,31 @@ def _validate_request(
         raise StartupSchemaPreflightError(
             'Startup schema preflight requires an explicit database and role.'
         )
-    if not request.database_password:
+    if request.environment not in SUPPORTED_ENVIRONMENTS:
         raise StartupSchemaPreflightError(
-            'Startup schema preflight requires explicit database authentication.'
+            'Startup schema preflight requires an explicit runtime environment.'
+        )
+    if not database_authentication_is_supported(
+            environment=request.environment,
+            database_password=request.database_password,
+            database_host=request.database_host):
+        raise StartupSchemaPreflightError(
+            'Startup schema preflight requires a configured password except '
+            'for production on the default local PostgreSQL socket.'
         )
     return request
 
 
 def _connect(request: StartupSchemaPreflightRequest):
-    return psycopg2.connect(
+    connection_parameters = dict(
         dbname=request.database_name,
         user=request.database_user,
-        password=request.database_password,
         host=request.database_host,
         port=request.database_port,
     )
+    if request.database_password:
+        connection_parameters['password'] = request.database_password
+    return psycopg2.connect(**connection_parameters)
 
 
 def inspect_startup_schema(
