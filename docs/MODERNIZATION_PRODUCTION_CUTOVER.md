@@ -225,18 +225,24 @@ workflow and validate every required artifact. Stop before downtime if the
 checkout is dirty, the commit is unexpected, the service is unhealthy, the API
 is active, or backup validation is incomplete.
 
-The tracked backup program and root-owned wrapper must belong to the clean
-rollback history. The installed wrapper must match `deploy/polyelo-backup`
-byte for byte and invoke the tracked program from the canonical checkout. The
-invoked reporting exporter and Python path must also resolve within that
-checkout. A cutover backup requires exit status zero; a reporting-partial or
-lock-busy result is not an acceptable recovery point. The bounded command
-sequence is:
+The tracked backup program must belong to the clean rollback history. The
+wrapper is introduced by the approved release, so its reviewed bytes must be
+read from `POLYBOT_RELEASE_SHA`, not from the rollback worktree. Fetch and
+freeze the approved remote release before comparing those candidate bytes to
+the installed root-owned wrapper. The installed wrapper must invoke the
+tracked backup program from the canonical checkout. The reporting exporter
+and Python path must also resolve within that checkout. A cutover backup
+requires exit status zero; a reporting-partial or lock-busy result is not an
+acceptable recovery point. The bounded command sequence is:
 
 ```bash
 test "$(git rev-parse HEAD)" = "$POLYBOT_ROLLBACK_SHA"
 git status --short --branch
-cmp --silent deploy/polyelo-backup /srv/polyelo/bin/polyelo-backup
+git fetch origin master
+test "$(git rev-parse origin/master)" = "$POLYBOT_RELEASE_SHA"
+git merge-base --is-ancestor "$POLYBOT_ROLLBACK_SHA" "$POLYBOT_RELEASE_SHA"
+git show "$POLYBOT_RELEASE_SHA:deploy/polyelo-backup" \
+  | cmp --silent - /srv/polyelo/bin/polyelo-backup
 /srv/polyelo/bin/polyelo-backup
 /usr/bin/pg_restore --list /srv/polyelo/backups/polytopia_full_backup.sqlc >/dev/null
 /usr/bin/tar -tzf "/srv/polyelo/backups/polytopia_images-$(date +%A).tar.gz" >/dev/null
@@ -278,17 +284,17 @@ verification.
 
 ### 3. Move only to the exact reviewed release
 
-Fetch without merging, prove the approved release is the exact reviewed remote
-commit and descends from the exact live rollback commit, then update only by
-the reviewed fast-forward path. The release must already have been promoted to
-`origin/master`; do not merge, rebase, force-push, or discard a master-only
+Use the remote ref frozen before downtime, re-prove that the approved release
+is the exact reviewed remote commit and descends from the exact live rollback
+commit, then update only by the reviewed fast-forward path. The release must
+already have been promoted to `origin/master`; do not merge, rebase,
+force-push, refetch a moving target after shutdown, or discard a master-only
 production fix during cutover. Require:
 
 ```bash
 test "$(git symbolic-ref --short HEAD)" = master
 git status --short --branch
 test "$(git rev-parse HEAD)" = "$POLYBOT_ROLLBACK_SHA"
-git fetch origin master
 test "$(git rev-parse origin/master)" = "$POLYBOT_RELEASE_SHA"
 git merge-base --is-ancestor "$POLYBOT_ROLLBACK_SHA" "$POLYBOT_RELEASE_SHA"
 git merge --ff-only "$POLYBOT_RELEASE_SHA"

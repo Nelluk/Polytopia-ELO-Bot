@@ -113,18 +113,28 @@ class ReleaseCandidateTests(unittest.TestCase):
         self.assertEqual(manifest.candidate_sha, CANDIDATE)
         self.assertEqual(manifest.blockers, ())
 
-    def test_legacy_manifests_remain_readable_with_their_original_digest_set(self):
-        value = manifest_value(gate_status='pass')
-        value['schema_version'] = 1
-        value['rollback_sha'] = release_candidate.LEGACY_ROLLBACK_SHA
-        value['source_digests'] = {
-            path: hashlib.sha256(path.encode()).hexdigest()
-            for path in release_candidate.LEGACY_SOURCE_PATHS
-        }
+    def test_actual_rc4_to_rc6_schema_one_manifests_remain_readable(self):
+        root = Path(__file__).resolve().parents[1]
+        for release_number in (4, 5, 6):
+            with self.subTest(release_number=release_number):
+                manifest = release_candidate.load(
+                    root / 'release-candidate-manifests' /
+                    f'modernization-rc{release_number}.json'
+                )
+                self.assertEqual(
+                    manifest.release_id,
+                    f'modernization-rc{release_number}',
+                )
 
-        manifest = release_candidate.validate(value)
-
-        self.assertEqual(manifest.candidate_sha, CANDIDATE)
+    def test_older_schema_one_records_are_retained_but_not_supported(self):
+        root = Path(__file__).resolve().parents[1]
+        for release_number in (1, 2, 3):
+            with self.subTest(release_number=release_number), \
+                    self.assertRaises(release_candidate.ReleaseCandidateError):
+                release_candidate.load(
+                    root / 'release-candidate-manifests' /
+                    f'modernization-rc{release_number}.json'
+                )
 
     def test_pending_gates_are_valid_but_not_ready(self):
         manifest = release_candidate.validate(manifest_value())

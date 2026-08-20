@@ -23,7 +23,7 @@ POLYCHAMPIONS_GUILD_ID = 447883341463814144
 BETA_GUILD_ID = 478571892832206869
 BETA_FEEDBACK_CHANNEL_ID = 480078679930830849
 
-LEGACY_SOURCE_PATHS = (
+RC4_TO_RC6_SOURCE_PATHS = (
     'uv.lock',
     'deploy/systemd/polyelo.service',
     'deploy/systemd/polyelo-modernization-canary.conf',
@@ -36,7 +36,7 @@ LEGACY_SOURCE_PATHS = (
     'docs/PLAYER_BADGES_MIGRATION.md',
     'release-candidate-manifests/tester-instructions-draft.md',
 )
-REQUIRED_SOURCE_PATHS = LEGACY_SOURCE_PATHS + (
+REQUIRED_SOURCE_PATHS = RC4_TO_RC6_SOURCE_PATHS + (
     'scripts/backup_db.sh',
     'deploy/polyelo-backup',
     'modules/operator_backup.py',
@@ -324,7 +324,9 @@ def validate(value: Mapping[str, Any]) -> ReleaseCandidateManifest:
 
     digests = _mapping(value.get('source_digests'), 'source_digests')
     required_paths = (
-        LEGACY_SOURCE_PATHS if schema_version == 1 else REQUIRED_SOURCE_PATHS
+        RC4_TO_RC6_SOURCE_PATHS
+        if schema_version == 1
+        else REQUIRED_SOURCE_PATHS
     )
     if set(digests) != set(required_paths):
         raise ReleaseCandidateError('source_digests must cover the exact critical files.')

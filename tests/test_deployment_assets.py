@@ -173,6 +173,52 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         positions = [runbook.index(marker) for marker in ordered_markers]
         self.assertEqual(positions, sorted(positions))
 
+        pre_stop = runbook.split(ordered_markers[0], 1)[1].split(
+            ordered_markers[1], 1
+        )[0]
+        checkout_move = runbook.split(ordered_markers[2], 1)[1].split(
+            ordered_markers[3], 1
+        )[0]
+        self.assertIn('git fetch origin master', pre_stop)
+        self.assertIn(
+            'git show "$POLYBOT_RELEASE_SHA:deploy/polyelo-backup"',
+            pre_stop,
+        )
+        self.assertIn(
+            '| cmp --silent - /srv/polyelo/bin/polyelo-backup',
+            pre_stop,
+        )
+        self.assertNotIn(
+            'cmp --silent deploy/polyelo-backup',
+            pre_stop,
+        )
+        self.assertNotIn('git fetch origin master', checkout_move)
+
+        rollback_wrapper = subprocess.run(
+            [
+                'git', 'cat-file', '-e',
+                '8fed2a6049e980f77614859be1d8b9e8564d975a:'
+                'deploy/polyelo-backup',
+            ],
+            cwd=self.root,
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        self.assertNotEqual(
+            rollback_wrapper.returncode,
+            0,
+            'The regression requires a wrapper absent from the rollback tree.',
+        )
+        candidate_wrapper = subprocess.run(
+            ['git', 'cat-file', '-e', 'HEAD:deploy/polyelo-backup'],
+            cwd=self.root,
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        self.assertEqual(candidate_wrapper.returncode, 0)
+
         self.assertIn('[Service]', canary)
         self.assertIn('POLYBOT_ENV=production', (
             self.root / 'deploy/systemd/polyelo.service'

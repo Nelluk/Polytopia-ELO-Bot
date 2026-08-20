@@ -542,9 +542,16 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC7 is release-ready at
-`b49086eca94d7c50ff6ec4c71afd3cc26249fd68`; RC6 is superseded.** A second
-GitHub-only external review correctly found that RC6's
+Current active unit: **P9.31/M7 RC8 correction is in progress; RC7 is
+superseded.** RC7 resolved RC6's canonical topology and branch-ancestry
+blockers, but its pre-stop runbook tried to read the newly tracked wrapper from
+the exact rollback worktree where that file does not exist. RC8 reads the
+wrapper blob from the fetched, approved release SHA before downtime and then
+reuses that frozen remote ref for the fast-forward. The release validator now
+states and tests its actual historical boundary: stored RC4–RC6 schema-1
+records remain readable; RC1–RC3 remain immutable evidence but are not accepted
+by the current validator. The prior context remains: the external review found
+that RC6's
 operator-backup provenance still encoded the retired `/home/nelluk` topology
 and that its candidate branch had diverged from production `master`. Live
 inspection additionally established that the exact running production
@@ -554,10 +561,8 @@ descends from that exact live checkpoint, retains the intentional retirement
 of `$backup_db` / `$dbb`, and aligns the reviewed backup program, tracked
 root-wrapper source, provenance manager, artifacts, account, and runbook with
 `/srv/polyelo` / `polyelo`. Schema-2 release records bind the four critical
-backup files while historical schema-1 records remain readable. All five R-002
-gates pass, and the exact candidate is active in beta with zero restarts. The
-running production service remains untouched without restart, database action,
-or Discord action.
+backup files. Exact RC8 freeze and evidence are pending. The running production
+service remains untouched without restart, database action, or Discord action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -27057,7 +27062,7 @@ deferred into this post-modernization backlog.
   artifacts only under `/srv/polyelo/backups`.
 - Release-record schema 2 adds the tracked backup program, wrapper,
   provenance manager, and operator-backup module to critical digests while
-  retaining read compatibility for immutable schema-1 records. Focused backup,
+  retaining read compatibility for RC4–RC6 schema-1 records. Focused backup,
   deployment, release-record, and inherited image tests pass. Complete RC7
   validation and freeze follow; production remains untouched.
 
@@ -27088,6 +27093,31 @@ deferred into this post-modernization backlog.
 - `modernization-rc7.json` validates and `require-ready` passes all five gates.
   Production remains on its prior exact checkout with no restart, database or
   schema action, Discord inspection/synchronization, or announcement.
+
+### 2026-08-20 — External review found RC7 pre-stop source sequencing defect
+
+- Accepted the review's single blocker. Step 1 correctly required production
+  to remain at rollback `8fed2a6…`, but then compared the installed wrapper to
+  relative path `deploy/polyelo-backup`, which is first introduced by RC7 and
+  therefore absent from that rollback tree. The fail-closed sequence would
+  abort before downtime.
+- Moved the remote fetch, exact-release proof, and rollback-ancestry proof into
+  the pre-stop phase. The wrapper comparison now streams the immutable
+  `POLYBOT_RELEASE_SHA:deploy/polyelo-backup` blob directly into `cmp`; it does
+  not create a temporary file or read from the rollback worktree. The stopped
+  checkout phase reuses the already frozen `origin/master` ref and performs no
+  second network fetch.
+- Added a cross-checkout regression proving the wrapper is absent at the real
+  rollback SHA while the pre-stop instructions explicitly read the candidate
+  blob. Candidate-tree-only existence assertions can no longer mask this
+  sequencing condition.
+- Replaced the synthetic schema-1 compatibility test with the actual stored
+  manifests. RC4, RC5, and RC6 load successfully; RC1–RC3 are explicitly
+  retained but unsupported by the current validator. The documentation no
+  longer claims universal schema-1 compatibility.
+- This correction changes release governance, documentation, and tests only;
+  production and the running RC7 beta remain untouched. Exact RC8 offline
+  validation, freeze, critical digests, and evidence follow.
 
 ## Resume checklist
 
