@@ -39,11 +39,12 @@ def runtime(**overrides):
     values = dict(
         environment='production',
         database_name='polytopia2',
-        project_root=Path('/home/nelluk/PolyBot39'),
+        project_root=Path('/srv/polyelo/PolyBot39'),
         owner_id=10,
         current_uid=os.geteuid(),
-        current_username='nelluk',
+        current_username='polyelo',
         source_script=Path('/missing/source'),
+        deployed_script_source=Path('/missing/wrapper-source'),
         deployed_script=Path('/missing/deployed'),
         reporting_exporter=Path('/missing/exporter'),
         reporting_python=Path('/missing/python'),
@@ -64,21 +65,25 @@ def make_release_runtime(directory: str):
         raise unittest.SkipTest('Git CLI is not installed in this runtime image.')
     root = Path(directory)
     (root / 'scripts').mkdir()
+    (root / 'deploy').mkdir()
     (root / '.venv/bin').mkdir(parents=True)
     source = root / 'scripts/backup_db.sh'
+    wrapper_source = root / 'deploy/polyelo-backup'
     deployed = root / 'deployed.sh'
     exporter = root / 'scripts/export_reporting_duckdb.py'
     python = root / '.venv/bin/python'
     source.write_bytes(b'#!/bin/sh\nexit 0\n')
-    deployed.write_bytes(source.read_bytes())
+    wrapper_source.write_bytes(b'#!/bin/sh\nexec /reviewed/backup\n')
+    deployed.write_bytes(wrapper_source.read_bytes())
     exporter.write_bytes(b'print("export")\n')
     python.write_bytes(b'python-runtime')
     source.chmod(0o700)
+    wrapper_source.chmod(0o700)
     deployed.chmod(0o700)
     exporter.chmod(0o600)
     python.chmod(0o700)
     subprocess.run([git, 'init', '-q'], cwd=root, check=True)
-    subprocess.run([git, 'add', 'scripts'], cwd=root, check=True)
+    subprocess.run([git, 'add', 'scripts', 'deploy'], cwd=root, check=True)
     subprocess.run(
         [
             git, '-c', 'user.name=PolyBot Test',
@@ -98,6 +103,7 @@ def make_release_runtime(directory: str):
     value = runtime(
         project_root=root,
         source_script=source,
+        deployed_script_source=wrapper_source,
         deployed_script=deployed,
         reporting_exporter=exporter,
         reporting_python=python,
@@ -105,6 +111,14 @@ def make_release_runtime(directory: str):
         release_manifest=root / backup.RELEASE_MANIFEST_NAME,
     )
     return value, checkpoint
+
+
+def production_patches(value):
+    return mock.patch.multiple(
+        backup,
+        PRODUCTION_ROOT=value.project_root,
+        DEPLOYED_SCRIPT_UID=value.current_uid,
+    )
 
 
 class FakeProcess:
@@ -156,7 +170,7 @@ class BackupBoundaryTests(unittest.TestCase):
     def test_clean_pinned_release_and_runtime_pass(self):
         with tempfile.TemporaryDirectory() as directory:
             value, checkpoint = make_release_runtime(directory)
-            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+            with production_patches(value):
                 manifest = backup.build_release_manifest_sync(
                     value,
                     expected_checkpoint=checkpoint,
@@ -169,30 +183,26 @@ class BackupBoundaryTests(unittest.TestCase):
     def test_matching_scripts_without_pinned_manifest_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             value, _checkpoint = make_release_runtime(directory)
-            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+            with production_patches(value), \
                     self.assertRaises(backup.BackupSourceError):
                 backup.validate_runtime_sync(10, value)
 
     def test_source_and_deployed_symlinks_fail_closed(self):
-        for selected in ('source', 'deployed'):
+        for selected in ('source', 'wrapper_source', 'deployed'):
             with self.subTest(selected=selected), \
                     tempfile.TemporaryDirectory() as directory:
                 value, checkpoint = make_release_runtime(directory)
-                with mock.patch.object(
-                    backup,
-                    'PRODUCTION_ROOT',
-                    value.project_root,
-                ):
+                with production_patches(value):
                     manifest = backup.build_release_manifest_sync(
                         value,
                         expected_checkpoint=checkpoint,
                     )
                     backup.write_release_manifest_sync(value, manifest)
-                    target = (
-                        value.source_script
-                        if selected == 'source'
-                        else value.deployed_script
-                    )
+                    target = {
+                        'source': value.source_script,
+                        'wrapper_source': value.deployed_script_source,
+                        'deployed': value.deployed_script,
+                    }[selected]
                     original = target.with_name(target.name + '.real')
                     target.rename(original)
                     target.symlink_to(original)
@@ -203,10 +213,35 @@ class BackupBoundaryTests(unittest.TestCase):
                     ), self.assertRaises(backup.BackupSourceError):
                         backup.validate_runtime_sync(10, value)
 
+    def test_deployed_wrapper_must_match_tracked_wrapper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value, checkpoint = make_release_runtime(directory)
+            value.deployed_script.write_text('#!/bin/sh\nexit 1\n')
+            with production_patches(value), \
+                    self.assertRaisesRegex(
+                        backup.BackupSourceError,
+                        'wrapper differs from reviewed source',
+                    ):
+                backup.build_release_manifest_sync(
+                    value,
+                    expected_checkpoint=checkpoint,
+                )
+
+    def test_canonical_production_topology_has_no_legacy_home_paths(self):
+        self.assertEqual(backup.PRODUCTION_ROOT, Path('/srv/polyelo/PolyBot39'))
+        self.assertEqual(backup.PRODUCTION_USER, 'polyelo')
+        self.assertEqual(
+            backup.DEPLOYED_SCRIPT,
+            Path('/srv/polyelo/bin/polyelo-backup'),
+        )
+        paths = backup._artifact_paths(1_700_000_000)
+        self.assertTrue(all(str(path).startswith('/srv/polyelo/backups/')
+                            for _label, path in paths))
+
     def test_dirty_exporter_fails_before_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             value, checkpoint = make_release_runtime(directory)
-            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+            with production_patches(value):
                 manifest = backup.build_release_manifest_sync(
                     value,
                     expected_checkpoint=checkpoint,
@@ -219,7 +254,7 @@ class BackupBoundaryTests(unittest.TestCase):
     def test_wrong_checkout_checkpoint_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             value, checkpoint = make_release_runtime(directory)
-            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+            with production_patches(value):
                 manifest = backup.build_release_manifest_sync(
                     value,
                     expected_checkpoint=checkpoint,
@@ -240,7 +275,7 @@ class BackupBoundaryTests(unittest.TestCase):
             other = value.project_root / '.venv/bin/other-python'
             other.write_bytes(b'other-runtime')
             other.chmod(0o700)
-            with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root):
+            with production_patches(value):
                 manifest = backup.build_release_manifest_sync(
                     value,
                     expected_checkpoint=checkpoint,
@@ -550,6 +585,7 @@ class BackupReleaseToolTests(unittest.TestCase):
         schema_version=1,
         release_checkpoint='a' * 40,
         backup_script_sha256='b' * 64,
+        backup_wrapper_sha256='e' * 64,
         reporting_exporter_sha256='c' * 64,
         python_resolved_path='/reviewed/python',
         python_sha256='d' * 64,

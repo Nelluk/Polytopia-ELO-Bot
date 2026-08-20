@@ -542,18 +542,21 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC6 is release-ready at
-`beee5358b6b939018005347d5eaf73522425d2d9`.** RC5 is superseded after the
-GitHub-only external review found that its runtime loader accepted canonical
-production peer authentication while the separate startup schema preflight
-still rejected the same blank password. RC6 carries the environment into the
-frozen preflight request and uses one shared authentication rule: blank
-password is production/default-local-socket-only; TCP production and
-development remain password-required. All five R-002 gates pass, including
-direct connector and composed bot-startup regression coverage. The production
-plan and provisional bounded-beta acceptance are otherwise unchanged. The
-running production service remains on its prior code without restart, database
-action, or Discord action.
+Current active unit: **P9.31/M7 RC7 correction is in progress; RC6 is
+superseded.** A second GitHub-only external review correctly found that RC6's
+operator-backup provenance still encoded the retired `/home/nelluk` topology
+and that its candidate branch had diverged from production `master`. Live
+inspection additionally established that the exact running production
+checkpoint is `8fed2a6049e980f77614859be1d8b9e8564d975a`, one local production
+fix beyond GitHub `master`. RC7 therefore preserves the RC6 peer-auth fix,
+descends from that exact live checkpoint, retains the intentional retirement
+of `$backup_db` / `$dbb`, and aligns the reviewed backup program, tracked
+root-wrapper source, provenance manager, artifacts, account, and runbook with
+`/srv/polyelo` / `polyelo`. New schema-2 release records bind the four critical
+backup files while historical schema-1 records remain readable. Exact
+candidate freeze, complete gates, beta refresh, and evidence are pending. The
+running production service remains untouched without restart, database action,
+or Discord action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -27029,6 +27032,33 @@ deferred into this post-modernization backlog.
 - The RC6 manifest validates and `require-ready` passes with all five gates
   green. No production checkout update, service action, database action,
   Discord inspection/synchronization, or announcement occurred.
+
+### 2026-08-20 — External review found RC6 topology and ancestry blockers
+
+- Accepted both external-review findings. RC6's manual-backup provenance and
+  artifact inspection still required `/home/nelluk` and user `nelluk`, while
+  the canonical service uses `/srv/polyelo/PolyBot39`, state under
+  `/srv/polyelo`, and account `polyelo`. RC6 also diverged from GitHub
+  `master`, so the documented production fast-forward gate could not promote
+  its exact SHA.
+- Verified that live production is clean at
+  `8fed2a6049e980f77614859be1d8b9e8564d975a`, whose parent includes the two
+  GitHub-master-only fixes. Integrated that exact checkpoint as candidate
+  ancestry and selected it as RC7's immediate rollback baseline. Historical
+  RC1–RC6 records retain their original compatibility baseline.
+- Preserved the intentional C-029 retirement of `$backup_db` / `$dbb`; the
+  production-only prefix adapter from the live baseline was not reintroduced.
+  Ported its backup portability and generated-card containment changes.
+- Added a tracked `deploy/polyelo-backup` asset that exactly matches the live
+  root-owned wrapper. The operator provenance now separately binds the tracked
+  backup program and tracked wrapper, verifies the installed wrapper against
+  reviewed bytes, accepts the checkout's reviewed ownership model, and checks
+  artifacts only under `/srv/polyelo/backups`.
+- Release-record schema 2 adds the tracked backup program, wrapper,
+  provenance manager, and operator-backup module to critical digests while
+  retaining read compatibility for immutable schema-1 records. Focused backup,
+  deployment, release-record, and inherited image tests pass. Complete RC7
+  validation and freeze follow; production remains untouched.
 
 ## Resume checklist
 

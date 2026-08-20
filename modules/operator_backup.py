@@ -26,9 +26,12 @@ logger = logging.getLogger('polybot.' + __name__)
 
 PRODUCTION_ENVIRONMENT = 'production'
 PRODUCTION_DATABASE = 'polytopia2'
-PRODUCTION_ROOT = Path('/home/nelluk/PolyBot39')
-PRODUCTION_USER = 'nelluk'
-DEPLOYED_SCRIPT = Path('/home/nelluk/backup_db.sh')
+PRODUCTION_ROOT = Path('/srv/polyelo/PolyBot39')
+PRODUCTION_USER = 'polyelo'
+PRODUCTION_STATE_ROOT = Path('/srv/polyelo')
+PRODUCTION_BACKUP_ROOT = PRODUCTION_STATE_ROOT / 'backups'
+DEPLOYED_SCRIPT = PRODUCTION_STATE_ROOT / 'bin/polyelo-backup'
+DEPLOYED_SCRIPT_UID = 0
 GIT_EXECUTABLE = Path('/usr/bin/git')
 RELEASE_MANIFEST_NAME = '.operator-backup-release.json'
 RELEASE_MANIFEST_SCHEMA = 1
@@ -87,6 +90,7 @@ class BackupRuntime:
     current_uid: int
     current_username: str
     source_script: Path
+    deployed_script_source: Path
     deployed_script: Path
     reporting_exporter: Path
     reporting_python: Path
@@ -99,6 +103,7 @@ class BackupReleaseManifest:
     schema_version: int
     release_checkpoint: str
     backup_script_sha256: str
+    backup_wrapper_sha256: str
     reporting_exporter_sha256: str
     python_resolved_path: str
     python_sha256: str
@@ -108,6 +113,7 @@ class BackupReleaseManifest:
             'schema_version': self.schema_version,
             'release_checkpoint': self.release_checkpoint,
             'backup_script_sha256': self.backup_script_sha256,
+            'backup_wrapper_sha256': self.backup_wrapper_sha256,
             'reporting_exporter_sha256': self.reporting_exporter_sha256,
             'python_resolved_path': self.python_resolved_path,
             'python_sha256': self.python_sha256,
@@ -160,6 +166,9 @@ def capture_runtime() -> BackupRuntime:
         current_uid=int(current_uid),
         current_username=str(current_username),
         source_script=Path(profile.project_root) / 'scripts/backup_db.sh',
+        deployed_script_source=(
+            Path(profile.project_root) / 'deploy/polyelo-backup'
+        ),
         deployed_script=DEPLOYED_SCRIPT,
         reporting_exporter=(
             Path(profile.project_root) / 'scripts/export_reporting_duckdb.py'
@@ -201,9 +210,10 @@ def _lstat_regular(
     path: Path,
     *,
     label: str,
-    current_uid: int,
+    expected_uid: int | None,
     private: bool = False,
     executable: bool = False,
+    allow_group_write: bool = False,
 ) -> os.stat_result:
     try:
         details = path.lstat()
@@ -216,12 +226,12 @@ def _lstat_regular(
             f'The {label} must be a regular non-symlink file. No backup was '
             'started.'
         )
-    if details.st_uid != current_uid:
+    if expected_uid is not None and details.st_uid != expected_uid:
         raise BackupSourceError(
             f'The {label} has an unexpected owner. No backup was started.'
         )
     mode = stat.S_IMODE(details.st_mode)
-    if mode & 0o022:
+    if mode & 0o002 or (mode & 0o020 and not allow_group_write):
         raise BackupSourceError(
             f'The {label} is writable outside its owner. No backup was '
             'started.'
@@ -279,7 +289,11 @@ def _checkout_checkpoint(runtime: BackupRuntime) -> str:
             'The production checkout checkpoint is invalid. No backup was '
             'started.'
         )
-    for path in (runtime.source_script, runtime.reporting_exporter):
+    for path in (
+        runtime.source_script,
+        runtime.deployed_script_source,
+        runtime.reporting_exporter,
+    ):
         try:
             relative = path.relative_to(runtime.project_root)
         except ValueError as exc:
@@ -310,6 +324,7 @@ def _parse_release_manifest(path: Path) -> BackupReleaseManifest:
         'schema_version',
         'release_checkpoint',
         'backup_script_sha256',
+        'backup_wrapper_sha256',
         'reporting_exporter_sha256',
         'python_resolved_path',
         'python_sha256',
@@ -329,6 +344,7 @@ def _parse_release_manifest(path: Path) -> BackupReleaseManifest:
     checkpoint = value['release_checkpoint']
     digests = (
         value['backup_script_sha256'],
+        value['backup_wrapper_sha256'],
         value['reporting_exporter_sha256'],
         value['python_sha256'],
     )
@@ -355,9 +371,10 @@ def _parse_release_manifest(path: Path) -> BackupReleaseManifest:
         schema_version=value['schema_version'],
         release_checkpoint=checkpoint,
         backup_script_sha256=digests[0],
-        reporting_exporter_sha256=digests[1],
+        backup_wrapper_sha256=digests[1],
+        reporting_exporter_sha256=digests[2],
         python_resolved_path=python_path,
-        python_sha256=digests[2],
+        python_sha256=digests[3],
     )
 
 
@@ -378,25 +395,32 @@ def build_release_manifest_sync(
     _lstat_regular(
         runtime.source_script,
         label='tracked backup script',
-        current_uid=runtime.current_uid,
+        expected_uid=None,
+        executable=True,
+    )
+    _lstat_regular(
+        runtime.deployed_script_source,
+        label='tracked backup wrapper',
+        expected_uid=None,
         executable=True,
     )
     _lstat_regular(
         runtime.deployed_script,
-        label='deployed backup script',
-        current_uid=runtime.current_uid,
-        private=True,
+        label='deployed root-controlled backup wrapper',
+        expected_uid=DEPLOYED_SCRIPT_UID,
         executable=True,
     )
     _lstat_regular(
         runtime.reporting_exporter,
         label='reporting exporter',
-        current_uid=runtime.current_uid,
+        expected_uid=None,
+        allow_group_write=True,
     )
     source_digest = _digest(runtime.source_script)
-    if _digest(runtime.deployed_script) != source_digest:
+    wrapper_digest = _digest(runtime.deployed_script_source)
+    if _digest(runtime.deployed_script) != wrapper_digest:
         raise BackupSourceError(
-            'The deployed backup script differs from reviewed source. No '
+            'The deployed backup wrapper differs from reviewed source. No '
             'manifest was written.'
         )
     try:
@@ -413,7 +437,7 @@ def build_release_manifest_sync(
     _lstat_regular(
         resolved_python,
         label='resolved reporting runtime',
-        current_uid=runtime.current_uid,
+        expected_uid=runtime.current_uid,
         executable=True,
     )
     if not same_runtime:
@@ -425,6 +449,7 @@ def build_release_manifest_sync(
         schema_version=RELEASE_MANIFEST_SCHEMA,
         release_checkpoint=checkpoint,
         backup_script_sha256=source_digest,
+        backup_wrapper_sha256=wrapper_digest,
         reporting_exporter_sha256=_digest(runtime.reporting_exporter),
         python_resolved_path=str(resolved_python),
         python_sha256=_digest(resolved_python),
@@ -507,7 +532,7 @@ def validate_runtime_sync(
     _lstat_regular(
         runtime.release_manifest,
         label='production backup release manifest',
-        current_uid=runtime.current_uid,
+        expected_uid=runtime.current_uid,
         private=True,
     )
     manifest = _parse_release_manifest(runtime.release_manifest)
@@ -520,20 +545,26 @@ def validate_runtime_sync(
     _lstat_regular(
         runtime.source_script,
         label='tracked backup script',
-        current_uid=runtime.current_uid,
+        expected_uid=None,
+        executable=True,
+    )
+    _lstat_regular(
+        runtime.deployed_script_source,
+        label='tracked backup wrapper',
+        expected_uid=None,
         executable=True,
     )
     _lstat_regular(
         runtime.deployed_script,
-        label='deployed backup script',
-        current_uid=runtime.current_uid,
-        private=True,
+        label='deployed root-controlled backup wrapper',
+        expected_uid=DEPLOYED_SCRIPT_UID,
         executable=True,
     )
     _lstat_regular(
         runtime.reporting_exporter,
         label='reporting exporter',
-        current_uid=runtime.current_uid,
+        expected_uid=None,
+        allow_group_write=True,
     )
     try:
         resolved_python = runtime.reporting_python.resolve(strict=True)
@@ -549,7 +580,7 @@ def validate_runtime_sync(
     _lstat_regular(
         resolved_python,
         label='resolved reporting runtime',
-        current_uid=runtime.current_uid,
+        expected_uid=runtime.current_uid,
         executable=True,
     )
     if not same_runtime or str(resolved_python) != manifest.python_resolved_path:
@@ -560,6 +591,7 @@ def validate_runtime_sync(
 
     try:
         source_digest = _digest(runtime.source_script)
+        wrapper_digest = _digest(runtime.deployed_script_source)
         deployed_digest = _digest(runtime.deployed_script)
         exporter_digest = _digest(runtime.reporting_exporter)
         python_digest = _digest(resolved_python)
@@ -570,7 +602,8 @@ def validate_runtime_sync(
         ) from exc
     if (
         source_digest != manifest.backup_script_sha256
-        or deployed_digest != manifest.backup_script_sha256
+        or wrapper_digest != manifest.backup_wrapper_sha256
+        or deployed_digest != manifest.backup_wrapper_sha256
         or exporter_digest != manifest.reporting_exporter_sha256
         or python_digest != manifest.python_sha256
     ):
@@ -601,22 +634,22 @@ async def validate_runtime(
 def _artifact_paths(started_at: float) -> tuple[tuple[str, Path], ...]:
     weekday = time.strftime('%A', time.localtime(started_at))
     return (
-        ('Full database', Path('/home/nelluk/polytopia_full_backup.sqlc')),
+        ('Full database', PRODUCTION_BACKUP_ROOT / 'polytopia_full_backup.sqlc'),
         (
             'Partial database',
-            Path(f'/home/nelluk/backups/polytopia_bak-{weekday}.sqlc'),
+            PRODUCTION_BACKUP_ROOT / f'polytopia_bak-{weekday}.sqlc',
         ),
         (
             'Public GameLog',
-            Path('/home/nelluk/backups/polytopia_gamelogs.csv.gz'),
+            PRODUCTION_BACKUP_ROOT / 'polytopia_gamelogs.csv.gz',
         ),
         (
             'Local images',
-            Path(f'/home/nelluk/backups/polytopia_images-{weekday}.tar.gz'),
+            PRODUCTION_BACKUP_ROOT / f'polytopia_images-{weekday}.tar.gz',
         ),
         (
             'Reporting snapshot',
-            Path('/home/nelluk/backups/polytopia_reporting.duckdb'),
+            PRODUCTION_BACKUP_ROOT / 'polytopia_reporting.duckdb',
         ),
     )
 

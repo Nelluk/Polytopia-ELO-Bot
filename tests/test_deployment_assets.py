@@ -202,7 +202,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('/usr/bin/tar -tzf', source)
         self.assertIn('/usr/bin/mv -f --', source)
         self.assertIn(
-            '/home/nelluk/PolyBot39/scripts/export_reporting_duckdb.py',
+            'REPORTEXPORTER=${POLYBOT_REPORT_EXPORTER:-$PROJECT_ROOT/scripts/export_reporting_duckdb.py}',
             source,
         )
         self.assertIn(
@@ -210,7 +210,7 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             source,
         )
         self.assertIn(
-            'REPORTLOCK=/home/nelluk/.polybot-reporting.lock',
+            'REPORTLOCK=${POLYBOT_REPORT_LOCK:-$STATE_ROOT/.polybot-reporting.lock}',
             source,
         )
         self.assertIn(
@@ -232,6 +232,20 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             ),
         )
         self.assertNotIn('> "$TARGET"', source)
+        self.assertNotIn('/home/nelluk', source)
+        self.assertIn('DATABASE_USER=${POLYBOT_DATABASE_USER:-}', source)
+        self.assertIn('DATABASE_USER_ARGS=(--username "$DATABASE_USER")', source)
+
+        wrapper = (self.root / 'deploy/polyelo-backup').read_text(
+            encoding='utf-8'
+        )
+        self.assertIn('POLYBOT_ROOT=/srv/polyelo/PolyBot39', wrapper)
+        self.assertIn('POLYBOT_BACKUP_DIR=/srv/polyelo/backups', wrapper)
+        self.assertIn(
+            'exec /srv/polyelo/PolyBot39/scripts/backup_db.sh',
+            wrapper,
+        )
+        self.assertNotIn('/home/nelluk', wrapper)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+# Run the repository-maintained backup program with GreenCloud's production
+# paths. Keeping this wrapper root-controlled preserves the service boundary
+# while leaving backup behavior versioned with the bot.
+
+set -euo pipefail
+
+export POLYBOT_ROOT=/srv/polyelo/PolyBot39
+export POLYBOT_STATE_ROOT=/srv/polyelo
+export POLYBOT_BACKUP_DIR=/srv/polyelo/backups
+export POLYBOT_FULL_BACKUP=/srv/polyelo/backups/polytopia_full_backup.sqlc
+export POLYBOT_BACKUP_LOCK=/srv/polyelo/backups/.backup_db.lock
+export POLYBOT_REPORT_LOCK=/srv/polyelo/backups/.polybot-reporting.lock
+export PYTHONDONTWRITEBYTECODE=1
+
+exec /srv/polyelo/PolyBot39/scripts/backup_db.sh

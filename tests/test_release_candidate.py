@@ -34,7 +34,7 @@ def manifest_value(*, gate_status='pending'):
         for name in release_candidate.REQUIRED_GATES
     }
     return {
-        'schema_version': 1,
+        'schema_version': release_candidate.SCHEMA_VERSION,
         'release_id': 'modernization-rc2',
         'candidate_sha': CANDIDATE,
         'rollback_sha': release_candidate.ROLLBACK_SHA,
@@ -112,6 +112,19 @@ class ReleaseCandidateTests(unittest.TestCase):
 
         self.assertEqual(manifest.candidate_sha, CANDIDATE)
         self.assertEqual(manifest.blockers, ())
+
+    def test_legacy_manifests_remain_readable_with_their_original_digest_set(self):
+        value = manifest_value(gate_status='pass')
+        value['schema_version'] = 1
+        value['rollback_sha'] = release_candidate.LEGACY_ROLLBACK_SHA
+        value['source_digests'] = {
+            path: hashlib.sha256(path.encode()).hexdigest()
+            for path in release_candidate.LEGACY_SOURCE_PATHS
+        }
+
+        manifest = release_candidate.validate(value)
+
+        self.assertEqual(manifest.candidate_sha, CANDIDATE)
 
     def test_pending_gates_are_valid_but_not_ready(self):
         manifest = release_candidate.validate(manifest_value())

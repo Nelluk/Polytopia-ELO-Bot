@@ -11,10 +11,11 @@ import subprocess
 from typing import Any, Mapping
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_BYTES = 65_536
 BRANCH = 'codex/database-slash-modernization'
-ROLLBACK_SHA = 'c35e2f1d0011709d233c0aa8afa258602b457635'
+LEGACY_ROLLBACK_SHA = 'c35e2f1d0011709d233c0aa8afa258602b457635'
+ROLLBACK_SHA = '8fed2a6049e980f77614859be1d8b9e8564d975a'
 PRODUCTION_BOT_ID = 484067640302764042
 PRODUCTION_DATABASE = 'polytopia2'
 MAIN_GUILD_ID = 283436219780825088
@@ -22,7 +23,7 @@ POLYCHAMPIONS_GUILD_ID = 447883341463814144
 BETA_GUILD_ID = 478571892832206869
 BETA_FEEDBACK_CHANNEL_ID = 480078679930830849
 
-REQUIRED_SOURCE_PATHS = (
+LEGACY_SOURCE_PATHS = (
     'uv.lock',
     'deploy/systemd/polyelo.service',
     'deploy/systemd/polyelo-modernization-canary.conf',
@@ -34,6 +35,12 @@ REQUIRED_SOURCE_PATHS = (
     'docs/MODERNIZATION_PRODUCTION_CUTOVER.md',
     'docs/PLAYER_BADGES_MIGRATION.md',
     'release-candidate-manifests/tester-instructions-draft.md',
+)
+REQUIRED_SOURCE_PATHS = LEGACY_SOURCE_PATHS + (
+    'scripts/backup_db.sh',
+    'deploy/polyelo-backup',
+    'modules/operator_backup.py',
+    'scripts/manage_production_backup_release.py',
 )
 REQUIRED_FINDINGS = (
     'B1', 'B2', 'B3',
@@ -299,20 +306,27 @@ def validate(value: Mapping[str, Any]) -> ReleaseCandidateManifest:
         'branch', 'source_digests', 'production_plan', 'adversarial_findings',
         'gates',
     }, 'release-candidate record')
-    if value.get('schema_version') != SCHEMA_VERSION:
+    schema_version = value.get('schema_version')
+    if schema_version not in {1, SCHEMA_VERSION}:
         raise ReleaseCandidateError('Unsupported release-candidate schema version.')
     release_id = value.get('release_id')
     if not isinstance(release_id, str) or not _RELEASE_ID.fullmatch(release_id):
         raise ReleaseCandidateError('release_id must be a bounded lowercase slug.')
     candidate_sha = _sha(value.get('candidate_sha'), 'candidate_sha')
     rollback_sha = _sha(value.get('rollback_sha'), 'rollback_sha')
-    if rollback_sha != ROLLBACK_SHA or rollback_sha == candidate_sha:
+    expected_rollback = (
+        LEGACY_ROLLBACK_SHA if schema_version == 1 else ROLLBACK_SHA
+    )
+    if rollback_sha != expected_rollback or rollback_sha == candidate_sha:
         raise ReleaseCandidateError('rollback_sha is not the reviewed production baseline.')
     if value.get('branch') != BRANCH:
         raise ReleaseCandidateError('The release record names the wrong branch.')
 
     digests = _mapping(value.get('source_digests'), 'source_digests')
-    if set(digests) != set(REQUIRED_SOURCE_PATHS):
+    required_paths = (
+        LEGACY_SOURCE_PATHS if schema_version == 1 else REQUIRED_SOURCE_PATHS
+    )
+    if set(digests) != set(required_paths):
         raise ReleaseCandidateError('source_digests must cover the exact critical files.')
     if any(not isinstance(digest, str) or not _DIGEST.fullmatch(digest)
            for digest in digests.values()):

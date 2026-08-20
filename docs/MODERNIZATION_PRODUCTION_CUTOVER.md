@@ -17,6 +17,9 @@ backup, test, or health result. Never improvise around a failed gate.
 - Checkout: `/srv/polyelo/PolyBot39`
 - Service: `polyelo.service`, running as service account `polyelo`
 - Canonical unit source: `deploy/systemd/polyelo.service`
+- Reviewed backup wrapper source: `deploy/polyelo-backup`; installed executable
+  `/srv/polyelo/bin/polyelo-backup`, owned by root
+- Backup state and artifact root: `/srv/polyelo/backups`
 - Canary drop-in source: `deploy/systemd/polyelo-modernization-canary.conf`
 - Locked runtime: `.venv/bin/python`, CPython 3.12, `uv.lock`, production
   dependencies only
@@ -54,7 +57,7 @@ not read.
 Before the maintenance window, prepare one reviewed, non-secret release record
 that contains all of the following exact values and evidence:
 
-- 40-character release commit and rollback commit;
+- 40-character release commit and exact immediate pre-cutover rollback commit;
 - proof both commits are reviewed ancestors of the approved production branch;
 - `uv.lock` digest and the canonical systemd-unit digest;
 - expected redacted runtime identity, configured database role, allowlisted
@@ -186,8 +189,11 @@ Complete these before notifying users of downtime:
    `/staffhelp`; PolyChampions receives `/staffhelp` plus the approved canary
    roots. No other guild is inspected or changed.
 5. Verify the approved release and rollback commits, lockfile, unit, canary
-   drop-in, migration tool, and command manager are present in the reviewed
-   Git history. Do not update the production checkout yet.
+   drop-in, migration tools, command manager, tracked backup program, tracked
+   production wrapper, provenance manager, and operator-backup module are
+   present in the reviewed Git history. Do not update the production checkout
+   yet. The release manifest's critical digests must cover each of those
+   backup files.
 6. Verify the routine backup state and obtain the separate approval for a fresh
    pre-stop backup. Validate custom-format dumps with `pg_restore --list` and
    image archives with `tar -tzf`; timestamps, sizes, and paths must match the
@@ -219,18 +225,20 @@ workflow and validate every required artifact. Stop before downtime if the
 checkout is dirty, the commit is unexpected, the service is unhealthy, the API
 is active, or backup validation is incomplete.
 
-The reviewed backup source must belong to the clean release history and match
-the deployed owner-only script byte for byte. The invoked reporting exporter
-and Python path must also be the reviewed release files. A cutover backup
-requires exit status zero; a reporting-partial or lock-busy result is not an
-acceptable recovery point. The bounded command sequence is:
+The tracked backup program and root-owned wrapper must belong to the clean
+rollback history. The installed wrapper must match `deploy/polyelo-backup`
+byte for byte and invoke the tracked program from the canonical checkout. The
+invoked reporting exporter and Python path must also resolve within that
+checkout. A cutover backup requires exit status zero; a reporting-partial or
+lock-busy result is not an acceptable recovery point. The bounded command
+sequence is:
 
 ```bash
 test "$(git rev-parse HEAD)" = "$POLYBOT_ROLLBACK_SHA"
 git status --short --branch
-cmp --silent scripts/backup_db.sh /srv/polyelo/PolyBot39/scripts/backup_db.sh
+cmp --silent deploy/polyelo-backup /srv/polyelo/bin/polyelo-backup
 /srv/polyelo/bin/polyelo-backup
-/usr/bin/pg_restore --list /srv/polyelo/polytopia_full_backup.sqlc >/dev/null
+/usr/bin/pg_restore --list /srv/polyelo/backups/polytopia_full_backup.sqlc >/dev/null
 /usr/bin/tar -tzf "/srv/polyelo/backups/polytopia_images-$(date +%A).tar.gz" >/dev/null
 ```
 
@@ -271,13 +279,15 @@ verification.
 ### 3. Move only to the exact reviewed release
 
 Fetch without merging, prove the approved release is the exact reviewed remote
-commit and descends from the rollback commit, then update only by the reviewed
-fast-forward path. Require:
+commit and descends from the exact live rollback commit, then update only by
+the reviewed fast-forward path. The release must already have been promoted to
+`origin/master`; do not merge, rebase, force-push, or discard a master-only
+production fix during cutover. Require:
 
 ```bash
 test "$(git symbolic-ref --short HEAD)" = master
 git status --short --branch
-git rev-parse HEAD
+test "$(git rev-parse HEAD)" = "$POLYBOT_ROLLBACK_SHA"
 git fetch origin master
 test "$(git rev-parse origin/master)" = "$POLYBOT_RELEASE_SHA"
 git merge-base --is-ancestor "$POLYBOT_ROLLBACK_SHA" "$POLYBOT_RELEASE_SHA"
@@ -306,9 +316,11 @@ and locked interpreter match the approved release. The first command is a
 read-only plan. Installing the ignored manifest is a distinct production-file
 write approval; it does not run a backup or connect to PostgreSQL. The final
 command rereads the private manifest and revalidates the clean exact checkout,
-tracked shell and exporter, owner-only deployed shell, and actual interpreter
-identity. Any symlink, tracked change, digest mismatch, wrong checkpoint, or
-unexpected owner/mode blocks the Discord-triggered backup before process spawn.
+tracked backup program, tracked wrapper, exporter, root-owned installed
+wrapper, and actual interpreter identity. The tracked and installed wrappers
+must match byte for byte. Any symlink, tracked change, digest mismatch, wrong
+checkpoint, or unexpected owner/mode blocks the Discord-triggered backup
+before process spawn.
 
 ```bash
 POLYBOT_ENV=production .venv/bin/python \
@@ -328,8 +340,9 @@ POLYBOT_ENV=production .venv/bin/python \
 The manifest is non-secret provenance at
 `/srv/polyelo/PolyBot39/.operator-backup-release.json`, mode `0600`. Archive
 its JSON with the reviewed release record. Regenerate it after any approved
-release or rollback that changes the checkpoint, backup shell, reporting
-exporter, or interpreter. Never hand-edit it to bypass a validation failure.
+release or rollback that changes the checkpoint, backup program, wrapper,
+reporting exporter, or interpreter. Never hand-edit it to bypass a validation
+failure.
 
 ### 4. Apply and verify the additive schema
 
