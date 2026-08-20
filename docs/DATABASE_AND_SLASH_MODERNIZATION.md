@@ -542,8 +542,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC8 correction is in progress; RC7 is
-superseded.** RC7 resolved RC6's canonical topology and branch-ancestry
+Current active unit: **P9.31/M7 RC8 is release-ready at
+`9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4`; RC7 is superseded.** RC7
+resolved RC6's canonical topology and branch-ancestry
 blockers, but its pre-stop runbook tried to read the newly tracked wrapper from
 the exact rollback worktree where that file does not exist. RC8 reads the
 wrapper blob from the fetched, approved release SHA before downtime and then
@@ -561,8 +562,8 @@ descends from that exact live checkpoint, retains the intentional retirement
 of `$backup_db` / `$dbb`, and aligns the reviewed backup program, tracked
 root-wrapper source, provenance manager, artifacts, account, and runbook with
 `/srv/polyelo` / `polyelo`. Schema-2 release records bind the four critical
-backup files. Exact RC8 freeze and evidence are pending. The running production
-service remains untouched without restart, database action, or Discord action.
+backup files. All five RC8 gates pass. The running production service remains
+untouched without restart, database action, or Discord action.
 P9.29 bounded human acceptance remains the separate release-candidate track.
 P11.5H is complete; its older in-progress wording was stale and is superseded
 by the reviewed/integrated/applied P11.5H section and later evidence below.
@@ -27118,6 +27119,28 @@ deferred into this post-modernization backlog.
 - This correction changes release governance, documentation, and tests only;
   production and the running RC7 beta remain untouched. Exact RC8 offline
   validation, freeze, critical digests, and evidence follow.
+
+### 2026-08-20 — RC8 frozen after cross-checkout cutover correction
+
+- Froze exact application checkpoint
+  `9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4`, descending from RC7 and exact
+  live rollback `8fed2a6049e980f77614859be1d8b9e8564d975a`.
+- Complete offline discovery passed 2,255 tests with 92 intentional gated
+  skips. Focused cross-checkout cutover and actual historical-manifest tests,
+  compilation, and whitespace checks passed.
+- Carried forward the exact-parent RC7 stopped-writer PostgreSQL gate and beta
+  acceptance because RC8 changes only the cutover document, release-validator
+  naming, roadmap, and tests. No bot runtime, database path, schema,
+  dependency, container asset, configuration, command, or presentation code
+  changed. The RC7 beta remains healthy at writer census 1/0/0 and zero
+  restarts.
+- RC8's 15-file digest inventory binds the corrected runbook. The cutover gate
+  explicitly proves the rollback tree lacks the wrapper, the pre-stop command
+  reads it from the candidate SHA, the remote ref is frozen before downtime,
+  and no second fetch occurs after service shutdown.
+- `modernization-rc8.json` validates and `require-ready` passes all five gates.
+  Production remains on its prior exact checkout with no restart, database or
+  schema action, Discord inspection/synchronization, or announcement.
 
 ## Resume checklist
 

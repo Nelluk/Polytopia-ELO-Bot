@@ -1,0 +1,329 @@
+{
+  "schema_version": 2,
+  "release_id": "modernization-rc8",
+  "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+  "rollback_sha": "8fed2a6049e980f77614859be1d8b9e8564d975a",
+  "branch": "codex/database-slash-modernization",
+  "source_digests": {
+    "uv.lock": "d9b8292c59af1ac5b8466d273e84550e3b192b346c817a12cdc4bcf3606d111d",
+    "deploy/systemd/polyelo.service": "fedf8c33bb0fb20d847946b9f3b0cc36186f9e477f9c47e1b6cb75c9e1758545",
+    "deploy/systemd/polyelo-modernization-canary.conf": "6283ed42a92e591da5608236613e0b3da5e9acf6d73c89a010c860a954a78abb",
+    "scripts/migrate_player_timezone_production.py": "b41b76e565314819240fa6ce50a6b3d5f6f800a2207fda66b4f04a6764ff8fd1",
+    "scripts/migrate_player_badges.py": "af713059fd91a9b47169b8fdbd530f20c8f0d946910f5dbc6f718bea1bef9d75",
+    "modules/player_badges_production_migration.py": "efe157903d00412da8ab405847dd9ca534602f38117a88fe766e8d05be47ad54",
+    "scripts/migrate_player_badges_production.py": "f5c565bb9f0ede8f9730d90c7740da442843647c6fb5a6a923318434c93d0a26",
+    "scripts/manage_application_commands.py": "c501083a4666b4d46ed54f0dbbf6ec93526e2ebf6c6dbe67af6f57fbb30de3c8",
+    "docs/MODERNIZATION_PRODUCTION_CUTOVER.md": "e0975bc95460fb2c4bde9e764207831b22b1a205fc4a6875883c5272551d5126",
+    "docs/PLAYER_BADGES_MIGRATION.md": "0585e620f26cc1fc454b8c1a2c51113434ac0e186814c35c1a1789049f410e0c",
+    "release-candidate-manifests/tester-instructions-draft.md": "cd59b8a1da74f19f59a38a7d0dcf1160ec0804081d9d4436d786990bdb32dd5a",
+    "scripts/backup_db.sh": "2d75be53cab0c86aa14d5821006d69c6b9bc234f0a52afae11b3cf0e5c4986c0",
+    "deploy/polyelo-backup": "589e60c593dd61d534861e0ebe4c51288f5634963296d94af5129b0711c6f4ed",
+    "modules/operator_backup.py": "01b449bb04ab5d0e480ea889c7012f0b3924add267eeed236c3a0e6b42e1ded4",
+    "scripts/manage_production_backup_release.py": "393a21bd903daef584372291a1bb75920d8683a6df8c7945eb5c759583b8025d"
+  },
+  "production_plan": {
+    "expected_bot_id": 484067640302764042,
+    "database": "polytopia2",
+    "api_enabled": false,
+    "global_commands_expected_empty": true,
+    "all_guild_capabilities": [],
+    "native_sync_guild_ids": [
+      283436219780825088,
+      447883341463814144
+    ],
+    "feedback_route": {
+      "guild_id": 478571892832206869,
+      "channel_id": 480078679930830849,
+      "include_source_server": true,
+      "include_source_channel": true
+    },
+    "guilds": [
+      {
+        "guild_id": 283436219780825088,
+        "name": "Polytopia Main",
+        "staff_help_channel": 742857671237042176,
+        "first_helper_role": "ELO-Helper",
+        "capabilities": [
+          "tools_support"
+        ]
+      },
+      {
+        "guild_id": 447883341463814144,
+        "name": "PolyChampions",
+        "staff_help_channel": 1327320361200648213,
+        "first_helper_role": "Helper",
+        "capabilities": [
+          "core_user",
+          "house",
+          "league",
+          "squad",
+          "team",
+          "tools_support"
+        ]
+      }
+    ],
+    "omitted_capabilities": [
+      "beta_testing",
+      "elo_maintenance",
+      "operator"
+    ]
+  },
+  "adversarial_findings": [
+    {
+      "id": "B1",
+      "status": "resolved",
+      "checkpoints": [
+        "8b9ede1b9fec6bda6ab60e91ffb9c068b1ab3163"
+      ]
+    },
+    {
+      "id": "B2",
+      "status": "resolved",
+      "checkpoints": [
+        "d4a37d0aab1475b36d270a34e22c64cf74da5c91"
+      ]
+    },
+    {
+      "id": "B3",
+      "status": "resolved",
+      "checkpoints": [
+        "3444d5d37360ddaacea5999570a6db863e226bce"
+      ]
+    },
+    {
+      "id": "H1",
+      "status": "resolved",
+      "checkpoints": [
+        "102d64a945950cf077ad4b3406e59fe39161d6ae"
+      ]
+    },
+    {
+      "id": "H2",
+      "status": "resolved",
+      "checkpoints": [
+        "102d64a945950cf077ad4b3406e59fe39161d6ae"
+      ]
+    },
+    {
+      "id": "H3",
+      "status": "resolved",
+      "checkpoints": [
+        "4a645ed2828b150a4267663bd3427a1d85631bb9"
+      ]
+    },
+    {
+      "id": "H4",
+      "status": "resolved",
+      "checkpoints": [
+        "8038077589e204853d749f9eb932264ba532160f"
+      ]
+    },
+    {
+      "id": "H5",
+      "status": "resolved",
+      "checkpoints": [
+        "364d53a271cbfdd74515cfc0fb964e05eb6e8f3f"
+      ]
+    },
+    {
+      "id": "H6",
+      "status": "resolved",
+      "checkpoints": [
+        "dc8608bb16d361215726948cacd2740023a4f774"
+      ]
+    },
+    {
+      "id": "H7",
+      "status": "resolved",
+      "checkpoints": [
+        "2d561aec079fac4d7301a5eab2a62dd6b456dd2c"
+      ]
+    },
+    {
+      "id": "H8",
+      "status": "resolved",
+      "checkpoints": [
+        "00e23c943b030c1de6a0b850621e16269abc558e"
+      ]
+    },
+    {
+      "id": "M1",
+      "status": "resolved",
+      "checkpoints": [
+        "e34e007f6c5aec20bb822d71676fa0fed5e4ea73"
+      ]
+    },
+    {
+      "id": "M2",
+      "status": "resolved",
+      "checkpoints": [
+        "981d41e3db5f519f2e238d120360df233aa953f7"
+      ]
+    },
+    {
+      "id": "M3",
+      "status": "resolved",
+      "checkpoints": [
+        "981d41e3db5f519f2e238d120360df233aa953f7"
+      ]
+    },
+    {
+      "id": "M4",
+      "status": "resolved",
+      "checkpoints": [
+        "e34e007f6c5aec20bb822d71676fa0fed5e4ea73"
+      ]
+    },
+    {
+      "id": "M5",
+      "status": "resolved",
+      "checkpoints": [
+        "e34e007f6c5aec20bb822d71676fa0fed5e4ea73"
+      ]
+    },
+    {
+      "id": "M6",
+      "status": "resolved",
+      "checkpoints": [
+        "9b248d335353b0b8c394f0be5a33bb08ae1db2e9"
+      ]
+    },
+    {
+      "id": "L1",
+      "status": "resolved",
+      "checkpoints": [
+        "a344ab44587a42e4c9801fdcb03398c788f38273"
+      ]
+    },
+    {
+      "id": "N1",
+      "status": "resolved",
+      "checkpoints": [
+        "0b4d954f8b13648d53f8d8af817115a7a8c5f107"
+      ]
+    },
+    {
+      "id": "N2",
+      "status": "resolved",
+      "checkpoints": [
+        "0b4d954f8b13648d53f8d8af817115a7a8c5f107",
+        "14f4a494000d05d529b37ae2d62172837181b462",
+        "beee5358b6b939018005347d5eaf73522425d2d9"
+      ]
+    },
+    {
+      "id": "N3",
+      "status": "resolved",
+      "checkpoints": [
+        "f33b14b2396e25a0dccc3f580e075cf7b0773977"
+      ]
+    },
+    {
+      "id": "N4",
+      "status": "resolved",
+      "checkpoints": [
+        "d27d6c83508ad00ef4e28d4eabad5fcddcf3189f"
+      ]
+    },
+    {
+      "id": "N5",
+      "status": "resolved",
+      "checkpoints": [
+        "3928b1663a0ea2d057ccf085fb6413a86e7836f3",
+        "15c46e7886a07a9bb6f5028e2f766c36de6280d1"
+      ]
+    },
+    {
+      "id": "N6",
+      "status": "resolved",
+      "checkpoints": [
+        "f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"
+      ]
+    },
+    {
+      "id": "N7",
+      "status": "resolved",
+      "checkpoints": [
+        "f5cd39d6b1392ad8dd540bf1ba98b3afdbcd8943"
+      ]
+    }
+  ],
+  "gates": {
+    "cutover_review": {
+      "status": "pass",
+      "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+      "command": "Candidate-tree digest, exact live-master ancestry, cross-checkout pre-stop wrapper verification, canonical backup topology/provenance, peer-auth startup, schema, service, native-sync, feedback-route, and rollback review",
+      "total": 18,
+      "passed": 18,
+      "skipped": 0,
+      "failures": [],
+      "evidence": [
+        "Accepted the GitHub-only RC7 review finding as a blocker and superseded RC7 before production deployment.",
+        "Verified the wrapper is absent from rollback 8fed2a6 while the pre-stop procedure fetches and freezes the exact release, then compares the installed wrapper to the immutable candidate blob.",
+        "Verified the only remote fetch occurs before downtime; the stopped-checkout phase reuses the exact frozen origin/master ref.",
+        "Verified candidate ancestry includes exact live production checkpoint 8fed2a6049e980f77614859be1d8b9e8564d975a and current GitHub master 809befb7644779d3bbf449735b94c33c4db9b872.",
+        "Verified /srv/polyelo topology, shared production peer-auth startup, additive schema, exact two-guild native scope, retained legacy policy, and feedback route remain intact.",
+        "Loaded actual stored RC4-RC6 schema-1 manifests; RC1-RC3 are retained but explicitly unsupported by the current validator."
+      ]
+    },
+    "offline_suite": {
+      "status": "pass",
+      "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+      "command": "POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest discover -s tests -p test*.py -q",
+      "total": 2255,
+      "passed": 2163,
+      "skipped": 92,
+      "failures": [],
+      "evidence": [
+        "Exact-candidate complete discovery passed 2,255 tests with 92 intentional gated skips.",
+        "Focused cross-checkout cutover, actual historical-manifest, release-record, and documentation consistency coverage passed.",
+        "Repository compilation and git diff --check passed."
+      ]
+    },
+    "development_database_suite": {
+      "status": "pass",
+      "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+      "command": "Carry forward the exact-parent RC7 stopped-writer development PostgreSQL gate; RC8 changes only release governance documentation, validator naming, and tests",
+      "total": 80,
+      "passed": 79,
+      "skipped": 1,
+      "failures": [],
+      "evidence": [
+        "Exact parent RC7 proved writer census 0/0/0 and completed all 80 development PostgreSQL cases at exit zero with one intentional historical-mirror fixture skip.",
+        "The RC8 delta does not change bot runtime, database access, schema, configuration, dependencies, migrations, or application commands.",
+        "The prior sandboxed zero-test socket refusal remains discarded and is not release evidence."
+      ]
+    },
+    "bounded_beta_matrix": {
+      "status": "pass",
+      "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+      "command": "Carry forward exact-parent RC7 beta deployment and Nelluk's provisional seven-item acceptance; RC8 changes only release governance documentation, validator naming, and tests",
+      "total": 7,
+      "passed": 7,
+      "skipped": 0,
+      "failures": [],
+      "evidence": [
+        "Exact parent RC7 b49086e remains running in external-socket mode as development application 479029527553638401 with writer census 1/0/0 and restart count zero.",
+        "RC8 does not change bot runtime, command surface, presentation, dependencies, container assets, or configuration.",
+        "Badge and squad-profile presentation received bounded live acceptance; the one-badge correction remains included.",
+        "Nelluk tentatively accepted retained-prefix parity and public/private visibility with limited sampling rather than comprehensive beta coverage."
+      ]
+    },
+    "production_configuration": {
+      "status": "pass",
+      "candidate_sha": "9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4",
+      "command": "Carry forward privileged redacted RC7 production configuration evidence and verify the RC8 candidate-only cutover sequencing delta",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failures": [],
+      "evidence": [
+        "Privileged redacted output verified production identity, polytopia2/default socket, all 54 live guilds, task/API/Bullet policy, and production paths.",
+        "Direct connector and composed bot-profile tests prove the accepted live peer profile passes startup preflight while negative development/TCP profiles fail before connect.",
+        "Live service topology is /srv/polyelo/PolyBot39 under polyelo; the root-owned backup wrapper byte-matches tracked deploy/polyelo-backup and artifacts resolve under /srv/polyelo/backups.",
+        "Ignored live server_settings.py validates the exact Main/PolyChampions assignments, empty all-guild capabilities, canonical routes, and unchanged 54-guild legacy configuration.",
+        "RC8 changes no production runtime or configuration file; production retained its existing PID and zero restarts."
+      ]
+    }
+  }
+}
