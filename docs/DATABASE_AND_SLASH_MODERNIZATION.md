@@ -27177,12 +27177,17 @@ Objective and behavior:
 Files: `modules/database_health.py`, `modules/utilities.py`, `bot.py`, and
 `tests/test_database_health.py`.
 
-Validation: focused resilience plus startup/restart/dependency/configuration
-tests passed (67 tests); complete offline unittest discovery passed 2,266 tests
-with 92 intentional gated skips under explicit `POLYBOT_ENV=development`;
-compileall and `git diff --check` passed. No live database, Discord, Docker,
-beta, production, deployment, or external operation occurred. No schema,
-command tree, dependency, or deployment asset changed.
+Validation: `POLYBOT_ENV=development
+/home/nelluk/PolyBot39-deploy/.venv/bin/python -m unittest
+tests.test_database_health tests.test_operator_restart
+tests.test_startup_identity tests.test_dependency_compatibility
+tests.test_guild_configuration_bootstrap_pending` passed (67 tests);
+`POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python -m
+unittest discover -s tests -p 'test_*.py'` passed 2,266 tests with 92
+intentional gated skips; `compileall` and `git diff --check` passed. No live
+database, Discord, Docker, beta, production, deployment, or external
+operation occurred. No schema, command tree, dependency, or deployment asset
+changed.
 
 Limitations and next action: the watchdog is deliberately limited to the
 legacy event-loop connection; worker-local Peewee lifecycles remain unchanged,
