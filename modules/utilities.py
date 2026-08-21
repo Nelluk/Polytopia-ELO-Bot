@@ -5,6 +5,7 @@ import asyncio
 import settings
 import modules.models as models
 import modules.exceptions as exceptions
+from modules import database_health
 import re
 # import peewee
 
@@ -12,12 +13,13 @@ logger = logging.getLogger('polybot.' + __name__)
 
 
 def connect():
-    if models.db.connect(reuse_if_open=True):
+    """Ensure the legacy event-loop connection is open and responsive."""
+
+    opened = models.db.is_closed()
+    database_health.ensure_connection(models.db)
+    if opened:
         logger.debug('new db connection opened')
-        return True
-    else:
-        # logger.debug('reusing db connection')
-        return False
+    return opened
 
 
 def lock_game(game_id: int):

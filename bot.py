@@ -307,6 +307,9 @@ class MyBot(commands.Bot):
         self.guild_configuration_shadow_result = None
         self._beta_persona_reconciliation_lock = asyncio.Lock()
         self._restart_exit_status = None
+        self._database_watchdog = None
+        self._close_lock = asyncio.Lock()
+        self._close_complete = False
         # Startup never deploys commands. Source-shape deployments remain in
         # the explicit external tool; P10.6c may separately apply one
         # owner-confirmed database capability plan to one exact guild. Keep
@@ -698,6 +701,9 @@ class MyBot(commands.Bot):
             )
         for extension in initial_extensions:
             await self.load_extension(extension)
+        database_health = importlib.import_module('modules.database_health')
+        self._database_watchdog = database_health.DatabaseWatchdog(self)
+        self._database_watchdog.start()
         if beta_operations.beta_control_enabled():
             self.beta_release_control = beta_operations.BetaReleaseControl(
                 self,
@@ -709,10 +715,17 @@ class MyBot(commands.Bot):
             await self.beta_release_control.start()
 
     async def close(self):
-        if self.beta_release_control is not None:
-            await self.beta_release_control.stop()
-            self.beta_release_control = None
-        await super().close()
+        async with self._close_lock:
+            if self._close_complete:
+                return
+            if self._database_watchdog is not None:
+                await self._database_watchdog.stop()
+                self._database_watchdog = None
+            if self.beta_release_control is not None:
+                await self.beta_release_control.stop()
+                self.beta_release_control = None
+            await super().close()
+            self._close_complete = True
 
     @property
     def restart_exit_status(self) -> int | None:
@@ -839,6 +852,20 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     async def on_command_error(ctx, exc):
         await handle_prefix_command_error(ctx, exc)
 
+    check_once = getattr(bot, 'check_once', bot.check)
+
+    @check_once
+    async def database_health_check(_ctx):
+        database_health = importlib.import_module('modules.database_health')
+        try:
+            database_health.ensure_connection()
+        except database_health.CONNECTION_ERRORS as exc:
+            # Bot.can_run only routes CommandError subclasses to the prefix
+            # error event.  Preserve the original Peewee failure for the
+            # existing bounded/non-secret error handler.
+            raise commands.CommandInvokeError(exc) from exc
+        return True
+
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
         if (
@@ -848,9 +875,6 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             raise commands.CheckFailure(
                 'Guild configuration is not published for command dispatch.'
             )
-        utilities = importlib.import_module('modules.utilities')
-
-        utilities.connect()
         logger.debug(
             f'Command invoked: {ctx.invoked_with}. '
             f'By {ctx.author.id} {ctx.author.name} in '
