@@ -27144,6 +27144,53 @@ deferred into this post-modernization backlog.
   Production remains on its prior exact checkout with no restart, database or
   schema action, Discord inspection/synchronization, or announcement.
 
+### 2026-08-21 — P9.32 database connection resilience implemented
+
+Status: **Implemented on the isolated unit branch; integration and successor
+beta deployment remain pending.**
+
+Branch/base: `codex/database-connection-resilience`, exact clean base
+`7536be366be227a36b89c779ee547d5f001d898a`; canonical worker/task identity:
+`/root/db_resilience_writer`. Implementation checkpoint: `ae73e7c`.
+
+Objective and behavior:
+
+- Added one synchronous event-loop connection health boundary that runs only
+  `SELECT 1`, closes every cursor, connects a closed Peewee handle, and resets
+  then reconnects once after an `OperationalError`/`InterfaceError` probe
+  failure. A failed probe inside an active transaction propagates without
+  reset/reconnect, and a failed second probe propagates without arbitrary SQL
+  retry.
+- Registered the prefix health gate with `check_once`, before command-specific
+  checks/converters. Its bounded Peewee failure is wrapped as a
+  `CommandInvokeError` so the existing prefix error handler emits the normal
+  non-secret reference. The stale `before_invoke` connection call was removed;
+  guild dispatch rejection and invocation logging remain in place.
+- Added an infrastructure watchdog independent of `settings.run_tasks` and
+  `--skip_tasks`, with a 30-second interval and three-failure threshold. It
+  probes/reconnects the event-loop connection, resets its counter after a
+  recovery, logs only bounded failure type/counters, and sets the reviewed
+  supervisor exit status 75 before closing. `MyBot.close()` owns cancellation
+  and avoids cancelling/awaiting the watchdog when shutdown originates in the
+  watchdog task itself.
+
+Files: `modules/database_health.py`, `modules/utilities.py`, `bot.py`, and
+`tests/test_database_health.py`.
+
+Validation: focused resilience plus startup/restart/dependency/configuration
+tests passed (67 tests); complete offline unittest discovery passed 2,266 tests
+with 92 intentional gated skips under explicit `POLYBOT_ENV=development`;
+compileall and `git diff --check` passed. No live database, Discord, Docker,
+beta, production, deployment, or external operation occurred. No schema,
+command tree, dependency, or deployment asset changed.
+
+Limitations and next action: the watchdog is deliberately limited to the
+legacy event-loop connection; worker-local Peewee lifecycles remain unchanged,
+and no arbitrary user SQL is retried. Integration review should merge this
+committed unit, then run the exact successor beta deployment in canonical
+`external-socket` mode with the existing writer/identity/restart gates; this
+unit itself makes no deployment or database-validation claim.
+
 ## Resume checklist
 
 At the start of a new or compacted task:
