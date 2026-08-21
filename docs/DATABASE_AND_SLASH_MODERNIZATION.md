@@ -27279,9 +27279,9 @@ POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python scripts/m
 PASS — all five local gates pass; external GPT blocker review remains pending.
 ```
 
-The evidence-freeze commit and any final documentation-only evidence commit
-must be recorded here before publication. No production, beta, database,
-Discord, Docker, network, or deployment action is authorized by this unit.
+Evidence commit: `83fc41a013c561db61d7a39356531b5b3b28b405`. No production,
+beta, database, Discord, Docker, network, or deployment action is authorized
+by this unit.
 
 ## Resume checklist
 
