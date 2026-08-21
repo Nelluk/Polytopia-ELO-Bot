@@ -11,7 +11,7 @@ import subprocess
 from typing import Any, Mapping
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MAX_BYTES = 65_536
 BRANCH = 'codex/database-slash-modernization'
 LEGACY_ROLLBACK_SHA = 'c35e2f1d0011709d233c0aa8afa258602b457635'
@@ -36,12 +36,23 @@ RC4_TO_RC6_SOURCE_PATHS = (
     'docs/PLAYER_BADGES_MIGRATION.md',
     'release-candidate-manifests/tester-instructions-draft.md',
 )
-REQUIRED_SOURCE_PATHS = RC4_TO_RC6_SOURCE_PATHS + (
+SCHEMA_TWO_SOURCE_PATHS = RC4_TO_RC6_SOURCE_PATHS + (
     'scripts/backup_db.sh',
     'deploy/polyelo-backup',
     'modules/operator_backup.py',
     'scripts/manage_production_backup_release.py',
 )
+SCHEMA_THREE_SOURCE_PATHS = SCHEMA_TWO_SOURCE_PATHS + (
+    'bot.py',
+    'modules/database_health.py',
+    'modules/utilities.py',
+)
+SCHEMA_SOURCE_PATHS = {
+    1: RC4_TO_RC6_SOURCE_PATHS,
+    2: SCHEMA_TWO_SOURCE_PATHS,
+    3: SCHEMA_THREE_SOURCE_PATHS,
+}
+REQUIRED_SOURCE_PATHS = SCHEMA_THREE_SOURCE_PATHS
 REQUIRED_FINDINGS = (
     'B1', 'B2', 'B3',
     'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8',
@@ -307,7 +318,7 @@ def validate(value: Mapping[str, Any]) -> ReleaseCandidateManifest:
         'gates',
     }, 'release-candidate record')
     schema_version = value.get('schema_version')
-    if schema_version not in {1, SCHEMA_VERSION}:
+    if type(schema_version) is not int or schema_version not in SCHEMA_SOURCE_PATHS:
         raise ReleaseCandidateError('Unsupported release-candidate schema version.')
     release_id = value.get('release_id')
     if not isinstance(release_id, str) or not _RELEASE_ID.fullmatch(release_id):
@@ -323,11 +334,7 @@ def validate(value: Mapping[str, Any]) -> ReleaseCandidateManifest:
         raise ReleaseCandidateError('The release record names the wrong branch.')
 
     digests = _mapping(value.get('source_digests'), 'source_digests')
-    required_paths = (
-        RC4_TO_RC6_SOURCE_PATHS
-        if schema_version == 1
-        else REQUIRED_SOURCE_PATHS
-    )
+    required_paths = SCHEMA_SOURCE_PATHS[schema_version]
     if set(digests) != set(required_paths):
         raise ReleaseCandidateError('source_digests must cover the exact critical files.')
     if any(not isinstance(digest, str) or not _DIGEST.fullmatch(digest)

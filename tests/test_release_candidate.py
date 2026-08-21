@@ -113,6 +113,15 @@ class ReleaseCandidateTests(unittest.TestCase):
         self.assertEqual(manifest.candidate_sha, CANDIDATE)
         self.assertEqual(manifest.blockers, ())
 
+    def test_schema_version_must_be_a_supported_integer(self):
+        for schema_version in (True, 1.0, '3'):
+            with self.subTest(schema_version=schema_version), self.assertRaisesRegex(
+                    release_candidate.ReleaseCandidateError,
+                    'Unsupported release-candidate schema version'):
+                value = manifest_value()
+                value['schema_version'] = schema_version
+                release_candidate.validate(value)
+
     def test_actual_rc4_to_rc6_schema_one_manifests_remain_readable(self):
         root = Path(__file__).resolve().parents[1]
         for release_number in (4, 5, 6):
@@ -125,6 +134,40 @@ class ReleaseCandidateTests(unittest.TestCase):
                     manifest.release_id,
                     f'modernization-rc{release_number}',
                 )
+
+    def test_actual_rc7_and_rc8_schema_two_manifests_remain_readable(self):
+        root = Path(__file__).resolve().parents[1]
+        for release_number in (7, 8):
+            with self.subTest(release_number=release_number):
+                manifest = release_candidate.load(
+                    root / 'release-candidate-manifests' /
+                    f'modernization-rc{release_number}.json'
+                )
+                self.assertEqual(manifest.release_id, f'modernization-rc{release_number}')
+                self.assertEqual(
+                    set(manifest.source_digests),
+                    set(release_candidate.SCHEMA_TWO_SOURCE_PATHS),
+                )
+
+    def test_latest_schema_requires_only_the_three_new_resilience_paths(self):
+        value = manifest_value()
+        new_paths = {
+            'bot.py',
+            'modules/database_health.py',
+            'modules/utilities.py',
+        }
+        self.assertEqual(
+            set(release_candidate.SCHEMA_THREE_SOURCE_PATHS)
+            - set(release_candidate.SCHEMA_TWO_SOURCE_PATHS),
+            new_paths,
+        )
+        for path in new_paths:
+            missing = copy.deepcopy(value)
+            del missing['source_digests'][path]
+            with self.subTest(path=path), self.assertRaisesRegex(
+                    release_candidate.ReleaseCandidateError,
+                    'exact critical files'):
+                release_candidate.validate(missing)
 
     def test_older_schema_one_records_are_retained_but_not_supported(self):
         root = Path(__file__).resolve().parents[1]
@@ -238,6 +281,12 @@ class ReleaseCandidateTests(unittest.TestCase):
             release_candidate.verify_repository(manifest, Path('/tmp/example'))
 
         self.assertTrue(any(call.args[1] == 'show' for call in called.call_args_list))
+        shown_paths = {
+            call.args[2].split(':', 1)[1]
+            for call in called.call_args_list
+            if call.args[1] == 'show'
+        }
+        self.assertEqual(shown_paths, set(release_candidate.REQUIRED_SOURCE_PATHS))
 
     def test_repository_rejects_finding_outside_candidate(self):
         manifest = release_candidate.validate(manifest_value())
