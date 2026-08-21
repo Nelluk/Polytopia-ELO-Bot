@@ -27146,12 +27146,12 @@ deferred into this post-modernization backlog.
 
 ### 2026-08-21 — P9.32 database connection resilience implemented
 
-Status: **Implemented on the isolated unit branch; integration and successor
-beta deployment remain pending.**
+Status: **Integrated and deployed to the canonical development beta.**
 
 Branch/base: `codex/database-connection-resilience`, exact clean base
 `7536be366be227a36b89c779ee547d5f001d898a`; canonical worker/task identity:
-`/root/db_resilience_writer`. Implementation checkpoint: `ae73e7c`.
+`/root/db_resilience_writer`. Implementation checkpoint: `ae73e7c`; reviewed
+close/lifecycle corrections: `5c29b7b` and `9e19237`.
 
 Objective and behavior:
 
@@ -27184,17 +27184,45 @@ tests.test_startup_identity tests.test_dependency_compatibility
 tests.test_guild_configuration_bootstrap_pending` passed (69 tests);
 `POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python -m
 unittest discover -s tests -p 'test_*.py'` passed 2,268 tests with 92
-intentional gated skips; `compileall` and `git diff --check` passed. No live
-database, Discord, Docker, beta, production, deployment, or external
-operation occurred. No schema, command tree, dependency, or deployment asset
-changed.
+intentional gated skips; `compileall` and `git diff --check` passed. Those
+implementation-branch checks performed no live database, Discord, Docker,
+beta, production, deployment, or external operation. No schema, command tree,
+dependency, or deployment asset changed.
+
+Integration and deployment:
+
+- Independent read-only reviews `/root/db_resilience_correctness_review` and
+  `/root/db_resilience_test_review` inspected the committed branch. The review
+  accepted one concrete gap: a connection error raised while closing a stale
+  driver handle could prevent the immediate reconnect even though Peewee had
+  reset its thread-local state in `finally`. The sole writer corrected that
+  path, proved that unrelated close errors still propagate, exercised the
+  watchdog's real self-owned shutdown task, and strengthened recovery-counter
+  and idempotent-close coverage before integration.
+- Fast-forwarded the clean accumulation branch through exact checkpoint
+  `9e192370ebea11c6e31cbc2d7416022634d84f1f`. The planning task independently
+  reran the 69-test focused set and complete offline discovery: 2,268 tests
+  passed with 92 intentional gated skips; compilation and whitespace checks
+  passed.
+- The required pre-deploy `external-socket` status matched RC8, the expected
+  beta application, host PostgreSQL Unix-socket transport, and writer census
+  1/0/0. Built and deployed exact image `polybot-mac-beta:9e19237` with the
+  deployment doctor green. The deploy performed no database lifecycle,
+  schema, or Discord command-synchronization action.
+- The replacement authenticated as development application
+  `479029527553638401` at the exact checkpoint. After more than one 30-second
+  watchdog interval it remained running with container restart count zero and
+  writer census 1/0/0; bounded startup logs contained no traceback or
+  database/schema error. Production remained untouched.
 
 Limitations and next action: the watchdog is deliberately limited to the
 legacy event-loop connection; worker-local Peewee lifecycles remain unchanged,
-and no arbitrary user SQL is retried. Integration review should merge this
-committed unit, then run the exact successor beta deployment in canonical
-`external-socket` mode with the existing writer/identity/restart gates; this
-unit itself makes no deployment or database-validation claim.
+and no arbitrary user SQL is retried. No live fault injection or host
+PostgreSQL restart was performed because production shares that cluster. The
+next production-oriented action is to freeze and review a successor release
+candidate that includes `9e19237`; RC8 remains the rollback/evidence record
+for its original application checkpoint and must not be promoted as though it
+contained P9.32.
 
 ## Resume checklist
 
