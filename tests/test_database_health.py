@@ -231,6 +231,7 @@ class WatchdogTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(task.cancelled())
         beta_control.stop.assert_awaited_once()
         self.assertIsNone(bot.beta_release_control)
+        self.assertTrue(bot.is_closed())
         await bot.close()
         beta_control.stop.assert_awaited_once()
         self.assertTrue(bot._close_complete)
