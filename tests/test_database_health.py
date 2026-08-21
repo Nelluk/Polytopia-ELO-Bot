@@ -26,9 +26,10 @@ class Cursor:
 
 
 class FakeDatabase:
-    def __init__(self, probes=(), *, closed=False, transaction=False):
+    def __init__(self, probes=(), *, closed=False, transaction=False, close_error=None):
         self.closed = closed
         self.transaction = transaction
+        self.close_error = close_error
         self.probes = list(probes)
         self.events = []
 
@@ -45,6 +46,8 @@ class FakeDatabase:
     def close(self):
         self.events.append('close')
         self.closed = True
+        if self.close_error is not None:
+            raise self.close_error
 
     def execute_sql(self, sql):
         self.events.append(('execute', sql))
@@ -96,6 +99,34 @@ class ConnectionHealthTests(unittest.TestCase):
             ],
         )
 
+    def test_connection_close_error_is_suppressed_after_state_reset(self):
+        database = FakeDatabase(
+            [peewee.OperationalError('stale'), None],
+            close_error=peewee.InterfaceError('stale close'),
+        )
+
+        self.assertTrue(health.ensure_connection(database))
+        self.assertEqual(
+            database.events,
+            [
+                ('execute', 'SELECT 1'),
+                'close',
+                ('connect', True),
+                ('execute', 'SELECT 1'),
+                'cursor.close',
+            ],
+        )
+
+    def test_unrelated_connection_close_error_is_not_suppressed(self):
+        database = FakeDatabase(
+            [peewee.OperationalError('stale')],
+            close_error=ValueError('unexpected close failure'),
+        )
+
+        with self.assertRaisesRegex(ValueError, 'unexpected close failure'):
+            health.ensure_connection(database)
+        self.assertNotIn(('connect', True), database.events)
+
     def test_failed_second_probe_propagates_without_a_third_sql_attempt(self):
         database = FakeDatabase(
             [
@@ -138,72 +169,71 @@ class ConnectionHealthTests(unittest.TestCase):
 
 
 class WatchdogTests(unittest.IsolatedAsyncioTestCase):
-    async def test_success_resets_failure_counter(self):
+    async def test_failure_recovery_then_failure_counts_post_recovery_failure_once(self):
         bot = SimpleNamespace(close=mock.AsyncMock())
         watchdog = health.DatabaseWatchdog(
-            bot, database=object(), interval=0.001, failure_threshold=3,
+            bot, database=object(), interval=0.001, failure_threshold=2,
         )
         calls = 0
-        recovered = asyncio.Event()
+        third_probe = asyncio.Event()
 
         def probe(_database):
             nonlocal calls
             calls += 1
-            if calls == 1:
+            if calls in (1, 3):
+                if calls == 3:
+                    # Keep the next loop wake-up outside this assertion so
+                    # the test observes the post-recovery failure counter.
+                    watchdog.interval = 60
+                    third_probe.set()
                 raise peewee.OperationalError('temporary')
-            watchdog.consecutive_failures = 1
-            recovered.set()
 
         with mock.patch.object(health, 'ensure_connection', side_effect=probe):
-            task = asyncio.create_task(watchdog.run())
-            await asyncio.wait_for(recovered.wait(), timeout=0.2)
+            task = watchdog.start()
+            await asyncio.wait_for(third_probe.wait(), timeout=0.2)
+            await asyncio.sleep(0)
+            self.assertEqual(watchdog.consecutive_failures, 1)
+            self.assertFalse(task.done())
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-        self.assertEqual(watchdog.consecutive_failures, 0)
         bot.close.assert_not_awaited()
 
-    async def test_threshold_sets_failure_exit_status_and_closes_once(self):
-        bot = SimpleNamespace(
-            _restart_exit_status=None,
-            close=mock.AsyncMock(),
-        )
+    async def test_threshold_shutdown_runs_through_stored_task_and_self_stop_branch(self):
+        bot = bot_module.MyBot()
         watchdog = health.DatabaseWatchdog(
             bot, database=object(), interval=0.001, failure_threshold=2,
         )
-        with mock.patch.object(
-            health,
-            'ensure_connection',
-            side_effect=peewee.OperationalError('database unavailable'),
-        ):
-            await asyncio.wait_for(watchdog.run(), timeout=0.2)
-        self.assertEqual(
-            bot._restart_exit_status,
-            health.DATABASE_FAILURE_EXIT_STATUS,
-        )
-        bot.close.assert_awaited_once()
-
-    async def test_stop_cancels_task_and_self_shutdown_does_not_self_cancel(self):
-        bot = SimpleNamespace(_restart_exit_status=None, close=mock.AsyncMock())
-        watchdog = health.DatabaseWatchdog(bot, interval=60)
-        task = watchdog.start()
-        await asyncio.sleep(0)
-        await watchdog.stop()
-        self.assertTrue(task.cancelled())
-
-        # The bot's close implementation calls stop(); a watchdog-triggered
-        # close must therefore treat its own task as already stopping.
-        bot = bot_module.MyBot()
-        watchdog = health.DatabaseWatchdog(bot, interval=0.001, failure_threshold=1)
         bot._database_watchdog = watchdog
         with mock.patch.object(
             health,
             'ensure_connection',
             side_effect=peewee.OperationalError('database unavailable'),
         ):
-            await asyncio.wait_for(watchdog.run(), timeout=0.2)
+            task = watchdog.start()
+            await asyncio.wait_for(task, timeout=0.2)
+        self.assertTrue(task.done())
+        self.assertEqual(
+            bot._restart_exit_status,
+            health.DATABASE_FAILURE_EXIT_STATUS,
+        )
         self.assertTrue(bot._close_complete)
-        self.assertEqual(bot.restart_exit_status, health.DATABASE_FAILURE_EXIT_STATUS)
+
+    async def test_close_cancels_started_watchdog_and_is_idempotent(self):
+        bot = bot_module.MyBot()
+        watchdog = health.DatabaseWatchdog(bot, interval=60)
+        bot._database_watchdog = watchdog
+        task = watchdog.start()
+        await asyncio.sleep(0)
+        beta_control = SimpleNamespace(stop=mock.AsyncMock())
+        bot.beta_release_control = beta_control
+        await bot.close()
+        self.assertTrue(task.cancelled())
+        beta_control.stop.assert_awaited_once()
+        self.assertIsNone(bot.beta_release_control)
+        await bot.close()
+        beta_control.stop.assert_awaited_once()
+        self.assertTrue(bot._close_complete)
 
 
 class PrefixRegistrationTests(unittest.TestCase):

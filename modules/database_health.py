@@ -63,7 +63,13 @@ def ensure_connection(database: Any = None) -> bool:
             raise
         # Peewee.close() resets its thread-local state in a finally block even
         # when closing a stale driver connection raises one of these errors.
-        database.close()
+        try:
+            database.close()
+        except CONNECTION_ERRORS:
+            # A driver may report the stale close as an error after Peewee has
+            # already reset its thread-local state.  The one recovery
+            # reconnect remains safe; arbitrary close exceptions propagate.
+            pass
         database.connect(reuse_if_open=True)
         _probe(database)
     return True
