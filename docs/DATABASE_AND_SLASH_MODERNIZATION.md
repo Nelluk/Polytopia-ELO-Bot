@@ -542,8 +542,9 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC8 is release-ready at
-`9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4`; RC7 is superseded.** RC7
+Current active unit: **P9.32/M7 RC9 is externally approved and release-ready at
+`fee46e53ef581714dfa6d5f63ffe97fef5f63809`; RC8 is superseded for promotion
+but retained as historical/rollback evidence.** RC7
 resolved RC6's canonical topology and branch-ancestry
 blockers, but its pre-stop runbook tried to read the newly tracked wrapper from
 the exact rollback worktree where that file does not exist. RC8 reads the
@@ -27223,6 +27224,87 @@ next production-oriented action is to freeze and review a successor release
 candidate that includes `9e19237`; RC8 remains the rollback/evidence record
 for its original application checkpoint and must not be promoted as though it
 contained P9.32.
+
+### 2026-08-21 — RC9 rebuilt with the validator in the candidate commit
+
+Status: **Evidence-only RC9 is locally validated and require-ready; independent
+web GPT Pro blocker review remains pending.** The rebuilt application/release-
+tool candidate is `fee46e53ef581714dfa6d5f63ffe97fef5f63809`, based on clean
+accumulation tip `afae97e3ea36a560d2764413bffc3437ff00b25e`; rollback remains
+`8fed2a6049e980f77614859be1d8b9e8564d975a`. The candidate commit contains the
+schema-3 validator, explicit schema-1/2/3 critical-path sets, strict integer
+schema validation, and release compatibility/hash tests. It contains no RC9
+manifest or evidence claims depending on the eventual candidate SHA.
+
+- RC7 and RC8 schema-2 manifests remain readable; schema 1 retains legacy
+  rollback semantics and schemas 2/3 retain current rollback semantics. RC9's
+  manifest binds 18 exact candidate-tree digests: the prior 15-file set plus
+  `bot.py`, `modules/database_health.py`, and `modules/utilities.py`.
+- The rebuilt candidate full offline discovery passed 2,271 tests with 92
+  intentional gated skips. Focused release-candidate/document-consistency
+  tests passed 22; the resilience-focused 69-test evidence set, compilation,
+  and whitespace checks also passed. The manifest records offline total 2,363
+  (2,271 passed plus 92 skipped).
+- The stopped-writer database evidence is carried forward from the exact
+  runtime candidate `9e192370ebea11c6e31cbc2d7416022634d84f1f`: preflight census
+  0/0/0, 80 tests in 207.267 seconds, 79 passed and one intentional
+  historical-mirror skip. This rebuilt candidate was not connected to a
+  database and the gate was not rerun.
+- The beta evidence is specifically for image `polybot-mac-beta:9e19237`,
+  authenticated as `479029527553638401`, with clean startup, multiple watchdog
+  intervals, restart count zero, and writer census 1/0/0. The rebuilt
+  candidate differs from that tested runtime only in release-governance
+  validator/tests; it was not deployed or beta-tested. The provisional
+  seven-item human acceptance is carried forward unchanged.
+- RC8 cutover/topology/ancestry and redacted production-configuration evidence
+  remain historical evidence. Local cutover readiness counts the internal
+  candidate review and does not count the pending independent web GPT Pro
+  blocker review as approval. Production remains untouched.
+
+Exact local validation:
+
+```text
+POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib /home/nelluk/PolyBot39-deploy/.venv/bin/python -m unittest tests.test_release_candidate tests.test_modernization_document_consistency
+PASS — 22 tests.
+
+POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib /home/nelluk/PolyBot39-deploy/.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+PASS — 2,271 tests, 92 intentional gated skips.
+
+POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python -m compileall -q bot.py modules scripts tests
+git diff --check
+PASS — compilation and whitespace checks.
+
+POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python scripts/manage_release_candidate.py --manifest release-candidate-manifests/modernization-rc9.json validate
+POLYBOT_ENV=development /home/nelluk/PolyBot39-deploy/.venv/bin/python scripts/manage_release_candidate.py --manifest release-candidate-manifests/modernization-rc9.json require-ready
+PASS — all five local gates pass; external GPT blocker review remains pending.
+```
+
+Evidence commit: `83fc41a013c561db61d7a39356531b5b3b28b405`. No production,
+beta, database, Discord, Docker, network, or deployment action is authorized
+by this unit.
+
+### 2026-08-22 — RC9 external blocker review approved
+
+Status: **APPROVE; no P0 or P1 production blocker found.** The independent web
+GPT Pro review inspected public GitHub branch
+`codex/database-slash-modernization`, exact candidate
+`fee46e53ef581714dfa6d5f63ffe97fef5f63809`, and evidence head
+`71be2f7363437180052c0b102c360d10d4df91a1`.
+
+- The review accepted Peewee reset/transaction safety, prefix `check_once`
+  ordering, watchdog exit-75 and self-shutdown behavior, startup/thread
+  ownership, schema-3 provenance, carried beta evidence, and the existing
+  cutover/rollback procedure.
+- The synchronous event-loop probe has no new explicit query timeout. The
+  reviewer classified a backend that accepts a local connection and then
+  hangs indefinitely as a bounded, disclosed non-blocker rather than the
+  PostgreSQL-restart/stale-socket failure addressed by RC9.
+- Production promotion must target exact candidate
+  `fee46e53ef581714dfa6d5f63ffe97fef5f63809`, never evidence head
+  `71be2f7363437180052c0b102c360d10d4df91a1`.
+- This evidence update records approval only. It authorizes no production
+  read, backup, checkout update, database operation, service lifecycle,
+  Discord inspection/apply, or announcement.
 
 ## Resume checklist
 
