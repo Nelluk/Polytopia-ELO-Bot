@@ -27249,6 +27249,27 @@ pending.**
 Files: `modules/game_ping_workers.py`, `modules/game_ping.py`, `modules/games.py`,
 and `tests/test_game_ping_composer.py`.
 
+### 2026-08-22 — Proportional production-hotfix workflow adopted
+
+Status: **Active.**
+
+- Added an explicit owner-selected exception to the ordinary modernization
+  accumulation-branch/worktree lifecycle. A narrow reversible production
+  regression may now be diagnosed, fixed, tested proportionately, reviewed,
+  and committed directly on production `master` when Nelluk chooses that path.
+- The exception does not require beta deployment, a separate worktree or unit
+  branch, multi-agent handoffs, a complete offline suite, release ceremony, or
+  extended soak without a concrete risk. Schema/data migrations, dependency or
+  topology changes, command-tree changes, configuration/credential mutations,
+  destructive actions, and broad refactors remain outside the exception.
+- Direct source editing remains separate from live operations: restart/deploy,
+  database writes, Discord command sync/messages, and push retain their
+  applicable explicit authorization. Production checkout location alone no
+  longer classifies a source-only correction as Tier 3.
+
+Authority updated in `AGENTS.md` and
+`docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

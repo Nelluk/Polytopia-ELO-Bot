@@ -48,7 +48,9 @@ and the next recommended unit.
 For work split across planning/review and implementation Codex tasks, also
 read `docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`. Use separate Git
 worktrees and its checkpoint/handoff protocol; never let two tasks switch or
-edit the same checkout concurrently.
+edit the same checkout concurrently. This is the ordinary planned-work path,
+not a prohibition on an owner-authorized production hotfix under the
+proportional path below.
 
 ## Engineering Proportionality
 
@@ -64,6 +66,38 @@ not read, an atomic apply plus exact verification in the planned maintenance
 window is normally sufficient. Require a soak period only when there is a
 specific runtime behavior to observe. Label optional hardening as optional and
 lead with the minimal recommended path.
+
+### Owner-authorized production hotfixes
+
+When Nelluk explicitly asks for a narrow fix directly in the production
+checkout or on production `master`, that instruction overrides the ordinary
+modernization worktree/accumulation-branch workflow for that fix. Treat it as
+a proportional hotfix, not automatically as a full production-cutover
+project.
+
+This path is appropriate when the change is small and reversible and does not
+introduce a schema/data migration, dependency or runtime-topology change,
+command-tree synchronization, credential/configuration change, destructive
+operation, or broad architectural rewrite. Under this path:
+
+- verify the exact production checkout, branch, clean starting state, and
+  running version before editing;
+- diagnose with narrow logs/read-only state, make the smallest complete fix
+  with one writer, add focused regression coverage, run proportionate focused
+  and adjacent tests, review the diff, and create a clean Git checkpoint;
+- do not require a separate worktree/branch, beta deployment, full offline
+  suite, independent multi-agent review, push, release ceremony, or extended
+  soak unless a concrete risk in the actual change warrants it or Nelluk asks;
+- keep aggregate operations such as `all` scopes within their established
+  guild/data boundary when restoring a cross-guild single-object path; and
+- treat production restart/deploy, Discord command sync or messages, database
+  writes, and push as separate actions requiring their applicable explicit
+  authorization. Nelluk may elect to perform the restart or smoke test.
+
+If investigation expands beyond those limits, stop using the hotfix exception
+and propose the ordinary isolated workflow for the expanded change. The fact
+that code lives in the production checkout does not by itself raise a
+source-only correction to the highest engineering risk tier.
 
 ## Tech Stack
 

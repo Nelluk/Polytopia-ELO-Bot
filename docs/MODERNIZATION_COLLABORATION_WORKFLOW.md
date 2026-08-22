@@ -1,6 +1,6 @@
 # Modernization collaboration workflow
 
-Last updated: 2026-08-15
+Last updated: 2026-08-22
 
 Status: Active
 
@@ -9,15 +9,55 @@ the database/slash modernization program. It supplements
 `DATABASE_AND_SLASH_MODERNIZATION.md`; that roadmap remains authoritative for
 scope, phase status, decisions, evidence, and the next unit.
 
+## Owner-selected production hotfix exception
+
+This document governs ordinary planned modernization units. It does not force
+a beta/worktree release cycle for every production regression. When Nelluk
+explicitly authorizes a fix directly in the production checkout or on
+production `master`, use the proportional hotfix path in `AGENTS.md`.
+
+The hotfix exception is suitable for a narrow, reversible source correction
+with no schema/data migration, dependency or topology change, command-tree
+change, credential/configuration mutation, destructive action, or broad
+refactor. Its minimum workflow is:
+
+1. verify the exact checkout, `master` state, starting checkpoint, relevant
+   production evidence, and absence of unrelated changes;
+2. trace the regression against prior behavior and audit analogous inference
+   or compatibility paths far enough to bound the fix;
+3. edit directly with one writer, add a regression test, run focused and
+   adjacent tests proportional to the affected behavior, self-review the full
+   diff, and create one clean local commit;
+4. report the exact checkpoint and whether it is pushed, while leaving
+   restart/deploy, command sync, database writes, Discord messages, and push to
+   their separately authorized operator actions; and
+5. after an authorized restart, use a short behavior/log check appropriate to
+   the reported failure. Do not invent an extended soak without a concrete
+   failure mode to observe.
+
+The exception does not require a unit branch, isolated worktree, Luna handoff,
+parallel explorers/reviewers, accumulation-branch integration, beta deploy,
+complete offline suite, tester announcement, or release-candidate ceremony.
+Any of those may still be used when the actual diff warrants it. If scope
+expands into an excluded category, preserve the bounded work and return to the
+ordinary lifecycle before implementing the expanded portion.
+
+Editing a production checkout and restarting production are distinct actions.
+Authorization for the former does not imply the latter. Likewise, production
+checkout location alone does not make a source-only correction Tier 3; review
+the code at its demonstrated Tier 1 or Tier 2 risk, then apply the separate
+live-operation gate to the restart or deployment.
+
 ## Roles
 
 ### Temporary single-thread omni workflow
 
 When Nelluk explicitly selects a Sol omni thread to conserve quota, that
-thread may own planning, implementation, review, integration, and development
-deployment for one bounded unit end to end. It still uses an isolated Git
-worktree and unit branch so the running beta's accumulation checkout remains
-stable. The thread must self-review the complete diff at the normal risk tier,
+thread may own planning, implementation, review, integration, and
+development deployment for one bounded planned unit end to end. It still uses
+an isolated Git worktree and unit branch so the running beta's accumulation
+checkout remains stable. The thread must self-review the complete diff at the
+normal risk tier,
 keep implementation and evidence checkpoints distinct where useful, and pass
 the same focused/offline/database/beta gates; the exception removes the Luna
 handoff, not any safety or validation boundary.
@@ -254,9 +294,12 @@ Do not use `.worktreeinclude` for these two files: that mechanism copies
 ignored files into disposable managed worktrees and snapshots, while the
 symlink setup keeps one authoritative development-only credential copy.
 
-Rules:
+Rules for the ordinary planned modernization path:
 
-- Never use or modify `/home/nelluk/PolyBot39`, the production checkout.
+- Never use or modify the production checkout during an ordinary unit. The
+  owner-selected hotfix exception above is the only direct-edit path and uses
+  the production location verified from `SERVER_INFO.md`, not a stale path in
+  this document.
 - Sol must not switch branches, edit files, stage, or commit in Luna's
   worktree.
 - Luna must not switch branches, edit files, stage, or commit in the primary
@@ -300,6 +343,9 @@ acceptance, and no integration claim should be made until the required review
 passes.
 
 ## Unit lifecycle
+
+This lifecycle applies to ordinary planned units. An explicitly selected
+production hotfix follows the shorter exception above.
 
 1. Sol verifies that the accumulation branch and its GitHub tracking branch
    are reconciled and clean, selects one bounded unit, and records its risk
@@ -389,6 +435,11 @@ Sol reviews the design before implementation and the complete final branch
 before integration. Require fault injection, rollback, concurrency,
 permission, post-commit ordering, operational rollback, and the exact
 production or beta approval gates relevant to the unit.
+
+Production checkout location is not itself a Tier 3 criterion. A narrow
+source-only compatibility correction may receive Tier 1 or Tier 2 code review
+under the hotfix exception; the subsequent production restart/deploy remains
+a separately approved live operation.
 
 ### Development-database validation cadence
 
