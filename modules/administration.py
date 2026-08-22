@@ -12,7 +12,6 @@ import asyncio
 import discord
 import re
 import functools
-import hashlib
 from dataclasses import replace
 from pathlib import Path
 from modules.games import PolyGame
@@ -247,95 +246,6 @@ class administration(commands.Cog):
         parent=operator_group,
         guild_only=True,
     )
-
-    @staticmethod
-    def _static_operator_policy_digest(
-        guild_id: int,
-        capabilities: tuple[str, ...],
-    ) -> str:
-        value = f'{int(guild_id)}:{",".join(capabilities)}'
-        return hashlib.sha256(value.encode('utf-8')).hexdigest()
-
-    async def _static_operator_command_plan(self, guild_id: int):
-        capabilities = tuple(
-            settings.application_command_policy.capabilities_for_guild(
-                int(guild_id)
-            )
-        )
-        if 'operator' not in capabilities:
-            raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
-                'The production profile does not enable the operator '
-                'capability for PolyChampions.'
-            )
-        return await operator_guild_command_capabilities.inspect_command_plan(
-            bot=self.bot,
-            policy=settings.application_command_policy,
-            guild_id=int(guild_id),
-            active_revision=1,
-            active_generation=1,
-            active_document_digest=self._static_operator_policy_digest(
-                guild_id,
-                capabilities,
-            ),
-            current_capabilities=capabilities,
-            desired_capabilities=capabilities,
-            mode=operator_guild_command_capabilities.RECONCILE,
-        )
-
-    @commands.command(name='syncpcoperator', hidden=True)
-    @commands.is_owner()
-    async def sync_pc_operator_prefix(
-        self,
-        ctx,
-        *,
-        confirmation: str | None = None,
-    ):
-        """Bootstrap configured operator commands into PolyChampions."""
-
-        if settings.runtime_profile.environment != 'production':
-            return await ctx.send(
-                'This bootstrap command is available only on production.'
-            )
-        guild_id = int(settings.server_ids['polychampions'])
-        if int(ctx.guild.id) != guild_id:
-            return await ctx.send(
-                'Run this bootstrap command from PolyChampions.'
-            )
-        try:
-            plan = await self._static_operator_command_plan(guild_id)
-        except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError as exc:
-            return await ctx.send(str(exc))
-
-        if not (plan.creates or plan.updates or plan.removals):
-            return await ctx.send(
-                'PolyChampions operator commands are already synchronized.'
-            )
-
-        expected = f'SYNC PC OPERATOR {plan.plan_digest}'
-        if confirmation != expected:
-            changes = (
-                f'Create: {", ".join(plan.creates) or "none"}; '
-                f'update: {", ".join(plan.updates) or "none"}; '
-                f'remove: {", ".join(plan.removals) or "none"}.'
-            )
-            return await ctx.send(
-                f'PolyChampions operator command plan — {changes}\n'
-                f'To apply this exact plan, run '
-                f'`{ctx.prefix}syncpcoperator {expected}`'
-            )
-
-        try:
-            result = await operator_guild_command_capabilities.apply_command_plan(
-                bot=self.bot,
-                policy=settings.application_command_policy,
-                plan=plan,
-            )
-        except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError as exc:
-            return await ctx.send(str(exc))
-        roots = ', '.join(f'/{root}' for root in result.roots)
-        return await ctx.send(
-            f'PolyChampions application commands synchronized: {roots}.'
-        )
 
     async def _run_guild_mutation_claim(
         self,

@@ -27288,31 +27288,29 @@ Status: **Implemented in production `master`; operator restart pending.**
 
 Files: `modules/game_ping.py` and `tests/test_game_ping_composer.py`.
 
-### 2026-08-22 — PolyChampions operator bootstrap workaround implemented
+### 2026-08-22 — PolyChampions operator capability staged
 
-Status: **Implemented in production `master`; manual restart and owner-confirmed
-Discord synchronization pending.**
+Status: **Production configuration prepared; official external command apply
+and one final manual restart pending.**
 
-- The ignored production profile now assigns `operator` only to
-  PolyChampions, reflecting its role as the bot's core home. Main and every
-  other production guild remain unchanged.
-- Because this host session cannot execute the protected token-bearing command
-  manager as the `polyelo` service account, added hidden owner-only
-  `$syncpcoperator`. After one manual restart loads the profile/code, invoking
-  it in PolyChampions shows a fresh exact plan and digest-bound confirmation;
-  rerunning that confirmation synchronizes only PC through the existing
-  empty-global, source-fingerprint, drift, guild-only sync, and post-apply
-  verification service.
-- The bootstrap writes no database state and performs no restart. Once it
-  converges, `/operator bot restart` is the normal Discord lifecycle path.
-  Five focused bootstrap tests plus 74 adjacent operator restart/capability,
-  retirement, policy, command-management, and document-consistency tests
-  passed. No live Discord command apply or service action was performed during
-  implementation.
+- The ignored production profile assigns `operator` only to PolyChampions,
+  reflecting its role as the bot's core home. Main and every other production
+  guild remain unchanged.
+- Considered an in-bot prefix bootstrap because this Codex session cannot run
+  the token-bearing manager as the protected `polyelo` service account, then
+  removed it in favor of the existing out-of-process command manager. This
+  avoids a PC-specific second deployment path and keeps startup free of command
+  synchronization side effects.
+- The administrator will run the official connection-free plan, read-only
+  remote inspection, and confirmed PC-only apply interactively as `polyelo`,
+  then perform one final manual restart. After that, `/operator bot restart`
+  is the normal Discord lifecycle path.
+- Seventy-four focused operator restart/capability, retirement, policy,
+  command-management, and document-consistency tests passed after removing the
+  bootstrap; whitespace validation passed.
 
-Files: `modules/administration.py`, `tests/test_operator_command_bootstrap.py`,
-`docs/APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md`, and production command-policy
-records. The ignored `server_settings.py` change is intentionally outside Git.
+The ignored `server_settings.py` capability change is intentionally outside
+Git. No live Discord command apply or service action was performed here.
 
 ## Resume checklist
 
