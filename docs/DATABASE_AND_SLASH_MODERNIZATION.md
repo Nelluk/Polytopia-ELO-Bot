@@ -27288,6 +27288,32 @@ Status: **Implemented in production `master`; operator restart pending.**
 
 Files: `modules/game_ping.py` and `tests/test_game_ping_composer.py`.
 
+### 2026-08-22 — PolyChampions operator bootstrap workaround implemented
+
+Status: **Implemented in production `master`; manual restart and owner-confirmed
+Discord synchronization pending.**
+
+- The ignored production profile now assigns `operator` only to
+  PolyChampions, reflecting its role as the bot's core home. Main and every
+  other production guild remain unchanged.
+- Because this host session cannot execute the protected token-bearing command
+  manager as the `polyelo` service account, added hidden owner-only
+  `$syncpcoperator`. After one manual restart loads the profile/code, invoking
+  it in PolyChampions shows a fresh exact plan and digest-bound confirmation;
+  rerunning that confirmation synchronizes only PC through the existing
+  empty-global, source-fingerprint, drift, guild-only sync, and post-apply
+  verification service.
+- The bootstrap writes no database state and performs no restart. Once it
+  converges, `/operator bot restart` is the normal Discord lifecycle path.
+  Five focused bootstrap tests plus 74 adjacent operator restart/capability,
+  retirement, policy, command-management, and document-consistency tests
+  passed. No live Discord command apply or service action was performed during
+  implementation.
+
+Files: `modules/administration.py`, `tests/test_operator_command_bootstrap.py`,
+`docs/APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md`, and production command-policy
+records. The ignored `server_settings.py` change is intentionally outside Git.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

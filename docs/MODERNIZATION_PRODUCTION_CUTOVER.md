@@ -31,14 +31,15 @@ backup, test, or health result. Never improvise around a failed gate.
   PolyChampions `447883341463814144` only
 - Main capabilities: `tools_support`, exposing only `/staffhelp`
 - PolyChampions capabilities: `core_user`, `team`, `league`, `house`, `squad`,
-  and `tools_support`
+  `tools_support`, and the subsequently owner-enabled `operator`
 - Every other live allowlisted guild receives no native capability assignment
   and is not inspected or synchronized during this cutover
 - Product bug/improvement feedback route: beta guild `478571892832206869`,
   channel `480078679930830849`, with source server/channel metadata and no
   role mention
 - Initially omitted capabilities: `operator`, `elo_maintenance`, and
-  `beta_testing`
+  `beta_testing`; `operator` was subsequently enabled only for PolyChampions
+  through the owner-approved static-production bootstrap
 - HTTP API: disabled and inactive
 - Legacy prefixes: retained wherever the compatibility ledger says `retain`
 - Global application-command tree: must be empty; this repository has no
@@ -113,7 +114,7 @@ check must prove:
   guild setting remain unchanged;
 - Main `283436219780825088` receives exactly `('tools_support',)`;
 - PolyChampions `447883341463814144` receives exactly `('core_user', 'team',
-  'league', 'house', 'squad', 'tools_support')`;
+  'league', 'house', 'operator', 'squad', 'tools_support')`;
 - `application_command_all_guild_capabilities` is exactly empty and no other
   allowlisted guild has a native capability assignment;
 - Main and PolyChampions retain their live staff-help channels and first
@@ -121,7 +122,8 @@ check must prove:
 - top-level `polyelo_feedback_route` is exactly beta guild
   `478571892832206869` and channel `480078679930830849`; production feedback
   output includes source server/channel metadata and disables mentions;
-- `operator`, `elo_maintenance`, and `beta_testing` are not assigned; and
+- `operator` is assigned only to PolyChampions; `elo_maintenance` and
+  `beta_testing` are not assigned; and
 - the configured prefix, image root, and log root remain production values.
 
 The production profile must fail before server-settings loading, directory

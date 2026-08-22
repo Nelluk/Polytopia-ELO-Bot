@@ -132,6 +132,32 @@ P10.6c private plan for that revision. Production remains on this separately
 approved out-of-process procedure until production database authority is
 explicitly authorized.
 
+## Static-production operator bootstrap
+
+Production may use the hidden owner-only `$syncpcoperator` bootstrap when the
+out-of-process manager cannot be run as the protected service account. This is
+a narrow exception for the statically configured PolyChampions `operator`
+capability, not a general startup-sync or arbitrary-guild path.
+
+The command is available only in production, only to the configured bot owner,
+and only when invoked from PolyChampions. The ignored production settings must
+already assign `operator` to PolyChampions. Its first invocation performs the
+same empty-global and exact-guild inspection as the guarded in-bot capability
+service, then reports the create/update/remove plan and a digest-bound
+confirmation. The owner applies it by rerunning the exact displayed command:
+
+```text
+$syncpcoperator SYNC PC OPERATOR <plan-digest>
+```
+
+The confirmed invocation rebuilds the plan from fresh remote evidence,
+requires the digest to match, synchronizes only PolyChampions, and verifies
+both the empty global tree and exact target convergence. It writes no database
+state and does not restart the bot. A source-fingerprint mismatch in any
+already-active root still fails closed and requires the external deployment
+path. Once synchronized, normal future lifecycle control uses
+`/operator bot restart`.
+
 P8.0 evidence for this repository records offline planning only. No live
 Discord inspection or apply is implied by the runbook or by a green offline
 test suite.
