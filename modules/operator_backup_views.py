@@ -32,9 +32,8 @@ class BackupConfirmationView(discord.ui.LayoutView):
         self.busy = False
         self.finished = False
         self.status = (
-            'The clean checkout, deployed script, exporter, and runtime match '
-            'the reviewed release manifest. Confirm only when an exceptional '
-            'manual recovery point is needed.'
+            'The production identity and fixed host backup wrapper are ready. '
+            'Confirm only when an exceptional manual recovery point is needed.'
         )
         self.rebuild()
 

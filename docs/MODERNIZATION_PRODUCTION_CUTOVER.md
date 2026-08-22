@@ -192,10 +192,11 @@ Complete these before notifying users of downtime:
    roots. No other guild is inspected or changed.
 5. Verify the approved release and rollback commits, lockfile, unit, canary
    drop-in, migration tools, command manager, tracked backup program, tracked
-   production wrapper, provenance manager, and operator-backup module are
-   present in the reviewed Git history. Do not update the production checkout
-   yet. The release manifest's critical digests must cover each of those
-   backup files.
+   production wrapper, and operator-backup module are present in the reviewed
+   Git history. Do not update the production checkout yet. Confirm the fixed
+   installed wrapper `/srv/polyelo/bin/polyelo-backup` is a root-controlled,
+   non-symlink executable before relying on either scheduled or operator-run
+   backups.
 6. Verify the routine backup state and obtain the separate approval for a fresh
    pre-stop backup. Validate custom-format dumps with `pg_restore --list` and
    image archives with `tar -tzf`; timestamps, sizes, and paths must match the
@@ -319,38 +320,13 @@ POLYBOT_ENV=production .venv/bin/python scripts/check_runtime_config.py
 Run the redacted runtime check with exact `POLYBOT_ENV=production`. It must not
 import models or connect to PostgreSQL or Discord. Do not start the bot yet.
 
-Prepare the private operator-backup release manifest only after the checkout
-and locked interpreter match the approved release. The first command is a
-read-only plan. Installing the ignored manifest is a distinct production-file
-write approval; it does not run a backup or connect to PostgreSQL. The final
-command rereads the private manifest and revalidates the clean exact checkout,
-tracked backup program, tracked wrapper, exporter, root-owned installed
-wrapper, and actual interpreter identity. The tracked and installed wrappers
-must match byte for byte. Any symlink, tracked change, digest mismatch, wrong
-checkpoint, or unexpected owner/mode blocks the Discord-triggered backup
-before process spawn.
-
-```bash
-POLYBOT_ENV=production .venv/bin/python \
-  scripts/manage_production_backup_release.py \
-  --checkpoint "$POLYBOT_RELEASE_SHA"
-POLYBOT_ENV=production .venv/bin/python \
-  scripts/manage_production_backup_release.py \
-  --checkpoint "$POLYBOT_RELEASE_SHA" \
-  --apply \
-  --confirm P9-M3-PRODUCTION-BACKUP-RELEASE-APPLY
-POLYBOT_ENV=production .venv/bin/python \
-  scripts/manage_production_backup_release.py \
-  --checkpoint "$POLYBOT_RELEASE_SHA" \
-  --validate
-```
-
-The manifest is non-secret provenance at
-`/srv/polyelo/PolyBot39/.operator-backup-release.json`, mode `0600`. Archive
-its JSON with the reviewed release record. Regenerate it after any approved
-release or rollback that changes the checkpoint, backup program, wrapper,
-reporting exporter, or interpreter. Never hand-edit it to bypass a validation
-failure.
+`/operator database backup` deliberately has no release-specific preparation
+step. The owner-only private confirmation runs exactly the fixed host wrapper
+`/srv/polyelo/bin/polyelo-backup`, with no arguments or shell interpolation.
+The command verifies the production runtime identity and requires that wrapper
+to remain a root-controlled, non-symlink executable. The wrapper's own lock,
+atomic publication, and artifact checks remain authoritative. Normal source
+updates and rollbacks therefore do not require a separate command manifest.
 
 ### 4. Apply and verify the additive schema
 
@@ -523,10 +499,8 @@ is the terminal deployment action.
 Leave the old schema unchanged. Restore the reviewed rollback checkout and
 ignored configuration if they were changed, synchronize only its reviewed
 locked environment when required, and start it through a task-disabled canary
-before returning to the canonical service. If the rollback retains the
-manifest-aware backup command, regenerate and validate its private provenance
-against `POLYBOT_ROLLBACK_SHA` before start. An older rollback may ignore the
-manifest. Do not touch the command tree.
+before returning to the canonical service. The fixed host backup wrapper does
+not require release-specific regeneration. Do not touch the command tree.
 
 ### Failure after schema apply but before command apply
 

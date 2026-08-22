@@ -382,7 +382,7 @@ would become unavailable if a prefix is retired.
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
 | C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `a13d440`; owner acceptance/first real use optional |
-| C-029 `/operator database backup` / `$backup_db` / `$dbb` | Owner-only native operation has no options and opens a private requester-bound confirmation. It runs only from the exact production identity after reviewed/deployed source matching, through a bounded single-flight asynchronous child-process lifecycle, and privately reports validated artifact metadata. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their hard-coded synchronous process could invoke production from development, block the event loop, expose raw output, and offered no confirmation, timeout, cancellation drain, or conflict state. | Cron remains the authoritative three-times-daily schedule. The native control is only an exceptional manual recovery point; beta can prove only registration and fail-closed development refusal. First real use remains a separately approved production operation. | P9.6 implementation/tests checkpoint `9397755`; evidence/integration checkpoint `d702ed0`; focused and complete offline validation green; production activation pending |
+| C-029 `/operator database backup` / `$backup_db` / `$dbb` | Owner-only native operation has no options and opens a private requester-bound confirmation. It runs only from the exact production identity and executes the fixed root-controlled `/srv/polyelo/bin/polyelo-backup` wrapper with no arguments, through a bounded single-flight asynchronous child-process lifecycle, and privately reports validated artifact metadata. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their hard-coded synchronous process could invoke production from development, block the event loop, expose raw output, and offered no confirmation, timeout, cancellation drain, or conflict state. Release-checkpoint and digest-manifest coupling was subsequently removed because it duplicated the wrapper/script controls and broke the operator action after unrelated commits. | Cron remains the authoritative three-times-daily schedule. The native control is only an exceptional manual recovery point; beta can prove only registration and fail-closed development refusal. Source deployments and rollbacks require no operator-backup manifest maintenance. | P9.6 implementation/tests checkpoint `9397755`; evidence/integration checkpoint `d702ed0`; production simplification prepared 2026-08-22 |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -27311,6 +27311,34 @@ and one final manual restart pending.**
 
 The ignored `server_settings.py` capability change is intentionally outside
 Git. No live Discord command apply or service action was performed here.
+
+### 2026-08-22 — Operator backup release coupling removed
+
+Status: **Source hotfix prepared; commit, push, restart, and first operator run
+remain separate.**
+
+- `/operator database backup` now returns to the proportional behavior of the
+  retired prefix command: after owner-only private confirmation it executes
+  exactly `/srv/polyelo/bin/polyelo-backup`, without caller arguments or shell
+  interpolation.
+- Production environment/database/path/account checks and the fixed wrapper's
+  root ownership, regular-file, non-symlink, non-writable, and executable
+  checks remain. The asynchronous single-flight lifecycle, host-script lock,
+  bounded output, timeout/process-group cleanup, artifact verification, and
+  private terminal result also remain.
+- Exact Git checkpoint, clean-tree, tracked-source, exporter, interpreter, and
+  private digest-manifest checks were removed. They duplicated the deployed
+  wrapper and backup script's operational controls and caused unrelated source
+  commits to disable the command. The release-provenance manager was removed;
+  the existing ignored manifest is no longer read and requires no maintenance.
+- Routine `polyelo-backup.timer` execution is unchanged. This source work ran
+  no backup, database write, Discord synchronization/message, push, or service
+  restart.
+
+Files: `modules/operator_backup.py`, `modules/operator_backup_views.py`,
+`modules/release_candidate.py` (historical-schema clarification),
+`scripts/manage_production_backup_release.py` (removed), focused tests, and the
+current production cutover/modernization records.
 
 ## Resume checklist
 

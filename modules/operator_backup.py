@@ -5,18 +5,12 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-import hashlib
-import json
 import logging
 import os
 from pathlib import Path
 import pwd
-import re
 import signal
 import stat
-import subprocess
-import sys
-import tempfile
 import time
 
 import settings
@@ -32,17 +26,11 @@ PRODUCTION_STATE_ROOT = Path('/srv/polyelo')
 PRODUCTION_BACKUP_ROOT = PRODUCTION_STATE_ROOT / 'backups'
 DEPLOYED_SCRIPT = PRODUCTION_STATE_ROOT / 'bin/polyelo-backup'
 DEPLOYED_SCRIPT_UID = 0
-GIT_EXECUTABLE = Path('/usr/bin/git')
-RELEASE_MANIFEST_NAME = '.operator-backup-release.json'
-RELEASE_MANIFEST_SCHEMA = 1
-RELEASE_MANIFEST_CONFIRMATION = 'P9-M3-PRODUCTION-BACKUP-RELEASE-APPLY'
 REPORTING_PARTIAL_EXIT = 20
 LOCK_BUSY_EXIT = 75
 MAX_PROCESS_SECONDS = 12 * 60
 TERMINATE_GRACE_SECONDS = 10
 MAX_CAPTURE_BYTES = 16 * 1024
-_CHECKPOINT = re.compile(r'^[0-9a-f]{40}$')
-_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 _FILE_EXECUTOR = ThreadPoolExecutor(
     max_workers=1,
     thread_name_prefix='polybot-operator-backup-files',
@@ -62,7 +50,7 @@ class BackupEnvironmentError(BackupError):
 
 
 class BackupSourceError(BackupError):
-    """The tracked and deployed backup sources are not safe to execute."""
+    """The fixed production backup wrapper is not safe to execute."""
 
 
 class BackupConflictError(BackupError):
@@ -87,43 +75,8 @@ class BackupRuntime:
     database_name: str
     project_root: Path
     owner_id: int
-    current_uid: int
     current_username: str
-    source_script: Path
-    deployed_script_source: Path
     deployed_script: Path
-    reporting_exporter: Path
-    reporting_python: Path
-    current_executable: Path
-    release_manifest: Path
-
-
-@dataclass(frozen=True)
-class BackupReleaseManifest:
-    schema_version: int
-    release_checkpoint: str
-    backup_script_sha256: str
-    backup_wrapper_sha256: str
-    reporting_exporter_sha256: str
-    python_resolved_path: str
-    python_sha256: str
-
-    def as_dict(self) -> dict[str, object]:
-        return {
-            'schema_version': self.schema_version,
-            'release_checkpoint': self.release_checkpoint,
-            'backup_script_sha256': self.backup_script_sha256,
-            'backup_wrapper_sha256': self.backup_wrapper_sha256,
-            'reporting_exporter_sha256': self.reporting_exporter_sha256,
-            'python_resolved_path': self.python_resolved_path,
-            'python_sha256': self.python_sha256,
-        }
-
-
-@dataclass(frozen=True)
-class BackupPreflight:
-    source_digest: str
-    release_checkpoint: str
 
 
 @dataclass(frozen=True)
@@ -150,7 +103,7 @@ class ActiveBackup:
 
 
 def capture_runtime() -> BackupRuntime:
-    """Freeze primitive runtime identity without reading production artifacts."""
+    """Freeze the identity and fixed wrapper used by one request."""
 
     profile = settings.runtime_profile
     current_uid = os.geteuid()
@@ -163,30 +116,9 @@ def capture_runtime() -> BackupRuntime:
         database_name=str(profile.database_name),
         project_root=Path(profile.project_root),
         owner_id=int(settings.owner_id),
-        current_uid=int(current_uid),
         current_username=str(current_username),
-        source_script=Path(profile.project_root) / 'scripts/backup_db.sh',
-        deployed_script_source=(
-            Path(profile.project_root) / 'deploy/polyelo-backup'
-        ),
         deployed_script=DEPLOYED_SCRIPT,
-        reporting_exporter=(
-            Path(profile.project_root) / 'scripts/export_reporting_duckdb.py'
-        ),
-        reporting_python=Path(profile.project_root) / '.venv/bin/python',
-        current_executable=Path(sys.executable),
-        release_manifest=(
-            Path(profile.project_root) / RELEASE_MANIFEST_NAME
-        ),
     )
-
-
-def _digest(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open('rb') as source:
-        for block in iter(lambda: source.read(64 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _assert_production_runtime(runtime: BackupRuntime) -> None:
@@ -206,421 +138,62 @@ def _assert_production_runtime(runtime: BackupRuntime) -> None:
         )
 
 
-def _lstat_regular(
-    path: Path,
-    *,
-    label: str,
-    expected_uid: int | None,
-    private: bool = False,
-    executable: bool = False,
-    allow_group_write: bool = False,
-) -> os.stat_result:
+def _assert_deployed_wrapper(path: Path) -> None:
+    """Require the fixed host wrapper to remain root-controlled and executable."""
+
     try:
         details = path.lstat()
     except OSError as exc:
         raise BackupSourceError(
-            f'The {label} is unavailable. No backup was started.'
+            'The production backup wrapper is unavailable. No backup was '
+            'started.'
         ) from exc
     if stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
         raise BackupSourceError(
-            f'The {label} must be a regular non-symlink file. No backup was '
-            'started.'
+            'The production backup wrapper must be a regular non-symlink '
+            'file. No backup was started.'
         )
-    if expected_uid is not None and details.st_uid != expected_uid:
+    if details.st_uid != DEPLOYED_SCRIPT_UID:
         raise BackupSourceError(
-            f'The {label} has an unexpected owner. No backup was started.'
-        )
-    mode = stat.S_IMODE(details.st_mode)
-    if mode & 0o002 or (mode & 0o020 and not allow_group_write):
-        raise BackupSourceError(
-            f'The {label} is writable outside its owner. No backup was '
-            'started.'
-        )
-    if private and mode & 0o077:
-        raise BackupSourceError(
-            f'The {label} is accessible outside its owner. No backup was '
-            'started.'
-        )
-    if executable and not mode & stat.S_IXUSR:
-        raise BackupSourceError(
-            f'The {label} is not owner-executable. No backup was started.'
-        )
-    return details
-
-
-def _git_output_sync(project_root: Path, *arguments: str) -> str:
-    try:
-        result = subprocess.run(
-            [str(GIT_EXECUTABLE), *arguments],
-            cwd=str(project_root),
-            capture_output=True,
-            check=True,
-            text=True,
-            timeout=2.0,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise BackupSourceError(
-            'The production checkout could not be verified. No backup was '
-            'started.'
-        ) from exc
-    return result.stdout.strip()
-
-
-def _checkout_checkpoint(runtime: BackupRuntime) -> str:
-    status = _git_output_sync(
-        runtime.project_root,
-        'status',
-        '--porcelain',
-        '--untracked-files=no',
-    )
-    if status:
-        raise BackupSourceError(
-            'The production checkout has tracked changes. No backup was '
-            'started.'
-        )
-    checkpoint = _git_output_sync(
-        runtime.project_root,
-        'rev-parse',
-        '--verify',
-        'HEAD',
-    )
-    if not _CHECKPOINT.fullmatch(checkpoint):
-        raise BackupSourceError(
-            'The production checkout checkpoint is invalid. No backup was '
-            'started.'
-        )
-    for path in (
-        runtime.source_script,
-        runtime.deployed_script_source,
-        runtime.reporting_exporter,
-    ):
-        try:
-            relative = path.relative_to(runtime.project_root)
-        except ValueError as exc:
-            raise BackupSourceError(
-                'A backup source is outside the production checkout. No '
-                'backup was started.'
-            ) from exc
-        _git_output_sync(
-            runtime.project_root,
-            'ls-files',
-            '--error-unmatch',
-            '--',
-            relative.as_posix(),
-        )
-    return checkpoint
-
-
-def _parse_release_manifest(path: Path) -> BackupReleaseManifest:
-    try:
-        with path.open(encoding='utf-8') as stream:
-            value = json.load(stream)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise BackupSourceError(
-            'The production backup release manifest could not be read. No '
-            'backup was started.'
-        ) from exc
-    required = {
-        'schema_version',
-        'release_checkpoint',
-        'backup_script_sha256',
-        'backup_wrapper_sha256',
-        'reporting_exporter_sha256',
-        'python_resolved_path',
-        'python_sha256',
-    }
-    if not isinstance(value, dict) or set(value) != required:
-        raise BackupSourceError(
-            'The production backup release manifest has invalid fields. No '
-            'backup was started.'
-        )
-    if type(value['schema_version']) is not int or (
-        value['schema_version'] != RELEASE_MANIFEST_SCHEMA
-    ):
-        raise BackupSourceError(
-            'The production backup release manifest schema is unsupported. '
-            'No backup was started.'
-        )
-    checkpoint = value['release_checkpoint']
-    digests = (
-        value['backup_script_sha256'],
-        value['backup_wrapper_sha256'],
-        value['reporting_exporter_sha256'],
-        value['python_sha256'],
-    )
-    if not isinstance(checkpoint, str) or not _CHECKPOINT.fullmatch(checkpoint):
-        raise BackupSourceError(
-            'The production backup release checkpoint is invalid. No backup '
+            'The production backup wrapper is not root-controlled. No backup '
             'was started.'
         )
-    if any(
-        not isinstance(digest, str) or not _DIGEST.fullmatch(digest)
-        for digest in digests
-    ):
+    mode = stat.S_IMODE(details.st_mode)
+    if mode & 0o022:
         raise BackupSourceError(
-            'A production backup release digest is invalid. No backup was '
+            'The production backup wrapper is writable outside root. No '
+            'backup was started.'
+        )
+    if not mode & stat.S_IXUSR:
+        raise BackupSourceError(
+            'The production backup wrapper is not executable. No backup was '
             'started.'
         )
-    python_path = value['python_resolved_path']
-    if not isinstance(python_path, str) or not Path(python_path).is_absolute():
-        raise BackupSourceError(
-            'The production backup runtime path is invalid. No backup was '
-            'started.'
-        )
-    return BackupReleaseManifest(
-        schema_version=value['schema_version'],
-        release_checkpoint=checkpoint,
-        backup_script_sha256=digests[0],
-        backup_wrapper_sha256=digests[1],
-        reporting_exporter_sha256=digests[2],
-        python_resolved_path=python_path,
-        python_sha256=digests[3],
-    )
-
-
-def build_release_manifest_sync(
-    runtime: BackupRuntime,
-    *,
-    expected_checkpoint: str,
-) -> BackupReleaseManifest:
-    """Build reviewed non-secret provenance without writing any file."""
-
-    _assert_production_runtime(runtime)
-    checkpoint = _checkout_checkpoint(runtime)
-    if checkpoint != expected_checkpoint:
-        raise BackupSourceError(
-            'The requested release does not match the clean production '
-            'checkout. No manifest was written.'
-        )
-    _lstat_regular(
-        runtime.source_script,
-        label='tracked backup script',
-        expected_uid=None,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.deployed_script_source,
-        label='tracked backup wrapper',
-        expected_uid=None,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.deployed_script,
-        label='deployed root-controlled backup wrapper',
-        expected_uid=DEPLOYED_SCRIPT_UID,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.reporting_exporter,
-        label='reporting exporter',
-        expected_uid=None,
-        allow_group_write=True,
-    )
-    source_digest = _digest(runtime.source_script)
-    wrapper_digest = _digest(runtime.deployed_script_source)
-    if _digest(runtime.deployed_script) != wrapper_digest:
-        raise BackupSourceError(
-            'The deployed backup wrapper differs from reviewed source. No '
-            'manifest was written.'
-        )
-    try:
-        resolved_python = runtime.reporting_python.resolve(strict=True)
-        same_runtime = os.path.samefile(
-            runtime.reporting_python,
-            runtime.current_executable,
-        )
-    except OSError as exc:
-        raise BackupSourceError(
-            'The reporting runtime could not be verified. No manifest was '
-            'written.'
-        ) from exc
-    _lstat_regular(
-        resolved_python,
-        label='resolved reporting runtime',
-        expected_uid=runtime.current_uid,
-        executable=True,
-    )
-    if not same_runtime:
-        raise BackupSourceError(
-            'The reporting exporter would not use the running bot interpreter. '
-            'No manifest was written.'
-        )
-    return BackupReleaseManifest(
-        schema_version=RELEASE_MANIFEST_SCHEMA,
-        release_checkpoint=checkpoint,
-        backup_script_sha256=source_digest,
-        backup_wrapper_sha256=wrapper_digest,
-        reporting_exporter_sha256=_digest(runtime.reporting_exporter),
-        python_resolved_path=str(resolved_python),
-        python_sha256=_digest(resolved_python),
-    )
-
-
-def write_release_manifest_sync(
-    runtime: BackupRuntime,
-    manifest: BackupReleaseManifest,
-) -> None:
-    """Atomically install one private production release trust record."""
-
-    path = runtime.release_manifest
-    try:
-        existing = path.lstat()
-    except FileNotFoundError:
-        existing = None
-    except OSError as exc:
-        raise BackupSourceError('The release manifest path is unavailable.') from exc
-    if existing is not None and (
-        stat.S_ISLNK(existing.st_mode) or not stat.S_ISREG(existing.st_mode)
-    ):
-        raise BackupSourceError(
-            'The release manifest target must be a regular non-symlink file.'
-        )
-    payload = (
-        json.dumps(manifest.as_dict(), indent=2, sort_keys=True) + '\n'
-    ).encode('utf-8')
-    temporary_path = None
-    file_descriptor = None
-    try:
-        file_descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f'.{path.name}.',
-            suffix='.tmp',
-            dir=path.parent,
-        )
-        temporary_path = Path(temporary_name)
-        os.fchmod(file_descriptor, 0o600)
-        with os.fdopen(file_descriptor, 'wb') as output:
-            file_descriptor = None
-            output.write(payload)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-        directory_descriptor = os.open(
-            path.parent,
-            os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0),
-        )
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
-    except OSError as exc:
-        raise BackupSourceError(
-            'The production backup release manifest could not be installed.'
-        ) from exc
-    finally:
-        if file_descriptor is not None:
-            os.close(file_descriptor)
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 def validate_runtime_sync(
     requester_id: int,
     runtime: BackupRuntime,
-) -> BackupPreflight:
-    """Fail closed before the host script can be spawned."""
+) -> None:
+    """Verify the owner, production identity, and fixed host wrapper."""
 
     if int(requester_id) != int(runtime.owner_id):
         raise BackupPermissionError(
             'Only the configured bot owner can run a production backup.'
         )
     _assert_production_runtime(runtime)
-
-    _lstat_regular(
-        runtime.release_manifest,
-        label='production backup release manifest',
-        expected_uid=runtime.current_uid,
-        private=True,
-    )
-    manifest = _parse_release_manifest(runtime.release_manifest)
-    checkpoint = _checkout_checkpoint(runtime)
-    if checkpoint != manifest.release_checkpoint:
+    if runtime.deployed_script != DEPLOYED_SCRIPT:
         raise BackupSourceError(
-            'The production checkout does not match the reviewed backup '
-            'release. No backup was started.'
-        )
-    _lstat_regular(
-        runtime.source_script,
-        label='tracked backup script',
-        expected_uid=None,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.deployed_script_source,
-        label='tracked backup wrapper',
-        expected_uid=None,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.deployed_script,
-        label='deployed root-controlled backup wrapper',
-        expected_uid=DEPLOYED_SCRIPT_UID,
-        executable=True,
-    )
-    _lstat_regular(
-        runtime.reporting_exporter,
-        label='reporting exporter',
-        expected_uid=None,
-        allow_group_write=True,
-    )
-    try:
-        resolved_python = runtime.reporting_python.resolve(strict=True)
-        same_runtime = os.path.samefile(
-            runtime.reporting_python,
-            runtime.current_executable,
-        )
-    except OSError as exc:
-        raise BackupSourceError(
-            'The reporting runtime could not be verified. No backup was '
-            'started.'
-        ) from exc
-    _lstat_regular(
-        resolved_python,
-        label='resolved reporting runtime',
-        expected_uid=runtime.current_uid,
-        executable=True,
-    )
-    if not same_runtime or str(resolved_python) != manifest.python_resolved_path:
-        raise BackupSourceError(
-            'The reporting exporter is not bound to the reviewed bot runtime. '
+            'The production backup wrapper path is not the fixed host path. '
             'No backup was started.'
         )
-
-    try:
-        source_digest = _digest(runtime.source_script)
-        wrapper_digest = _digest(runtime.deployed_script_source)
-        deployed_digest = _digest(runtime.deployed_script)
-        exporter_digest = _digest(runtime.reporting_exporter)
-        python_digest = _digest(resolved_python)
-    except OSError as exc:
-        raise BackupSourceError(
-            'A reviewed backup release file could not be read safely. No '
-            'backup was started.'
-        ) from exc
-    if (
-        source_digest != manifest.backup_script_sha256
-        or wrapper_digest != manifest.backup_wrapper_sha256
-        or deployed_digest != manifest.backup_wrapper_sha256
-        or exporter_digest != manifest.reporting_exporter_sha256
-        or python_digest != manifest.python_sha256
-    ):
-        raise BackupSourceError(
-            'A backup executable differs from the reviewed release manifest. '
-            'No backup was started.'
-        )
-    return BackupPreflight(
-        source_digest=source_digest,
-        release_checkpoint=checkpoint,
-    )
+    _assert_deployed_wrapper(runtime.deployed_script)
 
 
 async def validate_runtime(
     requester_id: int,
     runtime: BackupRuntime | None = None,
-) -> BackupPreflight:
+) -> None:
     frozen_runtime = runtime or capture_runtime()
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
@@ -805,7 +378,7 @@ async def execute_backup(
     started_monotonic = time.monotonic()
     logger.info(
         'Operator backup started requester=%s requester_description=%r '
-        'guild=%s channel=%s source_digest_verified=true',
+        'guild=%s channel=%s fixed_wrapper_verified=true',
         request.requester_id,
         request.requester_description,
         request.guild_id,

@@ -141,15 +141,13 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn('pg_stat_activity', runbook)
         self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
         self.assertIn(
-            'scripts/manage_production_backup_release.py',
+            '`/operator database backup` deliberately has no '
+            'release-specific preparation',
             runbook,
         )
-        self.assertIn(
-            'P9-M3-PRODUCTION-BACKUP-RELEASE-APPLY',
-            runbook,
-        )
-        self.assertIn('--validate', runbook)
-        self.assertIn('.operator-backup-release.json', runbook)
+        self.assertIn('/srv/polyelo/bin/polyelo-backup', runbook)
+        self.assertNotIn('P9-M3-PRODUCTION-BACKUP-RELEASE-APPLY', runbook)
+        self.assertNotIn('.operator-backup-release.json', runbook)
         self.assertIn('--skip_tasks', runbook)
         self.assertIn('Restart=no', runbook)
         self.assertIn('--confirm-no-global-sync', runbook)

@@ -4,8 +4,6 @@ import asyncio
 from dataclasses import FrozenInstanceError
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -19,9 +17,6 @@ from tests.test_newgame_worker import import_offline_runtime
 backup = import_offline_runtime('modules.operator_backup')
 views = import_offline_runtime('modules.operator_backup_views')
 administration = import_offline_runtime('modules.administration')
-release_tool = import_offline_runtime(
-    'scripts.manage_production_backup_release'
-)
 
 
 def request(**overrides):
@@ -41,15 +36,8 @@ def runtime(**overrides):
         database_name='polytopia2',
         project_root=Path('/srv/polyelo/PolyBot39'),
         owner_id=10,
-        current_uid=os.geteuid(),
         current_username='polyelo',
-        source_script=Path('/missing/source'),
-        deployed_script_source=Path('/missing/wrapper-source'),
         deployed_script=Path('/missing/deployed'),
-        reporting_exporter=Path('/missing/exporter'),
-        reporting_python=Path('/missing/python'),
-        current_executable=Path('/missing/python'),
-        release_manifest=Path('/missing/manifest'),
     )
     values.update(overrides)
     return backup.BackupRuntime(**values)
@@ -59,65 +47,14 @@ def artifact(label='Full database'):
     return backup.BackupArtifact(label, 1234, 1_700_000_000)
 
 
-def make_release_runtime(directory: str):
-    git = shutil.which('git')
-    if git is None:
-        raise unittest.SkipTest('Git CLI is not installed in this runtime image.')
-    root = Path(directory)
-    (root / 'scripts').mkdir()
-    (root / 'deploy').mkdir()
-    (root / '.venv/bin').mkdir(parents=True)
-    source = root / 'scripts/backup_db.sh'
-    wrapper_source = root / 'deploy/polyelo-backup'
-    deployed = root / 'deployed.sh'
-    exporter = root / 'scripts/export_reporting_duckdb.py'
-    python = root / '.venv/bin/python'
-    source.write_bytes(b'#!/bin/sh\nexit 0\n')
-    wrapper_source.write_bytes(b'#!/bin/sh\nexec /reviewed/backup\n')
-    deployed.write_bytes(wrapper_source.read_bytes())
-    exporter.write_bytes(b'print("export")\n')
-    python.write_bytes(b'python-runtime')
-    source.chmod(0o700)
-    wrapper_source.chmod(0o700)
-    deployed.chmod(0o700)
-    exporter.chmod(0o600)
-    python.chmod(0o700)
-    subprocess.run([git, 'init', '-q'], cwd=root, check=True)
-    subprocess.run([git, 'add', 'scripts', 'deploy'], cwd=root, check=True)
-    subprocess.run(
-        [
-            git, '-c', 'user.name=PolyBot Test',
-            '-c', 'user.email=polybot@example.invalid',
-            'commit', '-qm', 'reviewed release',
-        ],
-        cwd=root,
-        check=True,
-    )
-    checkpoint = subprocess.run(
-        [git, 'rev-parse', 'HEAD'],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    value = runtime(
-        project_root=root,
-        source_script=source,
-        deployed_script_source=wrapper_source,
-        deployed_script=deployed,
-        reporting_exporter=exporter,
-        reporting_python=python,
-        current_executable=python,
-        release_manifest=root / backup.RELEASE_MANIFEST_NAME,
-    )
-    return value, checkpoint
-
-
-def production_patches(value):
+def production_patches(value, *, deployed_uid=None):
     return mock.patch.multiple(
         backup,
         PRODUCTION_ROOT=value.project_root,
-        DEPLOYED_SCRIPT_UID=value.current_uid,
+        DEPLOYED_SCRIPT=value.deployed_script,
+        DEPLOYED_SCRIPT_UID=(
+            os.geteuid() if deployed_uid is None else deployed_uid
+        ),
     )
 
 
@@ -154,78 +91,88 @@ class BackupBoundaryTests(unittest.TestCase):
             database_name='polytopia_dev',
             project_root=Path('/home/nelluk/PolyBot39-dev'),
         )
-        with mock.patch.object(Path, 'stat') as stat_path, \
-                mock.patch.object(backup, '_digest') as digest:
+        with mock.patch.object(Path, 'lstat') as lstat_path:
             with self.assertRaises(backup.BackupEnvironmentError):
                 backup.validate_runtime_sync(10, value)
-        stat_path.assert_not_called()
-        digest.assert_not_called()
+        lstat_path.assert_not_called()
 
     def test_non_owner_refuses_before_reading_scripts(self):
-        with mock.patch.object(Path, 'stat') as stat_path:
+        with mock.patch.object(Path, 'lstat') as lstat_path:
             with self.assertRaises(backup.BackupPermissionError):
                 backup.validate_runtime_sync(99, runtime())
-        stat_path.assert_not_called()
+        lstat_path.assert_not_called()
 
-    def test_clean_pinned_release_and_runtime_pass(self):
+    def test_fixed_root_controlled_wrapper_passes(self):
         with tempfile.TemporaryDirectory() as directory:
-            value, checkpoint = make_release_runtime(directory)
+            deployed = Path(directory) / 'polyelo-backup'
+            deployed.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+            deployed.chmod(0o755)
+            value = runtime(
+                project_root=Path(directory),
+                deployed_script=deployed,
+            )
             with production_patches(value):
-                manifest = backup.build_release_manifest_sync(
-                    value,
-                    expected_checkpoint=checkpoint,
-                )
-                backup.write_release_manifest_sync(value, manifest)
                 result = backup.validate_runtime_sync(10, value)
-        self.assertEqual(len(result.source_digest), 64)
-        self.assertEqual(result.release_checkpoint, checkpoint)
+        self.assertIsNone(result)
 
-    def test_matching_scripts_without_pinned_manifest_fail_closed(self):
+    def test_missing_wrapper_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
-            value, _checkpoint = make_release_runtime(directory)
+            deployed = Path(directory) / 'missing-wrapper'
+            value = runtime(
+                project_root=Path(directory),
+                deployed_script=deployed,
+            )
             with production_patches(value), \
                     self.assertRaises(backup.BackupSourceError):
                 backup.validate_runtime_sync(10, value)
 
-    def test_source_and_deployed_symlinks_fail_closed(self):
-        for selected in ('source', 'wrapper_source', 'deployed'):
-            with self.subTest(selected=selected), \
-                    tempfile.TemporaryDirectory() as directory:
-                value, checkpoint = make_release_runtime(directory)
-                with production_patches(value):
-                    manifest = backup.build_release_manifest_sync(
-                        value,
-                        expected_checkpoint=checkpoint,
-                    )
-                    backup.write_release_manifest_sync(value, manifest)
-                    target = {
-                        'source': value.source_script,
-                        'wrapper_source': value.deployed_script_source,
-                        'deployed': value.deployed_script,
-                    }[selected]
-                    original = target.with_name(target.name + '.real')
-                    target.rename(original)
-                    target.symlink_to(original)
-                    with mock.patch.object(
-                        backup,
-                        '_checkout_checkpoint',
-                        return_value=checkpoint,
-                    ), self.assertRaises(backup.BackupSourceError):
-                        backup.validate_runtime_sync(10, value)
-
-    def test_deployed_wrapper_must_match_tracked_wrapper(self):
+    def test_wrapper_symlink_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
-            value, checkpoint = make_release_runtime(directory)
-            value.deployed_script.write_text('#!/bin/sh\nexit 1\n')
-            with production_patches(value), \
-                    self.assertRaisesRegex(
-                        backup.BackupSourceError,
-                        'wrapper differs from reviewed source',
-                    ):
-                backup.build_release_manifest_sync(
-                    value,
-                    expected_checkpoint=checkpoint,
-                )
+            root = Path(directory)
+            real = root / 'real-wrapper'
+            real.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+            real.chmod(0o755)
+            deployed = root / 'polyelo-backup'
+            deployed.symlink_to(real)
+            value = runtime(project_root=root, deployed_script=deployed)
+            with production_patches(value), self.assertRaisesRegex(
+                backup.BackupSourceError,
+                'regular non-symlink',
+            ):
+                backup.validate_runtime_sync(10, value)
+
+    def test_wrapper_must_be_root_controlled_and_not_group_writable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            deployed = Path(directory) / 'polyelo-backup'
+            deployed.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+            deployed.chmod(0o775)
+            value = runtime(
+                project_root=Path(directory),
+                deployed_script=deployed,
+            )
+            with production_patches(value), self.assertRaisesRegex(
+                backup.BackupSourceError,
+                'writable outside root',
+            ):
+                backup.validate_runtime_sync(10, value)
+            deployed.chmod(0o755)
+            with production_patches(
+                value,
+                deployed_uid=os.geteuid() + 1,
+            ), self.assertRaisesRegex(
+                backup.BackupSourceError,
+                'not root-controlled',
+            ):
+                backup.validate_runtime_sync(10, value)
+
+    def test_wrapper_path_cannot_be_substituted(self):
+        value = runtime()
+        with mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
+                self.assertRaisesRegex(
+                    backup.BackupSourceError,
+                    'fixed host path',
+                ):
+            backup.validate_runtime_sync(10, value)
 
     def test_canonical_production_topology_has_no_legacy_home_paths(self):
         self.assertEqual(backup.PRODUCTION_ROOT, Path('/srv/polyelo/PolyBot39'))
@@ -237,58 +184,6 @@ class BackupBoundaryTests(unittest.TestCase):
         paths = backup._artifact_paths(1_700_000_000)
         self.assertTrue(all(str(path).startswith('/srv/polyelo/backups/')
                             for _label, path in paths))
-
-    def test_dirty_exporter_fails_before_execution(self):
-        with tempfile.TemporaryDirectory() as directory:
-            value, checkpoint = make_release_runtime(directory)
-            with production_patches(value):
-                manifest = backup.build_release_manifest_sync(
-                    value,
-                    expected_checkpoint=checkpoint,
-                )
-                backup.write_release_manifest_sync(value, manifest)
-                value.reporting_exporter.write_text('dirty\n', encoding='utf-8')
-                with self.assertRaises(backup.BackupSourceError):
-                    backup.validate_runtime_sync(10, value)
-
-    def test_wrong_checkout_checkpoint_fails_closed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            value, checkpoint = make_release_runtime(directory)
-            with production_patches(value):
-                manifest = backup.build_release_manifest_sync(
-                    value,
-                    expected_checkpoint=checkpoint,
-                )
-                wrong = backup.BackupReleaseManifest(
-                    **{
-                        **manifest.as_dict(),
-                        'release_checkpoint': 'f' * 40,
-                    }
-                )
-                backup.write_release_manifest_sync(value, wrong)
-                with self.assertRaises(backup.BackupSourceError):
-                    backup.validate_runtime_sync(10, value)
-
-    def test_wrong_interpreter_identity_fails_closed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            value, checkpoint = make_release_runtime(directory)
-            other = value.project_root / '.venv/bin/other-python'
-            other.write_bytes(b'other-runtime')
-            other.chmod(0o700)
-            with production_patches(value):
-                manifest = backup.build_release_manifest_sync(
-                    value,
-                    expected_checkpoint=checkpoint,
-                )
-                backup.write_release_manifest_sync(value, manifest)
-                with self.assertRaises(backup.BackupSourceError):
-                    backup.validate_runtime_sync(
-                        10,
-                        runtime(**{
-                            **value.__dict__,
-                            'current_executable': other,
-                        }),
-                    )
 
     def test_result_never_exposes_process_diagnostics(self):
         rendered = backup.format_result(backup.BackupResult(
@@ -325,6 +220,45 @@ class BackupExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(partial.category, 'reporting_failed')
         self.assertEqual(busy.category, 'busy')
         self.assertEqual(failed.category, 'core_failed')
+
+    async def test_spawn_passes_only_the_fixed_wrapper_path(self):
+        process = FakeProcess(0)
+        create = mock.AsyncMock(return_value=process)
+        wrapper = Path('/srv/polyelo/bin/polyelo-backup')
+        with mock.patch.object(
+            backup.asyncio,
+            'create_subprocess_exec',
+            new=create,
+        ):
+            result = await backup._spawn_process(wrapper)
+
+        self.assertIs(result, process)
+        create.assert_awaited_once_with(
+            str(wrapper),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+
+    async def test_execution_revalidates_before_process_spawn(self):
+        validate = mock.AsyncMock(side_effect=backup.BackupSourceError(
+            'wrapper refused'
+        ))
+        spawn = mock.AsyncMock()
+        with mock.patch.object(
+            backup,
+            'validate_runtime',
+            new=validate,
+        ), mock.patch.object(
+            backup,
+            '_spawn_process',
+            new=spawn,
+        ):
+            with self.assertRaisesRegex(backup.BackupSourceError, 'refused'):
+                await backup.execute_backup(request(), runtime=runtime())
+
+        validate.assert_awaited_once()
+        spawn.assert_not_awaited()
 
     async def test_output_capture_is_bounded_while_stream_is_drained(self):
         stream = asyncio.StreamReader()
@@ -506,6 +440,15 @@ class BackupViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         interaction.followup.send.assert_not_awaited()
         self.assertIn('completed', view.status)
 
+    def test_preview_describes_fixed_wrapper_without_release_manifest(self):
+        view = views.BackupConfirmationView(
+            requester_id=10,
+            runner=mock.AsyncMock(),
+        )
+        rendered = str(view.to_components())
+        self.assertIn('fixed host backup wrapper', rendered)
+        self.assertNotIn('release manifest', rendered)
+
     async def test_twelve_minute_bound_leaves_interaction_expiry_margin(self):
         self.assertEqual(backup.MAX_PROCESS_SECONDS, 12 * 60)
         self.assertLessEqual(backup.MAX_PROCESS_SECONDS + 60, 15 * 60)
@@ -578,100 +521,6 @@ class BackupViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         interaction.followup.send.assert_not_awaited()
         self.assertIn('interrupted', view.status)
         self.assertFalse(view.busy)
-
-
-class BackupReleaseToolTests(unittest.TestCase):
-    manifest = backup.BackupReleaseManifest(
-        schema_version=1,
-        release_checkpoint='a' * 40,
-        backup_script_sha256='b' * 64,
-        backup_wrapper_sha256='e' * 64,
-        reporting_exporter_sha256='c' * 64,
-        python_resolved_path='/reviewed/python',
-        python_sha256='d' * 64,
-    )
-
-    def test_nonproduction_refuses_before_inspection(self):
-        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'development'}), \
-                mock.patch.object(
-                    backup,
-                    'build_release_manifest_sync',
-                ) as build:
-            result = release_tool.main(
-                ['--checkpoint', 'a' * 40],
-                runtime=runtime(),
-            )
-        self.assertEqual(result, 2)
-        build.assert_not_called()
-
-    def test_plan_is_read_only_and_apply_requires_exact_confirmation(self):
-        value = runtime()
-        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
-                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
-                mock.patch.object(
-                    backup,
-                    'build_release_manifest_sync',
-                    return_value=self.manifest,
-                ), mock.patch.object(
-                    backup,
-                    'write_release_manifest_sync',
-                ) as write:
-            plan_result = release_tool.main(
-                ['--checkpoint', 'a' * 40],
-                runtime=value,
-            )
-            refused_result = release_tool.main(
-                ['--checkpoint', 'a' * 40, '--apply'],
-                runtime=value,
-            )
-        self.assertEqual((plan_result, refused_result), (0, 2))
-        write.assert_not_called()
-
-    def test_apply_installs_only_after_exact_confirmation(self):
-        value = runtime()
-        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
-                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
-                mock.patch.object(
-                    backup,
-                    'build_release_manifest_sync',
-                    return_value=self.manifest,
-                ), mock.patch.object(
-                    backup,
-                    'write_release_manifest_sync',
-                ) as write:
-            result = release_tool.main(
-                [
-                    '--checkpoint',
-                    'a' * 40,
-                    '--apply',
-                    '--confirm',
-                    backup.RELEASE_MANIFEST_CONFIRMATION,
-                ],
-                runtime=value,
-            )
-        self.assertEqual(result, 0)
-        write.assert_called_once_with(value, self.manifest)
-
-    def test_validate_requires_manifest_preflight_checkpoint_match(self):
-        value = runtime()
-        preflight = backup.BackupPreflight('b' * 64, 'a' * 40)
-        with mock.patch.dict(os.environ, {'POLYBOT_ENV': 'production'}), \
-                mock.patch.object(backup, 'PRODUCTION_ROOT', value.project_root), \
-                mock.patch.object(
-                    backup,
-                    'validate_runtime_sync',
-                    return_value=preflight,
-                ) as validate, mock.patch.object(
-                    backup,
-                    'build_release_manifest_sync',
-                ) as build:
-            result = release_tool.main(
-                ['--checkpoint', 'a' * 40, '--validate'],
-                runtime=value,
-            )
-        self.assertEqual(result, 0)
-        validate.assert_called_once_with(value.owner_id, value)
-        build.assert_not_called()
 
 
 class BackupAdapterTests(unittest.IsolatedAsyncioTestCase):

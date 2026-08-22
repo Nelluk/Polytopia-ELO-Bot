@@ -23,6 +23,9 @@ POLYCHAMPIONS_GUILD_ID = 447883341463814144
 BETA_GUILD_ID = 478571892832206869
 BETA_FEEDBACK_CHANNEL_ID = 480078679930830849
 
+# These path sets describe immutable historical candidate schemas.
+# ``verify_repository`` reads each path from the recorded candidate commit, so
+# a path may remain here after a later production hotfix removes it from HEAD.
 RC4_TO_RC6_SOURCE_PATHS = (
     'uv.lock',
     'deploy/systemd/polyelo.service',
