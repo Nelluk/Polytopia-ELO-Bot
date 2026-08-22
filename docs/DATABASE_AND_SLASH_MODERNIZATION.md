@@ -27270,6 +27270,24 @@ Status: **Active.**
 Authority updated in `AGENTS.md` and
 `docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`.
 
+### 2026-08-22 — Retained ping success response restored
+
+Status: **Implemented in production `master`; operator restart pending.**
+
+- Retained `$ping` now publishes only the ordinary game notification on a
+  successful delivery, matching the legacy response instead of adding the
+  modernization reconciliation sentence with resolved participant and
+  destination counts.
+- A partial/failed committed delivery still publishes the explicit terminal
+  warning so an operator does not accidentally duplicate already-delivered
+  notifications. Native `/game ping` keeps its private/composer reconciliation
+  behavior, and `$pingall` is unchanged.
+- Focused game-ping coverage passed 26 tests with one intentional gated
+  integration skip; whitespace validation passed. No live service, database,
+  Discord, or command-tree action was performed by the implementation.
+
+Files: `modules/game_ping.py` and `tests/test_game_ping_composer.py`.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

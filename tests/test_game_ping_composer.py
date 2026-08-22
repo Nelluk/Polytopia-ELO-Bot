@@ -495,6 +495,7 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
                 result,
                 guilds=(Guild({100: good, 101: bad}),),
                 completion_destination=completion,
+                completion_on_success=False,
             )
         self.assertEqual(len(delivered.delivered_destinations), 1)
         self.assertEqual(
@@ -514,6 +515,53 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([user.id for user in allowed.users], [10, 20])
         self.assertEqual(len(completion.sent), 1)
         self.assertFalse(completion.sent[0][1]['allowed_mentions'].everyone)
+
+    async def test_legacy_prefix_success_needs_no_extra_reconciliation(self):
+        destination_channel = SimpleNamespace(id=100, send=mock.AsyncMock())
+        guild = SimpleNamespace(
+            id=1,
+            get_channel=lambda channel_id: (
+                destination_channel if channel_id == 100 else None
+            ),
+        )
+        completion = SimpleNamespace(
+            id=999,
+            guild=guild,
+            send=mock.AsyncMock(),
+        )
+        result = workers.GamePingCommitResult(
+            guild_id=1,
+            requester_id=10,
+            target_id=10,
+            scope='single',
+            game_ids=(42,),
+            total_games=1,
+            truncated=False,
+            recipient_ids=(10, 20),
+            recipient_names=('User 10', 'User 20'),
+            destinations=(
+                workers.GamePingDestination(
+                    42,
+                    1,
+                    100,
+                    (10, 20),
+                    'side',
+                ),
+            ),
+            text='hello',
+            attachments=(),
+        )
+
+        delivered = await service.deliver_committed(
+            result,
+            guilds=(guild,),
+            completion_destination=completion,
+            completion_on_success=False,
+        )
+
+        self.assertEqual(delivered.failures, ())
+        destination_channel.send.assert_awaited_once()
+        completion.send.assert_not_awaited()
 
     def test_delivery_content_attributes_self_and_staff_on_behalf(self):
         destination = workers.GamePingDestination(42, 1, 100, (10, 20), 'central')
@@ -788,8 +836,9 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
             captured['candidate'] = request
             return loaded
 
-        async def confirm(request, **_kwargs):
+        async def confirm(request, **kwargs):
             captured['commit'] = request
+            captured['confirm_kwargs'] = kwargs
             return 'delivered'
 
         with mock.patch.object(service, 'capture_member', return_value=requester), \
@@ -806,6 +855,7 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured['commit'].scope, 'single')
         self.assertEqual(captured['commit'].text, 'hello world')
         self.assertEqual(captured['commit'].attachments[0].filename, 'note.txt')
+        self.assertFalse(captured['confirm_kwargs']['completion_on_success'])
 
     async def test_prefix_single_keeps_leading_number_when_channel_inference_wins(self):
         author = SimpleNamespace(id=10, display_name='Author', name='author', roles=(), guild=SimpleNamespace(id=1))

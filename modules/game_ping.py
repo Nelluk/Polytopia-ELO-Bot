@@ -734,6 +734,7 @@ async def deliver_committed(
     guilds,
     completion_destination=None,
     requester_description: str | None = None,
+    completion_on_success: bool = True,
 ) -> DeliveryResult:
     """Deliver a committed plan once and publish reconciliation publicly."""
 
@@ -790,7 +791,9 @@ async def deliver_committed(
         delivered.append(destination)
 
     failure_tuple = tuple(failures)
-    if completion_destination is not None:
+    if completion_destination is not None and (
+        failure_tuple or completion_on_success
+    ):
         completion = _completion_message(
             result,
             failure_tuple,
@@ -829,6 +832,7 @@ async def confirm_and_deliver(
     *,
     guilds,
     completion_destination=None,
+    completion_on_success: bool = True,
 ) -> DeliveryResult:
     """Confirm once; pre-commit errors remain retryable, commit is terminal."""
 
@@ -848,6 +852,7 @@ async def confirm_and_deliver(
         guilds=guilds,
         completion_destination=completion_destination,
         requester_description=request.requester.description,
+        completion_on_success=completion_on_success,
     )
 
 
@@ -916,6 +921,7 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
         guilds=getattr(getattr(ctx, 'bot', None), 'guilds', ())
         or getattr(settings.bot, 'guilds', ()),
         completion_destination=ctx.channel,
+        completion_on_success=False,
     )
     return result
 
