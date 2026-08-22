@@ -257,14 +257,13 @@ def _registered_member(discord_id: int):
     return getter(discord_id=int(discord_id))
 
 
-def _game_ids_for_channel(guild_id: int, channel_id: int) -> tuple[int, ...]:
+def _game_ids_for_channel(channel_id: int) -> tuple[int, ...]:
     query = (
         models.Game
         .select(models.Game.id)
         .join(models.GameSide, on=(models.GameSide.game == models.Game.id))
         .where(
-            (models.Game.guild_id == int(guild_id))
-            & (models.Game.is_confirmed == 0)
+            (models.Game.is_confirmed == 0)
             & (
                 (models.Game.game_chan == int(channel_id))
                 | (models.GameSide.team_chan == int(channel_id))
@@ -382,8 +381,9 @@ def _snapshot_game(game) -> GamePingGame:
 
 
 def _load_games_by_ids(
-    guild_id: int,
     game_ids: tuple[int, ...],
+    *,
+    guild_id: int | None = None,
 ) -> tuple[GamePingGame, ...]:
     if not game_ids:
         return ()
@@ -392,11 +392,18 @@ def _load_games_by_ids(
         raise GamePingValidationError(
             f'A notification can include at most {MAX_GAMES} games.'
         )
-    query = models.Game.select().where(
-        (models.Game.guild_id == int(guild_id))
-        & (models.Game.is_confirmed == 0)
-        & (models.Game.id.in_(bounded_ids))
-    ).order_by(-models.Game.id)
+    conditions = [
+        models.Game.is_confirmed == 0,
+        models.Game.id.in_(bounded_ids),
+    ]
+    if guild_id is not None:
+        conditions.append(models.Game.guild_id == int(guild_id))
+    query = (
+        models.Game
+        .select()
+        .where(*conditions)
+        .order_by(-models.Game.id)
+    )
     return tuple(_snapshot_game(game) for game in _prefetch_games(query))
 
 
@@ -474,10 +481,7 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
         inferred_game_id = None
         channel_game_ids = ()
         if request.channel_id is not None:
-            channel_game_ids = _game_ids_for_channel(
-                request.guild_id,
-                request.channel_id,
-            )
+            channel_game_ids = _game_ids_for_channel(request.channel_id)
             if len(channel_game_ids) == 1:
                 inferred_game_id = channel_game_ids[0]
             elif len(channel_game_ids) > 1 and not request.discover_all and request.explicit_game_id is None:
@@ -486,42 +490,56 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
                     'or choose one from the private composer.'
                 )
 
-        requested_ids: list[int] = []
-        if request.explicit_game_id is not None:
-            requested_ids.append(int(request.explicit_game_id))
-        elif inferred_game_id is not None:
-            requested_ids.append(int(inferred_game_id))
-        elif not request.discover_all:
+        selected_game_id = (
+            inferred_game_id
+            if inferred_game_id is not None
+            else request.explicit_game_id
+        )
+        if selected_game_id is None and not request.discover_all:
             raise GamePingLookupError(
                 'Game ID was not included and the current channel does not '
                 'identify one game.'
             )
 
-        total_games = 0
+        selected_games = ()
+        if selected_game_id is not None:
+            selected_games = _load_games_by_ids((int(selected_game_id),))
+            if not selected_games:
+                if inferred_game_id is not None:
+                    raise GamePingLookupError(
+                        f'Game {inferred_game_id} could not be loaded from the '
+                        'current channel.'
+                    )
+                raise GamePingLookupError(
+                    f'Game with ID {request.explicit_game_id} cannot be found.'
+                )
+
+        local_games = ()
+        total_games = len(selected_games)
         truncated = False
         if request.discover_all:
-            all_ids, total_games, truncated = _all_target_game_ids(
+            all_ids, local_total, truncated = _all_target_game_ids(
                 request.guild_id,
                 request.target_id,
             )
-            requested_ids.extend(all_ids)
-        requested_ids = list(dict.fromkeys(requested_ids))[:MAX_GAMES]
-        games = _load_games_by_ids(request.guild_id, tuple(requested_ids))
+            selected_ids = {game.game_id for game in selected_games}
+            available_slots = MAX_GAMES - len(selected_games)
+            local_ids = tuple(
+                game_id for game_id in all_ids
+                if game_id not in selected_ids
+            )[:available_slots]
+            local_games = _load_games_by_ids(
+                local_ids,
+                guild_id=request.guild_id,
+            )
+            total_games = int(local_total)
+            truncated = bool(truncated or local_total > len(local_games))
+
+        games = tuple((*selected_games, *local_games))
         games_by_id = {game.game_id: game for game in games}
 
-        if request.explicit_game_id is not None and request.explicit_game_id not in games_by_id:
-            raise GamePingLookupError(
-                f'Game with ID {request.explicit_game_id} cannot be found in '
-                'this Discord server.'
-            )
-        if inferred_game_id is not None and inferred_game_id not in games_by_id:
-            raise GamePingLookupError(
-                f'Game {inferred_game_id} could not be loaded from the '
-                'current channel.'
-            )
-
-        if requested_ids and not request.discover_all:
-            selected = games_by_id[requested_ids[0]]
+        if selected_game_id is not None and not request.discover_all:
+            selected = games_by_id[int(selected_game_id)]
             if (
                 request.target_id not in {
                     participant.discord_id
@@ -533,7 +551,7 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
                     f'You are not a participant in game {selected.game_id}.'
                 )
 
-        if not request.discover_all or not total_games:
+        if not request.discover_all:
             total_games = len(games)
         return GamePingLoadResult(
             guild_id=int(request.guild_id),
@@ -750,7 +768,10 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
             expected_ids = (int(request.game_ids[0]),)
             truncated = bool(request.truncated)
 
-        games = _load_games_by_ids(request.guild_id, expected_ids)
+        games = _load_games_by_ids(
+            expected_ids,
+            guild_id=(request.guild_id if request.scope == 'all' else None),
+        )
         by_id = {game.game_id: game for game in games}
         if tuple(sorted(by_id)) != tuple(sorted(expected_ids)):
             raise GamePingConflictError(
@@ -804,7 +825,7 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
             for game_id in expected_ids:
                 models.GameLog.write(
                     game_id=int(game_id),
-                    guild_id=int(request.guild_id),
+                    guild_id=int(by_id[int(game_id)].guild_id),
                     message=_audit_message(request, by_id[int(game_id)]),
                 )
 

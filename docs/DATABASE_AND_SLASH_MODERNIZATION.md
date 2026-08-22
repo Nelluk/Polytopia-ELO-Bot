@@ -27224,6 +27224,31 @@ candidate that includes `9e19237`; RC8 remains the rollback/evidence record
 for its original application checkpoint and must not be promoted as though it
 contained P9.32.
 
+### 2026-08-22 — Production cross-guild game-ping inference hotfix
+
+Status: **Implemented in the production master checkout; operator restart
+pending.**
+
+- Traced production game `155905` to its owning PolyChampions guild and its
+  ArcticWolves external side channel. The P4.3 worker regression incorrectly
+  constrained channel inference and explicit game lookup to the invoking
+  guild, unlike the retained prefix behavior and the other modernized
+  server/game-aware commands.
+- Restored global single-game lookup and global channel inference while
+  keeping `all` discovery and confirmation guild-local. A unique channel game
+  again takes precedence over a leading numeric token, which remains part of
+  the authored prefix message, and per-game audit rows use the owning game
+  guild.
+- Added cross-guild inference, local `all` scoping, owner-audit, commit reload,
+  and prefix grammar regression coverage. The focused composer suite passed
+  24 tests; 144 adjacent game detail/map/notes/name/tribe, legacy-name, and
+  staff-help inference tests also passed in an isolated development-profile
+  clone. `git diff --check` passed. Validation made no live database, Discord,
+  service, deployment, schema, or command-tree change.
+
+Files: `modules/game_ping_workers.py`, `modules/game_ping.py`, `modules/games.py`,
+and `tests/test_game_ping_composer.py`.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

@@ -3211,7 +3211,9 @@ class polygames(commands.Cog):
 
         loaded_ids = {candidate.game_id for candidate in loaded.games}
         selected_game_id = (
-            game_id if game_id in loaded_ids else loaded.inferred_game_id
+            loaded.inferred_game_id
+            if loaded.inferred_game_id in loaded_ids
+            else game_id if game_id in loaded_ids else None
         )
         if selected_game_id is None and loaded.games:
             selected_game_id = loaded.games[0].game_id

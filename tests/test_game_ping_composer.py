@@ -83,12 +83,13 @@ def game_snapshot(
     participants=(10, 20),
     destinations=None,
     all_side_channels=True,
+    guild_id=1,
 ):
     if destinations is None:
         destinations = (
             workers.GamePingDestination(
                 game_id,
-                1,
+                guild_id,
                 100,
                 tuple(participants),
                 'central',
@@ -104,7 +105,7 @@ def game_snapshot(
     )
     return workers.GamePingGame(
         game_id=game_id,
-        guild_id=1,
+        guild_id=guild_id,
         name=f'Game {game_id}',
         is_pending=False,
         is_completed=False,
@@ -115,8 +116,20 @@ def game_snapshot(
     )
 
 
-def load_result(*, target_id=10, games=None, all_scope_allowed=True, truncated=False):
+_AUTO_INFERRED = object()
+
+
+def load_result(
+    *,
+    target_id=10,
+    games=None,
+    all_scope_allowed=True,
+    truncated=False,
+    inferred_game_id=_AUTO_INFERRED,
+):
     games = tuple(games or (game_snapshot(),))
+    if inferred_game_id is _AUTO_INFERRED:
+        inferred_game_id = games[0].game_id if len(games) == 1 else None
     return workers.GamePingLoadResult(
         guild_id=1,
         target_id=target_id,
@@ -124,7 +137,7 @@ def load_result(*, target_id=10, games=None, all_scope_allowed=True, truncated=F
         games=games,
         total_games=len(games),
         truncated=truncated,
-        inferred_game_id=games[0].game_id if len(games) == 1 else None,
+        inferred_game_id=inferred_game_id,
         all_scope_allowed=all_scope_allowed,
     )
 
@@ -231,6 +244,20 @@ class GamePingDraftTests(unittest.TestCase):
         with self.assertRaises(workers.GamePingValidationError):
             service.build_draft(('text',), (SimpleNamespace(url='bad'),))
 
+    def test_all_scope_excludes_a_cross_guild_channel_selection(self):
+        result = load_result(games=(
+            game_snapshot(42, guild_id=2),
+            game_snapshot(50, guild_id=1),
+        ))
+        self.assertEqual(
+            service._game_ids_for_scope(
+                result,
+                scope='all',
+                selected_game_id=42,
+            ),
+            (50,),
+        )
+
     def test_attachment_capture_freezes_primitive_metadata_only(self):
         attachment = SimpleNamespace(
             filename='../map.png',
@@ -275,14 +302,48 @@ class GamePingWorkerTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.games = ()
 
+    def test_cross_guild_channel_inference_wins_and_all_discovery_stays_local(self):
+        requester = snapshot()
+        request = workers.GamePingLoadRequest(
+            guild_id=1,
+            requester=requester,
+            target_id=10,
+            explicit_game_id=99,
+            channel_id=100,
+            discover_all=True,
+        )
+        foreign_game = game_snapshot(42, guild_id=2)
+        local_game = game_snapshot(50, guild_id=1)
+
+        def load_games(game_ids, *, guild_id=None):
+            if tuple(game_ids) == (42,) and guild_id is None:
+                return (foreign_game,)
+            if tuple(game_ids) == (50,) and guild_id == 1:
+                return (local_game,)
+            self.fail(f'unexpected game load: {game_ids}, guild_id={guild_id}')
+
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=object()), \
+                mock.patch.object(workers, '_game_ids_for_channel', return_value=(42,)) as infer, \
+                mock.patch.object(workers, '_all_target_game_ids', return_value=((50,), 1, False)), \
+                mock.patch.object(workers, '_load_games_by_ids', side_effect=load_games):
+            result = workers.prepare_candidates(request)
+
+        infer.assert_called_once_with(100)
+        self.assertEqual(result.inferred_game_id, 42)
+        self.assertEqual(tuple(game.game_id for game in result.games), (42, 50))
+        self.assertEqual(result.total_games, 1)
+        self.assertFalse(result.truncated)
+
     def test_atomic_audit_success_and_rollback(self):
         database = FakeDatabase()
         request = commit_request()
-        game = game_snapshot()
+        game = game_snapshot(guild_id=2)
         with mock.patch.object(workers.models, 'db', database), \
                 mock.patch.object(workers, '_registered_member', return_value=object()), \
                 mock.patch.object(workers, '_player_for_guild', return_value=object()), \
-                mock.patch.object(workers, '_load_games_by_ids', return_value=(game,)), \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(game,)) as load, \
                 mock.patch.object(workers, '_destinations_for_game', return_value=game.destinations), \
                 mock.patch.object(workers.models.GameLog, 'write') as write:
             result = workers.commit_notification(request)
@@ -294,6 +355,8 @@ class GamePingWorkerTests(unittest.TestCase):
             self.assertIn('committed a game ping notification request', audit_message)
             self.assertNotIn(' sent a game ping', audit_message)
             self.assertIn(request.requester.description, audit_message)
+            self.assertEqual(write.call_args.kwargs['guild_id'], 2)
+            load.assert_called_once_with((42,), guild_id=None)
         self.assertEqual(database.commits, 1)
         self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
@@ -717,7 +780,7 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
             size=2,
         )
         requester = snapshot(level=5, is_staff=True)
-        loaded = load_result()
+        loaded = load_result(inferred_game_id=None)
         facts = channel_facts()
         captured = {}
 
@@ -743,6 +806,30 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured['commit'].scope, 'single')
         self.assertEqual(captured['commit'].text, 'hello world')
         self.assertEqual(captured['commit'].attachments[0].filename, 'note.txt')
+
+    async def test_prefix_single_keeps_leading_number_when_channel_inference_wins(self):
+        author = SimpleNamespace(id=10, display_name='Author', name='author', roles=(), guild=SimpleNamespace(id=1))
+        context = self._context(author)
+        requester = snapshot(level=5, is_staff=True)
+        loaded = load_result(games=(game_snapshot(42, guild_id=2),))
+        captured = {}
+
+        async def confirm(request, **_kwargs):
+            captured['commit'] = request
+            return 'delivered'
+
+        with mock.patch.object(service, 'capture_member', return_value=requester), \
+                mock.patch.object(service, 'capture_channel_facts', return_value=channel_facts()), \
+                mock.patch.object(workers, 'run_ping_candidates', return_value=loaded), \
+                mock.patch.object(service, 'confirm_and_deliver', side_effect=confirm):
+            outcome = await service.run_prefix_single(
+                context,
+                '99 city island please',
+            )
+
+        self.assertEqual(outcome, 'delivered')
+        self.assertEqual(captured['commit'].game_ids, (42,))
+        self.assertEqual(captured['commit'].text, '99 city island please')
 
     async def test_prefix_all_preserves_staff_target_grammar_without_platform_filter(self):
         author = SimpleNamespace(id=10, display_name='Author', name='author', roles=(), guild=SimpleNamespace(id=1))

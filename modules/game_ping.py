@@ -397,7 +397,10 @@ def _game_ids_for_scope(
     ids = tuple(
         game.game_id
         for game in result.games
-        if result.target_id in {participant.discord_id for participant in game.participants}
+        if game.guild_id == result.guild_id
+        and result.target_id in {
+            participant.discord_id for participant in game.participants
+        }
     )
     if not ids:
         raise workers.GamePingValidationError(
@@ -472,7 +475,8 @@ def preview_message(
         scope_line = 'All incomplete games for the selected target'
         games = tuple(
             game for game in result.games
-            if result.target_id in {
+            if game.guild_id == result.guild_id
+            and result.target_id in {
                 participant.discord_id for participant in game.participants
             }
         )
@@ -856,6 +860,14 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
 
     requester = capture_member(ctx.author, ctx.guild.id)
     raw = str(args or '')
+    frozen_attachments = capture_attachments(attachments)
+    if not raw.strip() and not frozen_attachments:
+        usage = (
+            f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
+            'everyone in game 100.`\nYou can omit the game ID in an '
+            'unambiguous game channel, or attach a file.'
+        )
+        return await _prefix_error(ctx, usage)
     tokens = raw.split()
     explicit_game_id = None
     if tokens:
@@ -865,15 +877,6 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
         except ValueError:
             pass
     text = ' '.join(tokens)
-    frozen_attachments = capture_attachments(attachments)
-    if not text.strip() and not frozen_attachments:
-        usage = (
-            f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
-            'everyone in game 100.`\nYou can omit the game ID in an '
-            'unambiguous game channel, or attach a file.'
-        )
-        return await _prefix_error(ctx, usage)
-    draft = build_draft((text,), frozen_attachments)
     load = await workers.run_ping_candidates(workers.GamePingLoadRequest(
         guild_id=int(ctx.guild.id),
         requester=requester,
@@ -882,8 +885,20 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
         channel_id=int(ctx.channel.id),
         discover_all=False,
     ))
+    if load.inferred_game_id is not None and explicit_game_id is not None:
+        text = ' '.join(raw.split())
+    if not text.strip() and not frozen_attachments:
+        usage = (
+            f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
+            'everyone in game 100.`\nYou can omit the game ID in an '
+            'unambiguous game channel, or attach a file.'
+        )
+        return await _prefix_error(ctx, usage)
+    draft = build_draft((text,), frozen_attachments)
     selected_game_id = (
-        explicit_game_id if explicit_game_id is not None else load.inferred_game_id
+        load.inferred_game_id
+        if load.inferred_game_id is not None
+        else explicit_game_id
     )
     facts = capture_channel_facts(ctx, load)
     request = build_commit_request(
