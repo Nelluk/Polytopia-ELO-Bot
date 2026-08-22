@@ -103,8 +103,8 @@
       "status": "pass",
       "candidate_sha": "fee46e53ef581714dfa6d5f63ffe97fef5f63809",
       "command": "Candidate-tree schema-3 digest, exact live-master ancestry, unchanged RC8 topology/cutover evidence, and internal 7536be3..fee46e5 correctness/adversarial review",
-      "total": 20,
-      "passed": 20,
+      "total": 21,
+      "passed": 21,
       "skipped": 0,
       "failures": [],
       "evidence": [
@@ -113,7 +113,7 @@
         "Verified the schema-3 digest inventory binds the unchanged RC8 15-file production evidence plus bot.py, modules/database_health.py, and modules/utilities.py.",
         "Internal review of the candidate-only release-governance delta covers strict schema-3 validation, historical schema compatibility, and exact candidate-tree hashing.",
         "The beta runtime evidence remains specifically for image polybot-mac-beta:9e19237; the new candidate differs from that tested runtime only in release-governance validator/tests and is not claimed to have been deployed.",
-        "Independent web GPT Pro blocker review is pending and is not included in this local cutover pass."
+        "Independent web GPT Pro review of the public GitHub candidate returned APPROVE with no P0 or P1 production blocker; the review confirmed the runtime resilience, supervisor recovery, release provenance, carried beta evidence, and cutover/rollback path."
       ]
     },
     "offline_suite": {

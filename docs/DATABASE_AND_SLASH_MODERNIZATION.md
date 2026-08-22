@@ -542,7 +542,7 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.32/M7 RC9 is locally release-ready at
+Current active unit: **P9.32/M7 RC9 is externally approved and release-ready at
 `fee46e53ef581714dfa6d5f63ffe97fef5f63809`; RC8 is superseded for promotion
 but retained as historical/rollback evidence.** RC7
 resolved RC6's canonical topology and branch-ancestry
@@ -27282,6 +27282,29 @@ PASS — all five local gates pass; external GPT blocker review remains pending.
 Evidence commit: `83fc41a013c561db61d7a39356531b5b3b28b405`. No production,
 beta, database, Discord, Docker, network, or deployment action is authorized
 by this unit.
+
+### 2026-08-22 — RC9 external blocker review approved
+
+Status: **APPROVE; no P0 or P1 production blocker found.** The independent web
+GPT Pro review inspected public GitHub branch
+`codex/database-slash-modernization`, exact candidate
+`fee46e53ef581714dfa6d5f63ffe97fef5f63809`, and evidence head
+`71be2f7363437180052c0b102c360d10d4df91a1`.
+
+- The review accepted Peewee reset/transaction safety, prefix `check_once`
+  ordering, watchdog exit-75 and self-shutdown behavior, startup/thread
+  ownership, schema-3 provenance, carried beta evidence, and the existing
+  cutover/rollback procedure.
+- The synchronous event-loop probe has no new explicit query timeout. The
+  reviewer classified a backend that accepts a local connection and then
+  hangs indefinitely as a bounded, disclosed non-blocker rather than the
+  PostgreSQL-restart/stale-socket failure addressed by RC9.
+- Production promotion must target exact candidate
+  `fee46e53ef581714dfa6d5f63ffe97fef5f63809`, never evidence head
+  `71be2f7363437180052c0b102c360d10d4df91a1`.
+- This evidence update records approval only. It authorizes no production
+  read, backup, checkout update, database operation, service lifecycle,
+  Discord inspection/apply, or announcement.
 
 ## Resume checklist
 
