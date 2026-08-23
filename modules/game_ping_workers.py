@@ -263,11 +263,8 @@ def _game_ids_for_channel(channel_id: int) -> tuple[int, ...]:
         .select(models.Game.id)
         .join(models.GameSide, on=(models.GameSide.game == models.Game.id))
         .where(
-            (models.Game.is_confirmed == 0)
-            & (
-                (models.Game.game_chan == int(channel_id))
-                | (models.GameSide.team_chan == int(channel_id))
-            )
+            (models.Game.game_chan == int(channel_id))
+            | (models.GameSide.team_chan == int(channel_id))
         )
         .distinct()
         .order_by(models.Game.id)
@@ -384,6 +381,7 @@ def _load_games_by_ids(
     game_ids: tuple[int, ...],
     *,
     guild_id: int | None = None,
+    incomplete_only: bool = True,
 ) -> tuple[GamePingGame, ...]:
     if not game_ids:
         return ()
@@ -392,10 +390,9 @@ def _load_games_by_ids(
         raise GamePingValidationError(
             f'A notification can include at most {MAX_GAMES} games.'
         )
-    conditions = [
-        models.Game.is_confirmed == 0,
-        models.Game.id.in_(bounded_ids),
-    ]
+    conditions = [models.Game.id.in_(bounded_ids)]
+    if incomplete_only:
+        conditions.append(models.Game.is_confirmed == 0)
     if guild_id is not None:
         conditions.append(models.Game.guild_id == int(guild_id))
     query = (
@@ -503,7 +500,10 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
 
         selected_games = ()
         if selected_game_id is not None:
-            selected_games = _load_games_by_ids((int(selected_game_id),))
+            selected_games = _load_games_by_ids(
+                (int(selected_game_id),),
+                incomplete_only=False,
+            )
             if not selected_games:
                 if inferred_game_id is not None:
                     raise GamePingLookupError(
@@ -771,6 +771,7 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
         games = _load_games_by_ids(
             expected_ids,
             guild_id=(request.guild_id if request.scope == 'all' else None),
+            incomplete_only=(request.scope == 'all'),
         )
         by_id = {game.game_id: game for game in games}
         if tuple(sorted(by_id)) != tuple(sorted(expected_ids)):
@@ -784,7 +785,7 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
         recipient_names: list[str] = []
         for game_id in expected_ids:
             game = by_id[game_id]
-            if game.is_confirmed:
+            if request.scope == 'all' and game.is_confirmed:
                 raise GamePingValidationError(
                     f'Game {game.game_id} is no longer incomplete.'
                 )

@@ -103,19 +103,24 @@ def _game_rows(
     return ()
 
 
-def _game_text(rows) -> str:
+def _game_text(rows, *, include_channels: bool = False) -> str:
     if not rows:
         return '*No games match this view.*'
-    return '\n'.join(
-        (
+    rendered = []
+    for row in rows:
+        channel = (
+            f'\n> <#{row.channel_id}>'
+            if include_channels and row.channel_id is not None
+            else ''
+        )
+        rendered.append(
             f'**#{row.game_id} · {row.name}**  '
             f'`{row.status} · {row.outcome}`\n'
             f'> {row.date} · {"Ranked" if row.ranked else "Unranked"}'
             f'{" · Season " + str(row.season) if row.season else ""}\n'
-            f'> {row.roster}'
+            f'> {row.roster}{channel}'
         )
-        for row in rows
-    )
+    return '\n'.join(rendered)
 
 
 class PlayerWorkspace(components_v2.RequesterLayoutView):
@@ -500,10 +505,11 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             f' · {self.completed_filter.title()}'
             if self.section == 'completed' else ''
         )
-        return (
-            f'## {SECTION_LABELS[self.section]}{suffix}\n'
-            f'{_game_text(page_rows)}'
+        game_text = _game_text(
+            page_rows,
+            include_channels=(self.section == 'incomplete'),
         )
+        return f'## {SECTION_LABELS[self.section]}{suffix}\n{game_text}'
 
     def rebuild(self) -> None:
         self.clear_items()

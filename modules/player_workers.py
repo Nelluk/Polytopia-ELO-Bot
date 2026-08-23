@@ -78,6 +78,7 @@ class PlayerGameRow:
     ranked: bool
     season: int | None
     roster: str
+    channel_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -496,6 +497,11 @@ def load_player_workspace(
                     else None
                 ),
                 roster=str(game.get_gamesides_string()),
+                channel_id=(
+                    int(side.team_chan)
+                    if side is not None and side.team_chan
+                    else None
+                ),
             ))
 
         timezone = player_timezone_values.effective_timezone_offset(member) or ''

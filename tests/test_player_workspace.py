@@ -20,7 +20,14 @@ player_views = import_offline_runtime('modules.player_views')
 games = import_offline_runtime('modules.games')
 
 
-def game_row(index, *, status='Completed', outcome='Win', season=None):
+def game_row(
+    index,
+    *,
+    status='Completed',
+    outcome='Win',
+    season=None,
+    channel_id=None,
+):
     return player_workers.PlayerGameRow(
         game_id=index,
         name=f'Game {index}',
@@ -30,6 +37,7 @@ def game_row(index, *, status='Completed', outcome='Win', season=None):
         ranked=True,
         season=season,
         roster='Alpha vs Beta',
+        channel_id=channel_id,
     )
 
 
@@ -229,6 +237,28 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
             for option in view.section_select.options
         }
         self.assertEqual(labels['teams'], 'Team & Squads')
+
+    def test_incomplete_section_restores_side_channel_links_only_there(self):
+        rows = tuple(
+            dataclasses.replace(
+                row,
+                channel_id=(123456789012345678 if row.game_id == 7 else None),
+            )
+            for row in snapshot().games
+        )
+        linked = dataclasses.replace(snapshot(), games=rows)
+        incomplete = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=linked,
+            initial_section='incomplete',
+        )._body()
+        recent = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=linked,
+            initial_section='recent',
+        )._body()
+        self.assertIn('<#123456789012345678>', incomplete)
+        self.assertNotIn('<#123456789012345678>', recent)
 
     async def test_squad_selector_opens_detail_without_requery(self):
         view = self.make_view(initial_section='teams')
@@ -475,6 +505,20 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             get_record=lambda version=None: (8, 4),
             leaderboard_rank=lambda cutoff: (3, 30),
         )
+        side = SimpleNamespace(id=10, team_chan=123456789012345678)
+        game = SimpleNamespace(
+            id=42,
+            name='Linked incomplete game',
+            date=datetime.date(2026, 8, 23),
+            is_pending=False,
+            is_completed=False,
+            is_confirmed=False,
+            is_ranked=True,
+            winner_id=None,
+            league_season=None,
+            has_player=lambda **_kwargs: (True, side),
+            get_gamesides_string=lambda: 'Alpha vs Beta',
+        )
         with (
             mock.patch.object(
                 player_workers.models.db,
@@ -489,7 +533,7 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             mock.patch.object(
                 player_workers.models.Game,
                 'search',
-                return_value=[],
+                return_value=[game],
             ),
             mock.patch.object(
                 player_workers,
@@ -521,6 +565,10 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             (result.global_all_time_wins, result.global_all_time_losses),
             (9, 5),
+        )
+        self.assertEqual(
+            result.games[0].channel_id,
+            123456789012345678,
         )
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.local_elo = 1

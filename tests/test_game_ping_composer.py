@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import AbstractContextManager
 from dataclasses import FrozenInstanceError, replace
+import inspect
 from types import SimpleNamespace
 import time
 import unittest
@@ -84,6 +85,8 @@ def game_snapshot(
     destinations=None,
     all_side_channels=True,
     guild_id=1,
+    is_completed=False,
+    is_confirmed=False,
 ):
     if destinations is None:
         destinations = (
@@ -108,8 +111,8 @@ def game_snapshot(
         guild_id=guild_id,
         name=f'Game {game_id}',
         is_pending=False,
-        is_completed=False,
-        is_confirmed=False,
+        is_completed=is_completed,
+        is_confirmed=is_confirmed,
         participants=participant_rows,
         destinations=tuple(destinations),
         all_side_channels=all_side_channels,
@@ -293,14 +296,78 @@ class GamePingWorkerTests(unittest.TestCase):
         with mock.patch.object(workers.models, 'db', database), \
                 mock.patch.object(workers, '_registered_member', return_value=object()), \
                 mock.patch.object(workers, '_player_for_guild', return_value=player), \
-                mock.patch.object(workers, '_load_games_by_ids', return_value=(game,)):
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(game,)) as load:
             result = workers.prepare_candidates(request)
 
         self.assertEqual(database.connection_opened, 1)
         self.assertEqual(database.connection_closed, 1)
         self.assertEqual(result.games, (game,))
+        load.assert_called_once_with((42,), incomplete_only=False)
         with self.assertRaises(FrozenInstanceError):
             result.games = ()
+
+    def test_completed_single_game_load_and_commit_are_allowed(self):
+        requester = snapshot()
+        completed_game = game_snapshot(
+            is_completed=True,
+            is_confirmed=True,
+        )
+        load_request = workers.GamePingLoadRequest(
+            guild_id=1,
+            requester=requester,
+            target_id=10,
+            channel_id=100,
+            discover_all=False,
+        )
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=object()), \
+                mock.patch.object(workers, '_game_ids_for_channel', return_value=(42,)), \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(completed_game,)) as load:
+            result = workers.prepare_candidates(load_request)
+        self.assertEqual(result.games, (completed_game,))
+        load.assert_called_once_with((42,), incomplete_only=False)
+
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=object()), \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(completed_game,)) as load, \
+                mock.patch.object(workers, '_destinations_for_game', return_value=completed_game.destinations), \
+                mock.patch.object(workers.models.GameLog, 'write') as write:
+            committed = workers.commit_notification(commit_request())
+        self.assertEqual(committed.game_ids, (42,))
+        load.assert_called_once_with(
+            (42,),
+            guild_id=None,
+            incomplete_only=False,
+        )
+        write.assert_called_once()
+
+    def test_all_scope_still_rejects_completed_games(self):
+        completed_game = game_snapshot(
+            is_completed=True,
+            is_confirmed=True,
+        )
+        request = commit_request(scope='all')
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=object()), \
+                mock.patch.object(workers, '_all_target_game_ids', return_value=((42,), 1, False)), \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(completed_game,)) as load:
+            with self.assertRaisesRegex(
+                workers.GamePingValidationError,
+                'no longer incomplete',
+            ):
+                workers.commit_notification(request)
+        load.assert_called_once_with(
+            (42,),
+            guild_id=1,
+            incomplete_only=True,
+        )
+
+    def test_channel_inference_does_not_exclude_confirmed_games(self):
+        source = inspect.getsource(workers._game_ids_for_channel)
+        self.assertNotIn('is_confirmed', source)
 
     def test_cross_guild_channel_inference_wins_and_all_discovery_stays_local(self):
         requester = snapshot()
@@ -315,12 +382,23 @@ class GamePingWorkerTests(unittest.TestCase):
         foreign_game = game_snapshot(42, guild_id=2)
         local_game = game_snapshot(50, guild_id=1)
 
-        def load_games(game_ids, *, guild_id=None):
-            if tuple(game_ids) == (42,) and guild_id is None:
+        def load_games(game_ids, *, guild_id=None, incomplete_only=True):
+            if (
+                tuple(game_ids) == (42,)
+                and guild_id is None
+                and not incomplete_only
+            ):
                 return (foreign_game,)
-            if tuple(game_ids) == (50,) and guild_id == 1:
+            if (
+                tuple(game_ids) == (50,)
+                and guild_id == 1
+                and incomplete_only
+            ):
                 return (local_game,)
-            self.fail(f'unexpected game load: {game_ids}, guild_id={guild_id}')
+            self.fail(
+                f'unexpected game load: {game_ids}, guild_id={guild_id}, '
+                f'incomplete_only={incomplete_only}'
+            )
 
         with mock.patch.object(workers.models, 'db', FakeDatabase()), \
                 mock.patch.object(workers, '_registered_member', return_value=object()), \
@@ -356,7 +434,11 @@ class GamePingWorkerTests(unittest.TestCase):
             self.assertNotIn(' sent a game ping', audit_message)
             self.assertIn(request.requester.description, audit_message)
             self.assertEqual(write.call_args.kwargs['guild_id'], 2)
-            load.assert_called_once_with((42,), guild_id=None)
+            load.assert_called_once_with(
+                (42,),
+                guild_id=None,
+                incomplete_only=False,
+            )
         self.assertEqual(database.commits, 1)
         self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
@@ -582,7 +664,7 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
             target_description='**Actor** (`10`)',
         )
         self_content = service.delivery_content(self_result, destination)
-        self.assertIn('Actor: \\*\\*Actor\\*\\* (\\`10\\`)', self_content)
+        self.assertIn('Actor: **Actor** (`10`)', self_content)
         self.assertNotIn('On behalf of:', self_content)
 
         staff_result = replace(
@@ -593,9 +675,16 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
             target_description='**Target** (`20`)',
         )
         staff_content = service.delivery_content(staff_result, destination)
-        self.assertIn('Actor: \\*\\*Staff\\*\\* (\\`99\\`)', staff_content)
-        self.assertIn('On behalf of: \\*\\*Target\\*\\* (\\`20\\`)', staff_content)
+        self.assertIn('Actor: **Staff** (`99`)', staff_content)
+        self.assertIn('On behalf of: **Target** (`20`)', staff_content)
         self.assertNotIn('@everyone', staff_content)
+        spoofed = replace(
+            staff_result,
+            requester_description='**Someone else** (`10`)',
+        )
+        spoofed_content = service.delivery_content(spoofed, destination)
+        self.assertIn('Actor: Actor (`99`)', spoofed_content)
+        self.assertNotIn('Someone else', spoofed_content)
         completion = service._completion_message(
             staff_result,
             (),

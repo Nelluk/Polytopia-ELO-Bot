@@ -27340,6 +27340,34 @@ Files: `modules/operator_backup.py`, `modules/operator_backup_views.py`,
 `scripts/manage_production_backup_release.py` (removed), focused tests, and the
 current production cutover/modernization records.
 
+### 2026-08-23 — Retained game-ping and incomplete-list parity hotfix
+
+Status: **Implemented and locally checkpointed in production `master`;
+operator restart pending.**
+
+- Restored the legacy single-game notification boundary: explicit and
+  channel-inferred `$ping` plus native `/game ping` can load and revalidate a
+  completed/confirmed game. The `all` scope remains guild-local and
+  incomplete-only, including its authoritative commit-time reload.
+- Corrected game-ping attribution so the generated actor and on-behalf-of
+  labels render their intended bold-name/code-ID Markdown. Only the exact
+  internally generated description shape with the expected Discord ID is
+  rendered; malformed or mismatched descriptions fall back to the primitive
+  actor/target ID instead of trusting authored Markdown.
+- Restored the target player's game-side channel mention in the player
+  workspace's Incomplete section, which retained `$incomplete` opens directly.
+  Recent/completed/season sections remain unchanged, and complex one-player
+  game searches keep their existing channel-link behavior.
+- Focused and adjacent development-profile validation passed 89 tests across
+  game ping, player workspace, game search, slash taxonomy, and the gated ping
+  integration harness, with one intentional database-gated skip. Compilation
+  and whitespace validation passed. No database, Discord, command-tree,
+  service, deployment, or push action was performed.
+
+Files: `modules/game_ping.py`, `modules/game_ping_workers.py`,
+`modules/player_views.py`, `modules/player_workers.py`, focused tests, and this
+record.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

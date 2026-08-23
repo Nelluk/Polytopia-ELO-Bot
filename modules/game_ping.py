@@ -381,7 +381,7 @@ def _game_ids_for_scope(
     if scope == 'single':
         if selected_game_id is None:
             raise workers.GamePingValidationError(
-                'Choose one incomplete game before composing the notification.'
+                'Choose one game before composing the notification.'
             )
         if int(selected_game_id) not in {game.game_id for game in result.games}:
             raise workers.GamePingValidationError(
@@ -679,17 +679,44 @@ def _attribution_labels(
     *,
     requester_description: str | None = None,
 ) -> tuple[str, str | None]:
-    actor = _safe_name(
+    actor = _attribution_label(
         requester_description or result.requester_description,
-        fallback=f'actor ID {result.requester_id}',
+        discord_id=result.requester_id,
+        fallback='Actor',
     )
     target = None
     if result.target_id != result.requester_id:
-        target = _safe_name(
+        target = _attribution_label(
             result.target_description,
-            fallback=f'target ID {result.target_id}',
+            discord_id=result.target_id,
+            fallback='Target',
         )
     return actor, target
+
+
+_ATTRIBUTION_DESCRIPTION = re.compile(
+    r'^\*\*(?P<name>.+)\*\* \(`(?P<discord_id>[1-9][0-9]*)`\)$'
+)
+
+
+def _attribution_label(
+    description: str | None,
+    *,
+    discord_id: int,
+    fallback: str,
+) -> str:
+    """Render only the exact trusted member-description Markdown shape."""
+
+    match = _ATTRIBUTION_DESCRIPTION.fullmatch(str(description or ''))
+    if (
+        match is not None
+        and int(match.group('discord_id')) == int(discord_id)
+    ):
+        return (
+            f'**{match.group("name")}** '
+            f'(`{int(discord_id)}`)'
+        )
+    return f'{fallback} (`{int(discord_id)}`)'
 
 
 def _completion_message(
