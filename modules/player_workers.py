@@ -82,6 +82,14 @@ class PlayerGameRow:
 
 
 @dataclass(frozen=True)
+class PlayerTierRecord:
+    tier: int
+    name: str
+    wins: int
+    losses: int
+
+
+@dataclass(frozen=True)
 class PlayerSquadSummary:
     squad_id: int
     name: str
@@ -151,6 +159,9 @@ class PlayerWorkspaceSnapshot:
     global_rank: int | None
     global_ranked_count: int
     games: tuple[PlayerGameRow, ...]
+    polychamps_wins: int = 0
+    polychamps_losses: int = 0
+    polychamps_tier_records: tuple[PlayerTierRecord, ...] = ()
     squads: tuple[PlayerSquadSummary, ...] = ()
     squad_total: int = 0
     badges: tuple[str, ...] = ()
@@ -328,6 +339,77 @@ def _head_to_head(
         target_discord_id=int(player.discord_member.discord_id),
         target_name=str(player.name),
         target_wins=wins.get(int(player.id), 0),
+    )
+
+
+def _polychamps_record(
+    member,
+) -> tuple[int, int, tuple[PlayerTierRecord, ...]]:
+    """Load one account-wide PolyChampions career record grouped by tier."""
+
+    polychamps_guild_id = int(settings.server_ids['polychampions'])
+    tier_names = {
+        int(tier): str(name)
+        for tier, name in settings.league_tiers
+    }
+    tier_order = {
+        int(tier): index
+        for index, (tier, _name) in enumerate(settings.league_tiers)
+    }
+    win_status = models.Case(
+        None,
+        (((models.GameSide.id == models.Game.winner_id), 1),),
+        0,
+    )
+    rows = (
+        models.Game
+        .select(
+            models.Game.league_tier.alias('tier'),
+            models.fn.COALESCE(
+                models.fn.SUM(win_status),
+                0,
+            ).alias('wins'),
+            models.fn.COALESCE(
+                models.fn.SUM(1 - win_status),
+                0,
+            ).alias('losses'),
+        )
+        .join(models.GameSide, on=(models.Game.id == models.GameSide.game))
+        .join(models.Lineup, on=(models.GameSide.id == models.Lineup.gameside))
+        .join(models.Player, on=(models.Lineup.player == models.Player.id))
+        .where(
+            (models.Player.discord_member == member)
+            & (models.Player.guild_id == polychamps_guild_id)
+            & (models.Game.guild_id == polychamps_guild_id)
+            & (models.Game.is_completed == 1)
+            & (models.Game.is_confirmed == 1)
+            & models.Game.league_tier.is_null(False)
+        )
+        .group_by(models.Game.league_tier)
+        .dicts()
+    )
+    records = tuple(sorted(
+        (
+            PlayerTierRecord(
+                tier=int(row['tier']),
+                name=tier_names.get(
+                    int(row['tier']),
+                    f'Tier {int(row["tier"])}',
+                ),
+                wins=int(row['wins'] or 0),
+                losses=int(row['losses'] or 0),
+            )
+            for row in rows
+        ),
+        key=lambda record: (
+            tier_order.get(record.tier, len(tier_order)),
+            record.tier,
+        ),
+    ))
+    return (
+        sum(record.wins for record in records),
+        sum(record.losses for record in records),
+        records,
     )
 
 
@@ -514,6 +596,11 @@ def load_player_workspace(
             global_scope=True,
         )
         head_to_head = _head_to_head(player, request)
+        (
+            polychamps_wins,
+            polychamps_losses,
+            polychamps_tier_records,
+        ) = _polychamps_record(member)
         squads, squad_total = _squad_summaries(player, request.guild_id)
         try:
             guild_display_name = str(settings.guild_setting(
@@ -558,6 +645,9 @@ def load_player_workspace(
             global_rank=int(global_rank) if global_rank is not None else None,
             global_ranked_count=int(global_count),
             games=tuple(rows),
+            polychamps_wins=polychamps_wins,
+            polychamps_losses=polychamps_losses,
+            polychamps_tier_records=polychamps_tier_records,
             squads=squads,
             squad_total=squad_total,
             badges=_profile_badges(player, request.guild_id),

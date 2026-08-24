@@ -509,6 +509,28 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             page_rows,
             include_channels=(self.section == 'incomplete'),
         )
+        if self.section == 'season':
+            if snapshot.polychamps_tier_records:
+                tier_rows = '\n'.join(
+                    f'**{_safe_text(record.name)}:** '
+                    f'`{record.wins}W–{record.losses}L`'
+                    for record in snapshot.polychamps_tier_records
+                )
+                record_text = (
+                    '## PolyChampions season record\n'
+                    f'**Career total:** `{snapshot.polychamps_wins}W–'
+                    f'{snapshot.polychamps_losses}L`\n'
+                    f'{tier_rows}'
+                )
+            else:
+                record_text = (
+                    '## PolyChampions season record\n'
+                    '*No completed PolyChampions season games.*'
+                )
+            return (
+                f'{record_text}\n\n'
+                f'## {SECTION_LABELS[self.section]}\n{game_text}'
+            )
         return f'## {SECTION_LABELS[self.section]}{suffix}\n{game_text}'
 
     def rebuild(self) -> None:

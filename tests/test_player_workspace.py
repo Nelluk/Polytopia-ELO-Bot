@@ -83,6 +83,22 @@ def snapshot(discord_id=100):
         global_rank=8,
         global_ranked_count=100,
         games=rows,
+        polychamps_wins=17,
+        polychamps_losses=9,
+        polychamps_tier_records=(
+            player_workers.PlayerTierRecord(
+                tier=1,
+                name='Platinum',
+                wins=5,
+                losses=2,
+            ),
+            player_workers.PlayerTierRecord(
+                tier=2,
+                name='Gold',
+                wins=12,
+                losses=7,
+            ),
+        ),
         squads=(
             player_workers.PlayerSquadSummary(
                 squad_id=42,
@@ -259,6 +275,27 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         )._body()
         self.assertIn('<#123456789012345678>', incomplete)
         self.assertNotIn('<#123456789012345678>', recent)
+
+    def test_season_section_restores_career_and_tier_records(self):
+        body = self.make_view(initial_section='season')._body()
+        self.assertIn('## PolyChampions season record', body)
+        self.assertIn('**Career total:** `17W–9L`', body)
+        self.assertIn('**Platinum:** `5W–2L`', body)
+        self.assertIn('**Gold:** `12W–7L`', body)
+        self.assertIn('## Season games', body)
+
+        empty = dataclasses.replace(
+            snapshot(),
+            polychamps_wins=0,
+            polychamps_losses=0,
+            polychamps_tier_records=(),
+        )
+        empty_body = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=empty,
+            initial_section='season',
+        )._body()
+        self.assertIn('No completed PolyChampions season games', empty_body)
 
     async def test_squad_selector_opens_detail_without_requery(self):
         view = self.make_view(initial_section='teams')
@@ -547,6 +584,22 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             ),
             mock.patch.object(
                 player_workers,
+                '_polychamps_record',
+                return_value=(
+                    7,
+                    3,
+                    (
+                        player_workers.PlayerTierRecord(
+                            tier=2,
+                            name='Gold',
+                            wins=7,
+                            losses=3,
+                        ),
+                    ),
+                ),
+            ),
+            mock.patch.object(
+                player_workers,
                 '_squad_summaries',
                 return_value=((), 0),
             ),
@@ -570,6 +623,11 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
             result.games[0].channel_id,
             123456789012345678,
         )
+        self.assertEqual(
+            (result.polychamps_wins, result.polychamps_losses),
+            (7, 3),
+        )
+        self.assertEqual(result.polychamps_tier_records[0].name, 'Gold')
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.local_elo = 1
         connection.__enter__.assert_called_once()
@@ -584,6 +642,46 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
         summary = snapshot().squads[0]
         with self.assertRaises(dataclasses.FrozenInstanceError):
             summary.elo = 1
+
+    def test_polychamps_record_is_one_grouped_cross_guild_read(self):
+        query = mock.MagicMock()
+        query.select.return_value = query
+        query.join.return_value = query
+        query.where.return_value = query
+        query.group_by.return_value = query
+        query.dicts.return_value = (
+            {'tier': 4, 'wins': 2, 'losses': 3},
+            {'tier': 1, 'wins': 5, 'losses': 1},
+        )
+        member = SimpleNamespace(id=10, discord_id=100)
+        with (
+            mock.patch.object(
+                player_workers.models.Game,
+                'select',
+                return_value=query,
+            ),
+            mock.patch.object(
+                player_workers.settings,
+                'league_tiers',
+                ((1, 'Platinum'), (4, 'Bronze')),
+            ),
+            mock.patch.dict(
+                player_workers.settings.server_ids,
+                {'polychampions': 999},
+            ),
+        ):
+            wins, losses, records = player_workers._polychamps_record(member)
+
+        self.assertEqual((wins, losses), (7, 4))
+        self.assertEqual(
+            tuple((row.tier, row.name) for row in records),
+            ((1, 'Platinum'), (4, 'Bronze')),
+        )
+        query.group_by.assert_called_once_with(
+            player_workers.models.Game.league_tier,
+        )
+        query.dicts.assert_called_once_with()
+        self.assertEqual(query.join.call_count, 3)
 
     def test_graph_renderer_is_owned_bounded_and_immutable(self):
         source = inspect.getsource(
