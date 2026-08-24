@@ -67,6 +67,11 @@ logger = logging.getLogger('polybot.' + __name__)
 grad_role_name = 'Nova Grad'           # met graduation requirements and is eligible to sign up for draft
 free_agent_role_name = 'Free Agent'    # signed up for a prior draft but did not get drafted
 novas_role_name = 'The Novas'          # Umbrella newbie role that all of above should also have
+team_assignment_cleanup_role_names = frozenset((
+    novas_role_name,
+    grad_role_name,
+    free_agent_role_name,
+))
 league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
 pc_emoji = '<:PolyChampions:1327340966448730163>'
 leader_role_name = 'House Leader'
@@ -161,7 +166,13 @@ def _derived_league_roles(member, result):
     managed_names.add(league_role_name)
     roles = [role for role in member.roles if role.name not in managed_names]
     if result.team_id is not None:
-        roles = [role for role in roles if not role.name.startswith('Prefers ')]
+        roles = [
+            role for role in roles
+            if (
+                role.name not in team_assignment_cleanup_role_names
+                and not role.name.startswith('Prefers ')
+            )
+        ]
 
     desired_names = []
     missing_names = []

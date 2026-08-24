@@ -243,6 +243,9 @@ class ListenerTests(unittest.IsolatedAsyncioTestCase):
         self.league_role = FakeRole(7, 'League Member')
         self.preference = FakeRole(8, 'Prefers Ronin House')
         self.unrelated = FakeRole(9, 'Tester')
+        self.novas = FakeRole(10, 'The Novas')
+        self.nova_grad = FakeRole(11, 'Nova Grad')
+        self.free_agent = FakeRole(12, 'Free Agent')
         self.guild = FakeGuild((
             self.everyone,
             self.team,
@@ -253,16 +256,32 @@ class ListenerTests(unittest.IsolatedAsyncioTestCase):
             self.league_role,
             self.preference,
             self.unrelated,
+            self.novas,
+            self.nova_grad,
+            self.free_agent,
         ))
         self.cog = league.league(SimpleNamespace())
 
     async def test_commit_precedes_role_edit_and_public_audit(self):
-        before = FakeMember(20, (self.everyone, self.unrelated), self.guild)
+        before = FakeMember(
+            20,
+            (
+                self.everyone,
+                self.unrelated,
+                self.novas,
+                self.nova_grad,
+                self.free_agent,
+            ),
+            self.guild,
+        )
         after = FakeMember(
             20,
             (
                 self.everyone,
                 self.unrelated,
+                self.novas,
+                self.nova_grad,
+                self.free_agent,
                 self.team,
                 self.old_house,
                 self.old_tier,
@@ -309,16 +328,37 @@ class ListenerTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('Old House', role_names)
         self.assertNotIn('Junior Player', role_names)
         self.assertNotIn('Prefers Ronin House', role_names)
+        self.assertNotIn('The Novas', role_names)
+        self.assertNotIn('Nova Grad', role_names)
+        self.assertNotIn('Free Agent', role_names)
 
     async def test_removal_strips_derived_roles_but_keeps_unrelated_roles(self):
         before = FakeMember(
             20,
-            (self.everyone, self.team, self.new_house, self.new_tier, self.league_role),
+            (
+                self.everyone,
+                self.team,
+                self.new_house,
+                self.new_tier,
+                self.league_role,
+                self.novas,
+                self.nova_grad,
+                self.free_agent,
+            ),
             self.guild,
         )
         after = FakeMember(
             20,
-            (self.everyone, self.new_house, self.new_tier, self.league_role, self.unrelated),
+            (
+                self.everyone,
+                self.new_house,
+                self.new_tier,
+                self.league_role,
+                self.unrelated,
+                self.novas,
+                self.nova_grad,
+                self.free_agent,
+            ),
             self.guild,
         )
         removed = result(
@@ -344,7 +384,7 @@ class ListenerTests(unittest.IsolatedAsyncioTestCase):
             await self.cog.on_member_update(before, after)
         self.assertEqual(
             {role.name for role in after.roles},
-            {'@everyone', 'Tester'},
+            {'@everyone', 'Tester', 'The Novas', 'Nova Grad', 'Free Agent'},
         )
 
     async def test_worker_failure_has_no_discord_effect(self):
