@@ -19,6 +19,11 @@ from runtime_config import RuntimeProfile, get_runtime_profile
 
 logger = logging.getLogger('polybot.' + __name__)
 _CHECKPOINT = re.compile(r'^[0-9a-f]{7,40}$')
+_DISCORD_MESSAGE_LINK = re.compile(
+    r'https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/channels/'
+    r'\d{15,22}/\d{15,22}/\d{15,22}(?!\d)',
+    re.IGNORECASE,
+)
 
 
 class StaffHelpError(Exception):
@@ -255,11 +260,22 @@ def _production_embed(
     )
     embed.add_field(
         name='Source channel',
-        value=f'<#{draft.channel_id}> (`{draft.channel_id}`)',
+        value=(
+            f'<#{draft.channel_id}> (`{draft.channel_id}`) — '
+            f'[Open source channel]('
+            f'https://discord.com/channels/{draft.guild_id}/{draft.channel_id})'
+        ),
         inline=False,
     )
     if draft.context:
         embed.add_field(name='Related context', value=draft.context, inline=False)
+        message_link = _DISCORD_MESSAGE_LINK.search(draft.context)
+        if message_link is not None:
+            embed.add_field(
+                name='Related message',
+                value=f'[Open related message]({message_link.group(0)})',
+                inline=False,
+            )
     if draft.game_id is not None and related_game is None:
         embed.add_field(name='Game', value=str(draft.game_id), inline=True)
     if related_game is not None:

@@ -27393,6 +27393,28 @@ operator restart and visual smoke pending.**
 Files: `modules/player_workers.py`, `modules/player_views.py`,
 `tests/test_player_workspace.py`, and this record.
 
+### 2026-08-25 — Staff-help source navigation restored
+
+Status: **Implemented in production `master`; operator restart pending.**
+
+- Every production `/staffhelp` relay now includes an explicit one-click link
+  to the invoking channel in addition to its existing channel mention and ID.
+- When the optional Related context contains a complete Discord guild message
+  URL, the relay promotes the first valid URL to a dedicated Related message
+  link while retaining the authored context. Context without a message URL
+  does not imply that an unrelated preceding message belongs to the report.
+- Focused and adjacent development-profile validation passed 38 tests across
+  staff-help delivery, the feedback modal, slash taxonomy, and document
+  consistency; compilation and whitespace validation passed. Two initial
+  attempts in the production checkout failed
+  closed before test import because the required runtime profile was absent
+  and then its protected production configuration was unreadable. Validation
+  was rerun successfully in an isolated tracked-source copy with the existing
+  development profile. No database, Discord, command-tree, service,
+  deployment, push, or external-message action was performed.
+
+Files: `modules/staff_help.py`, `tests/test_staff_help.py`, and this record.
+
 ## Resume checklist
 
 At the start of a new or compacted task:

@@ -150,8 +150,45 @@ class StaffHelpBackendTests(unittest.TestCase):
         self.assertIn('Please help with a game', embed.title)
         self.assertEqual(
             next(field.value for field in embed.fields if field.name == 'Source channel'),
-            '<#300> (`300`)',
+            '<#300> (`300`) — '
+            '[Open source channel](https://discord.com/channels/200/300)',
         )
+        self.assertNotIn('Related message', {field.name for field in embed.fields})
+
+    def test_production_relay_highlights_discord_message_link_from_context(self):
+        bot, _guild, channel, _helper_role = _route_fakes()
+        message_url = (
+            'https://discord.com/channels/'
+            '447883341463814144/448317497473630229/1409623401123456789'
+        )
+        draft = beta_feedback.build_report_draft(
+            category='help',
+            summary='Please review this message',
+            details='The linked conversation explains the issue.',
+            context=f'This is the relevant post: {message_url}',
+            requester_id=100,
+            requester_display_name='Reporter',
+            guild_id=200,
+            channel_id=300,
+            source='slash',
+        )
+        with mock.patch('settings.guild_setting', side_effect=_setting), \
+                mock.patch.object(
+                    staff_help.staff_help_workers,
+                    'run_find_related_game',
+                    new=mock.AsyncMock(return_value=None),
+                ):
+            asyncio.run(staff_help.relay_production(bot, draft))
+
+        fields = {
+            field.name: field.value
+            for field in channel.send.await_args.kwargs['embed'].fields
+        }
+        self.assertEqual(
+            fields['Related message'],
+            f'[Open related message]({message_url})',
+        )
+        self.assertIn(message_url, fields['Related context'])
 
     def test_missing_channel_or_first_helper_role_fails_closed(self):
         bot, guild, _channel, _helper_role = _route_fakes()
@@ -378,7 +415,11 @@ class StaffHelpBackendTests(unittest.TestCase):
         self.assertIn('PolyELO bug report', kwargs['embed'].title)
         fields = {field.name: field.value for field in kwargs['embed'].fields}
         self.assertEqual(fields['Source server'], 'Source Guild (`200`)')
-        self.assertEqual(fields['Source channel'], '<#300> (`300`)')
+        self.assertEqual(
+            fields['Source channel'],
+            '<#300> (`300`) — '
+            '[Open source channel](https://discord.com/channels/200/300)',
+        )
         self.assertIn('42500', fields['Related game'])
         self.assertEqual(fields['Bot checkpoint'], '`abcdef1`')
         self.assertNotIn(helper_role.mention, central_channel.send.await_args.args[0])
