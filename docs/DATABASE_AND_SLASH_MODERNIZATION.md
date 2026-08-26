@@ -27468,3 +27468,14 @@ the model-free development/production migration modules and scripts. Focused
 offline validation and the exact branch checkpoint are recorded in the unit
 handoff. No DDL, database access, deployment, restart, Discord command sync,
 production access, push, or external message occurred in this unit.
+
+Integration corrections: discovery now excludes old games whose deferred
+deadline is later than the current warning horizon before applying the 501-row
+bound; warning delivery freezes and revalidates the exact protected-through
+date and preserves legacy markers only for the original cycle; dynamic buttons
+carry and validate their deadline; slash/button paths privately defer and then
+publish committed success through the invocation channel with terminal
+reconciliation on publication failure; and warning copy uses only the
+universal slash path plus button, avoiding hard-coded guild prefixes. The
+correction follow-up checkpoint is recorded in the implementation handoff;
+migration apply, deployment, command sync, and live operations remain pending.

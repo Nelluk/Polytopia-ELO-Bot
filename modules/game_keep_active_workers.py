@@ -42,6 +42,7 @@ class KeepActiveRequest:
     require_warning_target: bool = False
     actor_is_staff: bool = False
     as_of: datetime.date | None = None
+    warning_protected_through: datetime.date | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,14 @@ def keep_game_active(request: KeepActiveRequest) -> KeepActiveResult:
             if effective is None:
                 raise KeepActiveValidationError(
                     f'Game {game.id} is not governed by the cleanup policy.'
+                )
+            if (
+                request.require_warning_target
+                and request.warning_protected_through != effective
+            ):
+                raise KeepActiveValidationError(
+                    'This warning is stale; use the current cleanup warning '
+                    'to keep the game active.'
                 )
             if as_of < effective - datetime.timedelta(days=purge.PURGE_WARNING_DAYS):
                 raise KeepActiveValidationError(

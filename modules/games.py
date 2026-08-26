@@ -3042,6 +3042,10 @@ class polygames(commands.Cog):
                 f'Game ID number must be supplied, example: '
                 f'`{ctx.prefix}keepactive 1250`'
             )
+        if not callable(getattr(getattr(ctx, 'channel', None), 'send', None)):
+            return await ctx.send(
+                'The invocation channel cannot receive the public keep-active notice.'
+            )
         try:
             result = await game_keep_active.run(game_keep_active.request(
                 game_id=game_id,
@@ -3061,8 +3065,8 @@ class polygames(commands.Cog):
             await ctx.send(game_keep_active.success_message(result))
         except Exception:
             logger.exception(
-                'Committed prefix keep-active game %s could not publish; do '
-                'not retry the database mutation.',
+                'Keep-active for game %s committed, but its prefix notice '
+                'failed; reconcile manually and do not retry the mutation.',
                 result.game_id,
             )
 
@@ -3072,24 +3076,7 @@ class polygames(commands.Cog):
     )
     @discord.app_commands.describe(game_id='Started incomplete game to keep active.')
     async def keep_active_slash(self, interaction: discord.Interaction, game_id: int):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            result = await game_keep_active.run(game_keep_active.request(
-                game_id=game_id,
-                user=interaction.user,
-                guild_id=interaction.guild_id,
-                channel_id=interaction.channel_id,
-                is_staff=settings.is_staff(interaction.user),
-            ))
-        except game_keep_active_workers.KeepActiveError as exc:
-            return await interaction.followup.send(str(exc), ephemeral=True)
-        except Exception:
-            logger.exception('Slash keep-active failed for game %s', game_id)
-            return await interaction.followup.send(
-                'The game could not be kept active. No database change was committed.',
-                ephemeral=True,
-            )
-        await game_keep_active.respond(interaction, result=result)
+        await game_keep_active.run_slash(interaction, game_id=game_id)
 
     @game_group.command(
         name='show',

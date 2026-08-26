@@ -110,6 +110,7 @@ async def publish_warning_plan(
                         target_guild_id=target.guild_id,
                         channel_id=target.channel_id,
                         as_of=as_of,
+                        protected_through=plan.protected_through,
                     )
                 )
             )

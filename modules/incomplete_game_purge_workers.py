@@ -76,6 +76,7 @@ class WarningDeliveryRequest:
     target_guild_id: int
     channel_id: int
     as_of: datetime.date
+    protected_through: datetime.date | None = None
 
 
 @dataclass(frozen=True)
@@ -193,6 +194,25 @@ def classify_game(
     return None
 
 
+def discovery_deadline_filter(game_model, as_of: datetime.date):
+    """Build the bounded SQL age predicate without starving deferred rows."""
+
+    earliest_warning = as_of - datetime.timedelta(days=57)
+    latest_deferred_warning = as_of + datetime.timedelta(
+        days=PURGE_WARNING_DAYS,
+    )
+    return (
+        (
+            game_model.cleanup_deferred_until.is_null(True)
+            & (game_model.date <= earliest_warning)
+        )
+        | (
+            game_model.cleanup_deferred_until.is_null(False)
+            & (game_model.cleanup_deferred_until <= latest_deferred_warning)
+        )
+    )
+
+
 def discover_incomplete_games(
     request: IncompleteGameDiscoveryRequest,
 ) -> IncompleteGameDiscoveryResult:
@@ -204,10 +224,6 @@ def discover_incomplete_games(
             f'Incomplete-game discovery limit must be between 1 and '
             f'{MAX_PURGE_CANDIDATES}.'
         )
-    earliest_warning = request.as_of - datetime.timedelta(days=57)
-    latest_deferred_warning = request.as_of + datetime.timedelta(
-        days=PURGE_WARNING_DAYS,
-    )
     player_count = fn.COUNT(models.Lineup.id)
     with models.db.connection_context():
         query = (
@@ -232,16 +248,7 @@ def discover_incomplete_games(
                     models.Game.league_season.is_null(True)
                     | (models.Game.league_season == 0)
                 )
-                & (
-                    (models.Game.date <= earliest_warning)
-                    | (
-                        models.Game.cleanup_deferred_until.is_null(False)
-                        & (
-                            models.Game.cleanup_deferred_until
-                            <= latest_deferred_warning
-                        )
-                    )
-                )
+                & discovery_deadline_filter(models.Game, request.as_of)
             )
             .group_by(models.Game.id)
             .having(
@@ -334,25 +341,27 @@ def _warning_was_recorded(
     allow_legacy: bool = True,
 ) -> bool:
     prefix = f'__{int(game_id)}__ - '
+    current_marker = _warning_marker(channel_id, protected_through)
+    legacy_marker = _warning_marker(channel_id)
+    base = (
+        (models.GameLog.guild_id == guild_id)
+        & models.GameLog.message.startswith(prefix)
+    )
+    channel_marker = models.GameLog.message.contains(current_marker + ' ')
+    if allow_legacy:
+        channel_marker |= (
+            models.GameLog.message.contains(legacy_marker + ' ')
+            & ~models.GameLog.message.contains(' deadline=')
+        )
     return (
         models.GameLog
         .select(models.GameLog.id)
-        .where(
-            (models.GameLog.guild_id == guild_id)
-            & models.GameLog.message.startswith(prefix)
-            & models.GameLog.message.contains(
-                _warning_marker(channel_id, protected_through)
-            )
-        )
+        .where(base & channel_marker)
         .exists()
         or (
             allow_legacy
-            and
-            models.GameLog
-            .select(models.GameLog.id)
-            .where(
-                (models.GameLog.guild_id == guild_id)
-                & models.GameLog.message.startswith(prefix)
+            and models.GameLog.select(models.GameLog.id).where(
+                base
                 & models.GameLog.message.contains(PURGE_WARNING_MARKER)
                 & ~models.GameLog.message.contains('channel_id=')
             )
@@ -435,9 +444,9 @@ def load_warning_plan(
                 'game is scheduled for cleanup soon. If the game is still '
                 'active, finish or report it. Otherwise these game channels '
                 f'may be deleted after {protected_through.isoformat()} '
-                f'(the {threshold}-day cleanup deadline). Use `$keepactive '
-                f'{game.id}` or `/game keep-active game_id:{game.id}`, or '
-                'press the **Keep active for 30 days** button to extend it.'
+                f'(the {threshold}-day cleanup deadline). Use `/game '
+                f'keep-active game_id:{game.id}`, or press the **Keep active '
+                'for 30 days** button to extend it.'
             ),
             targets=targets,
         )
@@ -472,6 +481,16 @@ def record_warning_delivery(
                     request.channel_id,
                     SKIPPED_STATE_CHANGED,
                 )
+            current_deadline = effective_protected_through(
+                game, player_count=player_count,
+            )
+            frozen_deadline = request.protected_through or current_deadline
+            if current_deadline != frozen_deadline:
+                return WarningDeliveryResult(
+                    request.game_id,
+                    request.channel_id,
+                    SKIPPED_STATE_CHANGED,
+                )
             current_targets = {
                 (target.guild_id, target.channel_id)
                 for target in _warning_targets(game)
@@ -490,6 +509,10 @@ def record_warning_delivery(
                 game_id=request.game_id,
                 guild_id=request.guild_id,
                 channel_id=request.channel_id,
+                protected_through=frozen_deadline,
+                allow_legacy=(
+                    getattr(game, 'cleanup_deferred_until', None) is None
+                ),
             ):
                 status = WARNING_ALREADY_RECORDED
             else:
@@ -499,9 +522,7 @@ def record_warning_delivery(
                     message=(
                         f'{_warning_marker(
                             request.channel_id,
-                            effective_protected_through(
-                                game, player_count=player_count,
-                            ),
+                            frozen_deadline,
                         )} for '
                         f'incomplete game channel cleanup.'
                     ),

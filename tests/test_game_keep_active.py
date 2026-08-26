@@ -6,12 +6,17 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import discord
+
 from tests.test_newgame_worker import import_offline_runtime
 
 workers = import_offline_runtime('modules.game_keep_active_workers')
 purge = import_offline_runtime('modules.incomplete_game_purge_workers')
 views = import_offline_runtime('modules.game_keep_active_views')
 migration = import_offline_runtime('modules.game_keep_active_migration')
+production = import_offline_runtime('modules.game_keep_active_production_migration')
+service = import_offline_runtime('modules.game_keep_active')
+warning_service = import_offline_runtime('modules.incomplete_game_purge')
 
 TODAY = datetime.date(2026, 8, 9)
 
@@ -54,6 +59,15 @@ class Database:
 
 
 class KeepActivePolicyTests(unittest.TestCase):
+    def test_discovery_filter_excludes_old_rows_with_future_deferrals(self):
+        expression = purge.discovery_deadline_filter(
+            purge.models.Game, TODAY,
+        )
+        sql, _params = purge.models.Game.select().where(expression).sql()
+        self.assertIn('cleanup_deferred_until', sql)
+        self.assertIn('IS NULL', sql.upper())
+        self.assertIn('"cleanup_deferred_until" <=', sql)
+
     def test_effective_deadline_and_strict_boundaries(self):
         loaded = game()
         self.assertEqual(purge.effective_protected_through(loaded), TODAY)
@@ -107,6 +121,21 @@ class KeepActivePolicyTests(unittest.TestCase):
             with self.assertRaises(workers.KeepActivePermissionError):
                 workers._authorize(workers.KeepActiveRequest(77, 9, 'x', 11, actor_is_staff=True), loaded)
 
+    def test_stale_warning_deadline_skips_without_audit(self):
+        loaded = game()
+        database = Database()
+        game_log = SimpleNamespace(write=mock.Mock())
+        models = SimpleNamespace(db=database, GameLog=game_log)
+        request = purge.WarningDeliveryRequest(
+            77, 10, 10, 900, TODAY, TODAY + datetime.timedelta(days=30),
+        )
+        with mock.patch.object(purge, 'models', models), mock.patch.object(
+            purge, '_load_game', return_value=loaded,
+        ):
+            result = purge.record_warning_delivery(request)
+        self.assertEqual(result.status, purge.SKIPPED_STATE_CHANGED)
+        game_log.write.assert_not_called()
+
 
 class KeepActiveSurfaceTests(unittest.TestCase):
     def test_dynamic_button_and_warning_view_are_persistent(self):
@@ -121,6 +150,99 @@ class KeepActiveSurfaceTests(unittest.TestCase):
         self.assertTrue(migration.column_matches_contract(
             migration.ColumnState('date', 'date', 'YES', None)
         ))
+
+    def test_dynamic_callback_passes_game_and_frozen_deadline(self):
+        button = views.KeepActiveButton(discord.ui.Button(
+            label='Keep active for 30 days',
+            custom_id='keep-active:77:2026-08-09',
+        ))
+        interaction = SimpleNamespace()
+        with mock.patch.object(
+            service, 'run_button', new=mock.AsyncMock(),
+        ) as callback:
+            import asyncio
+            asyncio.run(button.callback(interaction))
+        callback.assert_awaited_once()
+        self.assertEqual(callback.await_args.kwargs['game_id'], 77)
+        self.assertEqual(
+            callback.await_args.kwargs['protected_through'], TODAY,
+        )
+
+    def test_public_success_follows_private_defer_and_private_ack(self):
+        events = []
+        class Response:
+            def __init__(self): self.done = False
+            def is_done(self): return self.done
+            async def defer(self, **kwargs): events.append(('defer', kwargs)); self.done = True
+        class Channel:
+            async def send(self, content): events.append(('public', content))
+        class Followup:
+            async def send(self, content, **kwargs): events.append(('followup', content, kwargs))
+        user = SimpleNamespace(id=42)
+        interaction = SimpleNamespace(
+            response=Response(), followup=Followup(), channel=Channel(),
+            user=user, guild_id=10, channel_id=900,
+        )
+        result = workers.KeepActiveResult(77, 10, TODAY, TODAY + datetime.timedelta(days=30), 42)
+        with mock.patch.object(service, 'run', new=mock.AsyncMock(return_value=result)), \
+             mock.patch('settings.is_staff', return_value=False):
+            import asyncio
+            asyncio.run(service.run_button(interaction, game_id=77, protected_through=TODAY))
+        self.assertEqual(events[0][0], 'defer')
+        self.assertEqual(events[1][0], 'public')
+        self.assertEqual(events[2][0], 'followup')
+        self.assertTrue(events[2][2]['ephemeral'])
+
+    def test_warning_publication_includes_persistent_view(self):
+        warning = purge.WarningPlan(
+            77, 60, 'deadline 2026-08-09',
+            (purge.WarningTarget(10, 900, ()),), TODAY,
+        )
+        sent = []
+        class Channel:
+            async def send(self, content, **kwargs): sent.append((content, kwargs))
+        guild = SimpleNamespace(id=10, get_channel=lambda _id: Channel())
+        bot = SimpleNamespace(get_guild=lambda _id: guild)
+        with mock.patch.object(
+            purge, 'run_record_warning_delivery',
+            new=mock.AsyncMock(return_value=purge.WarningDeliveryResult(
+                77, 900, purge.WARNING_RECORDED,
+            )),
+        ):
+            import asyncio
+            asyncio.run(warning_service.publish_warning_plan(
+                warning, bot=bot, source_guild_id=10, as_of=TODAY,
+                staff_channel=None,
+            ))
+        self.assertIsInstance(sent[0][1]['view'], views.KeepActiveView)
+
+    def test_committed_publication_failure_is_terminal(self):
+        events = []
+        class Response:
+            def is_done(self): return True
+        class Channel:
+            async def send(self, _content): raise RuntimeError('gone')
+        class Followup:
+            async def send(self, content, **kwargs): events.append((content, kwargs))
+        interaction = SimpleNamespace(
+            response=Response(), followup=Followup(), channel=Channel(),
+        )
+        result = workers.KeepActiveResult(77, 10, TODAY, TODAY + datetime.timedelta(days=30), 42)
+        import asyncio
+        asyncio.run(service._publish_success(interaction, result))
+        self.assertIn('committed', events[0][0])
+        self.assertIn('do not retry', events[0][0])
+
+    def test_production_policy_and_confirmation_are_fail_closed(self):
+        target = production.MigrationTarget('development', 'polytopia_dev', 'role')
+        with self.assertRaises(production.MigrationSafetyError):
+            production.validate_target(target)
+        with self.assertRaises(production.MigrationSafetyError):
+            production.validate_apply_confirmation('wrong')
+        self.assertEqual(
+            production.plan_migration(None).statements,
+            migration.plan_migration(None).statements,
+        )
 
 
 if __name__ == '__main__':

@@ -17,6 +17,7 @@ def actor_description(user) -> str:
 def request(
     *, game_id: int, user, guild_id: int | None, channel_id: int | None,
     is_staff: bool, button: bool = False, as_of: datetime.date | None = None,
+    protected_through: datetime.date | None = None,
 ):
     return workers.KeepActiveRequest(
         game_id=int(game_id),
@@ -29,6 +30,7 @@ def request(
         require_warning_target=button,
         actor_is_staff=bool(is_staff),
         as_of=as_of,
+        warning_protected_through=protected_through,
     )
 
 
@@ -65,7 +67,57 @@ async def respond(interaction, result=None, error: Exception | None = None):
         raise
 
 
-async def run_button(interaction, *, game_id: int):
+def _sendable_channel(interaction):
+    channel = getattr(interaction, 'channel', None)
+    if channel is None or not callable(getattr(channel, 'send', None)):
+        raise workers.KeepActiveError(
+            'The invocation channel cannot receive the public keep-active notice.'
+        )
+    return channel
+
+
+async def _publish_success(interaction, result):
+    channel = _sendable_channel(interaction)
+    try:
+        await channel.send(success_message(result))
+    except Exception:
+        logger.exception(
+            'Committed keep-active game %s could not publish its public notice; '
+            'do not retry the database mutation.',
+            result.game_id,
+        )
+        terminal = (
+            f'Keep-active for game {result.game_id} committed through '
+            f'{result.new_protected_through.isoformat()}, but its public notice '
+            'failed. Reconcile the notice manually; do not retry the mutation.'
+        )
+        try:
+            await interaction.followup.send(terminal, ephemeral=True)
+        except Exception:
+            logger.exception(
+                'Could not publish keep-active terminal reconciliation for game %s',
+                result.game_id,
+            )
+        return False
+    await interaction.followup.send(
+        'Keep-active committed and posted publicly.', ephemeral=True,
+    )
+    return True
+
+
+async def run_button(
+    interaction,
+    *,
+    game_id: int,
+    protected_through: datetime.date | None = None,
+):
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)
+    try:
+        _sendable_channel(interaction)
+    except workers.KeepActiveError as exc:
+        await interaction.followup.send(str(exc), ephemeral=True)
+        return None
     user = interaction.user
     # The cog-level permission helper is intentionally not used here: button
     # requests must resolve the game globally before applying the owning-guild
@@ -79,18 +131,48 @@ async def run_button(interaction, *, game_id: int):
             channel_id=interaction.channel_id,
             is_staff=settings.is_staff(user),
             button=True,
+            protected_through=protected_through,
         ))
     except workers.KeepActiveError as exc:
-        await respond(interaction, error=exc)
+        await interaction.followup.send(str(exc), ephemeral=True)
         return None
     except Exception:
         logger.exception('Keep-active button failed for game %s', game_id)
-        await respond(
-            interaction,
-            error=workers.KeepActiveError(
-                'The game could not be kept active. No database change was committed.'
-            ),
+        await interaction.followup.send(
+            'The game could not be kept active. No database change was committed.',
+            ephemeral=True,
         )
         return None
-    await respond(interaction, result=value)
+    await _publish_success(interaction, value)
+    return value
+
+
+async def run_slash(interaction, *, game_id: int):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        _sendable_channel(interaction)
+    except workers.KeepActiveError as exc:
+        await interaction.followup.send(str(exc), ephemeral=True)
+        return None
+    user = interaction.user
+    import settings
+    try:
+        value = await run(request(
+            game_id=game_id,
+            user=user,
+            guild_id=interaction.guild_id,
+            channel_id=interaction.channel_id,
+            is_staff=settings.is_staff(user),
+        ))
+    except workers.KeepActiveError as exc:
+        await interaction.followup.send(str(exc), ephemeral=True)
+        return None
+    except Exception:
+        logger.exception('Slash keep-active failed for game %s', game_id)
+        await interaction.followup.send(
+            'The game could not be kept active. No database change was committed.',
+            ephemeral=True,
+        )
+        return None
+    await _publish_success(interaction, value)
     return value

@@ -29,9 +29,13 @@ class KeepActiveButton(discord.ui.DynamicItem[discord.ui.Button], template=CUSTO
 
     async def callback(self, interaction: discord.Interaction):
         from modules import game_keep_active
+        match = self.template.fullmatch(self.custom_id)
         await game_keep_active.run_button(
             interaction,
-            game_id=int(self.template.match(self.custom_id).group('game_id')),
+            game_id=int(match.group('game_id')),
+            protected_through=datetime.date.fromisoformat(
+                match.group('deadline')
+            ),
         )
 
 
