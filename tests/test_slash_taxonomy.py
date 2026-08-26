@@ -148,6 +148,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'start',
                 'win',
                 'ranked',
+                'keep-active',
                 'map',
                 'side',
                 'notes',

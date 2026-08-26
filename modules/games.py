@@ -72,6 +72,9 @@ from modules import game_deletion
 from modules import game_join_leave
 from modules import game_join_workers
 from modules import game_kick_workers
+from modules import game_keep_active
+from modules import game_keep_active_workers
+from modules import game_keep_active_views
 from modules import game_start, game_start_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
@@ -256,6 +259,7 @@ class polygames(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        game_keep_active_views.register_dynamic_item(bot)
         if settings.run_tasks:
             self.bg_task = asyncio.create_task(self.task_purge_game_channels())
             self.bg_task2 = asyncio.create_task(self.task_set_champion_role())
@@ -3028,6 +3032,64 @@ class polygames(commands.Cog):
             channel_id=channel_id or 0,
             game_id=int(game_search),
         )
+
+    @commands.command(name='keepactive', usage='game_id')
+    async def keep_active(self, ctx, game_id: int = None):
+        """Keep a started incomplete game active for another 30 days."""
+
+        if game_id is None:
+            return await ctx.send(
+                f'Game ID number must be supplied, example: '
+                f'`{ctx.prefix}keepactive 1250`'
+            )
+        try:
+            result = await game_keep_active.run(game_keep_active.request(
+                game_id=game_id,
+                user=ctx.author,
+                guild_id=getattr(ctx.guild, 'id', None),
+                channel_id=getattr(ctx.channel, 'id', None),
+                is_staff=settings.is_staff(ctx.author),
+            ))
+        except game_keep_active_workers.KeepActiveError as exc:
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Prefix keep-active failed for game %s', game_id)
+            return await ctx.send(
+                'The game could not be kept active. No database change was committed.'
+            )
+        try:
+            await ctx.send(game_keep_active.success_message(result))
+        except Exception:
+            logger.exception(
+                'Committed prefix keep-active game %s could not publish; do '
+                'not retry the database mutation.',
+                result.game_id,
+            )
+
+    @game_group.command(
+        name='keep-active',
+        description='Keep a started incomplete game active for 30 days.',
+    )
+    @discord.app_commands.describe(game_id='Started incomplete game to keep active.')
+    async def keep_active_slash(self, interaction: discord.Interaction, game_id: int):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await game_keep_active.run(game_keep_active.request(
+                game_id=game_id,
+                user=interaction.user,
+                guild_id=interaction.guild_id,
+                channel_id=interaction.channel_id,
+                is_staff=settings.is_staff(interaction.user),
+            ))
+        except game_keep_active_workers.KeepActiveError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Slash keep-active failed for game %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be kept active. No database change was committed.',
+                ephemeral=True,
+            )
+        await game_keep_active.respond(interaction, result=result)
 
     @game_group.command(
         name='show',

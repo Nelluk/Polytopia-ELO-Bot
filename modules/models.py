@@ -1189,6 +1189,7 @@ class Game(BaseModel):
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.date.today)
+    cleanup_deferred_until = DateField(null=True, default=None)
     completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated (the first time, preserved for subsequent recalcs)
     win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)

@@ -17,7 +17,7 @@ from modules.database_schema_contract import (
     REQUIRED_TABLES,
     WINNER_FOREIGN_KEY_SQL,
 )
-from modules import player_badges_migration
+from modules import game_keep_active_migration, player_badges_migration
 
 
 class StartupSchemaPreflightError(RuntimeError):
@@ -149,6 +149,26 @@ def inspect_startup_schema(
                     'Startup schema is missing the required player.badges '
                     'column. Stop the writer and run only the separately '
                     'reviewed badge migration operation for this environment.'
+                )
+
+            try:
+                table_exists, cleanup_column = (
+                    game_keep_active_migration.schema_metadata(cursor)
+                )
+                cleanup_plan = game_keep_active_migration.plan_migration(
+                    cleanup_column,
+                    table_exists=table_exists,
+                )
+            except game_keep_active_migration.MigrationSafetyError as exc:
+                raise StartupSchemaPreflightError(
+                    'Startup schema has an incompatible game.cleanup_deferred_until '
+                    'column. Run the separately reviewed keep-active migration.'
+                ) from exc
+            if not cleanup_plan.already_applied:
+                raise StartupSchemaPreflightError(
+                    'Startup schema is missing game.cleanup_deferred_until. '
+                    'Stop the writer and run only the separately reviewed '
+                    'keep-active migration operation.'
                 )
 
             cursor.execute(WINNER_FOREIGN_KEY_SQL)

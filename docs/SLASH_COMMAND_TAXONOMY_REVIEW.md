@@ -418,6 +418,7 @@ base `136ad4d`):
 | `/game notes` | `gamenotes` | View notes; optional text/modal edits them |
 | `/game side` | `gameside` | View a side; optional name/assignment edits it |
 | `/game ranked` | `rankset`, `rankunset` | View ranked state; optional Boolean changes it with staff permission; Native as `/game ranked` in P4.5 |
+| `/game keep-active` | `keepactive` | Participant/staff renewal of an eligible started incomplete game; native direct action with required integer `game_id`; retained `$keepactive` |
 
 Bulk tribe assignment remains on the prefix path initially. A later native
 bulk editor should be interaction-driven rather than a long opaque argument.

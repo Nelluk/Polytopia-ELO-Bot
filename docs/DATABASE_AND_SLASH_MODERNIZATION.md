@@ -27436,3 +27436,35 @@ At the end of every unit:
 4. Record commit hashes, PR/merge state, and beta acceptance if applicable.
 5. Record limitations and the single recommended next action.
 6. Ensure the progress log has a dated entry.
+
+### P5.17 — Bounded game keep-active renewal
+
+Status: **Implemented locally; migration, command sync, deployment, and live
+schema apply pending.**
+
+Accepted policy: `/game keep-active game_id` and retained `$keepactive
+<game_id>` renew only started, incomplete, non-confirmed, non-season games in
+the P5.14 threshold matrix. Ranked games with seven or more players remain
+exempt. The strict purge rule is `as_of > max(Game.date + threshold,
+cleanup_deferred_until)`, and renewal is available only in the three-day
+warning window or after the deadline. Renewal stores a nullable dedicated
+`Game.cleanup_deferred_until` date as `max(as_of, effective_deadline) + 30
+days`; it never reuses `Game.date`, pending expiration, notes, or logs.
+
+Participants may renew globally by exact game ID. Staff must invoke from the
+owning guild. A warning button additionally requires its current recorded
+guild/channel target, allowing participants in external team-server channels
+while auditing under the owning guild. The worker reloads and locks the game,
+uses the existing ELO/game coordinator and lock, commits the date plus
+protected audit atomically, and publishes only afterward. Dynamic persistent
+buttons are registered at startup with no message scan. Warning markers carry
+the concrete deadline; legacy generic markers suppress only the original
+non-deferred cycle.
+
+Implementation files: `modules/game_keep_active_workers.py`,
+`modules/game_keep_active.py`, `modules/game_keep_active_views.py`, model and
+P5.14 warning/purge updates, command registration in `modules/games.py`, and
+the model-free development/production migration modules and scripts. Focused
+offline validation and the exact branch checkpoint are recorded in the unit
+handoff. No DDL, database access, deployment, restart, Discord command sync,
+production access, push, or external message occurred in this unit.

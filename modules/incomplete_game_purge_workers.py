@@ -50,6 +50,7 @@ class _DiscoveredGame:
     league_season: int | None
     is_ranked: bool
     date: datetime.date
+    cleanup_deferred_until: datetime.date | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class WarningPlan:
     threshold_days: int
     message: str
     targets: tuple[WarningTarget, ...]
+    protected_through: datetime.date | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +126,26 @@ def purge_threshold_days(player_count: int, is_ranked: bool) -> int | None:
     return None
 
 
+def base_protected_through(game, *, player_count: int | None = None):
+    if player_count is None:
+        player_count = len(tuple(getattr(game, 'lineup', ()) or ()))
+    threshold = purge_threshold_days(
+        int(player_count), bool(getattr(game, 'is_ranked', False))
+    )
+    game_date = getattr(game, 'date', None)
+    if threshold is None or game_date is None:
+        return None
+    return game_date + datetime.timedelta(days=threshold)
+
+
+def effective_protected_through(game, *, player_count: int | None = None):
+    base = base_protected_through(game, player_count=player_count)
+    if base is None:
+        return None
+    deferred = getattr(game, 'cleanup_deferred_until', None)
+    return max(base, deferred) if deferred is not None else base
+
+
 def _is_started_incomplete(game) -> bool:
     if bool(getattr(game, 'is_pending', False)):
         return False
@@ -159,13 +181,14 @@ def classify_game(
     game_date = getattr(game, 'date', None)
     if threshold is None or game_date is None:
         return None
-    delete_cutoff = as_of - datetime.timedelta(days=threshold)
-    if game_date < delete_cutoff:
-        return PURGED
-    warning_cutoff = as_of - datetime.timedelta(
-        days=threshold - PURGE_WARNING_DAYS,
+    effective_date = effective_protected_through(
+        game, player_count=player_count,
     )
-    if delete_cutoff <= game_date <= warning_cutoff:
+    if effective_date is None:
+        return None
+    if as_of > effective_date:
+        return PURGED
+    if as_of >= effective_date - datetime.timedelta(days=PURGE_WARNING_DAYS):
         return 'warning'
     return None
 
@@ -182,6 +205,9 @@ def discover_incomplete_games(
             f'{MAX_PURGE_CANDIDATES}.'
         )
     earliest_warning = request.as_of - datetime.timedelta(days=57)
+    latest_deferred_warning = request.as_of + datetime.timedelta(
+        days=PURGE_WARNING_DAYS,
+    )
     player_count = fn.COUNT(models.Lineup.id)
     with models.db.connection_context():
         query = (
@@ -190,6 +216,7 @@ def discover_incomplete_games(
                 models.Game.id,
                 models.Game.date,
                 models.Game.is_ranked,
+                models.Game.cleanup_deferred_until,
                 player_count.alias('player_count'),
             )
             .join(
@@ -205,7 +232,16 @@ def discover_incomplete_games(
                     models.Game.league_season.is_null(True)
                     | (models.Game.league_season == 0)
                 )
-                & (models.Game.date <= earliest_warning)
+                & (
+                    (models.Game.date <= earliest_warning)
+                    | (
+                        models.Game.cleanup_deferred_until.is_null(False)
+                        & (
+                            models.Game.cleanup_deferred_until
+                            <= latest_deferred_warning
+                        )
+                    )
+                )
             )
             .group_by(models.Game.id)
             .having(
@@ -230,6 +266,7 @@ def discover_incomplete_games(
             league_season=None,
             is_ranked=bool(row['is_ranked']),
             date=row['date'],
+            cleanup_deferred_until=row.get('cleanup_deferred_until'),
         )
         action = classify_game(
             candidate,
@@ -281,8 +318,11 @@ def _load_game(game_id: int, guild_id: int, *, lock: bool = False):
         return None
 
 
-def _warning_marker(channel_id: int) -> str:
-    return f'{PURGE_WARNING_MARKER} channel_id={int(channel_id)}'
+def _warning_marker(channel_id: int, protected_through=None) -> str:
+    marker = f'{PURGE_WARNING_MARKER} channel_id={int(channel_id)}'
+    if protected_through is not None:
+        marker += f' deadline={protected_through.isoformat()}'
+    return marker
 
 
 def _warning_was_recorded(
@@ -290,6 +330,8 @@ def _warning_was_recorded(
     game_id: int,
     guild_id: int,
     channel_id: int,
+    protected_through=None,
+    allow_legacy: bool = True,
 ) -> bool:
     prefix = f'__{int(game_id)}__ - '
     return (
@@ -298,10 +340,14 @@ def _warning_was_recorded(
         .where(
             (models.GameLog.guild_id == guild_id)
             & models.GameLog.message.startswith(prefix)
-            & models.GameLog.message.contains(_warning_marker(channel_id))
+            & models.GameLog.message.contains(
+                _warning_marker(channel_id, protected_through)
+            )
         )
         .exists()
         or (
+            allow_legacy
+            and
             models.GameLog
             .select(models.GameLog.id)
             .where(
@@ -366,24 +412,32 @@ def load_warning_plan(
         ) != 'warning':
             return None
         threshold = purge_threshold_days(player_count, bool(game.is_ranked))
+        protected_through = effective_protected_through(
+            game, player_count=player_count,
+        )
         targets = tuple(
             target for target in _warning_targets(game)
             if not _warning_was_recorded(
                 game_id=int(game.id),
                 guild_id=int(request.guild_id),
                 channel_id=target.channel_id,
+                protected_through=protected_through,
+                allow_legacy=getattr(game, 'cleanup_deferred_until', None) is None,
             )
         )
         rank_text = 'ranked' if game.is_ranked else 'unranked'
         return WarningPlan(
             game_id=int(game.id),
             threshold_days=int(threshold),
+            protected_through=protected_through,
             message=(
                 f'Warning: this incomplete {rank_text} {player_count}-player '
                 'game is scheduled for cleanup soon. If the game is still '
                 'active, finish or report it. Otherwise these game channels '
-                f'may be deleted after {threshold} days from the game start '
-                'date.'
+                f'may be deleted after {protected_through.isoformat()} '
+                f'(the {threshold}-day cleanup deadline). Use `$keepactive '
+                f'{game.id}` or `/game keep-active game_id:{game.id}`, or '
+                'press the **Keep active for 30 days** button to extend it.'
             ),
             targets=targets,
         )
@@ -443,7 +497,12 @@ def record_warning_delivery(
                     game_id=request.game_id,
                     guild_id=request.guild_id,
                     message=(
-                        f'{_warning_marker(request.channel_id)} for '
+                        f'{_warning_marker(
+                            request.channel_id,
+                            effective_protected_through(
+                                game, player_count=player_count,
+                            ),
+                        )} for '
                         f'incomplete game channel cleanup.'
                     ),
                     is_protected=True,

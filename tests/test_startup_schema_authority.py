@@ -46,9 +46,17 @@ class FakeCursor:
         elif 'information_schema.tables' in normalized:
             self.rows = [(table,) for table in self.connection.tables]
         elif 'information_schema.columns' in normalized:
-            self.rows = [(
-                'ARRAY', '_text', 'NO', 'ARRAY[]::text[]',
-            )] if self.connection.badges else []
+            column_name = str((params or ('', ''))[-1])
+            if column_name == 'badges':
+                self.rows = [(
+                    'ARRAY', '_text', 'NO', 'ARRAY[]::text[]',
+                )] if self.connection.badges else []
+            elif column_name == 'cleanup_deferred_until':
+                self.rows = [(
+                    'date', 'date', 'YES', None,
+                )] if self.connection.cleanup else []
+            else:
+                self.rows = []
         elif 'from pg_constraint' in normalized:
             self.rows = [(self.connection.winner_foreign_key,)]
         else:
@@ -69,11 +77,13 @@ class FakeConnection:
         tables=REQUIRED_TABLES,
         winner_foreign_key=True,
         badges=True,
+        cleanup=True,
     ):
         self.identity = identity
         self.tables = tables
         self.winner_foreign_key = winner_foreign_key
         self.badges = badges
+        self.cleanup = cleanup
         self.statements = []
         self.session = None
         self.closed = False
@@ -169,7 +179,7 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             {'readonly': True, 'autocommit': True},
         )
         self.assertTrue(connection.closed)
-        self.assertEqual(len(connection.statements), 6)
+        self.assertEqual(len(connection.statements), 8)
         for statement in connection.statements:
             normalized = ' '.join(statement.split()).upper()
             self.assertTrue(
@@ -213,6 +223,16 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 preflight.StartupSchemaPreflightError,
                 'missing the required player.badges',
+            ):
+                preflight.inspect_startup_schema(request())
+        self.assertTrue(connection.closed)
+
+    def test_missing_keep_active_column_fails_closed(self):
+        connection = FakeConnection(cleanup=False)
+        with mock.patch.object(preflight, '_connect', return_value=connection):
+            with self.assertRaisesRegex(
+                preflight.StartupSchemaPreflightError,
+                'missing game.cleanup_deferred_until',
             ):
                 preflight.inspect_startup_schema(request())
         self.assertTrue(connection.closed)

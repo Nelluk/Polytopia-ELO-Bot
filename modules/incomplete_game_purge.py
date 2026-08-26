@@ -6,7 +6,12 @@ import datetime
 import logging
 
 import settings
-from modules import channels, game_deletion, incomplete_game_purge_workers
+from modules import (
+    channels,
+    game_deletion,
+    game_keep_active_views,
+    incomplete_game_purge_workers,
+)
 from modules.elo_jobs import EloJobConflict
 
 
@@ -68,7 +73,18 @@ async def publish_warning_plan(
             message = f'{message}\n{" ".join(target.mentions)}'
         try:
             channel = await _resolve_channel(bot, target)
-            await channel.send(message)
+            if plan.protected_through is None:
+                # Compatibility for an old in-memory plan during rolling
+                # upgrades; all model-backed plans carry the deadline.
+                await channel.send(message)
+            else:
+                await channel.send(
+                    message,
+                    view=game_keep_active_views.KeepActiveView(
+                        plan.game_id,
+                        plan.protected_through,
+                    ),
+                )
         except Exception:
             logger.exception(
                 'Could not send incomplete-game warning for game %s to %s/%s',
