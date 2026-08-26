@@ -113,14 +113,33 @@ def schema_metadata(cursor):
 
 
 def inspect_migration(connection, *, target):
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT current_database(), current_user')
-        identity = cursor.fetchone()
-        validate_target_identity(
-            target, actual_database=identity[0], actual_user=identity[1],
-        )
-        table_exists, column = schema_metadata(cursor)
-    return plan_migration(column, table_exists=table_exists)
+    """Inspect schema metadata in an explicitly read-only transaction.
+
+    Verification must never inherit a caller's writable transaction state.  A
+    failed read-only assertion is terminal and the transaction is rolled back
+    on both success and failure so a connection cannot leak an open snapshot.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SET TRANSACTION READ ONLY')
+            cursor.execute('SHOW transaction_read_only')
+            readonly = cursor.fetchone()
+            if not readonly or str(readonly[0]).casefold() != 'on':
+                raise MigrationSafetyError(
+                    'Migration inspection connection is not transaction read-only.'
+                )
+            cursor.execute('SELECT current_database(), current_user')
+            identity = cursor.fetchone()
+            validate_target_identity(
+                target, actual_database=identity[0], actual_user=identity[1],
+            )
+            table_exists, column = schema_metadata(cursor)
+        plan = plan_migration(column, table_exists=table_exists)
+        connection.rollback()
+        return plan
+    except Exception:
+        connection.rollback()
+        raise
 
 
 def apply_migration(connection, *, target, confirmation):

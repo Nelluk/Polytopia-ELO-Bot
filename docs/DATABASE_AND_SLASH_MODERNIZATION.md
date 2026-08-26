@@ -27479,3 +27479,11 @@ reconciliation on publication failure; and warning copy uses only the
 universal slash path plus button, avoiding hard-coded guild prefixes. The
 correction follow-up checkpoint is recorded in the implementation handoff;
 migration apply, deployment, command sync, and live operations remain pending.
+
+Final correction validation adds explicitly read-only, rollback-isolated
+development and production migration verification, exact production identity
+and confirmation refusal coverage, idempotent apply and DDL/lock/post-verify
+rollback fakes, plan-only CLI checks, and explicit legacy channel-marker cycle
+regressions. Full offline discovery passed 2,305 tests with 92 intentional
+skips; focused and adjacent validation, compilation, and diff checks also
+passed. No real database or live service was used.

@@ -58,6 +58,12 @@ def verify_migration(connection, *, target, policy=PRODUCTION_POLICY):
     try:
         with connection.cursor() as cursor:
             cursor.execute('SET TRANSACTION READ ONLY')
+            cursor.execute('SHOW transaction_read_only')
+            readonly = cursor.fetchone()
+            if not readonly or str(readonly[0]).casefold() != 'on':
+                raise MigrationSafetyError(
+                    'Production verification connection is not transaction read-only.'
+                )
             cursor.execute('SELECT current_database(), current_user')
             identity = cursor.fetchone()
             validate_live_identity(target, actual_database=identity[0], actual_user=identity[1], policy=policy)

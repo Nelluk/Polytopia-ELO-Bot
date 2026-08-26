@@ -68,6 +68,41 @@ class KeepActivePolicyTests(unittest.TestCase):
         self.assertIn('IS NULL', sql.upper())
         self.assertIn('"cleanup_deferred_until" <=', sql)
 
+    def test_original_cycle_accepts_legacy_channel_marker(self):
+        current_query = mock.MagicMock()
+        current_query.where.return_value.exists.return_value = True
+        game_log = mock.MagicMock()
+        game_log.select.return_value = current_query
+        models = SimpleNamespace(GameLog=game_log)
+        with mock.patch.object(purge, 'models', models):
+            self.assertTrue(purge._warning_was_recorded(
+                game_id=77,
+                guild_id=10,
+                channel_id=500,
+                protected_through=TODAY,
+                allow_legacy=True,
+            ))
+        # The legacy lookup is still a channel-scoped lookup; a new deadline
+        # must be represented by the exact deadline-bearing marker instead.
+        self.assertEqual(game_log.select.call_count, 1)
+
+    def test_deferred_cycle_does_not_accept_old_channel_marker(self):
+        current_query = mock.MagicMock()
+        current_query.where.return_value.exists.return_value = False
+        game_log = mock.MagicMock()
+        game_log.select.return_value = current_query
+        models = SimpleNamespace(GameLog=game_log)
+        with mock.patch.object(purge, 'models', models):
+            self.assertFalse(purge._warning_was_recorded(
+                game_id=77,
+                guild_id=10,
+                channel_id=500,
+                protected_through=TODAY + datetime.timedelta(days=30),
+                allow_legacy=False,
+            ))
+        # Deferred cycles intentionally skip the second, generic legacy query.
+        self.assertEqual(game_log.select.call_count, 1)
+
     def test_effective_deadline_and_strict_boundaries(self):
         loaded = game()
         self.assertEqual(purge.effective_protected_through(loaded), TODAY)
