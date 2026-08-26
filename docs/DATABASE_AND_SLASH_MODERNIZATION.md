@@ -27458,16 +27458,18 @@ while auditing under the owning guild. The worker reloads and locks the game,
 uses the existing ELO/game coordinator and lock, commits the date plus
 protected audit atomically, and publishes only afterward. Dynamic persistent
 buttons are registered at startup with no message scan. Warning markers carry
-the concrete deadline; legacy generic markers suppress only the original
-non-deferred cycle.
+the concrete deadline; legacy game-wide and channel-specific markers suppress
+only the original non-deferred cycle.
 
 Implementation files: `modules/game_keep_active_workers.py`,
 `modules/game_keep_active.py`, `modules/game_keep_active_views.py`, model and
 P5.14 warning/purge updates, command registration in `modules/games.py`, and
 the model-free development/production migration modules and scripts. Focused
-offline validation and the exact branch checkpoint are recorded in the unit
-handoff. No DDL, database access, deployment, restart, Discord command sync,
-production access, push, or external message occurred in this unit.
+offline validation and the exact branch checkpoints are recorded here:
+implementation `518aff17`, warning-cycle correction `2db7794c`, and final
+correction `54caf4b0`. No DDL, database access, deployment, restart, Discord
+command sync, production access, push, or external message occurred in this
+unit.
 
 Integration corrections: discovery now excludes old games whose deferred
 deadline is later than the current warning horizon before applying the 501-row
@@ -27484,6 +27486,6 @@ Final correction validation adds explicitly read-only, rollback-isolated
 development and production migration verification, exact production identity
 and confirmation refusal coverage, idempotent apply and DDL/lock/post-verify
 rollback fakes, plan-only CLI checks, and explicit legacy channel-marker cycle
-regressions. Full offline discovery passed 2,305 tests with 92 intentional
-skips; focused and adjacent validation, compilation, and diff checks also
-passed. No real database or live service was used.
+regressions. The final focused/adjacent suite passed 67 tests; full offline
+discovery passed 2,305 tests with 92 intentional skips. Compilation and diff
+checks also passed. No real database or live service was used.
