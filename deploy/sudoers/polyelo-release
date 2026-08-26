@@ -1,0 +1,4 @@
+# Allow the human administrator's Codex session to invoke only the fixed,
+# root-controlled, no-argument PolyElo release wrapper.
+Cmnd_Alias POLYELO_RELEASE = /srv/polyelo/bin/polyelo-release ""
+nelluk ALL=(root) NOPASSWD: POLYELO_RELEASE

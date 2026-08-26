@@ -13,6 +13,23 @@ This file provides guidance to coding agents when working with code in this repo
 - Do not chmod `/var/run/docker.sock`, change group membership, add sudo rules,
   or authorize mutating Docker operations based only on sandbox results.
 
+## Constrained production release wrapper
+
+- The tracked wrapper source is `deploy/polyelo-release`; its fixed installed
+  path is `/srv/polyelo/bin/polyelo-release`. Read
+  `docs/PRODUCTION_RELEASE_WRAPPER.md` before changing or invoking it.
+- Invoke `sudo -n /srv/polyelo/bin/polyelo-release` only after Nelluk has
+  explicitly authorized the production release, including its service,
+  additive-schema, and fixed guild-command effects. The passwordless rule is
+  an OS capability, not standing deployment authorization.
+- The production checkout must already be clean on `master`. The wrapper does
+  not fetch, merge, reset, restore, or install dependencies. It accepts no
+  arguments and leaves `polyelo.service` stopped if an unprivileged release
+  step fails.
+- Add reviewed idempotent migrations to
+  `scripts/production_release.sh`; do not broaden sudoers, expose production
+  configuration, or add arbitrary arguments for normal releases.
+
 ## GreenCloud development-beta deployment
 
 - Before every beta setup, deploy, start, stop, restart, status, log, or Beta

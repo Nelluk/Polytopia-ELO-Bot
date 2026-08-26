@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# Root-controlled entrypoint for one approved PolyElo production release.
+# Source preparation remains an ordinary Git operation performed as nelluk;
+# this wrapper owns only the fixed service/account boundary.
+
+set -euo pipefail
+
+PROJECT_ROOT=/srv/polyelo/PolyBot39
+RELEASE_RUNNER=$PROJECT_ROOT/scripts/production_release.sh
+SERVICE=polyelo.service
+LOCK_FILE=/run/lock/polyelo-release.lock
+
+fail() {
+  echo "polyelo-release: $*" >&2
+  exit 2
+}
+
+if (( $# != 0 )); then
+  fail 'this command accepts no arguments'
+fi
+if (( EUID != 0 )); then
+  fail 'this command must run as root through the fixed sudoers rule'
+fi
+
+exec 9>"$LOCK_FILE"
+/usr/bin/flock -n 9 || fail 'another PolyElo release is already running'
+
+cd "$PROJECT_ROOT"
+git_as_editor=(
+  /usr/sbin/runuser -u nelluk --
+  /usr/bin/git -C "$PROJECT_ROOT"
+)
+[[ $("${git_as_editor[@]}" symbolic-ref --quiet --short HEAD) == master ]] \
+  || fail 'production checkout must be on master'
+[[ -z $("${git_as_editor[@]}" status --porcelain=v1 --untracked-files=normal) ]] \
+  || fail 'production checkout must be clean'
+[[ -f $RELEASE_RUNNER && ! -L $RELEASE_RUNNER ]] \
+  || fail 'tracked release runner must be a regular non-symlink file'
+[[ -x .venv/bin/python ]] || fail 'production Python is unavailable'
+[[ -r config.ini && -r server_settings.py ]] \
+  || fail 'production configuration is unavailable to the root wrapper'
+/usr/bin/systemctl is-active --quiet "$SERVICE" \
+  || fail 'production service must be active before release'
+
+release_sha=$("${git_as_editor[@]}" rev-parse HEAD)
+echo "polyelo-release: deploying $release_sha"
+
+/usr/bin/systemctl stop "$SERVICE"
+if /usr/bin/systemctl is-active --quiet "$SERVICE"; then
+  fail 'production service did not stop cleanly'
+fi
+
+if ! /usr/sbin/runuser -u polyelo -- /usr/bin/env \
+    HOME=/srv/polyelo \
+    POLYBOT_ENV=production \
+    XDG_CONFIG_HOME=/srv/polyelo/.config \
+    XDG_CACHE_HOME=/srv/polyelo/.cache \
+    XDG_DATA_HOME=/srv/polyelo/.local/share \
+    MPLCONFIGDIR=/srv/polyelo/.cache/matplotlib \
+    PYTHONDONTWRITEBYTECODE=1 \
+    /usr/bin/bash "$RELEASE_RUNNER"; then
+  fail 'release steps failed; polyelo.service remains stopped'
+fi
+
+/usr/bin/systemctl start "$SERVICE"
+/usr/bin/sleep 3
+/usr/bin/systemctl is-active --quiet "$SERVICE" \
+  || fail 'release steps completed but production service is not active'
+
+echo "polyelo-release: $release_sha is active"
