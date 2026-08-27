@@ -1,0 +1,141 @@
+# Default self-hosted stack: PolyBot plus bundled PostgreSQL. Run this file
+# directly with `docker compose`; no repository wrapper is required.
+
+x-bot-runtime: &bot-runtime
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      POLYBOT_UID: ${POLYBOT_UID:-1000}
+      POLYBOT_GID: ${POLYBOT_GID:-1000}
+  image: ${POLYBOT_IMAGE:-polybot:local}
+  environment:
+    POLYBOT_ENV: production
+  init: true
+  user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  volumes:
+    - type: bind
+      source: ./config.ini
+      target: /app/config.ini
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./server_settings.py
+      target: /app/server_settings.py
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./data/images
+      target: /app/data/images
+    - type: bind
+      source: ./logs
+      target: /app/logs
+  stop_signal: SIGINT
+  stop_grace_period: 45s
+
+services:
+  database:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
+      PGDATA: /var/lib/postgresql/18/docker
+      POLYBOT_DATABASE_NAME: ${POLYBOT_DATABASE_NAME:?Set POLYBOT_DATABASE_NAME in .env}
+      POLYBOT_DATABASE_USER: ${POLYBOT_DATABASE_USER:?Set POLYBOT_DATABASE_USER in .env}
+      POLYBOT_DATABASE_PASSWORD: ${POLYBOT_DATABASE_PASSWORD:?Set POLYBOT_DATABASE_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./deploy/docker/init-postgres.sh:/docker-entrypoint-initdb.d/10-polybot.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  bot:
+    <<: *bot-runtime
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+
+  schema:
+    <<: *bot-runtime
+    profiles: ["tools"]
+    depends_on:
+      database:
+        condition: service_healthy
+    entrypoint: ["python", "scripts/manage_schema.py"]
+    command: []
+    restart: "no"
+
+  backup:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
+    profiles: ["tools"]
+    user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      PGHOST: database
+      PGPORT: "5432"
+      PGDATABASE: ${POLYBOT_DATABASE_NAME:?Set POLYBOT_DATABASE_NAME in .env}
+      PGUSER: ${POLYBOT_DATABASE_USER:?Set POLYBOT_DATABASE_USER in .env}
+      PGPASSWORD: ${POLYBOT_DATABASE_PASSWORD:?Set POLYBOT_DATABASE_PASSWORD in .env}
+      POLYBOT_BACKUP_PREFIX: ${POLYBOT_BACKUP_PREFIX:-polybot}
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./deploy/docker/backup-postgres.sh:/usr/local/bin/backup-postgres:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-postgres"]
+    restart: "no"
+
+  restore:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
+    profiles: ["tools"]
+    user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      PGHOST: database
+      PGPORT: "5432"
+      PGDATABASE: ${POLYBOT_DATABASE_NAME:?Set POLYBOT_DATABASE_NAME in .env}
+      PGUSER: ${POLYBOT_DATABASE_USER:?Set POLYBOT_DATABASE_USER in .env}
+      PGPASSWORD: ${POLYBOT_DATABASE_PASSWORD:?Set POLYBOT_DATABASE_PASSWORD in .env}
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups:ro
+      - ./deploy/docker/restore-postgres.sh:/usr/local/bin/restore-postgres:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/restore-postgres"]
+    restart: "no"
+
+volumes:
+  postgres_data:
+    external: true
+    name: ${POSTGRES_VOLUME_NAME:?Set POSTGRES_VOLUME_NAME in .env}

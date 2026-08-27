@@ -5,11 +5,10 @@ application, guild, PostgreSQL database, and credentials. Documents mentioning
 GreenCloud, `/srv/polyelo`, fixed PolyElo guild IDs, or modernization release
 candidates describe the upstream deployment and are not required here.
 
-The Compose files under `deploy/container/` are likewise the upstream
-development-beta environment, with fixed safety identities. They are not a
-drop-in production alternative to this guide. Contributors intentionally
-running that beta should begin with its
-[`deploy/container` guide](../deploy/container/README.md).
+For a self-contained installation using bundled PostgreSQL, follow the root
+[Docker Compose guide](DOCKER.md). The older Compose files under
+`deploy/container/` remain the upstream development-beta deployment until it is
+migrated and are not the public interface.
 
 ## Requirements
 

@@ -10,8 +10,13 @@ config.ini
 config.development.ini
 server_settings.py
 server_settings_dev.py
+.env
+.env.*
+!.env.example
+!.env.host-postgres.example
 
 data/images
+backups
 data/development/images
 logs
 deploy/container/backups

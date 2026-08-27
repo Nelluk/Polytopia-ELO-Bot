@@ -69,11 +69,14 @@ The complete guide covers PostgreSQL creation, configuration fields, schema
 upgrades, slash-command deployment, service operation, backups, and Discord
 permissions: **[Self-hosting PolyBot](docs/SELF_HOSTING.md)**.
 
-The repository also includes a container stack, but it is an advanced,
-development-only upstream beta environment with fixed safety identities—not a
-generic production Compose recipe. Contributors should start with the
-[container-stack guide](deploy/container/README.md) and use its `./polybot`
-wrapper rather than assembling raw Compose commands.
+For a self-contained Docker installation, use the root `compose.yaml` directly.
+It provides the bot, bundled PostgreSQL with an external named volume, explicit
+schema and backup jobs, and ordinary Docker Compose lifecycle commands:
+**[Run PolyBot with Docker Compose](docs/DOCKER.md)**.
+
+The older files under `deploy/container/` remain the current upstream beta
+deployment until that runtime is migrated. They are not the public
+self-hosting interface.
 
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).

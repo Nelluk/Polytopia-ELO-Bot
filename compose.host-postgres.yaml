@@ -1,0 +1,87 @@
+# Linux deployment using an already managed PostgreSQL server through its
+# local Unix socket. This file never creates or owns database storage.
+
+x-bot-runtime: &bot-runtime
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      POLYBOT_UID: ${POLYBOT_UID:-1000}
+      POLYBOT_GID: ${POLYBOT_GID:-1000}
+  image: ${POLYBOT_IMAGE:-polybot:local}
+  environment:
+    POLYBOT_ENV: production
+  init: true
+  user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  volumes:
+    - type: bind
+      source: ./config.ini
+      target: /app/config.ini
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./server_settings.py
+      target: /app/server_settings.py
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./data/images
+      target: /app/data/images
+    - type: bind
+      source: ./logs
+      target: /app/logs
+    - type: bind
+      source: ${POSTGRES_SOCKET_DIR:-/var/run/postgresql}
+      target: /var/run/postgresql
+      read_only: true
+  stop_signal: SIGINT
+  stop_grace_period: 45s
+
+services:
+  bot:
+    <<: *bot-runtime
+    restart: unless-stopped
+
+  schema:
+    <<: *bot-runtime
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/manage_schema.py"]
+    command: []
+    restart: "no"
+
+  backup:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
+    profiles: ["tools"]
+    user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      PGHOST: /var/run/postgresql
+      PGPORT: "5432"
+      PGDATABASE: ${POLYBOT_DATABASE_NAME:?Set POLYBOT_DATABASE_NAME in .env}
+      PGUSER: ${POLYBOT_DATABASE_USER:?Set POLYBOT_DATABASE_USER in .env}
+      PGPASSWORD: ${POLYBOT_DATABASE_PASSWORD:-}
+      POLYBOT_BACKUP_PREFIX: ${POLYBOT_BACKUP_PREFIX:-polybot}
+    volumes:
+      - ./backups:/backups
+      - ./deploy/docker/backup-postgres.sh:/usr/local/bin/backup-postgres:ro
+      - type: bind
+        source: ${POSTGRES_SOCKET_DIR:-/var/run/postgresql}
+        target: /var/run/postgresql
+        read_only: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-postgres"]
+    restart: "no"

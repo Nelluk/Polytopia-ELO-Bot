@@ -25,6 +25,8 @@ config.ini
 config.development.ini
 server_settings.py
 server_settings_dev.py
+.env
+backups/
 deploy/container/.env
 deploy/container/backups/
 deploy/container/config.development.ini
