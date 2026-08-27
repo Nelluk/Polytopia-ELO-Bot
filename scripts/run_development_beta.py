@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
             environ=os.environ,
             create_directories=True,
         )
-        checkpoint = validate_beta_launch(
+        validate_beta_launch(
             profile,
             arguments,
             environ=os.environ,
@@ -159,7 +159,6 @@ def main(argv: list[str] | None = None) -> int:
             require_service_environment=True,
         )
         paths = operation_paths(profile, create=True)
-        os.environ['POLYBOT_BETA_CHECKPOINT'] = checkpoint
         # Preserve the venv entry-point path across exec. Resolving this
         # symlink selects the base interpreter and loses its site-packages.
         python = PROJECT_ROOT / '.venv/bin/python'

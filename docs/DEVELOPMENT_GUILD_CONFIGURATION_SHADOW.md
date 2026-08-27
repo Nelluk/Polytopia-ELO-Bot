@@ -69,10 +69,10 @@ POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-beta/log
 
 Use the established stopped-writer gate when batching this with the complete
 development PostgreSQL suite. For beta deployment, restart only the durable
-development service from a clean reviewed accumulation checkpoint and verify:
+development service from clean reviewed source and verify:
 
 1. exactly one host-wide development writer and zero restart churn;
-2. the authenticated development application and expected checkpoint;
+2. the authenticated development application and Docker image identity;
 3. one `status=matched promotion_ready=true` shadow log line;
 4. ordinary development command behavior remains healthy; and
 5. ordinary prefix/slash behavior still uses static settings.

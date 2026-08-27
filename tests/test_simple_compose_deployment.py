@@ -70,7 +70,9 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('./polybot', compose)
         self.assertNotIn('  database:', compose)
         self.assertIn('COMPOSE_FILE=compose.beta.yaml', environment)
-        self.assertIn('docker compose up -d bot', guide)
+        self.assertIn('docker compose up -d --build', guide)
+        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)
+        self.assertNotIn('POLYBOT_BETA_CHECKPOINT', compose + environment + guide)
         self.assertNotIn('./polybot', guide)
         self.assertNotIn('./polybot', compose)
 
@@ -98,7 +100,8 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             encoding='utf-8'
         )
 
-        self.assertIn('POLYBOT_SOURCE_CHECKPOINT:', compose)
+        self.assertIn('image: ${POLYBOT_IMAGE:-polyelo-production:local}', compose)
+        self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
         self.assertIn('source: ./spreadsheet_creds.json', compose)
         self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
         self.assertIn('source: ./data/images', compose)
@@ -107,6 +110,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('COMPOSE_FILE=compose.production.yaml', environment)
         self.assertIn('COMPOSE_PROJECT_NAME=polyelo-production', environment)
         self.assertIn('Status: **prepared but inactive**', guide)
+        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)
         self.assertNotIn('  database:', compose)
         self.assertNotIn('ports:', compose)
         self.assertNotIn('./polybot', compose)
@@ -118,8 +122,20 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('CMD ["python", "bot.py"]', dockerfile)
         self.assertNotIn('POLYBOT_ENV', dockerfile)
         self.assertNotIn('run_development_beta.py', dockerfile)
-        self.assertIn('ARG POLYBOT_SOURCE_CHECKPOINT=unknown', dockerfile)
-        self.assertIn('/usr/local/share/polybot/image-checkpoint', dockerfile)
+        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', dockerfile)
+        self.assertNotIn('POLYBOT_IMAGE_CHECKPOINT', dockerfile)
+        self.assertNotIn('/usr/local/share/polybot/image-checkpoint', dockerfile)
+
+    def test_all_compose_bot_runtimes_declare_compose_supervision(self):
+        for name in (
+            'compose.yaml',
+            'compose.host-postgres.yaml',
+            'compose.production.yaml',
+            'compose.beta.yaml',
+        ):
+            with self.subTest(name=name):
+                compose = (self.root / name).read_text(encoding='utf-8')
+                self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
 
     def test_shell_assets_are_syntactically_valid(self):
         for name in (

@@ -42,9 +42,17 @@ The cleanup deliberately retains:
 - exact development application, guild, database, and role validation;
 - startup schema preflight and disabled startup command synchronization;
 - the database-wide advisory writer lock and supervised process lock;
-- exact image/checkpoint provenance and no-published-port boundary;
+- Docker image identity and the no-published-port boundary;
 - the normal schema planning service and historical mirror tooling; and
 - generic application, database, and Discord regression tests.
 
 Production and its data were outside this cleanup. No production service,
 configuration, schema, command tree, or database action was part of it.
+
+## Residual low-priority cleanup
+
+The runtime feature removal is complete. Two stale Beta Lab comments/role
+examples remain in `server_settings_dev-EXAMPLE.py`; they have no runtime
+effect and can be removed in a later configuration-example cleanup. The
+no-root `beta_testing` compatibility capability may also be retired after
+confirming that no private or stored configuration still names it.

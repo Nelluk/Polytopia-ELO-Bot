@@ -19,12 +19,12 @@ The prepared deployment is deliberately conventional:
 The public bundled-PostgreSQL deployment remains `compose.yaml`. The generic
 host-PostgreSQL example remains `compose.host-postgres.yaml`. This file records
 the upstream PolyElo deployment because it also requires the existing Bullet
-credential file and exact image provenance.
+credential file.
 
 ## Offline preparation
 
-After a reviewed source checkpoint is on clean production `master`, create the
-ignored environment file and set the exact full and short Git values:
+After reviewed source is on clean production `master`, create the ignored
+environment file once:
 
 ```bash
 id polyelo
@@ -36,19 +36,19 @@ docker compose build bot
 
 Confirm the numeric UID/GID in `.env` still match the host `polyelo` account;
 PostgreSQL peer authentication and private-file access depend on that identity.
+`POLYBOT_IMAGE` is a stable local image name and does not change for each
+commit.
 
-Building an image does not start a bot. Confirm its immutable provenance:
+Building an image does not start a bot. Docker records its immutable image ID,
+which can be inspected without maintaining duplicate source metadata:
 
 ```bash
-docker image inspect "$(docker compose images -q bot)" \
-  --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
-docker run --rm --network none --entrypoint /bin/sh \
-  "$(docker compose images -q bot)" \
-  -c 'cat /usr/local/share/polybot/image-checkpoint'
+git status --short --branch
+git log -1 --oneline
+docker compose images
 ```
 
-Both values must equal `POLYBOT_SOURCE_CHECKPOINT`. The runtime configuration
-check is also offline and redacted:
+The runtime configuration check is also offline and redacted:
 
 ```bash
 docker compose run --rm --no-deps bot \
@@ -66,14 +66,15 @@ A later cutover requires a new explicit authorization and maintenance window.
 The reviewed procedure must, at minimum:
 
 1. verify a fresh logical database backup and the existing image backup;
-2. verify the exact clean source/image checkpoint and a read-only schema plan;
+2. verify clean reviewed source, the built Docker image ID, and a read-only
+   schema plan;
 3. stop and disable `polyelo.service`, then prove that no production writer
    remains before starting Compose;
 4. apply only separately reviewed schema or guild-command changes, if any;
 5. start exactly one `polyelo-production` Compose bot;
 6. verify application identity, `polytopia2`/production role over the Unix
-   socket, checkpoint, persistent paths, zero published ports, zero unexpected
-   restarts, and one production writer; and
+   socket, persistent paths, zero published ports, zero unexpected restarts,
+   and one production writer; and
 7. keep the systemd unit, host virtual environment, prior image, and backups
    intact until Compose is accepted.
 
@@ -87,3 +88,15 @@ after this migration. The first cutover does not replace them with a Compose
 backup service. The constrained systemd release wrapper also remains installed
 until a separately reviewed post-cutover cleanup; it must not be invoked after
 Compose becomes the active supervisor.
+
+After cutover, an ordinary source-only production update is intentionally the
+same standard Compose workflow:
+
+```bash
+git pull --ff-only
+docker compose up -d --build
+```
+
+Database schema changes, Discord command synchronization, and one-writer
+cutover checks remain separately reviewed operations; they are not hidden in
+the update command.

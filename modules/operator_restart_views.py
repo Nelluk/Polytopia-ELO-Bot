@@ -61,9 +61,7 @@ class RestartConfirmationView(discord.ui.LayoutView):
         self.message = None
         self.busy = False
         self.terminal = False
-        self.status = (
-            'Review the checkpoint and confirm the supervised restart.'
-        )
+        self.status = 'Review and confirm the supervised restart.'
         self.rebuild()
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
@@ -128,7 +126,7 @@ class RestartConfirmationView(discord.ui.LayoutView):
         self.terminal = True
         self.busy = False
         runtime = (
-            'same reviewed immutable image'
+            'current container image'
             if self.preview.checkout.supervisor == service.COMPOSE_SUPERVISOR
             else 'reviewed checkout'
         )
@@ -166,7 +164,7 @@ class RestartConfirmationView(discord.ui.LayoutView):
         )
         mode = 'OWNER FORCE' if preview.force else 'normal'
         supervisor = (
-            'Docker Compose (same immutable image)'
+            'Docker Compose (current container image)'
             if preview.checkout.supervisor == service.COMPOSE_SUPERVISOR
             else 'systemd (current reviewed checkout)'
         )
@@ -192,10 +190,10 @@ class RestartConfirmationView(discord.ui.LayoutView):
                 '# Supervised bot restart\n'
                 f'**Mode:** `{mode}`\n'
                 f'**Supervisor:** {supervisor}\n'
-                f'**Running checkpoint:** '
-                f'`{preview.checkout.running_checkpoint}`\n'
-                f'**Checkpoint after restart:** '
-                f'`{preview.checkout.desired_checkpoint}`\n'
+                f'**Running source:** '
+                f'`{preview.checkout.running_source}`\n'
+                f'**Source after restart:** '
+                f'`{preview.checkout.restart_source}`\n'
                 f'**Known active work:**\n{active}{warning}\n\n'
                 f'-# {self.status}'
             ),

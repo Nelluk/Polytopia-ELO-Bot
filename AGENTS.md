@@ -44,16 +44,15 @@ This file provides guidance to coding agents when working with code in this repo
   read-only `/var/run/postgresql` mount; Compose must not own a beta database.
 - Before mutation, run `docker compose config --quiet`, `docker compose ps`,
   and, while the bot is running, the runtime configuration check documented
-  in `docs/DEVELOPMENT_DOCKER.md`. Verify the checkpoint, application identity,
-  database transport, restart count, and one-writer census against
+  in `docs/DEVELOPMENT_DOCKER.md`. Verify the application identity, database
+  transport, restart count, and one-writer census against
   `SERVER_INFO.md`; stop and investigate any conflict. Beta Lab fixture
   readiness is not a deployment-health signal.
 - For a source-only beta correction with no schema or command-tree change:
-  run proportionate tests, create a clean exact Git checkpoint, update the
-  ignored `.env` checkpoint and image tag, run `docker compose build`, inspect
-  the schema plan, and recreate only `bot` with Compose. Verify the
-  authenticated application, checkpoint, stable container, and one-writer
-  census. Do not synchronize commands when command definitions did not change.
+  run proportionate tests, keep the checkout clean, inspect the schema plan,
+  and run `docker compose up -d --build`. Verify the authenticated application,
+  stable container, and one-writer census. Do not synchronize commands when
+  command definitions did not change.
 - GreenCloud has no deployment wrapper or bundled beta database. A bundled
   PostgreSQL topology remains a separately approved change.
 

@@ -55,8 +55,8 @@ class RestartActivitySnapshot:
 
 @dataclass(frozen=True, slots=True)
 class RestartCheckoutSnapshot:
-    running_checkpoint: str
-    desired_checkpoint: str
+    running_source: str
+    restart_source: str
     supervisor: str = 'systemd'
 
 
@@ -104,23 +104,18 @@ def assert_authorized(request: RestartRequest) -> None:
 def _supervisor_kind(environ: Mapping[str, str]) -> str:
     configured = str(environ.get('POLYBOT_RESTART_SUPERVISOR', ''))
     if configured:
-        image_checkpoint = str(
-            environ.get('POLYBOT_IMAGE_CHECKPOINT', '')
-        ).strip()
-        if (
-                configured == COMPOSE_SUPERVISOR
-                and _CHECKPOINT.fullmatch(image_checkpoint)):
+        if configured == COMPOSE_SUPERVISOR:
             return COMPOSE_SUPERVISOR
         raise RestartSupervisionError(
-            'The configured restart supervisor or immutable image checkpoint '
-            'is invalid, so restart was refused without stopping the bot.'
+            'The configured restart supervisor is invalid, so restart was '
+            'refused without stopping the bot.'
         )
     invocation_id = str(environ.get('INVOCATION_ID', ''))
     if re.fullmatch(r'[0-9a-f]{32}', invocation_id):
         return 'systemd'
     raise RestartSupervisionError(
         'This bot process is not running under a reviewed systemd or '
-        'immutable Compose supervisor, so restart was refused without '
+        'Compose supervisor, so restart was refused without '
         'stopping it.'
     )
 
@@ -187,10 +182,9 @@ async def inspect_checkout(
         else 'systemd'
     )
     if supervisor == COMPOSE_SUPERVISOR:
-        checkpoint = str(environment['POLYBOT_IMAGE_CHECKPOINT']).strip()
         return RestartCheckoutSnapshot(
-            running_checkpoint=checkpoint,
-            desired_checkpoint=checkpoint,
+            running_source='current container image',
+            restart_source='current container image',
             supervisor=supervisor,
         )
 
@@ -214,14 +208,11 @@ async def inspect_checkout(
     )
     if not _CHECKPOINT.fullmatch(desired):
         raise RestartCheckoutError(
-            'The bot checkout checkpoint is invalid; restart was refused.'
+            'The bot checkout revision is invalid; restart was refused.'
         )
-    running = str(environment.get('POLYBOT_BETA_CHECKPOINT', '')).strip()
-    if not _CHECKPOINT.fullmatch(running):
-        running = 'not recorded'
     return RestartCheckoutSnapshot(
-        running_checkpoint=running,
-        desired_checkpoint=desired,
+        running_source='current process',
+        restart_source=desired,
         supervisor=supervisor,
     )
 

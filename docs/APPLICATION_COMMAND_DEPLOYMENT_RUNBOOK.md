@@ -94,7 +94,7 @@ owner/superuser checks remain the authoritative authorization boundary.
    remains untouched. Repeating an unchanged plan performs no remote sync.
    There is no global apply, removal, synchronization, or fallback path.
 4. After the explicit guild operation is complete and separately approved,
-   launch exactly one development beta from the reviewed checkpoint. Startup
+   launch exactly one development beta from the reviewed source. Startup
    performs no command synchronization. Verify the authenticated application,
    environment, guild, process identity, and command tree during the approved
    smoke session.

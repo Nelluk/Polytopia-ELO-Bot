@@ -6,12 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
-from unittest import mock
-
 from modules import beta_operations
-
-
-CHECKPOINT = 'a' * 40
 
 
 def profile(root: Path, **overrides):
@@ -36,8 +31,6 @@ def service_environment():
         'POLYBOT_ENV': 'development',
         'POLYBOT_RESTART_SUPERVISOR': 'compose',
         'POLYBOT_BETA_STARTUP_SYNC': 'disabled',
-        'POLYBOT_BETA_CHECKPOINT': CHECKPOINT,
-        'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
         'POLYBOT_BETA_APPLICATION_ID': str(beta_operations.BETA_APPLICATION_ID),
         'POLYBOT_BETA_GUILD_ID': str(beta_operations.BETA_GUILD_ID),
         'POLYBOT_BETA_DATABASE': beta_operations.BETA_DATABASE_NAME,
@@ -75,54 +68,30 @@ class DirectComposeRuntimeTests(unittest.TestCase):
                     profile(self.root, **{field: value})
                 )
 
-    def test_compose_launch_requires_exact_embedded_checkpoint(self):
-        checkpoint_file = self.root / 'image-checkpoint'
-        checkpoint_file.write_text(CHECKPOINT + '\n', encoding='ascii')
-        with mock.patch.object(
-            beta_operations,
-            'COMPOSE_IMAGE_CHECKPOINT_FILE',
-            checkpoint_file,
-        ):
-            self.assertEqual(
-                beta_operations.validate_beta_launch(
-                    profile(self.root),
-                    ['--skip_tasks'],
-                    environ=service_environment(),
-                ),
-                CHECKPOINT,
-            )
-            wrong = {**service_environment(), 'POLYBOT_IMAGE_CHECKPOINT': 'b' * 40}
-            with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
-                beta_operations.validate_beta_launch(
-                    profile(self.root),
-                    ['--skip_tasks'],
-                    environ=wrong,
-                )
+    def test_compose_launch_needs_no_source_revision_metadata(self):
+        self.assertIsNone(beta_operations.validate_beta_launch(
+            profile(self.root),
+            ['--skip_tasks'],
+            environ=service_environment(),
+        ))
 
     def test_only_direct_compose_and_skip_tasks_are_supported(self):
-        checkpoint_file = self.root / 'image-checkpoint'
-        checkpoint_file.write_text(CHECKPOINT + '\n', encoding='ascii')
-        with mock.patch.object(
-            beta_operations,
-            'COMPOSE_IMAGE_CHECKPOINT_FILE',
-            checkpoint_file,
-        ):
-            with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
-                beta_operations.validate_beta_launch(
-                    profile(self.root),
-                    [],
-                    environ=service_environment(),
-                )
-            native = {
-                **service_environment(),
-                'POLYBOT_RESTART_SUPERVISOR': 'systemd',
-            }
-            with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
-                beta_operations.validate_beta_launch(
-                    profile(self.root),
-                    ['--skip_tasks'],
-                    environ=native,
-                )
+        with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
+            beta_operations.validate_beta_launch(
+                profile(self.root),
+                [],
+                environ=service_environment(),
+            )
+        native = {
+            **service_environment(),
+            'POLYBOT_RESTART_SUPERVISOR': 'systemd',
+        }
+        with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
+            beta_operations.validate_beta_launch(
+                profile(self.root),
+                ['--skip_tasks'],
+                environ=native,
+            )
 
     def test_process_writer_lock_blocks_a_second_holder(self):
         paths = beta_operations.operation_paths(profile(self.root), create=True)

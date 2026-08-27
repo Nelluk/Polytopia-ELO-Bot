@@ -84,15 +84,15 @@ POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-beta/log
 
 For deployment:
 
-1. verify the clean reviewed checkpoint and exactly one current development
+1. verify clean reviewed source and exactly one current development
    writer;
 2. from `/home/nelluk/PolyBot39-beta`, run `docker compose stop bot` and
    require the host-wide writer audit to be clear;
 3. run the complete gated development PostgreSQL suite and the P10.4 verifier;
 4. set the ignored development selector to exact `database`;
 5. start the durable beta with startup synchronization disabled;
-6. verify the authenticated development application, checkpoint, zero restart
-   churn, one writer, and a log line containing
+6. verify the authenticated development application, Docker image identity,
+   zero restart churn, one writer, and a log line containing
    `source=database status=matched` plus the active generation; and
 7. verify representative retained-prefix and native permission/channel
    behavior.

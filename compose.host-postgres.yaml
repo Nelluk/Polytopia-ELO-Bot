@@ -11,6 +11,7 @@ x-bot-runtime: &bot-runtime
   image: ${POLYBOT_IMAGE:-polybot:local}
   environment:
     POLYBOT_ENV: production
+    POLYBOT_RESTART_SUPERVISOR: compose
   init: true
   user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
   read_only: true

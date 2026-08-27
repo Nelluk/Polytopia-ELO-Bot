@@ -24,8 +24,8 @@ guild, and database. Set these `.env` values explicitly:
 - `COMPOSE_PROJECT_NAME`: a unique project such as `polybot-beta`;
 - `POLYBOT_RUNTIME_UID` and `POLYBOT_RUNTIME_GID`: the host owner of the
   private configuration files;
-- `POLYBOT_BOT_IMAGE`: the image tag for this deployment;
-- `POLYBOT_SOURCE_CHECKPOINT`: the full clean `git rev-parse HEAD` value;
+- `POLYBOT_BOT_IMAGE`: a stable local image name such as
+  `polybot-beta:local`; it does not change for each source update;
 - `POSTGRES_SOCKET_DIR`: the host PostgreSQL socket directory.
 
 `COMPOSE_FILE=compose.beta.yaml` is a standard Compose environment setting, so
@@ -33,13 +33,12 @@ the ordinary commands below need no file or project-name flags.
 
 ## Build and operate
 
-Confirm the checkout is clean and the configured checkpoint equals HEAD:
+Confirm that Compose can render the configuration, then build and start the
+bot from the current checkout:
 
 ```bash
-git status --short --branch
-git rev-parse HEAD
 docker compose config --quiet
-docker compose build
+docker compose up -d --build
 ```
 
 The schema job plans by default and requires its printed confirmation before
@@ -52,7 +51,7 @@ docker compose run --rm schema
 Normal lifecycle commands are standard Compose operations:
 
 ```bash
-docker compose up -d bot
+docker compose up -d --build
 docker compose ps
 docker compose logs --tail 100 bot
 docker compose restart bot
@@ -72,21 +71,24 @@ Verify the effective runtime profile inside the authenticated bot container:
 docker compose exec bot python scripts/check_runtime_config.py
 ```
 
-Also verify the expected image/checkpoint, application identity, Unix-socket
-database transport, restart count, and one project bot with no host or other
-container writer. The retired Beta Lab and legacy deployment cleanup is
+Also verify the application identity, Unix-socket database transport, restart
+count, and one project bot with no host or other container writer. Docker's
+image ID (`docker compose images`) and the checkout's Git history provide
+source diagnostics without duplicate version settings. The retired Beta Lab
+and legacy deployment cleanup is
 recorded in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
 
 ## Updating
 
-After integrating and testing a new clean checkpoint:
+For an ordinary source-only update:
 
-1. update `POLYBOT_SOURCE_CHECKPOINT` and `POLYBOT_BOT_IMAGE` in `.env`;
-2. run `docker compose build`;
-3. run the schema plan and apply it separately if required;
-4. run `docker compose up -d --force-recreate bot`;
-5. verify the authenticated application, database, checkpoint, logs, and one
-   running bot container.
+```bash
+git pull --ff-only
+docker compose up -d --build
+```
 
-Keep the previous image tag until the replacement is verified so rollback is
-an `.env` image/checkpoint change plus container recreation.
+If release notes identify a schema change, run the schema plan and separately
+apply its printed confirmation before starting code that requires it. Verify
+the authenticated application, database, logs, restart count, and one-writer
+boundary after updating. Roll back source with Git and rebuild the same stable
+local image name; no `.env` version fields need to change.

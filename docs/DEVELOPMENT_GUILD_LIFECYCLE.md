@@ -81,7 +81,7 @@ stopped-writer database gate, review the offline desired command tree, inspect
 the empty global tree, and use the established application-command runbook to
 apply only configured development guild `478571892832206869`. Restart the
 durable beta with startup synchronization disabled and verify identity,
-database authority, checkpoint, health, sole-writer status, and private
+database authority, Docker image identity, health, sole-writer status, and private
 `/operator guild list` availability.
 
 This is an owner-only control-plane release. It does not change the human

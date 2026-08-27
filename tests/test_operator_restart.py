@@ -24,7 +24,6 @@ NEXT_CHECKPOINT = '2' * 40
 SYSTEMD_ENV = {'INVOCATION_ID': 'a' * 32}
 COMPOSE_ENV = {
     'POLYBOT_RESTART_SUPERVISOR': service.COMPOSE_SUPERVISOR,
-    'POLYBOT_IMAGE_CHECKPOINT': CHECKPOINT,
 }
 
 
@@ -106,7 +105,6 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
         for environment in (
             {},
             {'INVOCATION_ID': 'not-systemd'},
-            {'POLYBOT_RESTART_SUPERVISOR': 'compose'},
             {
                 'POLYBOT_RESTART_SUPERVISOR': 'unknown',
                 'INVOCATION_ID': 'a' * 32,
@@ -118,7 +116,7 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
         service.assert_supervised(SYSTEMD_ENV)
         service.assert_supervised(COMPOSE_ENV)
 
-    async def test_compose_restart_uses_immutable_image_without_git(self):
+    async def test_compose_restart_uses_current_image_without_git_metadata(self):
         with mock.patch.object(
             service,
             '_git_output',
@@ -129,11 +127,11 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 environ=COMPOSE_ENV,
             )
         git_output.assert_not_awaited()
-        self.assertEqual(result.running_checkpoint, CHECKPOINT)
-        self.assertEqual(result.desired_checkpoint, CHECKPOINT)
+        self.assertEqual(result.running_source, 'current container image')
+        self.assertEqual(result.restart_source, 'current container image')
         self.assertEqual(result.supervisor, service.COMPOSE_SUPERVISOR)
 
-    async def test_checkout_must_be_clean_and_returns_both_checkpoints(self):
+    async def test_systemd_checkout_must_be_clean_and_returns_source_details(self):
         with mock.patch.object(
             service,
             '_git_output',
@@ -141,13 +139,10 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await service.inspect_checkout(
                 Path('/tmp'),
-                environ={
-                    **SYSTEMD_ENV,
-                    'POLYBOT_BETA_CHECKPOINT': CHECKPOINT,
-                },
+                environ=SYSTEMD_ENV,
             )
-        self.assertEqual(result.running_checkpoint, CHECKPOINT)
-        self.assertEqual(result.desired_checkpoint, NEXT_CHECKPOINT)
+        self.assertEqual(result.running_source, 'current process')
+        self.assertEqual(result.restart_source, NEXT_CHECKPOINT)
 
         with mock.patch.object(
             service,
@@ -169,7 +164,7 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         with mock.patch.object(service, '_git_output', side_effect=delayed_output):
             result = await service.inspect_checkout(Path('/tmp'))
-        self.assertEqual(result.desired_checkpoint, NEXT_CHECKPOINT)
+        self.assertEqual(result.restart_source, NEXT_CHECKPOINT)
         self.assertGreaterEqual(ticks, 6)
 
     async def test_cancelled_checkout_inspection_kills_and_reaps_git(self):
@@ -357,7 +352,7 @@ class RestartViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('OWNER FORCE', str(view.to_components()))
         self.assertIn('will not wait', str(view.to_components()))
 
-    async def test_compose_panel_says_same_immutable_image(self):
+    async def test_compose_panel_says_current_container_image(self):
         runner = mock.AsyncMock()
         compose_preview = preview(checkout=service.RestartCheckoutSnapshot(
             CHECKPOINT,
@@ -369,10 +364,10 @@ class RestartViewTests(unittest.IsolatedAsyncioTestCase):
             runner=runner,
         )
         panel = str(view.to_components())
-        self.assertIn('Docker Compose (same immutable image)', panel)
+        self.assertIn('Docker Compose (current container image)', panel)
         interaction = self._interaction()
         await view._confirm(interaction)
-        self.assertIn('same reviewed immutable image', str(view.to_components()))
+        self.assertIn('current container image', str(view.to_components()))
 
 
 class RestartAdapterTests(unittest.IsolatedAsyncioTestCase):

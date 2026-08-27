@@ -88,11 +88,12 @@ To deploy source changes from the current checkout:
 
 ```bash
 git pull --ff-only
-docker compose build
-docker compose run --rm schema
-# Apply the printed schema plan if required.
-docker compose up -d --force-recreate bot
+docker compose up -d --build
 ```
+
+When release notes identify a database change, run the schema plan and apply
+its printed confirmation separately before starting code that requires it.
+The stable `POLYBOT_IMAGE` value in `.env` does not change for each commit.
 
 ## Logical backups
 
@@ -175,7 +176,7 @@ the host PostgreSQL operator.
 
 The upstream GreenCloud production bot has an explicit standalone definition,
 `compose.production.yaml`, because it additionally mounts the required Bullet
-credential and records exact source/image provenance. It is documented in
+credential. It is documented in
 [PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md) and must not be started while the
 current `polyelo.service` writer is active.
 

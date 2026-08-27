@@ -116,7 +116,7 @@ POLYBOT_ENV=development POLYBOT_P10_3_STORAGE_INTEGRATION=1 \
 ```
 
 Restart the durable beta with startup synchronization disabled and verify its
-development identity, checkpoint, health, and unchanged static-authority
+development identity, Docker image identity, health, and unchanged static-authority
 behavior. P10.3 does not require an application-command plan/apply or tester
 announcement because it changes no command or user-visible runtime path.
 

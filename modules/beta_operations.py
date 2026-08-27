@@ -1,7 +1,7 @@
 """Small fail-closed runtime boundary for the upstream development bot.
 
 The direct Compose launcher uses this module to validate its fixed development
-identity, exact image checkpoint, and process-wide writer lock. It contains no
+identity and process-wide writer lock. It contains no
 Discord control socket, fixture management, or release-announcement workflow.
 """
 
@@ -25,12 +25,8 @@ BETA_STAFFHELP_MIRROR_CHANNEL_ID = 480078679930830849
 BETA_DATABASE_NAME = 'polytopia_dev'
 BETA_DATABASE_ROLE = 'polybot_dev'
 BETA_STARTUP_SYNC_ENV = 'POLYBOT_BETA_STARTUP_SYNC'
-BETA_CHECKPOINT_ENV = 'POLYBOT_BETA_CHECKPOINT'
 BETA_STATE_DIRECTORY = 'beta-operations'
 BETA_WRITER_LOCK = 'beta-writer.lock'
-COMPOSE_IMAGE_CHECKPOINT_FILE = Path(
-    '/usr/local/share/polybot/image-checkpoint'
-)
 
 _CHECKPOINT = re.compile(r'^[0-9a-f]{40}$')
 
@@ -214,7 +210,7 @@ def validate_beta_launch(
         profile: RuntimeProfile,
         argv: Sequence[str],
         *,
-        environ: Mapping[str, str] | None = None) -> str:
+        environ: Mapping[str, str] | None = None) -> None:
     if tuple(argv) != ('--skip_tasks',):
         raise BetaRuntimeInvariantError(
             'The development launcher accepts only --skip_tasks.'
@@ -232,34 +228,10 @@ def validate_beta_launch(
         )
     environment = os.environ if environ is None else environ
     supervisor = _environment_value(environment, 'POLYBOT_RESTART_SUPERVISOR')
-    if supervisor == 'compose':
-        image_checkpoint = _environment_value(
-            environment,
-            'POLYBOT_IMAGE_CHECKPOINT',
+    if supervisor != 'compose':
+        raise BetaRuntimeInvariantError(
+            'The development bot must run through the direct Compose supervisor.'
         )
-        configured_checkpoint = _environment_value(
-            environment,
-            BETA_CHECKPOINT_ENV,
-        )
-        try:
-            embedded_checkpoint = COMPOSE_IMAGE_CHECKPOINT_FILE.read_text(
-                encoding='ascii',
-            ).strip()
-        except (OSError, UnicodeError) as exc:
-            raise BetaRuntimeInvariantError(
-                'The embedded image checkpoint is unreadable.'
-            ) from exc
-        if (
-                not _CHECKPOINT.fullmatch(image_checkpoint)
-                or image_checkpoint != configured_checkpoint
-                or image_checkpoint != embedded_checkpoint):
-            raise BetaRuntimeInvariantError(
-                'The Compose image and configured checkpoints must match exactly.'
-            )
-        return image_checkpoint
-    raise BetaRuntimeInvariantError(
-        'The development bot must run through the direct Compose supervisor.'
-    )
 
 
 class BetaWriterLock:

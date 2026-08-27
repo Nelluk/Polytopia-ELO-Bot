@@ -6,12 +6,12 @@ x-production-runtime: &production-runtime
     context: .
     dockerfile: Dockerfile
     args:
-      POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
       POLYBOT_UID: ${POLYBOT_UID:?Set the production service UID in .env}
       POLYBOT_GID: ${POLYBOT_GID:?Set the production service GID in .env}
-  image: ${POLYBOT_IMAGE:?Set the exact production image tag in .env}
+  image: ${POLYBOT_IMAGE:-polyelo-production:local}
   environment:
     POLYBOT_ENV: production
+    POLYBOT_RESTART_SUPERVISOR: compose
   init: true
   user: "${POLYBOT_UID}:${POLYBOT_GID}"
   read_only: true

@@ -6,7 +6,6 @@ x-beta-runtime: &beta-runtime
     context: .
     dockerfile: Dockerfile
     args:
-      POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
       POLYBOT_UID: ${POLYBOT_RUNTIME_UID:-1000}
       POLYBOT_GID: ${POLYBOT_RUNTIME_GID:-1000}
   image: ${POLYBOT_BOT_IMAGE:-polybot-beta:local}
@@ -14,7 +13,6 @@ x-beta-runtime: &beta-runtime
     POLYBOT_ENV: development
     POLYBOT_RESTART_SUPERVISOR: compose
     POLYBOT_BETA_STARTUP_SYNC: disabled
-    POLYBOT_BETA_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
     POLYBOT_BETA_APPLICATION_ID: "479029527553638401"
     POLYBOT_BETA_GUILD_ID: "478571892832206869"
     POLYBOT_BETA_DATABASE: polytopia_dev

@@ -101,7 +101,7 @@ P10.9 changes the development command tree by adding `/guild edit` and
 `/operator guild delegation`. Stop only the guarded beta, run the complete
 database gate, inspect the connection-free command plan and empty global tree,
 apply only configured development guild `478571892832206869`, then start the
-clean pushed checkpoint with startup synchronization disabled.
+clean pushed source with startup synchronization disabled.
 
 Initial acceptance is owner-first: verify the policy panel opens and `/guild
 edit` denies an unconfigured ordinary user. Do not grant a real role merely to
