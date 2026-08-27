@@ -65,18 +65,19 @@ Normal startup never changes schema or synchronizes Discord commands. The bot
 launcher retains the beta identity checks and database-wide single-writer
 lock. No host port is published.
 
-## Beta Lab status
+## Runtime verification
 
-Beta Lab control runs inside the already authenticated container and its
-persistent log volume:
+Verify the effective runtime profile inside the authenticated bot container:
 
 ```bash
-docker compose exec bot python scripts/manage_beta_lab.py --json status
-docker compose exec bot python scripts/manage_beta_lab_personas.py --json roles-status
+docker compose exec bot python scripts/check_runtime_config.py
 ```
 
-Mutation and Discord notification operations keep their own explicit preview
-and confirmation requirements. They are not part of deployment or startup.
+Also verify the expected image/checkpoint, application identity, Unix-socket
+database transport, restart count, and one project bot with no host or other
+container writer. Beta Lab fixture readiness is not a deployment-health
+signal. The feature's eventual source and live-fixture retirement is tracked
+in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
 
 ## Updating
 

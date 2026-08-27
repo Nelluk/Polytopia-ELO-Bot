@@ -1,5 +1,9 @@
 # Development Beta Fixtures
 
+Status: historical slash-command acceptance fixtures retained temporarily for
+controlled cleanup. Do not seed or reconcile them merely to make Beta Lab
+report ready. See [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+
 `scripts/manage_dev_fixtures.py` creates a small, repeatable game set for
 testing beta Discord commands. It is separate from `--add_default_data`,
 which initializes permanent reference data.

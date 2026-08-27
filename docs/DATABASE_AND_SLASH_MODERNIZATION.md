@@ -1,10 +1,11 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-16
+Last updated: 2026-08-26
 
-Status: Active
+Status: Active maintenance record; the original modernization accumulation is
+integrated into public `master`.
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch: `master`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -26,8 +27,9 @@ configuration, and `AGENTS.md` remain authoritative.
 
 ## Safety boundaries
 
-- Work only in `/home/nelluk/PolyBot39-dev`.
-- Do not access or modify `/home/nelluk/PolyBot39`, the production checkout.
+- Use `/home/nelluk/PolyBot39-beta` as the canonical development checkout.
+- Do not access or modify `/srv/polyelo/PolyBot39`, the production checkout,
+  without an explicit production-scoped instruction.
 - Do not connect to or modify the production database `polytopia2`.
 - Production services, production command synchronization, and production
   deployment require separate explicit approval.
@@ -51,6 +53,11 @@ configuration, and `AGENTS.md` remain authoritative.
 - Do not install dependencies, perform a schema migration, or begin a broad
   ORM replacement without separate approval.
 - Preserve unrelated working-tree changes.
+
+The temporary Beta Lab and `/whattotest` acceptance surface is retired now
+that the modernization work is on `master`. Do not treat fixture-pack
+readiness as runtime health or rebuild missing packs. Its source and live-data
+removal boundary is recorded in `docs/BETA_ONLY_CLEANUP.md`.
 
 Before any privileged VPS operation, also follow the server-level
 instructions supplied with the task. In particular, inspect

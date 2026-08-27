@@ -1,5 +1,11 @@
 # Durable development-beta operations
 
+Status: historical user-systemd deployment runbook. GreenCloud now runs the
+beta as the ordinary Compose project documented in
+[`DEVELOPMENT_DOCKER.md`](DEVELOPMENT_DOCKER.md). Do not use this runbook for
+current start, stop, deploy, or status operations. Candidate obsolete assets
+are tracked in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+
 WB1.2 provides a guarded, user-level service and an explicit release
 announcement path for the development wider beta. This document is an
 operator runbook, not authorization to perform a live rollout. The service,

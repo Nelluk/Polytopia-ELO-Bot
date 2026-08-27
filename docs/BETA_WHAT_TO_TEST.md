@@ -1,6 +1,10 @@
 # 🧪 WHAT TO TEST
 
-This is the full running wider-beta checklist—not just the newest release.
+Status: retired slash-command acceptance checklist retained as historical
+reference pending the cleanup described in
+[`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+
+This was the full running wider-beta checklist—not just the newest release.
 `/whattotest` presents these sections through a compact private Beta Lab
 dashboard instead of posting the whole file into a channel. Use the native
 slash commands and interactive controls below on desktop or mobile. Report

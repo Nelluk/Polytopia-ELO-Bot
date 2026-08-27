@@ -1,6 +1,6 @@
 # Modernization collaboration workflow
 
-Last updated: 2026-08-22
+Last updated: 2026-08-26
 
 Status: Active
 
@@ -218,7 +218,7 @@ instruction to rediscover product policy from the reporter.
 The primary planning/integration checkout remains:
 
 ```text
-/home/nelluk/PolyBot39-deploy
+/home/nelluk/PolyBot39-beta
 ```
 
 Internal subagents share the parent task's filesystem and do not imply a new
@@ -227,7 +227,7 @@ branches or editing files. The sole write-enabled worker receives the manually
 prepared isolated Luna checkout:
 
 ```text
-/home/nelluk/PolyBot39-deploy/.worktrees/luna
+/home/nelluk/PolyBot39-beta/.worktrees/luna
 ```
 
 A user-visible write-enabled fallback task may instead receive an app-managed
@@ -262,7 +262,7 @@ native bot runtime. Bootstrap a fresh primary checkout once, under separate
 dependency-installation approval, before invoking the helper:
 
 ```bash
-cd /home/nelluk/PolyBot39-deploy
+cd /home/nelluk/PolyBot39-beta
 uv sync --locked --python 3.12.13
 ```
 
@@ -489,20 +489,20 @@ Post-beta `What can we do next?` recommendation (when applicable):
 Every implementation prompt should begin with:
 
 ```text
-Work only in /home/nelluk/PolyBot39-deploy/.worktrees/luna.
-Do not edit or operate on /home/nelluk/PolyBot39 or the primary planning
-checkout /home/nelluk/PolyBot39-deploy.
+Work only in /home/nelluk/PolyBot39-beta/.worktrees/luna.
+Do not edit or operate on /srv/polyelo/PolyBot39 or the primary planning
+checkout /home/nelluk/PolyBot39-beta.
 
 Read AGENTS.md, docs/DATABASE_AND_SLASH_MODERNIZATION.md, and any unit-specific
 runbook in full. Verify that the worktree is clean and detached at EXPECTED_SHA.
 Create and switch to BRANCH_NAME before editing. Stop if the base, branch,
 worktree, or runtime state differs from the prompt.
 
-Run `/home/nelluk/PolyBot39-deploy/scripts/setup_development_worktree.sh "$PWD"`
+Run `/home/nelluk/PolyBot39-beta/scripts/setup_development_worktree.sh "$PWD"`
 before profile-dependent tests or imports. The helper path must be absolute and
 must be in the primary checkout; stop if it refuses the worktree.
 
-Run Python through `/home/nelluk/PolyBot39-deploy/.venv/bin/python`; do not
+Run Python through `/home/nelluk/PolyBot39-beta/.venv/bin/python`; do not
 install or synchronize dependencies unless separately approved.
 ```
 

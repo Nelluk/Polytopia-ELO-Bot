@@ -1,5 +1,9 @@
 # Development wider-beta readiness
 
+Status: historical slash-modernization readiness workflow retained pending
+the cleanup classified in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+Its fixture state is not a current beta deployment-health signal.
+
 WB1.3a provides a read-only readiness inventory and an offline desired-state
 planner for the development wider beta. WB1.3b adds a separately gated,
 reviewed development database setup boundary. Both are review/operations aids,

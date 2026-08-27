@@ -163,13 +163,13 @@ mount, as recorded in `/home/nelluk/SERVER_INFO.md`. Its root `.env` selects
 `compose.beta.yaml` and the `polybot-mac-beta` project. For ordinary operation:
 
 ```bash
-cd /home/nelluk/PolyBot39-deploy
+cd /home/nelluk/PolyBot39-beta
 docker compose config --quiet
 docker compose ps
 docker compose build
 docker compose run --rm schema
 docker compose up -d --force-recreate bot
-docker compose exec bot python scripts/manage_beta_lab.py --json status
+docker compose exec bot python scripts/check_runtime_config.py
 ```
 
 The schema command plans by default; applying a plan remains a separate,
@@ -177,6 +177,9 @@ explicit database operation. If the initial state conflicts with the documented
 host-socket topology, stop and investigate before building or recreating the
 bot. See [`DEVELOPMENT_DOCKER.md`](DEVELOPMENT_DOCKER.md) for the complete
 current procedure.
+
+Beta Lab fixture readiness is no longer a deployment-health requirement. Its
+retirement is tracked in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
 
 ## Legacy wrapper operator interface
 

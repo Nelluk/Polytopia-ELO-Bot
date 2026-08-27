@@ -1,6 +1,9 @@
 # Development Beta Lab
 
-Status: compact dashboard plus guided self-service scenarios
+Status: retired acceptance-testing surface retained temporarily for controlled
+cleanup. Do not rebuild missing packs or use readiness as a bot-health signal.
+See [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md) for the removal boundary and
+sequence.
 
 The Beta Lab turns the existing development fixtures and PolyChamps-shaped
 guild resources into one coherent testing surface. It is not a production

@@ -32,17 +32,18 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## GreenCloud development-beta deployment
 
-- Before every beta setup, deploy, start, stop, restart, status, log, or Beta
-  Lab operation, read the Development section of `/home/nelluk/SERVER_INFO.md`.
+- Before every beta setup, deploy, start, stop, restart, status, or log
+  operation, read the Development section of `/home/nelluk/SERVER_INFO.md`.
 - GreenCloud's canonical beta is the direct `compose.beta.yaml` project in
-  `/home/nelluk/PolyBot39-deploy`. Its ignored root `.env` selects that file
+  `/home/nelluk/PolyBot39-beta`. Its ignored root `.env` selects that file
   and the `polybot-mac-beta` project. It uses host PostgreSQL through the
   read-only `/var/run/postgresql` mount; Compose must not own a beta database.
 - Before mutation, run `docker compose config --quiet`, `docker compose ps`,
-  and, while the bot is running, the two Beta Lab status commands documented
-  in `docs/DEVELOPMENT_DOCKER.md`. If the checkpoint, application identity,
-  database transport, or running-container census conflicts with
-  `SERVER_INFO.md`, stop and investigate.
+  and, while the bot is running, the runtime configuration check documented
+  in `docs/DEVELOPMENT_DOCKER.md`. Verify the checkpoint, application identity,
+  database transport, restart count, and one-writer census against
+  `SERVER_INFO.md`; stop and investigate any conflict. Beta Lab fixture
+  readiness is not a deployment-health signal.
 - For a source-only beta correction with no schema or command-tree change:
   run proportionate tests, create a clean exact Git checkpoint, update the
   ignored `.env` checkpoint and image tag, run `docker compose build`, inspect
@@ -134,13 +135,13 @@ primary checkout must be bootstrapped, with dependency-installation approval,
 before its worktree helper can run:
 
 ```bash
-cd /home/nelluk/PolyBot39-deploy
+cd /home/nelluk/PolyBot39-beta
 uv sync --locked --python 3.12.13
 ```
 
 Do not run `uv sync` separately in each worktree. Run
-`/home/nelluk/PolyBot39-deploy/scripts/setup_development_worktree.sh "$PWD"`
-and use `/home/nelluk/PolyBot39-deploy/.venv/bin/python` for worktree tests.
+`/home/nelluk/PolyBot39-beta/scripts/setup_development_worktree.sh "$PWD"`
+and use `/home/nelluk/PolyBot39-beta/.venv/bin/python` for worktree tests.
 The host `.venv` is development tooling only; its presence does not change the
 Docker deployment model or authorize a native bot process.
 
