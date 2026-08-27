@@ -27520,8 +27520,7 @@ or beta service/container was stopped, started, restarted, or replaced.
 
 ### 2026-08-27 — Discord-triggered production backup retired
 
-Status: **Implemented; production deployment and guild-command reconciliation
-pending.**
+Status: **Implemented, deployed, and reconciled in production.**
 
 - Removed `/operator database backup` and its confirmation/process adapter.
   The adapter was intentionally bound to the GreenCloud host account, checkout,
@@ -27535,10 +27534,22 @@ pending.**
 - Kept the retired `$backup_db` and `$dbb` prefix commands absent. Added
   regression coverage for the complete retired surface and removed the empty
   `/operator database` group.
-- This source change has no schema or database operation. Removing the stale
-  remote slash command requires one separately inspected, explicit
+- This source change has no schema or database operation. The stale remote
+  slash command was removed through one separately inspected, explicit
   PolyChampions-only application-command apply; global commands and other
-  guilds remain out of scope.
+  guilds remained out of scope.
+- Focused coverage passed 59 tests, and full offline discovery passed 2,050
+  tests with 85 intentional skips. GitHub's test-suite, fresh-install, and
+  Compose-install jobs passed for source checkpoint `9dd701e9`.
+- Production schema verification reported no required operations. The bot was
+  recreated on image `sha256:f62ef2810e55d7d55751b91ca47ab0ba0624921f4f9b0c4b74ee55e1526c0e08`
+  with about one second between the Compose recreation timestamps, then
+  authenticated as application `484067640302764042` with zero restarts and one
+  active supervisor. No database or schema write was performed.
+- The inspected command delta contained only an update to the `operator` root
+  in PolyChampions guild `447883341463814144`. The explicitly confirmed
+  guild-only apply completed, and the final remote inspection reported no
+  creates, updates, or removals and zero global commands.
 
 Files: `modules/administration.py`, retired operator-backup modules and tests,
 slash/retirement/restart coverage, and current production operating records.
