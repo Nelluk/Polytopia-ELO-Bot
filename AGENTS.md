@@ -15,6 +15,10 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Constrained production release wrapper
 
+- GreenCloud production currently remains on `polyelo.service`. The tracked
+  `compose.production.yaml` is inactive preparation only; do not start it or
+  disable/stop the systemd service without Nelluk's separate cutover approval.
+
 - The tracked wrapper source is `deploy/polyelo-release`; its fixed installed
   path is `/srv/polyelo/bin/polyelo-release`. Read
   `docs/PRODUCTION_RELEASE_WRAPPER.md` before changing or invoking it.

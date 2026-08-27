@@ -78,6 +78,10 @@ Upstream maintainers run the isolated beta through the separate, direct
 [development Compose interface](docs/DEVELOPMENT_DOCKER.md). It uses the same
 root Dockerfile as the public stack and ordinary Compose commands.
 
+The upstream production Compose preparation is documented separately in
+[docs/PRODUCTION_DOCKER.md](docs/PRODUCTION_DOCKER.md). It is not the default
+self-hosting path and is not currently the active GreenCloud supervisor.
+
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).
 

@@ -20,12 +20,15 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             'Dockerfile',
             'compose.yaml',
             'compose.host-postgres.yaml',
+            'compose.production.yaml',
             'compose.beta.yaml',
             '.env.example',
             '.env.host-postgres.example',
+            '.env.production.example',
             '.env.beta.example',
             'docs/DOCKER.md',
             'docs/DEVELOPMENT_DOCKER.md',
+            'docs/PRODUCTION_DOCKER.md',
         ):
             self.assertTrue((self.root / relative_path).is_file(), relative_path)
 
@@ -83,6 +86,30 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('POSTGRES_VOLUME_NAME', compose)
         self.assertNotIn('restore:', compose)
         self.assertNotIn('ports:', compose)
+
+    def test_upstream_production_compose_is_explicit_and_inactive(self):
+        compose = (self.root / 'compose.production.yaml').read_text(
+            encoding='utf-8'
+        )
+        environment = (self.root / '.env.production.example').read_text(
+            encoding='utf-8'
+        )
+        guide = (self.root / 'docs/PRODUCTION_DOCKER.md').read_text(
+            encoding='utf-8'
+        )
+
+        self.assertIn('POLYBOT_SOURCE_CHECKPOINT:', compose)
+        self.assertIn('source: ./spreadsheet_creds.json', compose)
+        self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
+        self.assertIn('source: ./data/images', compose)
+        self.assertIn('source: ./logs', compose)
+        self.assertIn('create_host_path: false', compose)
+        self.assertIn('COMPOSE_FILE=compose.production.yaml', environment)
+        self.assertIn('COMPOSE_PROJECT_NAME=polyelo-production', environment)
+        self.assertIn('Status: **prepared but inactive**', guide)
+        self.assertNotIn('  database:', compose)
+        self.assertNotIn('ports:', compose)
+        self.assertNotIn('./polybot', compose)
 
     def test_image_is_environment_neutral_and_nonroot(self):
         dockerfile = (self.root / 'Dockerfile').read_text(encoding='utf-8')

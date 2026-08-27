@@ -173,6 +173,12 @@ docker compose -f compose.host-postgres.yaml run --rm backup
 Database creation, restore, retention, and upgrades remain responsibilities of
 the host PostgreSQL operator.
 
+The upstream GreenCloud production bot has an explicit standalone definition,
+`compose.production.yaml`, because it additionally mounts the required Bullet
+credential and records exact source/image provenance. It is documented in
+[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md) and must not be started while the
+current `polyelo.service` writer is active.
+
 ## Private and persistent files
 
 Do not commit `.env`, private configuration, Discord tokens, passwords, logs,

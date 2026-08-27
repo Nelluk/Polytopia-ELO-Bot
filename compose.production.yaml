@@ -1,0 +1,72 @@
+# Upstream PolyElo production using the host-managed PostgreSQL server.
+# This definition is intentionally separate from the bundled self-host stack.
+
+x-production-runtime: &production-runtime
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
+      POLYBOT_UID: ${POLYBOT_UID:?Set the production service UID in .env}
+      POLYBOT_GID: ${POLYBOT_GID:?Set the production service GID in .env}
+  image: ${POLYBOT_IMAGE:?Set the exact production image tag in .env}
+  environment:
+    POLYBOT_ENV: production
+  init: true
+  user: "${POLYBOT_UID}:${POLYBOT_GID}"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  volumes:
+    - type: bind
+      source: ./config.ini
+      target: /app/config.ini
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./server_settings.py
+      target: /app/server_settings.py
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./spreadsheet_creds.json
+      target: /app/spreadsheet_creds.json
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./data/images
+      target: /app/data/images
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./logs
+      target: /app/logs
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${POSTGRES_SOCKET_DIR:-/var/run/postgresql}
+      target: /var/run/postgresql
+      read_only: true
+      bind:
+        create_host_path: false
+  stop_signal: SIGINT
+  stop_grace_period: 45s
+
+services:
+  bot:
+    <<: *production-runtime
+    restart: unless-stopped
+
+  schema:
+    <<: *production-runtime
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/manage_schema.py"]
+    command: []
+    restart: "no"
