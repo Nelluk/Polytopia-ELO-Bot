@@ -1630,10 +1630,23 @@ class administration(commands.Cog):
                 operation=operation,
             )
             result = await operator_guild_configuration_workers.run_read(request)
+            publish_options = {'section': section}
+            if operation == operator_guild_configuration_workers.SETTINGS:
+                target = int(interaction.guild_id)
+
+                async def open_editor(button_interaction):
+                    return await self._open_guild_draft_workspace(
+                        button_interaction,
+                        target=target,
+                        ordinary_only=False,
+                    )
+
+                publish_options.update({
+                    'requester_id': int(interaction.user.id),
+                    'edit_callback': open_editor,
+                })
             await operator_guild_configuration_service.publish_private(
-                interaction,
-                result,
-                section=section,
+                interaction, result, **publish_options,
             )
             return result
         except operator_guild_configuration_workers.OperatorGuildConfigurationError as exc:
@@ -2278,6 +2291,11 @@ class administration(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         try:
             target_guild = self._operator_visible_target_guild(target)
+            simple_owner = (
+                int(interaction.user.id) == int(settings.owner_id)
+                and target == int(interaction.guild_id)
+                and not ordinary_only
+            )
             result = await self._operator_guild_draft_operation(
                 interaction,
                 operator_guild_configuration_draft_workers.SHOW,
@@ -2289,6 +2307,12 @@ class administration(commands.Cog):
             if runtime_record is None:
                 raise operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftValidationError(
                     'The running database guild configuration is not published.'
+                )
+            if simple_owner and result.draft is None:
+                result = await self._operator_guild_draft_operation(
+                    interaction,
+                    operator_guild_configuration_draft_workers.RESET,
+                    target_guild_id=target,
                 )
             role_names, channel_names = (
                 operator_guild_configuration_draft_views.identity_maps(
@@ -2302,9 +2326,17 @@ class administration(commands.Cog):
                 runner=self._operator_guild_draft_operation,
                 role_names=role_names,
                 channel_names=channel_names,
+                target_guild_name=str(
+                    getattr(
+                        target_guild,
+                        'name',
+                        runtime_record.document.identity.display_name,
+                    )
+                ),
                 target_guild_id=target,
                 capabilities_only=(target != int(interaction.guild_id)),
                 ordinary_only=ordinary_only or result.delegated,
+                simple_owner=simple_owner,
             )
             await operator_guild_configuration_draft_views.publish_private(
                 interaction,

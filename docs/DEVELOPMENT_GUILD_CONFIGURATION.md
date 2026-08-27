@@ -48,14 +48,15 @@ These workflows require development database authority and the configured
 owner unless a narrower delegated boundary is stated:
 
 - `/operator guild list` — list active, suspended, and pending-visible guilds.
-- `/operator guild settings` — inspect the invoking guild's active settings.
+- `/operator guild settings` — inspect the invoking guild's active settings
+  and open the owner editor with **Edit settings**.
 - `/operator guild validate` — validate the invoking guild read-only against
   the database, typed schema, live Discord objects, and bot permissions.
 - `/operator guild history` — inspect bounded revision and audit history.
 - `/operator guild enroll` — preview and enroll a quarantined visible guild
   using the basic prefix-server template.
-- `/operator guild edit` — create, edit, validate, and activate an inactive
-  draft for one active guild.
+- `/operator guild edit` — open the same owner editor directly; the normal
+  same-guild path creates or resumes a private editing session.
 - `/operator guild rollback` — clone an earlier compatible document into a new
   active revision; history remains immutable.
 - `/operator guild commands` — activate a capability-changing draft or
@@ -67,10 +68,13 @@ owner unless a narrower delegated boundary is stated:
 - `/guild edit` — allow a delegated manager to edit ordinary settings only in
   the active guild where the command is invoked.
 
-All mutating workspaces are private and use exact version, generation, digest,
-or confirmation checks. A stale preview or draft must be reopened rather than
-forced through. Owner operations remain owner-only even when the `guild` and
-`operator` roots share a Discord capability assignment.
+The normal owner flow is **settings → Edit settings → Save changes**. It shows
+human-readable field changes, asks for the displayed server name, and performs
+fresh complete validation as part of Save. Cancel discards only the inactive
+editing session. Internal version, generation, and digest checks still reject
+stale writes without exposing that machinery in the normal UI. Owner operations
+remain owner-only even when the `guild` and `operator` roots share a Discord
+capability assignment.
 
 ## Onboarding and lifecycle
 
@@ -94,6 +98,9 @@ A draft never changes runtime behavior until activation commits a new revision
 and publishes the refreshed graph. Ordinary-setting activation cannot change
 command capabilities. Capability changes use `/operator guild commands` so the
 database revision and exact guild-scoped Discord tree remain coordinated.
+The owner editor does not need a separate validation step: Save revalidates the
+draft against current database, runtime, role, and channel state immediately
+before the transaction commits.
 
 Rollback never rewrites history. It creates a new revision from an earlier
 same-guild document and refuses a source whose command capabilities differ from

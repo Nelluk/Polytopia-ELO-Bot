@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+import logging
 from typing import Any
 
 import discord
@@ -14,6 +15,7 @@ from modules.application_command_policy import DEFAULT_CAPABILITY_FAMILIES
 
 
 Runner = Callable[..., Awaitable[workers.GuildConfigurationDraftResult]]
+logger = logging.getLogger('polybot.' + __name__)
 SECTION_LABELS = {
     service.IDENTITY: 'Identity',
     service.PERMISSIONS: 'Permissions',
@@ -116,6 +118,8 @@ class DraftConfirmationModal(discord.ui.Modal):
 
 
 class DraftActivationModal(discord.ui.Modal):
+    """Legacy confirmation used by delegated/advanced draft workspaces."""
+
     def __init__(self, workspace: 'GuildConfigurationDraftWorkspace'):
         self.workspace = workspace
         draft = workspace.result.draft
@@ -139,13 +143,41 @@ class DraftActivationModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         if str(self.confirmation.value) != self.expected:
-            return await _private(
-                interaction,
-                f'Type `{self.expected}` exactly.',
-            )
+            return await _private(interaction, f'Type `{self.expected}` exactly.')
         if not await self.workspace.ready(interaction):
             return
         await self.workspace.run_operation(interaction, workers.ACTIVATE)
+
+
+class SaveSettingsModal(discord.ui.Modal):
+    def __init__(self, workspace: 'GuildConfigurationDraftWorkspace'):
+        self.workspace = workspace
+        self.expected = workspace.target_guild_name
+        super().__init__(title='Save guild settings', timeout=180.0)
+        self.confirmation = discord.ui.TextInput(
+            placeholder=self.expected,
+            required=True,
+            min_length=1,
+            max_length=100,
+        )
+        self.add_item(discord.ui.Label(
+            text='Type the server name to confirm',
+            description=(
+                'Save validates the current settings, then publishes them '
+                'immediately.'
+            ),
+            component=self.confirmation,
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if str(self.confirmation.value).strip() != self.expected:
+            return await _private(
+                interaction,
+                f'Type the server name `{_escape(self.expected)}` exactly.',
+            )
+        if not await self.workspace.ready(interaction):
+            return
+        await self.workspace.save(interaction)
 
 
 class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
@@ -163,9 +195,11 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         runner: Runner,
         role_names: Mapping[int, str],
         channel_names: Mapping[int, str],
+        target_guild_name: str | None = None,
         target_guild_id: int | None = None,
         capabilities_only: bool = False,
         ordinary_only: bool = False,
+        simple_owner: bool = False,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
@@ -177,21 +211,36 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.target_guild_id = (
             int(result.guild_id) if target_guild_id is None else int(target_guild_id)
         )
+        self.target_guild_name = str(
+            target_guild_name
+            or active_document.identity.display_name
+            or self.target_guild_id
+        )
         self.capabilities_only = bool(capabilities_only)
         self.ordinary_only = bool(ordinary_only)
+        self.simple_owner = bool(simple_owner)
         self.sections = (
             (service.CAPABILITIES,)
             if self.capabilities_only else service.SECTIONS
         )
         if self.ordinary_only:
             self.sections = service.ORDINARY_SECTIONS
+        elif self.simple_owner:
+            self.sections = tuple(
+                section
+                for section in service.SECTIONS
+                if section != service.CAPABILITIES
+            )
         self.section = self.sections[0]
         self.field_key = service.fields_for_section(
             self.section, ordinary_only=self.ordinary_only,
         )[0].key
         self.list_mode = 'add'
         self.busy = False
+        self.terminal = False
         self.status = (
+            'Choose settings to edit. Changes remain private until you save.'
+            if self.simple_owner else
             'Create or edit an ordinary-settings draft, then validate it.'
             if self.ordinary_only and not result.activation_allowed
             else 'Create or edit a draft, validate it, then activate it.'
@@ -252,20 +301,56 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             )
         except workers.OperatorGuildConfigurationDraftError as exc:
             self.busy = False
+            if isinstance(
+                    exc,
+                    workers.OperatorGuildConfigurationActivationCommitted,
+            ):
+                self.terminal = True
+                self.stop()
             self.status = str(exc)
             self.rebuild()
-            await interaction.edit_original_response(view=self)
-            await interaction.followup.send(str(exc), ephemeral=True)
+            try:
+                await interaction.edit_original_response(view=self)
+            except Exception:
+                logger.exception(
+                    'Could not update guild-settings failure panel for guild %s',
+                    self.target_guild_id,
+                )
+            try:
+                await interaction.followup.send(str(exc), ephemeral=True)
+            except Exception:
+                logger.exception(
+                    'Could not publish guild-settings failure fallback for guild %s',
+                    self.target_guild_id,
+                )
             return None
         except Exception:
             self.busy = False
+            self.terminal = operation == workers.ACTIVATE
+            if self.terminal:
+                self.stop()
             self.status = (
+                'Save stopped without a trustworthy terminal result. Do not '
+                'repeat it; reopen the settings view to inspect current truth.'
+                if operation == workers.ACTIVATE else
                 'The draft operation stopped without a trustworthy result. '
                 'Reopen the workspace before retrying.'
             )
             self.rebuild()
-            await interaction.edit_original_response(view=self)
-            await interaction.followup.send(self.status, ephemeral=True)
+            try:
+                await interaction.edit_original_response(view=self)
+            except Exception:
+                logger.exception(
+                    'Could not update uncertain guild-settings panel for guild %s',
+                    self.target_guild_id,
+                )
+            try:
+                await interaction.followup.send(self.status, ephemeral=True)
+            except Exception:
+                logger.exception(
+                    'Could not publish uncertain guild-settings fallback for guild %s',
+                    self.target_guild_id,
+                )
             return None
         self.result = result
         if result.activation is not None:
@@ -472,6 +557,53 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             )
         await interaction.response.send_modal(DraftActivationModal(self))
 
+    async def _save(self, interaction: Any) -> None:
+        if not await self.ready(interaction):
+            return
+        draft = self.result.draft
+        if draft is None:
+            return await _private(interaction, 'There are no settings to save.')
+        if not service.changed_paths(self.active_document, draft.document):
+            return await _private(interaction, 'Make at least one change before saving.')
+        if self._capabilities_changed():
+            return await _private(
+                interaction,
+                'This editing session includes command-capability changes. '
+                'Use `/operator guild commands` to review and apply them.',
+            )
+        if not self.result.activation_allowed:
+            return await _private(
+                interaction,
+                'Only the bot owner can save these settings.',
+            )
+        await interaction.response.send_modal(SaveSettingsModal(self))
+
+    async def save(self, interaction: Any) -> None:
+        result = await self._execute(interaction, workers.ACTIVATE)
+        if result is None:
+            return
+        self.terminal = True
+        self.status = (
+            f'Saved and published settings for {self.target_guild_name}. '
+            'The running bot is using the new configuration.'
+        )
+        self.stop()
+        self.rebuild()
+        await interaction.edit_original_response(view=self)
+
+    async def _cancel(self, interaction: Any) -> None:
+        if not await self.ready(interaction):
+            return
+        if self.result.draft is not None:
+            result = await self._execute(interaction, workers.DISCARD)
+            if result is None:
+                return
+        self.terminal = True
+        self.status = 'Editing cancelled. The running configuration was unchanged.'
+        self.stop()
+        self.rebuild()
+        await interaction.edit_original_response(view=self)
+
     async def _refresh(self, interaction: Any) -> None:
         if not await self.ready(interaction):
             return
@@ -483,8 +615,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         marker = f'<@&{object_id}>' if role else f'<#{object_id}>'
         return f'{marker} `{object_id}` ({_escape(name)})'
 
-    def _format_value(self, value: Any) -> str:
-        field = self.field
+    def _format_field_value(self, field: service.DraftField, value: Any) -> str:
         if value is None:
             return '*Inherit / unset*'
         if field.kind in {service.ROLE_LIST, service.OPTIONAL_ROLE}:
@@ -504,8 +635,91 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             return 'Enabled' if value else 'Disabled'
         return f'`{_escape(value)}`'
 
+    def _format_value(self, value: Any) -> str:
+        return self._format_field_value(self.field, value)
+
+    def _compact_value(self, field: service.DraftField, value: Any) -> str:
+        if value is None:
+            return 'unset'
+        if field.kind in {service.ROLE_LIST, service.OPTIONAL_ROLE}:
+            values = (value,) if isinstance(value, int) else tuple(value)
+            names = [self.role_names.get(int(item), str(item)) for item in values]
+            rendered = ', '.join(_escape(item) for item in names) or 'none'
+        elif field.kind in {
+            service.CHANNEL_LIST,
+            service.NULLABLE_CHANNEL_LIST,
+            service.OPTIONAL_CHANNEL,
+            service.CATEGORY_LIST,
+        }:
+            values = (value,) if isinstance(value, int) else tuple(value)
+            names = [self.channel_names.get(int(item), str(item)) for item in values]
+            rendered = ', '.join(_escape(item) for item in names) or 'none'
+        elif field.kind == service.CAPABILITY_LIST:
+            rendered = ', '.join(_escape(item) for item in value) or 'none'
+        elif isinstance(value, bool):
+            rendered = 'enabled' if value else 'disabled'
+        else:
+            rendered = _escape(value)
+        return rendered if len(rendered) <= 120 else rendered[:117] + '…'
+
+    def _readable_changes(self, changes: tuple[str, ...]) -> str:
+        fields_by_path = {
+            '.'.join(field.path): field
+            for field in service.FIELDS
+        }
+        lines = []
+        draft = self.result.draft
+        if draft is None:
+            return '*None*'
+        for path in changes[:10]:
+            field = fields_by_path.get(path)
+            if field is None:
+                lines.append(f'- {_escape(path)}')
+                continue
+            old = self._compact_value(
+                field, service.field_value(self.active_document, field),
+            )
+            new = self._compact_value(
+                field, service.field_value(draft.document, field),
+            )
+            lines.append(f'- **{_escape(field.label)}:** {old} → {new}')
+        if len(changes) > 10:
+            lines.append(f'- …and {len(changes) - 10} more')
+        return '\n'.join(lines) or '*No unsaved changes.*'
+
+    def _capabilities_changed(self) -> bool:
+        draft = self.result.draft
+        return bool(
+            draft is not None
+            and draft.document.command_capabilities
+            != self.active_document.command_capabilities
+        )
+
     def _draft_summary(self) -> str:
         draft = self.result.draft
+        if self.simple_owner:
+            if draft is None:
+                return (
+                    '# Edit guild settings\n'
+                    f'**Server:** {_escape(self.target_guild_name)}\n\n'
+                    + (
+                        'The settings were saved.'
+                        if self.terminal and self.result.activation is not None else
+                        'There is no active editing session.'
+                    )
+                )
+            changes = service.changed_paths(self.active_document, draft.document)
+            return (
+                '# Edit guild settings\n'
+                f'**Server:** {_escape(self.target_guild_name)}\n'
+                f'**Unsaved changes:** {len(changes)}\n'
+                f'{self._readable_changes(changes)}'
+                + (
+                    '\n\n⚠️ This session also changes command capabilities. '
+                    'Finish it with `/operator guild commands`.'
+                    if self._capabilities_changed() else ''
+                )
+            )
         if draft is None:
             return (
                 '# Guild configuration draft\n'
@@ -538,7 +752,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             discord.ui.TextDisplay(self._draft_summary()),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
         ]
-        if draft is not None:
+        if draft is not None and not self.terminal:
             section = discord.ui.Select(
                 placeholder='Choose a settings section',
                 options=[
@@ -585,9 +799,16 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Status:** {_escape(self.status)}\n'
-                '-# Activation publishes ordinary settings immediately. Command '
+                + (
+                    '-# Save validates the complete configuration and publishes '
+                    'ordinary settings immediately. Cancel discards only the '
+                    'private editing session. Command capabilities remain under '
+                    '`/operator guild commands`.'
+                    if self.simple_owner else
+                    '-# Activation publishes ordinary settings immediately. Command '
                 'capability changes use `/operator guild commands`, which plans '
                 'and synchronizes only one explicitly confirmed guild.'
+                )
                 + (
                     '\n-# Cross-guild editing is capability-only because Discord '
                     'role/channel selectors belong to the invoking guild. Enable '
@@ -608,6 +829,36 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 )
             ),
         ))
+        if self.simple_owner:
+            changes = (
+                service.changed_paths(self.active_document, draft.document)
+                if draft is not None else ()
+            )
+            save = discord.ui.Button(
+                label='Save changes',
+                style=discord.ButtonStyle.success,
+                disabled=(
+                    self.busy
+                    or self.terminal
+                    or draft is None
+                    or not changes
+                    or self._capabilities_changed()
+                    or not self.result.activation_allowed
+                ),
+            )
+            save.callback = self._save
+            cancel = discord.ui.Button(
+                label='Cancel',
+                style=discord.ButtonStyle.secondary,
+                disabled=self.busy or self.terminal or draft is None,
+            )
+            cancel.callback = self._cancel
+            children.append(discord.ui.ActionRow(save, cancel))
+            self.add_item(discord.ui.Container(
+                *children,
+                accent_colour=components_v2.DEFAULT_ACCENT,
+            ))
+            return
         controls = []
         reset = discord.ui.Button(
             label='Create draft' if draft is None else 'Reset from active',
@@ -768,6 +1019,7 @@ __all__ = [
     'DraftConfirmationModal',
     'DraftValueModal',
     'GuildConfigurationDraftWorkspace',
+    'SaveSettingsModal',
     'identity_maps',
     'publish_private',
 ]

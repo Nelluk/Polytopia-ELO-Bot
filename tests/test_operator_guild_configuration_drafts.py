@@ -12,6 +12,8 @@ import time
 import unittest
 from unittest import mock
 
+import discord
+
 from modules import administration
 from modules import guild_configuration_draft_storage as drafts
 from modules import guild_configuration_delegation_storage as delegation
@@ -701,6 +703,55 @@ class EditServiceAndViewTests(unittest.TestCase):
         self.assertEqual(modal.confirmation.min_length, len(modal.expected))
         self.assertEqual(modal.confirmation.max_length, len(modal.expected))
 
+    def test_simple_owner_workspace_uses_readable_save_and_cancel_flow(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active,
+            service.FIELD_BY_KEY['display_name'],
+            'Edited Guild',
+        )
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(edited),
+        )
+
+        async def runner(*_args, **_kwargs):
+            return result
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID, active_document=active, result=result,
+            runner=runner, role_names={}, channel_names={},
+            target_guild_name='Development Test Guild', simple_owner=True,
+        )
+        self.assertNotIn(service.CAPABILITIES, workspace.sections)
+        items = tuple(workspace.walk_children())
+        rendered = '\n'.join(
+            item.content
+            for item in items
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        button_labels = {
+            item.label
+            for item in items
+            if isinstance(item, discord.ui.Button) and item.label is not None
+        }
+        self.assertIn('Display name', rendered)
+        self.assertIn('Development Test Guild', rendered)
+        self.assertIn('Edited Guild', rendered)
+        self.assertIn('Save changes', button_labels)
+        self.assertIn('Cancel', button_labels)
+        self.assertNotIn('Digest', rendered)
+        self.assertNotIn('Validate', button_labels)
+        self.assertNotIn('Activate', button_labels)
+        modal = views.SaveSettingsModal(workspace)
+        self.assertEqual(modal.expected, 'Development Test Guild')
+        self.assertTrue(any(
+            'server name' in item.text.lower()
+            for item in modal.children
+            if isinstance(item, discord.ui.Label)
+        ))
+
     def test_delegated_workspace_exposes_only_ordinary_fields_and_disables_activation(self):
         active = fixtures.bundle().imports[0].document
         result = workers.GuildConfigurationDraftResult(
@@ -752,6 +803,51 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         interaction.response.send_message.assert_awaited_once()
         self.assertTrue(interaction.response.send_message.call_args.kwargs['ephemeral'])
         interaction.response.defer.assert_not_awaited()
+
+    async def test_owner_editor_creates_private_draft_on_open(self):
+        active = fixtures.bundle().imports[0].document
+        shown = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=None,
+        )
+        reset = replace(shown, operation=workers.RESET, draft=stored())
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID,
+            user=SimpleNamespace(id=OWNER_ID),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+        )
+        target_guild = SimpleNamespace(
+            id=GUILD_ID,
+            name='Development Test Guild',
+            roles=(),
+            channels=(),
+        )
+        operation = mock.AsyncMock(side_effect=(shown, reset))
+        with mock.patch.object(
+            self.cog, '_operator_visible_target_guild', return_value=target_guild,
+        ), mock.patch.object(
+            self.cog, '_operator_guild_draft_operation', new=operation,
+        ), mock.patch.object(
+            administration.settings, 'owner_id', OWNER_ID,
+        ), mock.patch.object(
+            administration.settings,
+            'database_guild_configuration',
+            return_value=runtime_record(),
+        ), mock.patch.object(
+            views, 'publish_private', new=mock.AsyncMock(),
+        ):
+            workspace = await self.cog._open_guild_draft_workspace(
+                interaction,
+                target=GUILD_ID,
+                ordinary_only=False,
+            )
+        self.assertEqual(
+            [call.args[1] for call in operation.await_args_list],
+            [workers.SHOW, workers.RESET],
+        )
+        self.assertTrue(workspace.simple_owner)
+        self.assertEqual(workspace.target_guild_name, 'Development Test Guild')
 
     async def test_committed_edit_survives_publication_failure_for_refresh(self):
         active = fixtures.bundle().imports[0].document
@@ -809,6 +905,82 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             kwargs = calls[-1][1]
             self.assertIsNone(kwargs['expected_draft_version'])
             self.assertIsNone(kwargs['expected_draft_digest'])
+
+    async def test_simple_save_activates_directly_with_current_draft_evidence(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Edited Guild',
+        )
+        initial = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(edited),
+        )
+        activated = activation(edited)
+        completed = workers.GuildConfigurationDraftResult(
+            operation=workers.ACTIVATE, guild_id=GUILD_ID,
+            active_revision=2, active_generation=2,
+            active_document_digest=activated.document_digest, draft=None,
+            activation=activated, committed=True, runtime_published=True,
+        )
+        calls = []
+
+        async def runner(*args, **kwargs):
+            calls.append((args, kwargs))
+            return completed
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID, active_document=active, result=initial,
+            runner=runner, role_names={}, channel_names={},
+            target_guild_name='Development Test Guild', simple_owner=True,
+        )
+        interaction = SimpleNamespace(
+            guild_id=None,
+            user=SimpleNamespace(id=OWNER_ID),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        await workspace.save(interaction)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0][1], workers.ACTIVATE)
+        self.assertEqual(
+            calls[0][1]['expected_draft_version'], initial.draft.draft_version,
+        )
+        self.assertEqual(
+            calls[0][1]['expected_draft_digest'], initial.draft.document_digest,
+        )
+        self.assertTrue(workspace.terminal)
+        self.assertIn('Saved and published', workspace.status)
+
+    async def test_simple_cancel_discards_without_confirmation_ceremony(self):
+        active = fixtures.bundle().imports[0].document
+        initial = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(),
+        )
+        discarded = replace(initial, operation=workers.DISCARD, draft=None)
+        calls = []
+
+        async def runner(*args, **kwargs):
+            calls.append((args, kwargs))
+            return discarded
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID, active_document=active, result=initial,
+            runner=runner, role_names={}, channel_names={}, simple_owner=True,
+        )
+        interaction = SimpleNamespace(
+            guild_id=None,
+            user=SimpleNamespace(id=OWNER_ID),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        await workspace._cancel(interaction)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0][1], workers.DISCARD)
+        self.assertTrue(workspace.terminal)
+        self.assertIn('unchanged', workspace.status)
 
     async def test_activation_reconciles_once_on_event_loop_after_worker(self):
         active = fixtures.bundle().imports[0].document
