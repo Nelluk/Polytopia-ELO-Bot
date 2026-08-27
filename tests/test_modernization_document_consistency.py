@@ -1,4 +1,4 @@
-"""Model-free consistency checks for current modernization authority."""
+"""Model-free consistency checks for the current engineering contract."""
 
 import json
 import os
@@ -23,6 +23,18 @@ EXPECTED_ROOTS = (
     'staffhelp',
     'team',
 )
+RETIRED_HEAD_PATHS = (
+    'deploy/polyelo-release',
+    'deploy/sudoers/polyelo-release',
+    'deploy/systemd/polyelo.service',
+    'deploy/systemd/polyelo-modernization-canary.conf',
+    'deploy/systemd/polytopia.service',
+    'deploy/systemd/polytopia-modernization-canary.conf',
+    'modules/release_candidate.py',
+    'scripts/install_polyelo_release.sh',
+    'scripts/manage_release_candidate.py',
+    'scripts/production_release.sh',
+)
 
 
 def _read(relative_path: str) -> str:
@@ -36,7 +48,7 @@ def _section(text: str, heading: str) -> str:
 
 
 class ModernizationDocumentConsistencyTests(unittest.TestCase):
-    def test_current_source_compatibility_and_status_records_agree(self):
+    def test_current_source_and_engineering_contract_agree(self):
         command_probe = subprocess.run(
             (
                 sys.executable,
@@ -74,110 +86,39 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         loaded_roots = tuple(json.loads(command_probe.stdout.splitlines()[0]))
         self.assertEqual(loaded_roots, EXPECTED_ROOTS)
 
-        taxonomy = _read('docs/SLASH_COMMAND_TAXONOMY_REVIEW.md')
-        taxonomy_current = _section(taxonomy, '## Current implementation alignment')
-        taxonomy_inventory = taxonomy_current.split(
-            'Their current first-level structure is:', 1
+        contract = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
+        command_section = _section(contract, '## Discord command contract')
+        root_inventory = command_section.split(
+            'Current first-level structure:', 1
         )[0]
-        self.assertEqual(
-            tuple(re.findall(r'`([^`]+)`', taxonomy_inventory)),
-            EXPECTED_ROOTS,
+        documented_roots = tuple(
+            re.findall(r'(?m)^- `([^`]+)`$', root_inventory)
         )
-
-        readiness = _read('docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md')
-        readiness_current = _section(
-            readiness,
-            '## Final reconciliation within this historical audit',
-        )
-        self.assertEqual(
-            tuple(re.findall(r'`([^`]+)`', readiness_current))[:len(EXPECTED_ROOTS)],
-            EXPECTED_ROOTS,
-        )
-        self.assertIn('M1–M6 and L1 are resolved', readiness_current)
-
-        roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
-        self.assertIn('| P9 | Complete |', roadmap)
-        self.assertIn(
-            'Current active unit: **None. The modernization release is '
-            'integrated and',
-            roadmap,
-        )
-        self.assertNotIn('command source currently loads ten roots', roadmap)
-        compatibility_rows = {
-            row.split(' ', 2)[1]: row
-            for row in roadmap.splitlines()
-            if row.startswith('| C-')
-        }
-        self.assertIn('stall was corrected', compatibility_rows['C-012'])
-        self.assertIn('correction was validated', compatibility_rows['C-013'])
-        self.assertIn('integrated/deployed at `41da49e`', compatibility_rows['C-025'])
-        self.assertNotIn('pending correction', compatibility_rows['C-012'])
-        self.assertNotIn('implementation pending', compatibility_rows['C-025'])
-        self.assertIn(
-            'Discord-triggered backup surface is retired',
-            compatibility_rows['C-029'],
-        )
-        self.assertIn(
-            'full retirement implemented/deployed at `9dd701e9`',
-            compatibility_rows['C-029'],
-        )
-        self.assertIn(
-            'The immediate modernization action at this historical checkpoint\n'
-            'was P9.7a',
-            roadmap,
-        )
-
-        review = _read('docs/MODERNIZATION_PRE_PRODUCTION_REVIEW.md')
-        self.assertIn('| M1–M5 | Resolved |', review)
-        self.assertIn('| M6 | Resolved |', review)
-        self.assertIn('| M7 | In progress |', review)
-        self.assertIn('| L1 | Resolved |', review)
-        self.assertIn('| N1 import/startup schema DDL | High |', review)
-        self.assertIn(
-            '| N2 production identity/password literal fallback | Medium |',
-            review,
-        )
-        for finding in ('N3', 'N4', 'N5', 'N6', 'N7'):
-            self.assertRegex(review, rf'(?m)^\| {finding} \| Resolved \|')
-        self.assertIn('Status: **Resolved by P9.19.**', review)
-
-        cutover = _read('docs/MODERNIZATION_PRODUCTION_CUTOVER.md')
-        self.assertIn(
-            'application_command_all_guild_capabilities` is exactly empty',
-            cutover,
-        )
-        self.assertIn(
-            'Main and PolyChampions retain their live staff-help channels',
-            cutover,
-        )
-        self.assertIn('Production writes no JSONL', compatibility_rows['C-007'])
-
-        taxonomy_alignment = _section(
-            taxonomy,
-            '## Current implementation alignment',
-        )
+        self.assertEqual(documented_roots, EXPECTED_ROOTS)
         self.assertIn(
             '/operator bot|channels|guild|player|tribe',
-            taxonomy_alignment,
+            command_section,
         )
-        self.assertNotIn('/operator bot|channels|database', taxonomy_alignment)
+        self.assertNotIn('/operator database', command_section)
+        self.assertIn('There is no active modernization unit.', contract)
+        self.assertIn('pre-cleanup checkpoint\n`e99ec18e`', contract)
 
-        wrapper = _read('docs/PRODUCTION_RELEASE_WRAPPER.md')
-        self.assertIn(
-            'historical systemd-era record; do not install or invoke',
-            wrapper,
-        )
-        self.assertIn('[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md)', wrapper)
+    def test_current_tree_excludes_retired_release_interfaces(self):
+        for relative_path in RETIRED_HEAD_PATHS:
+            with self.subTest(relative_path=relative_path):
+                self.assertFalse((PROJECT_ROOT / relative_path).exists())
 
-        readme = _read('README.md')
         documentation_map = _read('docs/README.md')
-        self.assertIn('[documentation map](docs/README.md)', readme)
         self.assertIn('## Independent self-hosting', documentation_map)
         self.assertIn('## Current upstream operations', documentation_map)
         self.assertIn('## Current engineering references', documentation_map)
-        self.assertIn('## Historical migrations and release evidence',
-                      documentation_map)
+        self.assertIn('## Git history', documentation_map)
+        self.assertIn('e99ec18e', documentation_map)
 
+        readme = _read('README.md')
+        self.assertIn('[documentation map](docs/README.md)', readme)
+
+    def test_public_example_remains_installation_neutral(self):
         example_config = _read('config.ini-EXAMPLE')
         self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polybot$')
         self.assertIn('REPLACE_WITH_YOUR_BOT_USER_ID', example_config)

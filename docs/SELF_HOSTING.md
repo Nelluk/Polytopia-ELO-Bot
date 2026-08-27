@@ -216,8 +216,9 @@ supervisor such as systemd. Ensure only one writer uses a database at a time.
 Start from `deploy/self-hosting/polybot.service.example` for a generic systemd
 service. Replace its service user/group and `/opt/polybot` paths, ensure its
 read-write paths match `image_root` and `log_root`, inspect the resulting unit,
-and then install it under `/etc/systemd/system`. The other tracked production
-units contain upstream absolute paths and should not be installed unchanged.
+and then install it under `/etc/systemd/system`. Current `master` ships no
+upstream GreenCloud systemd unit; historical upstream units must not be copied
+from Git history and installed as generic examples.
 
 ## Persistent data and backups
 

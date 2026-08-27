@@ -19,18 +19,20 @@ This file provides guidance to coding agents when working with code in this repo
   `/srv/polyelo/PolyBot39`. Its ignored root `.env` selects that file and the
   `polyelo-production` project. Read `docs/PRODUCTION_DOCKER.md` and the
   production section of `/home/nelluk/SERVER_INFO.md` before operating it.
-- `polyelo.service` is disabled and retained only as rollback material. Never
-  enable or start it while the Compose bot is running. Rollback must stop the
-  Compose bot first, then enable/start systemd, and verify one writer.
+- A disabled legacy `polyelo.service` may still exist on the host, but current
+  `master` does not ship or support the systemd deployment. Never enable or
+  start it while the Compose bot is running. Emergency reconstruction must use
+  Git history (pre-cleanup checkpoint `e99ec18e`), stop Compose first, and
+  re-establish the one-writer boundary explicitly.
 - A normal reviewed source-only update uses ordinary primitives from the
   production root: `git pull --ff-only` followed by
   `docker compose up -d --build`. Production recreation still requires
   Nelluk's explicit authorization and the usual backup/configuration/writer
   checks.
-- The old constrained systemd release wrapper remains installed temporarily
-  for rollback-era cleanup only. Do not invoke `/srv/polyelo/bin/polyelo-release`
-  while Compose is the active supervisor; it controls `polyelo.service` and
-  runs the superseded migration/command-release sequence.
+- A retired host-only `/srv/polyelo/bin/polyelo-release` may remain pending
+  separate host cleanup. Never invoke it: it controls the legacy systemd unit
+  and runs a superseded migration/command-release sequence. Its source and
+  installer are intentionally absent from current `master`.
 
 ## GreenCloud development-beta deployment
 
@@ -58,19 +60,18 @@ This file provides guidance to coding agents when working with code in this repo
 
 Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides matchmaking, ELO-based leaderboards, and league management across multiple Discord servers (primarily the main Polytopia server and PolyChampions).
 
-## Active Modernization Plan
+## Database and slash-command work
 
 For database-access and slash-command work, read and update
-`docs/DATABASE_AND_SLASH_MODERNIZATION.md`. It is the durable execution
-record for completed phases, current work, decisions, validation evidence,
-and the next recommended unit.
+`docs/DATABASE_AND_SLASH_MODERNIZATION.md`. It is the compact current contract
+for architecture, safety boundaries, compatibility decisions, validation, and
+the next bounded unit. Detailed completed execution history is available at
+Git checkpoint `e99ec18e` and should not be loaded for routine work.
 
-For work split across planning/review and implementation Codex tasks, also
-read `docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`. Use separate Git
-worktrees and its checkpoint/handoff protocol; never let two tasks switch or
-edit the same checkout concurrently. This is the ordinary planned-work path,
-not a prohibition on an owner-authorized production hotfix under the
-proportional path below.
+For broad planned work, use isolated Git worktrees and never let two tasks
+switch or edit the same checkout concurrently. Record the current bounded unit
+and its validation/deployment effects in the compact contract before splitting
+work across tasks.
 
 ## Engineering Proportionality
 
@@ -91,9 +92,8 @@ lead with the minimal recommended path.
 
 When Nelluk explicitly asks for a narrow fix directly in the production
 checkout or on production `master`, that instruction overrides the ordinary
-modernization worktree/accumulation-branch workflow for that fix. Treat it as
-a proportional hotfix, not automatically as a full production-cutover
-project.
+isolated-worktree workflow for that fix. Treat it as a proportional hotfix,
+not automatically as a full production-cutover project.
 
 This path is appropriate when the change is small and reversible and does not
 introduce a schema/data migration, dependency or runtime-topology change,

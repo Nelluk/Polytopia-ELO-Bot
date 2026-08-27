@@ -74,9 +74,9 @@ docker compose exec bot python scripts/check_runtime_config.py
 Also verify the application identity, Unix-socket database transport, restart
 count, and one project bot with no host or other container writer. Docker's
 image ID (`docker compose images`) and the checkout's Git history provide
-source diagnostics without duplicate version settings. The retired Beta Lab
-and legacy deployment cleanup is
-recorded in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+source diagnostics without duplicate version settings. Retired Beta Lab and
+legacy deployment records remain available at historical checkpoint
+`e99ec18e`; none is part of the current beta interface.
 
 ## Updating
 

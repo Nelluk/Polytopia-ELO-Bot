@@ -2,8 +2,9 @@
 
 This runbook documents the B1/R-003 additive schema tool. It is not standing
 authorization to access or modify the production database. Production verify
-and apply require separate explicit approval and are embedded in the reviewed
-ordering at `docs/MODERNIZATION_PRODUCTION_CUTOVER.md`.
+and apply require separate explicit approval. The generic configured-target
+schema manager is the normal current upgrade interface; this release-specific
+tool remains a narrow compatibility and recovery reference.
 
 ## Fixed scope
 

@@ -11,7 +11,6 @@ config.development.ini
 server_settings.py
 server_settings_dev.py
 spreadsheet_creds.json
-.operator-backup-release.json
 .env
 .env.*
 !.env.example

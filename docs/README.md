@@ -1,9 +1,8 @@
 # Documentation map
 
 Use this page to distinguish public installation instructions from upstream
-operations and historical engineering evidence. A historical document may
-contain commands that were correct for its checkpoint; its presence is not a
-recommendation or authorization to run them now.
+operations and current engineering references. Completed migration and release
+records are kept in Git history instead of the current documentation tree.
 
 ## Independent self-hosting
 
@@ -30,10 +29,9 @@ recommendation or authorization to run them now.
 
 ## Current engineering references
 
-- [Database/slash modernization ledger](DATABASE_AND_SLASH_MODERNIZATION.md) —
-  current architectural rules plus a large append-only execution history.
-- [Modernization collaboration workflow](MODERNIZATION_COLLABORATION_WORKFLOW.md)
-  — worktree and handoff rules for planned database/slash work.
+- [Database/slash engineering contract](DATABASE_AND_SLASH_MODERNIZATION.md) —
+  current architecture, safety boundaries, compatibility decisions, and work
+  protocol.
 - [Dynamic guild configuration design](DYNAMIC_GUILD_CONFIGURATION_DESIGN.md).
 - Development database-authority runbooks:
   [storage](DEVELOPMENT_GUILD_CONFIGURATION_STORAGE.md),
@@ -47,28 +45,25 @@ recommendation or authorization to run them now.
   [delegation](DEVELOPMENT_GUILD_CONFIGURATION_DELEGATION.md).
 - [Development feedback](DEVELOPMENT_BETA_FEEDBACK.md) and
   [historical mirror](DEVELOPMENT_HISTORICAL_MIRROR.md) runbooks.
-
-## Historical migrations and release evidence
-
-These files preserve completed decisions and checkpoint evidence. Do not use
-them as current deployment authority:
-
-- [Python/dependency upgrade handoff](DEPENDENCY_UPGRADE_HANDOFF.md),
-  [PostgreSQL upgrade plan](POSTGRESQL_UPGRADE_PLAN.md),
-  [production cutover](PRODUCTION_CUTOVER.md), and
-  [post-upgrade cleanup](POST_UPGRADE_CLEANUP.md).
-- [Modernization readiness audit](MODERNIZATION_PRODUCTION_READINESS_AUDIT.md),
-  [adversarial review](MODERNIZATION_PRE_PRODUCTION_REVIEW.md),
-  [release-candidate evidence](MODERNIZATION_RELEASE_CANDIDATE.md),
-  [modernization cutover](MODERNIZATION_PRODUCTION_CUTOVER.md), and
-  [final-review prompt](MODERNIZATION_FINAL_ADVERSARIAL_REVIEW_PROMPT.md).
-- [Slash taxonomy review](SLASH_COMMAND_TAXONOMY_REVIEW.md),
-  [player identity audit](PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md), and
-  [beta-only cleanup record](BETA_ONLY_CLEANUP.md).
-- Release-specific schema records for
-  [player timezone](PRODUCTION_TIMEZONE_MIGRATION.md),
+- Targeted schema references for [player timezone](PRODUCTION_TIMEZONE_MIGRATION.md),
   [player badges](PLAYER_BADGES_MIGRATION.md), and
   [game keep-active](GAME_KEEP_ACTIVE_MIGRATION.md). New installations should
   use the generic schema workflow documented in the self-hosting guides.
-- [Retired systemd release wrapper](PRODUCTION_RELEASE_WRAPPER.md) — historical
-  behavior only; do not install or invoke it.
+
+## Git history
+
+Pre-cleanup checkpoint `e99ec18e` preserves the complete modernization ledger,
+dependency/PostgreSQL upgrades, adversarial reviews, release candidates,
+systemd cutovers, retired wrapper assets, and their tests. They are deliberately
+absent from current `master` because none is a supported deployment interface.
+
+Retrieve a specific record when reconstructing history or an emergency path:
+
+```bash
+git show e99ec18e:docs/DATABASE_AND_SLASH_MODERNIZATION.md
+git show e99ec18e:docs/MODERNIZATION_PRODUCTION_CUTOVER.md
+git show e99ec18e:deploy/systemd/polyelo.service
+```
+
+Historical commands must be adapted and revalidated against the current Docker
+topology before use.

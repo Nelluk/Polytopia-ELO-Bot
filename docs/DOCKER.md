@@ -228,8 +228,9 @@ The upstream GreenCloud production bot has an explicit standalone definition,
 `compose.production.yaml`, because it additionally mounts the required Bullet
 credential. It is documented in
 [PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md). GreenCloud now runs that Compose
-project; its disabled legacy systemd unit is rollback material and must never
-be started at the same time.
+project. A disabled legacy systemd unit may still exist on that host pending
+separate host cleanup, but it is unsupported by current `master` and must never
+be started at the same time as Compose.
 
 ## Private and persistent files
 

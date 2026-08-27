@@ -3,9 +3,10 @@
 Status: **active on GreenCloud**
 
 GreenCloud production runs as the `polyelo-production` Compose project.
-`polyelo.service` is disabled and retained only for rollback. Nothing in this
-document is standing authorization to recreate or stop production, change
-PostgreSQL, or synchronize Discord commands.
+A disabled legacy `polyelo.service` may remain on the host pending cleanup, but
+it is not a supported deployment interface in current `master`. Nothing in
+this document is standing authorization to recreate or stop production,
+change PostgreSQL, or synchronize Discord commands.
 
 The deployment is deliberately conventional:
 
@@ -67,7 +68,6 @@ docker run --rm --network none --read-only --entrypoint /bin/sh \
    test ! -e /app/config.ini &&
    test ! -e /app/server_settings.py &&
    test ! -e /app/spreadsheet_creds.json &&
-   test ! -e /app/.operator-backup-release.json &&
    test ! -e /app/graph.png'
 ```
 
@@ -90,7 +90,7 @@ schema preflight may connect through the socket, but `schema --apply`, bot
 recreation, and application-command apply remain separately authorized
 operations.
 
-## Cutover and rollback boundary
+## Cutover and emergency recovery boundary
 
 The initial GreenCloud cutover completed on 2026-08-27. Any future supervisor
 change or rollback requires new explicit authorization. The reviewed boundary
@@ -107,19 +107,24 @@ is:
 6. verify application identity, `polytopia2`/production role over the Unix
    socket, persistent paths, zero published ports, zero unexpected restarts,
    and one production writer; and
-7. keep the systemd unit, host virtual environment, prior image, and backups
-   intact until Compose is accepted.
+7. retain the prior Docker image and backups until the replacement is accepted.
 
-Stopping without disabling systemd is not an acceptable steady state: a host
-reboot could otherwise start systemd while Docker also restarts the container.
-Rollback must stop the Compose bot before re-enabling and starting
-`polyelo.service`, again preserving the one-writer boundary.
+Stopping without disabling any host legacy unit is not an acceptable steady
+state: a reboot could otherwise start systemd while Docker also restarts the
+container. Ordinary rollback should rebuild a reviewed prior Git checkpoint or
+retag a retained prior Docker image, then recreate the Compose bot with the
+same private configuration and persistent mounts.
+
+If Docker itself is unavailable, pre-cleanup checkpoint `e99ec18e` preserves
+the former systemd unit and cutover evidence. Reconstructing that path is an
+emergency engineering operation, not a supported release command: stop Compose,
+review the historical assets against the current host, and prove exactly one
+writer before starting anything.
 
 The existing host backup timers continue to own production backups. The
-cutover did not replace them with a Compose backup service. The constrained
-systemd release wrapper also remains installed until a separately reviewed
-post-cutover cleanup; it must not be invoked while Compose is the active
-supervisor.
+cutover did not replace them with a Compose backup service. A retired
+`/srv/polyelo/bin/polyelo-release` host copy may remain pending separate host
+cleanup, but it is unsupported and must not be invoked.
 
 There is intentionally no Discord command for manually starting a production
 backup. An administrator who needs an exceptional manual run should invoke the

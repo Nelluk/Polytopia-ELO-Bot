@@ -73,7 +73,7 @@ PostgreSQL and are used whenever no local image exists.
 
 The tracked generic backup script is `scripts/backup_db.sh`.
 
-Files named `MODERNIZATION_*` and documents containing GreenCloud paths describe
-upstream engineering or historical evidence. Their status and audience are
-listed in the documentation map; they are not prerequisites for an independent
-installation.
+GreenCloud-specific documents describe upstream operations, not independent
+installation requirements. Completed modernization and release records live at
+the Git checkpoint identified in the documentation map rather than in the
+current tree.

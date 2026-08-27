@@ -185,7 +185,6 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             'server_settings.py',
             'server_settings_dev.py',
             'spreadsheet_creds.json',
-            '.operator-backup-release.json',
             'graph.png',
         ):
             with self.subTest(private_path=private_path):
