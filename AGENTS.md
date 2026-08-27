@@ -13,26 +13,24 @@ This file provides guidance to coding agents when working with code in this repo
 - Do not chmod `/var/run/docker.sock`, change group membership, add sudo rules,
   or authorize mutating Docker operations based only on sandbox results.
 
-## Constrained production release wrapper
+## GreenCloud production Compose deployment
 
-- GreenCloud production currently remains on `polyelo.service`. The tracked
-  `compose.production.yaml` is inactive preparation only; do not start it or
-  disable/stop the systemd service without Nelluk's separate cutover approval.
-
-- The tracked wrapper source is `deploy/polyelo-release`; its fixed installed
-  path is `/srv/polyelo/bin/polyelo-release`. Read
-  `docs/PRODUCTION_RELEASE_WRAPPER.md` before changing or invoking it.
-- Invoke `sudo -n /srv/polyelo/bin/polyelo-release` only after Nelluk has
-  explicitly authorized the production release, including its service,
-  additive-schema, and fixed guild-command effects. The passwordless rule is
-  an OS capability, not standing deployment authorization.
-- The production checkout must already be clean on `master`. The wrapper does
-  not fetch, merge, reset, restore, or install dependencies. It accepts no
-  arguments and leaves `polyelo.service` stopped if an unprivileged release
-  step fails.
-- Add reviewed idempotent migrations to
-  `scripts/production_release.sh`; do not broaden sudoers, expose production
-  configuration, or add arbitrary arguments for normal releases.
+- GreenCloud production is the direct `compose.production.yaml` project in
+  `/srv/polyelo/PolyBot39`. Its ignored root `.env` selects that file and the
+  `polyelo-production` project. Read `docs/PRODUCTION_DOCKER.md` and the
+  production section of `/home/nelluk/SERVER_INFO.md` before operating it.
+- `polyelo.service` is disabled and retained only as rollback material. Never
+  enable or start it while the Compose bot is running. Rollback must stop the
+  Compose bot first, then enable/start systemd, and verify one writer.
+- A normal reviewed source-only update uses ordinary primitives from the
+  production root: `git pull --ff-only` followed by
+  `docker compose up -d --build`. Production recreation still requires
+  Nelluk's explicit authorization and the usual backup/configuration/writer
+  checks.
+- The old constrained systemd release wrapper remains installed temporarily
+  for rollback-era cleanup only. Do not invoke `/srv/polyelo/bin/polyelo-release`
+  while Compose is the active supervisor; it controls `polyelo.service` and
+  runs the superseded migration/command-release sequence.
 
 ## GreenCloud development-beta deployment
 
@@ -163,9 +161,9 @@ POLYBOT_ENV=development .venv/bin/python bot.py --recalc_elo
 POLYBOT_ENV=development .venv/bin/python bot.py --game_export
 ```
 
-Production uses `POLYBOT_ENV=production` and `uv sync --locked --no-dev`.
-Production execution and service restarts require separate explicit approval;
-see `docs/PRODUCTION_CUTOVER.md`.
+Production runs in Docker with `POLYBOT_ENV=production`; the image installs
+locked non-development dependencies. Production recreation and restarts
+require separate explicit approval; see `docs/PRODUCTION_DOCKER.md`.
 
 ## Running the API Server
 

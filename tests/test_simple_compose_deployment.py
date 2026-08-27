@@ -89,7 +89,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('restore:', compose)
         self.assertNotIn('ports:', compose)
 
-    def test_upstream_production_compose_is_explicit_and_inactive(self):
+    def test_upstream_production_compose_is_explicit(self):
         compose = (self.root / 'compose.production.yaml').read_text(
             encoding='utf-8'
         )
@@ -109,7 +109,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('create_host_path: false', compose)
         self.assertIn('COMPOSE_FILE=compose.production.yaml', environment)
         self.assertIn('COMPOSE_PROJECT_NAME=polyelo-production', environment)
-        self.assertIn('Status: **prepared but inactive**', guide)
+        self.assertIn('Status: **active on GreenCloud**', guide)
         self.assertIn('docker compose config --images | sort -u', guide)
         self.assertNotIn('docker compose images -q', guide)
         self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)

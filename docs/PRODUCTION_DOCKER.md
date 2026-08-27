@@ -1,12 +1,13 @@
-# Upstream production Docker preparation
+# Upstream production Docker deployment
 
-Status: **prepared but inactive**
+Status: **active on GreenCloud**
 
-GreenCloud production still runs under `polyelo.service`. Nothing in this
-document authorizes stopping that service, starting the production Compose
-project, changing PostgreSQL, or synchronizing Discord commands.
+GreenCloud production runs as the `polyelo-production` Compose project.
+`polyelo.service` is disabled and retained only for rollback. Nothing in this
+document is standing authorization to recreate or stop production, change
+PostgreSQL, or synchronize Discord commands.
 
-The prepared deployment is deliberately conventional:
+The deployment is deliberately conventional:
 
 - one normal clone at `/srv/polyelo/PolyBot39`;
 - root `Dockerfile`, `compose.production.yaml`, and ignored `.env`;
@@ -84,17 +85,19 @@ operations before a topology-only cutover:
 docker compose run --rm schema --verify
 ```
 
-Do not run the normal bot command while `polyelo.service` is active. A
-separately constructed read-only schema preflight may connect through the
-socket during preparation, but `schema --apply`, ordinary bot startup, and
-application-command apply remain cutover actions.
+While Compose is active, do not enable or start `polyelo.service`. A read-only
+schema preflight may connect through the socket, but `schema --apply`, bot
+recreation, and application-command apply remain separately authorized
+operations.
 
-## Future cutover boundary
+## Cutover and rollback boundary
 
-A later cutover requires a new explicit authorization and maintenance window.
-The reviewed procedure must, at minimum:
+The initial GreenCloud cutover completed on 2026-08-27. Any future supervisor
+change or rollback requires new explicit authorization. The reviewed boundary
+is:
 
-1. verify a fresh logical database backup and the existing image backup;
+1. verify a fresh logical database backup and the existing image-directory
+   backup;
 2. verify clean reviewed source, the built Docker image ID, and a read-only
    schema plan;
 3. stop and disable `polyelo.service`, then prove that no production writer
@@ -112,11 +115,11 @@ reboot could otherwise start systemd while Docker also restarts the container.
 Rollback must stop the Compose bot before re-enabling and starting
 `polyelo.service`, again preserving the one-writer boundary.
 
-The existing host backup timers continue to own production backups during and
-after this migration. The first cutover does not replace them with a Compose
-backup service. The constrained systemd release wrapper also remains installed
-until a separately reviewed post-cutover cleanup; it must not be invoked after
-Compose becomes the active supervisor.
+The existing host backup timers continue to own production backups. The
+cutover did not replace them with a Compose backup service. The constrained
+systemd release wrapper also remains installed until a separately reviewed
+post-cutover cleanup; it must not be invoked while Compose is the active
+supervisor.
 
 After cutover, an ordinary source-only production update is intentionally the
 same standard Compose workflow:
