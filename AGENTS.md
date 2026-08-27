@@ -7,7 +7,7 @@ This file provides guidance to coding agents when working with code in this repo
 - Codex's default task sandbox may remap supplementary groups to `nogroup`, so
   a sandboxed `id` or Docker socket permission denial is not evidence that
   `nelluk` lacks Docker access.
-- For authorized read-only Docker or `./polybot` inspection, retry the exact
+- For authorized read-only Docker or Compose inspection, retry the exact
   command outside the sandbox through the normal escalation/approval flow,
   without `sudo`. Verify with elevated `id` and `docker ps`.
 - Do not chmod `/var/run/docker.sock`, change group membership, add sudo rules,
@@ -34,22 +34,23 @@ This file provides guidance to coding agents when working with code in this repo
 
 - Before every beta setup, deploy, start, stop, restart, status, log, or Beta
   Lab operation, read the Development section of `/home/nelluk/SERVER_INFO.md`.
-- GreenCloud's canonical beta mode is `external-socket`. It uses host
-  PostgreSQL through the read-only `/var/run/postgresql` mount. Always include
-  `--mode external-socket`; never run a plain `./polybot deploy`, `setup`,
-  `start`, `stop`, or `restart` on this host.
-- Before mutation, run `./polybot --mode external-socket status`. If its mode,
-  checkpoint, application identity, database transport, or writer census
-  conflicts with `SERVER_INFO.md`, stop and investigate before running setup
-  or deploy.
+- GreenCloud's canonical beta is the direct `compose.beta.yaml` project in
+  `/home/nelluk/PolyBot39-deploy`. Its ignored root `.env` selects that file
+  and the `polybot-mac-beta` project. It uses host PostgreSQL through the
+  read-only `/var/run/postgresql` mount; Compose must not own a beta database.
+- Before mutation, run `docker compose config --quiet`, `docker compose ps`,
+  and, while the bot is running, the two Beta Lab status commands documented
+  in `docs/DEVELOPMENT_DOCKER.md`. If the checkpoint, application identity,
+  database transport, or running-container census conflicts with
+  `SERVER_INFO.md`, stop and investigate.
 - For a source-only beta correction with no schema or command-tree change:
-  run proportionate tests, create a clean exact Git checkpoint, run
-  `./polybot --mode external-socket deploy`, and verify the authenticated
-  application, checkpoint, stable container, and one-writer census. Do not
-  synchronize commands when command definitions did not change.
-- Do not select bundled mode on GreenCloud unless Nelluk explicitly approves
-  a topology change. Bundled setup rewrites the container database credential
-  and manages a separate PostgreSQL container and volume.
+  run proportionate tests, create a clean exact Git checkpoint, update the
+  ignored `.env` checkpoint and image tag, run `docker compose build`, inspect
+  the schema plan, and recreate only `bot` with Compose. Verify the
+  authenticated application, checkpoint, stable container, and one-writer
+  census. Do not synchronize commands when command definitions did not change.
+- Do not use the legacy `./polybot` deployment wrapper or a bundled PostgreSQL
+  mode on GreenCloud unless Nelluk explicitly approves a topology change.
 
 ## Project Overview
 

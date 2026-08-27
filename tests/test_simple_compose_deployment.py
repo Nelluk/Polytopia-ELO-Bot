@@ -20,9 +20,12 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             'Dockerfile',
             'compose.yaml',
             'compose.host-postgres.yaml',
+            'compose.beta.yaml',
             '.env.example',
             '.env.host-postgres.example',
+            '.env.beta.example',
             'docs/DOCKER.md',
+            'docs/DEVELOPMENT_DOCKER.md',
         ):
             self.assertTrue((self.root / relative_path).is_file(), relative_path)
 
@@ -40,6 +43,29 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('479029527553638401', compose)
         self.assertNotIn('478571892832206869', compose)
         self.assertNotIn('ports:', compose)
+
+    def test_beta_compose_uses_direct_standard_lifecycle(self):
+        compose = (self.root / 'compose.beta.yaml').read_text(encoding='utf-8')
+        environment = (self.root / '.env.beta.example').read_text(encoding='utf-8')
+        guide = (
+            self.root / 'docs/DEVELOPMENT_DOCKER.md'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('  bot:', compose)
+        self.assertIn('  schema:', compose)
+        self.assertIn('scripts/run_development_beta.py', compose)
+        self.assertIn('scripts/bootstrap_development_database.py', compose)
+        self.assertIn('POLYBOT_BETA_STARTUP_SYNC: disabled', compose)
+        self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
+        self.assertIn('polybot_images:/app/data/development/images', compose)
+        self.assertIn('polybot_logs:/app/logs/development', compose)
+        self.assertNotIn('\nname:', compose)
+        self.assertNotIn('ports:', compose)
+        self.assertNotIn('./polybot', compose)
+        self.assertNotIn('  database:', compose)
+        self.assertIn('COMPOSE_FILE=compose.beta.yaml', environment)
+        self.assertIn('docker compose up -d bot', guide)
+        self.assertNotIn('./polybot', guide)
         self.assertNotIn('./polybot', compose)
 
     def test_host_postgres_compose_owns_no_database_storage(self):

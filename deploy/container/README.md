@@ -1,11 +1,18 @@
-# PolyBot development containers
+# Legacy PolyBot development-container implementation
 
-This directory implements PolyBot's **development-only upstream beta stack**.
-It is not the recommended production self-hosting path and contains fixed
-upstream beta safety identities. For an independent production installation,
-start with [`docs/SELF_HOSTING.md`](../../docs/SELF_HOSTING.md).
+This directory contains the lower-level implementation retained from the
+former wrapper-managed **development-only upstream beta stack**. The canonical
+beta now uses the repository-root
+[`compose.beta.yaml`](../../compose.beta.yaml) through ordinary Compose
+commands documented in
+[`docs/DEVELOPMENT_DOCKER.md`](../../docs/DEVELOPMENT_DOCKER.md).
 
-## Start with the wrapper
+Do not use this legacy wrapper for a new deployment. It remains available as
+migration and rollback reference while the direct-Compose deployment is
+established. Independent production installations should start with
+[`docs/DOCKER.md`](../../docs/DOCKER.md).
+
+## Legacy wrapper reference
 
 Run commands from the repository root. The `./polybot` wrapper selects the
 right Compose files, project name, profiles, image checkpoint, and runtime
@@ -59,9 +66,9 @@ for provisioning, schema approval, backup, and restore.
 - `Dockerfile` and the shell scripts: implementation details used by the
   wrapper and one-shot jobs.
 
-The top-level Compose `name` values support direct diagnostic use. The wrapper
-intentionally overrides them with its fixed project name so all commands target
-one beta namespace. Prefer the wrapper unless diagnosing the implementation.
+The top-level Compose `name` values support direct diagnostic use. The legacy
+wrapper overrides them with its fixed project name. Do not mix these definitions
+with the root direct-Compose interface in one operation.
 
 For the complete operator contract, recovery procedures, and retained
 live-engine evidence, see

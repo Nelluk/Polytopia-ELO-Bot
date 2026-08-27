@@ -347,7 +347,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertNotIn('DROP ', source)
         self.assertNotIn('ALTER ', source)
 
-    def test_document_records_static_proof_and_production_boundary(self):
+    def test_document_records_static_proof_and_current_operator_boundary(self):
         runbook = (
             self.root / 'docs/CONTAINERIZED_DEVELOPMENT.md'
         ).read_text(encoding='utf-8')
@@ -356,17 +356,20 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('development-only live-engine infrastructure proof', runbook)
         self.assertIn('Docker 29.7.2 and Compose 5.4.0', runbook)
         self.assertIn('2,024', runbook)
-        self.assertIn('does not replace either existing systemd service', runbook)
+        self.assertIn('does not authorize a production container migration', runbook)
+        self.assertIn('The canonical beta operator interface is', runbook)
+        self.assertIn('DEVELOPMENT_DOCKER.md', runbook)
         self.assertIn('Normal database or bot startup never creates application schema', runbook)
         self.assertIn('exit status 75', runbook)
         self.assertIn('copying a live volume is not a\nbackup', runbook)
         self.assertIn('fresh-volume restore drill', runbook)
         self.assertIn('production migration', runbook)
         self.assertIn('development-only upstream beta stack', quickstart)
-        self.assertIn('not the recommended production self-hosting path', quickstart)
+        self.assertIn('Do not use this legacy wrapper for a new deployment', quickstart)
+        self.assertIn('docs/DEVELOPMENT_DOCKER.md', quickstart)
         self.assertIn('./polybot setup', quickstart)
         self.assertIn('| `bundled` (default) |', quickstart)
-        self.assertIn('Prefer the wrapper', quickstart)
+        self.assertNotIn('Prefer the wrapper', quickstart)
 
 
 if __name__ == '__main__':

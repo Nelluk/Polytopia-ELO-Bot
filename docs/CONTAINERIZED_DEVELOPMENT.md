@@ -1,43 +1,37 @@
 # Containerized development deployment
 
-Status: supported development-only operator interface with retained
-live-engine evidence. This is not a production runbook and does not authorize
-a production container migration. The earlier
-development-only live-engine infrastructure proof remains recorded below;
-this interface does not replace either existing systemd service.
+Status: retained design, validation, and rollback reference for the former
+wrapper-managed development stack. The canonical beta operator interface is
+now [`DEVELOPMENT_DOCKER.md`](DEVELOPMENT_DOCKER.md). This is not a production
+runbook and does not authorize a production container migration. The earlier
+development-only live-engine infrastructure proof remains recorded below.
 
 ## Start here
 
-This stack is for the upstream development beta, not a general production
-Docker recipe. It contains fixed upstream beta application, guild, database,
-and role identities. Independent production operators should use the
-[self-hosting guide](SELF_HOSTING.md); contributors who need the beta stack can
-start with the shorter [`deploy/container` guide](../deploy/container/README.md).
-
-Run the wrapper from a clean repository root. It owns the Compose project name,
-profiles, exact image checkpoint, and private-input checks:
+This material describes the upstream development beta, not a general
+production Docker recipe. It contains fixed upstream beta application, guild,
+database, and role identities. Independent production operators should use the
+[Docker self-hosting guide](DOCKER.md). Upstream beta maintainers should use the
+short direct-Compose guide:
 
 ```bash
-./polybot --help
-./polybot setup
-# Fill any placeholders reported by setup, then rerun it.
-./polybot deploy
-./polybot status
-./polybot logs
+docker compose config --quiet
+docker compose build
+docker compose up -d bot
+docker compose ps
 ```
 
-The default `bundled` mode manages an isolated PostgreSQL container and volume.
-Use `--mode external` for a separately managed TCP-reachable development
-database, or `--mode external-socket` on Linux for a read-only host PostgreSQL
-socket mount. Keep the non-default mode on every command. Bundled mode alone
-provides the repository's backup, restore-verification, import, and first-guild
-bootstrap workflows.
+The root `.env` selects `compose.beta.yaml`. That definition uses GreenCloud's
+host PostgreSQL through a read-only Unix-socket mount and does not own database
+storage. The wrapper-specific modes and recovery procedures below are retained
+only as historical implementation and rollback context.
 
 ## Verdict
 
-A two-service Compose deployment is practical for PolyBot. P11.5A makes the
-repository-owned `./polybot` command the ordinary macOS/Linux interface; raw
-Compose jobs remain the diagnostic implementation layer. The reviewed shape
+A two-service Compose deployment is practical for PolyBot. P11.5A formerly
+made the repository-owned `./polybot` command the ordinary macOS/Linux
+interface; the root direct-Compose interface subsequently replaced that
+wrapper. The reviewed shape
 keeps the bot image replaceable, gives PostgreSQL its own pinned-major service
 and persistent volume, and removes host PostgreSQL role/database setup from the
 ordinary development path. The repository now contains a build definition,
@@ -160,26 +154,35 @@ current runtime config reads INI values, not Docker `_FILE` variables. P11.2's
 doctor compares the values without displaying them. Changing runtime secret
 loading is optional later work, not hidden inside this deployment proof.
 
-## Primary operator interface
+## Current GreenCloud operator interface
 
 ### GreenCloud canonical deployment
 
 GreenCloud uses the host PostgreSQL cluster through the read-only Unix-socket
-mount. Its canonical mode is therefore `external-socket`, as recorded in
-`/home/nelluk/SERVER_INFO.md`. For ordinary GreenCloud beta deployment:
+mount, as recorded in `/home/nelluk/SERVER_INFO.md`. Its root `.env` selects
+`compose.beta.yaml` and the `polybot-mac-beta` project. For ordinary operation:
 
 ```bash
 cd /home/nelluk/PolyBot39-deploy
-./polybot --mode external-socket status
-./polybot --mode external-socket deploy
-./polybot --mode external-socket status
+docker compose config --quiet
+docker compose ps
+docker compose build
+docker compose run --rm schema
+docker compose up -d --force-recreate bot
+docker compose exec bot python scripts/manage_beta_lab.py --json status
 ```
 
-Do not omit `--mode external-socket` on GreenCloud. The wrapper default is
-`bundled`; selecting it rewrites the ignored container database profile and
-creates or manages a separate PostgreSQL container and volume. If the initial
-status conflicts with the documented external-socket topology, stop and
-investigate before running setup or deploy.
+The schema command plans by default; applying a plan remains a separate,
+explicit database operation. If the initial state conflicts with the documented
+host-socket topology, stop and investigate before building or recreating the
+bot. See [`DEVELOPMENT_DOCKER.md`](DEVELOPMENT_DOCKER.md) for the complete
+current procedure.
+
+## Legacy wrapper operator interface
+
+The remaining commands in this section describe the former wrapper-managed
+stack. They are retained for rollback and historical validation, not as the
+ordinary GreenCloud beta workflow.
 
 Run from the clean repository root. Ordinary operation requires only Git,
 Docker with the Compose plugin, and standard macOS/Linux utilities. Python,
@@ -333,8 +336,9 @@ wrapper-provided container context.
 
 ## Advanced Compose troubleshooting and reference
 
-These commands are the diagnostic implementation layer preserved for incident
-analysis and contract development. Use `./polybot` for ordinary deployment.
+These commands are the legacy diagnostic implementation layer preserved for
+incident analysis, rollback, and contract development. Use
+[`DEVELOPMENT_DOCKER.md`](DEVELOPMENT_DOCKER.md) for ordinary deployment.
 P11.4A exercised the raw infrastructure commands under the uniquely scoped
 `polybot-p11-4a` project.
 

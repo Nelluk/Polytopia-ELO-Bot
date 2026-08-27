@@ -74,9 +74,10 @@ It provides the bot, bundled PostgreSQL with an external named volume, explicit
 schema and backup jobs, and ordinary Docker Compose lifecycle commands:
 **[Run PolyBot with Docker Compose](docs/DOCKER.md)**.
 
-The older files under `deploy/container/` remain the current upstream beta
-deployment until that runtime is migrated. They are not the public
-self-hosting interface.
+Upstream maintainers run the isolated beta through the separate, direct
+[development Compose interface](docs/DEVELOPMENT_DOCKER.md). The older files
+under `deploy/container/` are retained as migration and rollback implementation
+material; they are not the public self-hosting interface.
 
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).
