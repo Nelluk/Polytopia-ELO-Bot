@@ -513,7 +513,7 @@ class BootstrapPendingDispatchTests(unittest.IsolatedAsyncioTestCase):
         for requester_id, path in (
             (owner_id + 1, ('operator', 'guild', 'edit')),
             (owner_id, ('operator', 'guild', 'rollback')),
-            (owner_id, ('operator', 'database', 'backup')),
+            (owner_id, ('operator', 'player', 'delete')),
         ):
             with self.subTest(requester_id=requester_id, path=path):
                 denied = interaction(path, requester_id=requester_id)

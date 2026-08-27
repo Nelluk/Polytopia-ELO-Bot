@@ -49,10 +49,6 @@ class CoordinatorOwnershipTests(unittest.IsolatedAsyncioTestCase):
             'pending_game_coordinator',
             SimpleNamespace(active_count=0),
         ), mock.patch.object(
-            administration.operator_backup,
-            'backup_coordinator',
-            SimpleNamespace(active=None),
-        ), mock.patch.object(
             administration.operator_channel_purge_service,
             'manual_purge_coordinator',
             SimpleNamespace(active_guilds=frozenset()),

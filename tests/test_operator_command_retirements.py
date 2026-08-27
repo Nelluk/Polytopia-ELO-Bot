@@ -19,6 +19,8 @@ RETIRED_PREFIX_NAMES = frozenset(
         'restart',
         'restart_force',
         'quit',
+        'backup_db',
+        'dbb',
     }
 )
 

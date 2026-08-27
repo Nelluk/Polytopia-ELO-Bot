@@ -186,7 +186,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in operator_group.commands},
-            {'tribe', 'player', 'database', 'channels', 'bot', 'guild'},
+            {'tribe', 'player', 'channels', 'bot', 'guild'},
         )
         self.assertEqual(
             {
@@ -209,13 +209,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             },
             {'purge'},
         )
-        self.assertEqual(
-            {
-                command.name
-                for command in operator_group.get_command('database').commands
-            },
-            {'backup'},
-        )
+        self.assertIsNone(operator_group.get_command('database'))
         self.assertEqual(
             {
                 command.name

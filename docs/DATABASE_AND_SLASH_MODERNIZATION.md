@@ -27517,3 +27517,28 @@ All four Compose definitions rendered without checkpoint inputs, a validation
 image built without a Git revision argument, 36 focused tests passed, and full
 offline discovery passed 2,074 tests with 85 intentional skips. No production
 or beta service/container was stopped, started, restarted, or replaced.
+
+### 2026-08-27 — Discord-triggered production backup retired
+
+Status: **Implemented; production deployment and guild-command reconciliation
+pending.**
+
+- Removed `/operator database backup` and its confirmation/process adapter.
+  The adapter was intentionally bound to the GreenCloud host account, checkout,
+  and root-controlled wrapper, so it could not run correctly after the bot
+  moved into its unprivileged container.
+- Kept the authoritative `polyelo-backup.timer` schedule and
+  `polyelo-backup.service` wrapper unchanged. An exceptional manual production
+  run is now an explicit host operation: `sudo systemctl start
+  polyelo-backup.service`. The generic repository backup script and public
+  Compose backup service remain available to self-hosters.
+- Kept the retired `$backup_db` and `$dbb` prefix commands absent. Added
+  regression coverage for the complete retired surface and removed the empty
+  `/operator database` group.
+- This source change has no schema or database operation. Removing the stale
+  remote slash command requires one separately inspected, explicit
+  PolyChampions-only application-command apply; global commands and other
+  guilds remain out of scope.
+
+Files: `modules/administration.py`, retired operator-backup modules and tests,
+slash/retirement/restart coverage, and current production operating records.

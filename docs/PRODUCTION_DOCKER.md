@@ -121,6 +121,20 @@ systemd release wrapper also remains installed until a separately reviewed
 post-cutover cleanup; it must not be invoked while Compose is the active
 supervisor.
 
+There is intentionally no Discord command for manually starting a production
+backup. An administrator who needs an exceptional manual run should invoke the
+same host unit used by the schedule, then verify both its result and the
+successful off-host follow-up:
+
+```bash
+sudo systemctl start polyelo-backup.service
+systemctl status polyelo-backup.service polyelo-backup-offhost.service \
+  --no-pager
+```
+
+The public self-hosted deployment remains independent of this GreenCloud host
+unit and uses its documented `docker compose run --rm backup` workflow.
+
 After cutover, an ordinary source-only production update is intentionally the
 same standard Compose workflow:
 

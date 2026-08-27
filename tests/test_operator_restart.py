@@ -79,16 +79,12 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
             'pending_game_coordinator',
             SimpleNamespace(active_count=2),
         ), mock.patch.object(
-            administration.operator_backup,
-            'backup_coordinator',
-            SimpleNamespace(active=object()),
-        ), mock.patch.object(
             administration.operator_channel_purge_service,
             'manual_purge_coordinator',
             SimpleNamespace(active_guilds={1}),
         ):
             result = administration.current_restart_activity()
-        self.assertEqual(len(result.descriptions), 4)
+        self.assertEqual(len(result.descriptions), 3)
         self.assertTrue(result.busy)
 
     def test_permission_and_force_confirmation_fail_closed(self):
@@ -238,7 +234,7 @@ class RestartBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_owner_force_bypasses_only_active_work(self):
         coordinator = service.RestartCoordinator()
         shutdown = mock.AsyncMock()
-        busy = service.RestartActivitySnapshot(('manual database backup',))
+        busy = service.RestartActivitySnapshot(('manual channel purge',))
         forced = request(force=True, confirmation_text=service.FORCE_CONFIRMATION)
         with mock.patch.object(
             service,
