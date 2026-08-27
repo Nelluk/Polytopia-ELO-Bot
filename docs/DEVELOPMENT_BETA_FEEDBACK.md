@@ -63,11 +63,10 @@ cancellation to the interaction. If cancellation arrives after a worker has
 committed, the worker drain logs only the committed report ID for
 reconciliation; no acknowledgement is sent.
 
-The checkpoint is best-effort diagnostic information. The worker uses an
-optional automatically supplied build value or a bounded `git rev-parse HEAD`
-lookup. A container image normally has neither Git metadata nor a manual build
-value, so the record explicitly contains `"git_checkpoint": "unknown"`.
-Unknown version information never blocks startup or feedback submission.
+The revision is best-effort diagnostic information. The worker uses a bounded
+`git rev-parse HEAD` lookup. A container image normally has no Git metadata, so
+the record explicitly contains `"git_checkpoint": "unknown"`. Unknown version
+information never blocks startup or feedback submission.
 
 ## Native submission and Discord relay
 

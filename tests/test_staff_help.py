@@ -421,7 +421,7 @@ class StaffHelpBackendTests(unittest.TestCase):
             '[Open source channel](https://discord.com/channels/200/300)',
         )
         self.assertIn('42500', fields['Related game'])
-        self.assertEqual(fields['Bot checkpoint'], '`abcdef1`')
+        self.assertEqual(fields['Bot revision'], '`abcdef1`')
         self.assertNotIn(helper_role.mention, central_channel.send.await_args.args[0])
 
     def test_local_help_routes_to_related_game_guild_using_runtime_settings(self):

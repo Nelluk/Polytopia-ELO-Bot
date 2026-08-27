@@ -27496,3 +27496,24 @@ rollback fakes, plan-only CLI checks, and explicit legacy channel-marker cycle
 regressions. The final focused/adjacent suite passed 67 tests; full offline
 discovery passed 2,305 tests with 92 intentional skips. Compilation and diff
 checks also passed. No real database or live service was used.
+
+### 2026-08-27 — Manual Compose source checkpoints retired
+
+Status: **Implemented and validated on an isolated source branch; no runtime
+deployment performed.**
+
+The Compose deployment no longer requires operators to synchronize Git SHAs,
+image tags, build arguments, image labels/files, and runtime environment
+variables. Beta launch still validates its fixed application, guild, database,
+role, disabled startup synchronization, Compose supervisor, and writer locks.
+The Compose restart command now restarts the current container image without
+requiring source metadata. Historical-mirror and feedback records retain only
+best-effort Git revision data that cannot block a build or startup.
+
+The ordinary source-only update is now `git pull --ff-only` followed by
+`docker compose up -d --build`. Schema changes, Discord command changes,
+database backups, and one-writer cutovers remain explicit separate operations.
+All four Compose definitions rendered without checkpoint inputs, a validation
+image built without a Git revision argument, 36 focused tests passed, and full
+offline discovery passed 2,074 tests with 85 intentional skips. No production
+or beta service/container was stopped, started, restarted, or replaced.

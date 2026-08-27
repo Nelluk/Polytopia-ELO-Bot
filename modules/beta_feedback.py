@@ -536,10 +536,6 @@ def feedback_paths(profile: RuntimeProfile | None = None, *, create: bool = Fals
 
 
 def _safe_checkpoint(project_root: Path) -> str:
-    for variable in ('POLYBOT_GIT_CHECKPOINT', 'POLYBOT_BUILD_CHECKPOINT'):
-        value = os.environ.get(variable, '').strip()
-        if value and _CHECKPOINT_PATTERN.fullmatch(value):
-            return value
     try:
         completed = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
@@ -553,16 +549,6 @@ def _safe_checkpoint(project_root: Path) -> str:
         return 'unknown'
     value = completed.stdout.strip()
     return value if _CHECKPOINT_PATTERN.fullmatch(value) else 'unknown'
-
-
-def _profile_checkpoint(profile: RuntimeProfile | None) -> str | None:
-    """Use an optional service-provided immutable build value when present."""
-
-    for attribute in ('git_checkpoint', 'build_checkpoint', 'build_version'):
-        value = _optional_text(getattr(profile, attribute, None), 128)
-        if value and _CHECKPOINT_PATTERN.fullmatch(value):
-            return value
-    return None
 
 
 def _new_report_id() -> str:
@@ -757,7 +743,6 @@ class FeedbackStore:
 
                 checkpoint = (
                     draft.git_checkpoint
-                    or _profile_checkpoint(self.profile)
                     or _safe_checkpoint(paths.project_root)
                 )
                 record = _record_payload(

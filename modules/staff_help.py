@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import dataclass
 from io import BytesIO
 import logging
-import os
 import re
 from typing import Any, Mapping
 
@@ -18,7 +17,7 @@ from runtime_config import RuntimeProfile, get_runtime_profile
 
 
 logger = logging.getLogger('polybot.' + __name__)
-_CHECKPOINT = re.compile(r'^[0-9a-f]{7,40}$')
+_REVISION = re.compile(r'^[0-9a-f]{7,40}$')
 _DISCORD_MESSAGE_LINK = re.compile(
     r'https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/channels/'
     r'\d{15,22}/\d{15,22}/\d{15,22}(?!\d)',
@@ -289,13 +288,9 @@ def _production_embed(
             value=draft.command_reference,
             inline=True,
         )
-    checkpoint = str(
-        draft.git_checkpoint
-        or os.environ.get('POLYBOT_GIT_CHECKPOINT', '')
-        or os.environ.get('POLYBOT_BUILD_CHECKPOINT', '')
-    ).strip()
-    if _CHECKPOINT.fullmatch(checkpoint):
-        embed.add_field(name='Bot checkpoint', value=f'`{checkpoint}`', inline=False)
+    revision = str(draft.git_checkpoint or '').strip()
+    if _REVISION.fullmatch(revision):
+        embed.add_field(name='Bot revision', value=f'`{revision}`', inline=False)
     embed.set_footer(text='Submitted through /staffhelp')
     return embed
 
