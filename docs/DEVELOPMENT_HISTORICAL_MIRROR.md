@@ -16,9 +16,10 @@ as a Discord guild.
    using it. The exact production backup command, credentials, and dump path
    are operator-specific placeholders and are not supplied by this runbook.
 
-   On the GreenCloud host, production runs as `polyelo.service` from
-   `/srv/polyelo/PolyBot39`. The maintained `polyelo-backup.service` publishes
-   the partial archive as
+   On the GreenCloud host, production runs as the `polyelo-production` Compose
+   project from `/srv/polyelo/PolyBot39`; the disabled `polyelo.service` is
+   rollback material only. The maintained host `polyelo-backup.service`
+   publishes the partial archive as
    `/srv/polyelo/backups/polytopia_bak-<weekday>.sqlc`; that private directory
    is owned by the `polyelo` account, so copying an archive into development
    staging is a separate privileged operator action.

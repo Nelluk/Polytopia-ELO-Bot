@@ -2,8 +2,9 @@
 
 Date: 2026-08-09
 
-Status: Read-only audit complete, integrated, and pushed (audit `5f69726`,
-integration evidence `9b49a83`); production rollout is not yet ready
+Status: **historical read-only audit, integrated and pushed (audit `5f69726`,
+integration evidence `9b49a83`); its pre-rollout conclusions are superseded by
+the completed modernization deployment**
 
 This audit reconciles the accumulated database/slash modernization work with
 the current production baseline. It authorizes no production checkout,
@@ -60,7 +61,7 @@ are also not a valid rollback for this release.
   acceptance. That checklist is useful feedback inventory, but it is not yet
   a bounded release-candidate acceptance gate.
 
-## Current reconciliation
+## Final reconciliation within this historical audit
 
 P9.19 reconciles active readiness guidance without replacing the audit's
 historical evidence, and P9.20 resolves M6. After the temporary Beta Lab
@@ -71,8 +72,11 @@ the audit; P10.9 adds narrow same-guild `/guild edit` under the same
 default-deny capability without exposing the administrator-default operator
 surface to delegated managers. The initial production canary policy still
 omits that capability. R-001, R-003, and R-004
-are complete; M1–M6 and L1 are resolved. M7/R-002 remains the final gate to
-freeze and validate one exact release candidate.
+are complete; M1–M6 and L1 are resolved. At this checkpoint, M7/R-002 remained
+the final gate to freeze and validate one exact release candidate. That gate
+and the production deployment later completed; see
+`DATABASE_AND_SLASH_MODERNIZATION.md` and `PRODUCTION_DOCKER.md` for the later
+record.
 
 ## Canary blockers
 

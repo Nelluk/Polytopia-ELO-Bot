@@ -1,9 +1,10 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-08-04
+Last updated: 2026-08-27
 
-Status: Taxonomy v2.2 provisionally accepted as the working implementation
-taxonomy; minor pre-deployment wording refinements remain allowed
+Status: **historical taxonomy/design record with a maintained current-source
+alignment section; rollout and per-command status statements outside that
+section are checkpoint-specific**
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -1340,7 +1341,7 @@ touched.
 | `boost_from`, `boost_from_norole` | none | Retired in P9.8 under D-046 |
 | `migrate_player`, `migrate` | `/operator player migrate` | Complete in P9.4: raw source ID + typed destination, private graph preview/confirm, configured-superuser access, complete atomic dependency merge/audit, and prefix retirement under C-027; integrated and development-guild deployed at `6e0d36a` |
 | `delete_player`, `delplayer` | `/operator player delete` | Complete in P9.5: raw target ID, exact owner-only access, private account-wide orphan graph, fail-closed Lineup/host/bid/API blockers, exact typed confirmation, atomic explicit deletion/audit, and prefix retirement under C-028; integrated and development-guild deployed at `a13d440` |
-| `backup_db`, `dbb` | `/operator database backup` | P9.6 implemented at `9397755` and integrated through `d702ed0`: no-argument private owner confirmation, exact production/source-match boundary, bounded single-flight process-group lifecycle, structured private artifact result/logging, stable reporting-partial/host-lock outcomes, and complete prefix retirement under C-029; separately approved production activation remains pending |
+| `backup_db`, `dbb` | none | Both prefixes and the later `/operator database backup` replacement are retired. Production manual backups are explicit host operations; independent deployments use the Compose backup job. |
 | `gtest` | none | Retired in P9.8 under D-046: hidden hard-coded diagnostic |
 
 ## Proposed top-level roots
@@ -1380,7 +1381,7 @@ Their current first-level structure is:
 - `/house create|image|list|name|show`;
 - `/leaderboard activity|players|roles|squads|teams`;
 - `/league badge|free-agents|guide|join-novas|maintenance|mark-active|roster|season|tokens`;
-- `/operator bot|channels|database|guild|player|tribe`;
+- `/operator bot|channels|guild|player|tribe`;
 - `/player register|show|timezone`;
 - `/squad name|show`;
 - `/staffhelp` with no direct options;

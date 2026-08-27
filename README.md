@@ -56,34 +56,13 @@ path.
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).
 
-## Dependency upgrade safety checks
+## Documentation map
 
-The approved Python 3.12 development-environment strategy and phased execution
-plan are documented in
-[`docs/DEPENDENCY_UPGRADE_HANDOFF.md`](docs/DEPENDENCY_UPGRADE_HANDOFF.md).
-
-Run the offline compatibility suite without connecting to Discord or
-PostgreSQL:
-
-```
-POLYBOT_ENV=development .venv/bin/python -m unittest discover -v
-```
-
-Capture the active interpreter and all installed distribution versions without
-depending on `pip`:
-
-```
-.venv/bin/python scripts/dependency_inventory.py
-.venv/bin/python scripts/dependency_inventory.py --json
-```
-
-The pre-upgrade production snapshot is stored in
-`docs/dependency-baseline-2026-07-27.txt`.
-
-Use a dedicated Discord application, PostgreSQL database, and configuration for
-live upgrade testing. Changing only the Discord token is not sufficient
-isolation: schema operations, bot commands, and background tasks can write to
-the configured database.
+The complete [documentation map](docs/README.md) separates independent
+self-hosting instructions, upstream GreenCloud operations, active engineering
+references, and historical migration evidence. Start with the Docker guide;
+completed upgrade, modernization, and release-candidate records are not
+installation prerequisites.
 
 ## Runtime image data
 
@@ -94,6 +73,7 @@ PostgreSQL and are used whenever no local image exists.
 
 The tracked generic backup script is `scripts/backup_db.sh`.
 
-Files named `MODERNIZATION_*`, the constrained release wrapper, and GreenCloud
-paths describe the upstream PolyElo deployment. They are maintainer operations,
-not prerequisites for an independent installation.
+Files named `MODERNIZATION_*` and documents containing GreenCloud paths describe
+upstream engineering or historical evidence. Their status and audience are
+listed in the documentation map; they are not prerequisites for an independent
+installation.

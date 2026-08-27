@@ -1,6 +1,11 @@
 # Modernization release-candidate evidence
 
-Status: active M7/R-002 procedure; not production authorization
+Status: **historical release-candidate evidence; the modernization release is
+deployed and this procedure must not be used to certify current source**
+
+Current production operation is documented in
+[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md). The candidate records and commands
+below remain checkpoint-specific evidence only.
 
 This procedure freezes one source checkpoint for final review and beta
 testing. It does not access the production checkout, load ignored production

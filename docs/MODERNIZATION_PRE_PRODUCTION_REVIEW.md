@@ -1,5 +1,9 @@
 # Modernization adversarial pre-production review
 
+Status: **historical pre-production review; findings and candidate states below
+are preserved at their reviewed checkpoints and are not current rollout
+status**
+
 Date: 2026-08-10
 
 Reviewed branch: `codex/database-slash-modernization`

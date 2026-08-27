@@ -1,13 +1,14 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 
-Status: Active maintenance record; the original modernization accumulation is
-integrated into public `master`.
+Status: **current architecture and historical execution ledger; the original
+modernization accumulation is integrated into public `master` and deployed.
+No release-candidate or cutover unit is active.**
 
 Current branch: `master`
 
-Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
+Historical source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
 ## Purpose
 
@@ -389,7 +390,7 @@ would become unavailable if a prefix is retired.
 | C-026 `/operator tribe emoji` / `$tribe_emoji` | Owner-only `/operator tribe emoji tribe emoji:[optional]` reads the current global Tribe emoji when `emoji` is omitted and atomically updates it with actor-attributed audit when supplied. It accepts validated Unicode, static custom, and animated custom emoji. | Legacy recommendation: **retire** — explicitly approved. `$tribe_emoji` is removed in the same unit because the typed native path completely covers the useful global metadata workflow and fixes the legacy single-codepoint validation limitation. | Clearing is intentionally not exposed because omission means read and no operational clear requirement was identified. Add an explicit `clear` Boolean only through a later product decision. | P9.3 implementation/tests checkpoint `c428350`; integrated/deployed through `015afad`; offline and stopped-beta real-schema validation green; owner live acceptance optional |
 | C-027 `/operator player migrate` / `$migrate_player` / `$migrate` | Configured-superuser native migration requires a raw source ID and typed current-guild destination member, then shows a private immutable dependency preview with requester-bound Confirm/Cancel before one atomic cross-guild merge and public attributed result. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed with the complete replacement because the legacy event-loop mutation omitted current dependencies, allowed unsafe self/same-game cases, wrote audit outside the transaction, and could publish before commit. | Destination identity metadata is displayed but not auto-merged; use canonical player commands afterward when needed. Conflicting Teams, shared games, completed destination games, and legacy API ownership fail closed for manual reconciliation. | P9.4 implementation/tests checkpoints `2ded1f2`, `92830d2`; complete offline and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `6e0d36a`; configured-superuser live use remains optional |
 | C-028 `/operator player delete` / `$delete_player` / `$delplayer` | Owner-only native deletion accepts a raw stored Discord ID, privately inventories the complete account-wide orphan graph, blocks Lineups/hosts/bids/API ownership, requires exact typed confirmation, and explicitly deletes only reviewed Player/squad/House-preference rows plus the identity in one audited transaction. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their event-loop delete had no dependency preview, could silently null hosts/cascade metadata, and had no typed confirmation, row locks, atomic audit, or rollback proof. | This is not a general game-history deletion or privacy-erasure tool. Non-default identity/profile metadata is warning-only and acknowledged by confirmation; audit/support records, sheets, logs, and backups remain in the manual privacy runbook. | P9.5 implementation/tests checkpoint `6ea6a55`; focused, complete offline, and stopped-beta real-schema validation green; integrated, guild-applied, and loaded by the guarded beta at `a13d440`; owner acceptance/first real use optional |
-| C-029 `/operator database backup` / `$backup_db` / `$dbb` | Owner-only native operation has no options and opens a private requester-bound confirmation. It runs only from the exact production identity and executes the fixed root-controlled `/srv/polyelo/bin/polyelo-backup` wrapper with no arguments, through a bounded single-flight asynchronous child-process lifecycle, and privately reports validated artifact metadata. | Legacy recommendation: **retire** — explicitly approved. Both prefix names are removed because their hard-coded synchronous process could invoke production from development, block the event loop, expose raw output, and offered no confirmation, timeout, cancellation drain, or conflict state. Release-checkpoint and digest-manifest coupling was subsequently removed because it duplicated the wrapper/script controls and broke the operator action after unrelated commits. | Cron remains the authoritative three-times-daily schedule. The native control is only an exceptional manual recovery point; beta can prove only registration and fail-closed development refusal. Source deployments and rollbacks require no operator-backup manifest maintenance. | P9.6 implementation/tests checkpoint `9397755`; evidence/integration checkpoint `d702ed0`; production simplification prepared 2026-08-22 |
+| C-029 `/operator database backup` / `$backup_db` / `$dbb` | The complete Discord-triggered backup surface is retired; there is no `/operator database` group. | **Retired.** The prefix commands could block the event loop and invoke the wrong environment. Their native replacement was intentionally bound to the GreenCloud host wrapper and could not operate correctly from the unprivileged Docker container. | The host timer remains authoritative for upstream production; an exceptional manual run uses `sudo systemctl start polyelo-backup.service`. Independent deployments use the Compose backup job. | P9.6 historical implementation `9397755`; full retirement implemented/deployed at `9dd701e9` on 2026-08-27 |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -549,8 +550,12 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P9.31/M7 RC8 is release-ready at
-`9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4`; RC7 is superseded.** RC7
+Current active unit: **None. The modernization release is integrated and
+deployed; new work must define a new bounded unit rather than resuming a
+release candidate.**
+
+Historical final-candidate context: P9.31/M7 RC8 was release-ready at
+`9b12de43ca6bbcbbfc64d575a2ef8b7bd672aaa4`; RC7 was superseded. RC7
 resolved RC6's canonical topology and branch-ancestry
 blockers, but its pre-stop runbook tried to read the newly tracked wrapper from
 the exact rollback worktree where that file does not exist. RC8 reads the
@@ -1475,7 +1480,7 @@ this decision does not authorize production deployment or synchronization.
 | P7 | Complete | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | Complete | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | P8.28 final residual audit; all active P8 user/staff paths bounded, operator debt carried explicitly into P9 |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
-| P9 | In progress | Production preparation, adversarial corrections, rollout, and remaining per-unit prefix lifecycle decisions | Close valid adversarial findings, freeze one exact release candidate, then separately approve production deployment/canary |
+| P9 | Complete | Production preparation, adversarial corrections, rollout, and remaining per-unit prefix lifecycle decisions | Modernization integrated, production deployed, and Docker-era follow-up recorded |
 
 ## P0 — Serialized ELO and slash-command pilot
 

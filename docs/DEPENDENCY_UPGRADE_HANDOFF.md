@@ -1,8 +1,14 @@
 # Python 3.12 and dependency upgrade handoff
 
-This document is the source of truth for executing the PolyBot Python and
-dependency upgrade. It is intended for a new Codex task working in a separate
-development clone. Read `AGENTS.md` before starting.
+Status: **historical completed upgrade record; do not use as a current
+deployment procedure**
+
+This document was the source of truth for the completed Python 3.12 and
+dependency upgrade. Current dependencies are defined by `pyproject.toml` and
+`uv.lock`; current deployment instructions are [DOCKER.md](DOCKER.md),
+[SELF_HOSTING.md](SELF_HOSTING.md), and
+[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md). The paths, service topology, and
+baseline below describe the 2026-07-27 starting point.
 
 ## Objective
 

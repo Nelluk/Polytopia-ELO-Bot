@@ -85,7 +85,10 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         )
 
         readiness = _read('docs/MODERNIZATION_PRODUCTION_READINESS_AUDIT.md')
-        readiness_current = _section(readiness, '## Current reconciliation')
+        readiness_current = _section(
+            readiness,
+            '## Final reconciliation within this historical audit',
+        )
         self.assertEqual(
             tuple(re.findall(r'`([^`]+)`', readiness_current))[:len(EXPECTED_ROOTS)],
             EXPECTED_ROOTS,
@@ -93,9 +96,10 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         self.assertIn('M1–M6 and L1 are resolved', readiness_current)
 
         roadmap = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
-        self.assertIn('| P9 | In progress |', roadmap)
+        self.assertIn('| P9 | Complete |', roadmap)
         self.assertIn(
-            'Current active unit: **P9.31/M7 RC8 is release-ready at',
+            'Current active unit: **None. The modernization release is '
+            'integrated and',
             roadmap,
         )
         self.assertNotIn('command source currently loads ten roots', roadmap)
@@ -109,6 +113,14 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         self.assertIn('integrated/deployed at `41da49e`', compatibility_rows['C-025'])
         self.assertNotIn('pending correction', compatibility_rows['C-012'])
         self.assertNotIn('implementation pending', compatibility_rows['C-025'])
+        self.assertIn(
+            'Discord-triggered backup surface is retired',
+            compatibility_rows['C-029'],
+        )
+        self.assertIn(
+            'full retirement implemented/deployed at `9dd701e9`',
+            compatibility_rows['C-029'],
+        )
         self.assertIn(
             'The immediate modernization action at this historical checkpoint\n'
             'was P9.7a',
@@ -139,6 +151,32 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
             cutover,
         )
         self.assertIn('Production writes no JSONL', compatibility_rows['C-007'])
+
+        taxonomy_alignment = _section(
+            taxonomy,
+            '## Current implementation alignment',
+        )
+        self.assertIn(
+            '/operator bot|channels|guild|player|tribe',
+            taxonomy_alignment,
+        )
+        self.assertNotIn('/operator bot|channels|database', taxonomy_alignment)
+
+        wrapper = _read('docs/PRODUCTION_RELEASE_WRAPPER.md')
+        self.assertIn(
+            'historical systemd-era record; do not install or invoke',
+            wrapper,
+        )
+        self.assertIn('[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md)', wrapper)
+
+        readme = _read('README.md')
+        documentation_map = _read('docs/README.md')
+        self.assertIn('[documentation map](docs/README.md)', readme)
+        self.assertIn('## Independent self-hosting', documentation_map)
+        self.assertIn('## Current upstream operations', documentation_map)
+        self.assertIn('## Current engineering references', documentation_map)
+        self.assertIn('## Historical migrations and release evidence',
+                      documentation_map)
 
         example_config = _read('config.ini-EXAMPLE')
         self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polybot$')

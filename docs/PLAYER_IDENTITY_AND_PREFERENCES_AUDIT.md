@@ -1,8 +1,8 @@
 # Player identity and preferences audit
 
-Status: P6.0 complete; all six recommendations accepted on 2026-08-04; P6.1
-Tier-3 reviewed/integrated; P6.2 implemented locally with review, schema gate,
-and beta command deployment still pending
+Status: **historical P6 design/audit record; implementation and deployment
+status below is checkpoint-specific, while current code and the modernization
+ledger are authoritative**
 
 Date: 2026-08-04
 
