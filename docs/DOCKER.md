@@ -4,9 +4,63 @@ The repository root contains a conventional Compose deployment. Ordinary
 operation uses `docker compose` directly; no PolyBot deployment wrapper is
 required.
 
-This guide covers infrastructure and lifecycle. Complete the Discord
-application, permissions, support-route, and slash-command steps in the
-[self-hosting guide](SELF_HOSTING.md) as part of the same installation.
+This is the supported public installation path. It covers Discord setup,
+configuration, PostgreSQL, startup, updates, command deployment, backups, and
+restore drills.
+
+## How configuration works
+
+PolyBot does not store all configuration in PostgreSQL. A production process
+loads three private inputs from the deployment directory:
+
+- `.env` configures Docker Compose itself: project and image names, runtime
+  UID/GID, the external volume name, and bundled-database initialization.
+- `config.ini` configures the process identity and infrastructure: Discord
+  token, expected bot and owner IDs, database connection, feature flags, and
+  persistent paths.
+- `server_settings.py` is the production guild-policy file. It declares the
+  allowed guilds, shortcut IDs, default and per-guild channels, roles, limits,
+  command prefix, and slash-command capability assignments.
+
+`server_settings-EXAMPLE.py` is only a tracked template; the bot imports the
+ignored copy named `server_settings.py`. Changes to either private application
+file require a bot restart. Changing slash-command capabilities also requires
+the explicit Discord command procedure below because startup never
+synchronizes commands.
+
+PostgreSQL remains authoritative for operational data such as members,
+players, games, teams, and ratings. The repository also contains a
+database-backed guild-configuration subsystem, but it is currently enabled
+only for the upstream development profile. Production rejects
+`guild_configuration_source = database` and continues to require
+`server_settings.py` with `guild_configuration_source = static`.
+
+Even the development database mode still loads `server_settings_dev.py` to
+establish its allowed guild inventory and historical shortcut names; a
+validated database snapshot then supplies the active per-guild values and
+command policy. It is not a general replacement for `config.ini`, and some
+bot-wide behavior remains ordinary source code.
+
+## Discord application and permissions
+
+Create a Discord application and bot user for this installation. Enable the
+Server Members and Message Content privileged intents, then invite it to the
+target server with the `bot` and `applications.commands` OAuth scopes. No
+privileged-intent application or screenshot workflow is part of this
+repository.
+
+For the default `core_user` capability, allow the bot to:
+
+- view channels, send messages and thread messages, embed links, attach files,
+  read history, add reactions, and use external emoji;
+- manage messages for reaction-driven games and cleanup;
+- manage channels for private game channels and permission overwrites; and
+- manage roles for player, team, achievement, and inactivity roles.
+
+Place the bot role above every ordinary role it must assign. Grant access to
+each configured bot, announcement, log, or support channel. Optional anti-scam
+enforcement needs Moderate Members; configured league inactivity removal
+needs Kick Members. Discord Administrator is not required.
 
 ## Bundled PostgreSQL setup
 
@@ -34,6 +88,11 @@ In particular:
 - set `POLYBOT_UID` and `POLYBOT_GID` to the owner of `data/images`, `logs`,
   and `backups` on Linux.
 
+Discord Developer Mode provides **Copy ID** for the bot user, owner, guild, and
+channel. Start with the example's one-guild `core_user` capability and with
+background tasks, the API, and Bullet disabled. Bullet is an upstream
+tournament integration and needs additional private credentials.
+
 The bundled database lives in a pre-created external Docker volume. Create the
 exact `POSTGRES_VOLUME_NAME` selected in `.env`; for the example value:
 
@@ -50,9 +109,14 @@ Render and build the deployment, then start only PostgreSQL:
 ```bash
 docker compose config
 docker compose build
+docker compose run --rm --no-deps bot python scripts/check_runtime_config.py
 docker compose up -d database
 docker compose ps
 ```
+
+The configuration check is redacted and does not contact Discord or
+PostgreSQL. Confirm the expected bot, owner, database, guild, and disabled
+optional features before continuing.
 
 Initialize or upgrade the application schema explicitly. The first command is
 read-only and prints the exact confirmation required by the second:
@@ -70,10 +134,10 @@ docker compose up -d bot
 docker compose logs --tail 100 bot
 ```
 
-Normal startup never changes schema or synchronizes Discord commands. Follow
-the explicit command inspection/apply procedure in
-[the self-hosting guide](SELF_HOSTING.md) after the bot identity and guild are
-verified. Replacing the example guild ID, the Docker equivalents are:
+Normal startup never changes schema or synchronizes Discord commands. After
+the bot identity and guild are verified, plan and inspect the exact guild's
+command tree before applying it. Replace the example guild ID in all three
+commands:
 
 ```bash
 docker compose run --rm bot python \
@@ -95,6 +159,23 @@ docker compose run --rm bot python \
   --confirm-scope guild \
   --confirm-no-global-sync
 ```
+
+The command tool is guild-only and refuses apply while global commands exist.
+Repeat this procedure after changing command definitions or capability
+assignments; ordinary source-only updates do not require it.
+
+### Optional `/staffhelp`
+
+The example leaves `/staffhelp` disabled because a new installation has no
+safe private destination. To enable it, configure a private
+`staff_help_channel`, make the first `helper_roles` entry match the exact
+support role name, set `polyelo_feedback_route` to an operator-owned private
+guild/channel destination, and add `tools_support` to the guild's capability
+tuple. Then repeat the command plan, inspect, and apply sequence. Do not route
+independent users' reports to upstream PolyELO channels.
+
+Publish installation-specific privacy, retention, security, and support
+information before inviting real users.
 
 ## Ordinary operation
 
@@ -194,7 +275,33 @@ archive, and refuses a target with any public relations. After independent
 verification, stop the live deployment, change only `POSTGRES_VOLUME_NAME` in
 its `.env`, and start it again. Retain the old volume unchanged for rollback.
 
-## Existing PostgreSQL on a Linux host
+## Inspecting PostgreSQL
+
+Routine installation, schema, backup, and restore work should use the Compose
+services above; a host `psql` installation is not required. For an exceptional
+interactive inspection of the bundled database, run the client already in the
+database container:
+
+```bash
+docker compose exec database sh -c \
+  'exec psql --username "$POLYBOT_DATABASE_USER" --dbname "$POLYBOT_DATABASE_NAME"'
+```
+
+This is a live database console, not a migration interface. Prefer read-only
+queries and use `scripts/manage_schema.py` for supported schema changes.
+
+If the bot intentionally uses PostgreSQL managed outside Compose and the host
+already has `psql`, connect directly with that database's reviewed values. A
+local Unix-socket example is:
+
+```bash
+psql --host /var/run/postgresql --dbname polybot --username polybot
+```
+
+Use `--host HOST --port PORT` instead for a network connection. Do not publish
+the bundled database port merely to use a host client.
+
+## Optional existing PostgreSQL on a Linux host
 
 `compose.host-postgres.yaml` runs only the bot and one-shot schema/backup jobs.
 It mounts the configured host PostgreSQL Unix-socket directory read-only and

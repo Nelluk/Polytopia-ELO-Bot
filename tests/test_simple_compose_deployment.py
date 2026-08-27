@@ -88,14 +88,14 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         development = (
             self.root / 'server_settings_dev-EXAMPLE.py'
         ).read_text(encoding='utf-8')
-        guide = (self.root / 'docs/SELF_HOSTING.md').read_text(encoding='utf-8')
+        guide = (self.root / 'docs/DOCKER.md').read_text(encoding='utf-8')
 
         self.assertIn("SERVER_GUILD_ID: ('core_user',)", production)
         self.assertNotIn("('core_user', 'tools_support')", production)
         self.assertIn("'staff_help_channel': None", production)
         self.assertIn('polyelo_feedback_route = {}', production)
-        self.assertIn('`/staffhelp` is disabled by default', guide)
-        self.assertIn('Discord permissions and role placement', guide)
+        self.assertIn('The example leaves `/staffhelp` disabled', guide)
+        self.assertIn('Discord application and permissions', guide)
         self.assertNotIn('Beta Lab Staff', development)
 
     def test_beta_compose_uses_direct_standard_lifecycle(self):

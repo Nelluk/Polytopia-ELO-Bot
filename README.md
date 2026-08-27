@@ -22,17 +22,11 @@ The guide walks through the remaining schema, seed-data, slash-command,
 permission, startup, and backup steps. Normal startup does not silently change
 the database schema or synchronize Discord commands.
 
-The alternative native installation requires CPython 3.12, PostgreSQL, Git,
-and [uv](https://docs.astral.sh/uv/). It is documented in **[Self-hosting
-PolyBot](docs/SELF_HOSTING.md)**. Dependencies are locked by `pyproject.toml`
-and `uv.lock`.
-
 ## Policies and support
 
 - [Privacy Policy](PRIVACY.md)
 - [Security Policy](SECURITY.md)
 - [Data Retention Schedule](docs/DATA_RETENTION.md)
-- [Privacy Readiness Checklist](docs/PRIVACY_READINESS_CHECKLIST.md)
 
 Users of the official upstream PolyELO deployment can invoke `/staffhelp` with
 no options for staff support or a privacy request. Do not put personal data,
@@ -42,7 +36,7 @@ The policies above describe the official upstream PolyELO deployment.
 Independent operators are responsible for publishing accurate policies and
 support contacts for their own instance. `/staffhelp` is intentionally disabled
 in the installation-neutral example until its private delivery routes are
-configured; see the self-hosting guide before enabling `tools_support`.
+configured; see the Docker guide before enabling `tools_support`.
 
 Upstream maintainers run the isolated beta through the separate, direct
 [development Compose interface](docs/DEVELOPMENT_DOCKER.md). It uses the same
@@ -53,16 +47,15 @@ The active upstream production Compose deployment is documented separately in
 specific paths and credentials integration and is not the default self-hosting
 path.
 
-For an isolated test bot, use a separate Discord application, guild, and
-database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).
+For an isolated test bot, use a separate Discord application, guild, Compose
+project, and PostgreSQL volume. Never point a test process at production data.
 
 ## Documentation map
 
-The complete [documentation map](docs/README.md) separates independent
-self-hosting instructions, upstream GreenCloud operations, active engineering
-references, and historical migration evidence. Start with the Docker guide;
-completed upgrade, modernization, and release-candidate records are not
-installation prerequisites.
+The [documentation map](docs/README.md) separates public installation from
+upstream GreenCloud and development operations. Start with the Docker guide;
+completed upgrade and application-review records are retained in Git history,
+not as current procedures.
 
 ## Runtime image data
 

@@ -51,6 +51,14 @@ RETIRED_MILESTONE_DOCUMENTS = (
     'docs/PLAYER_BADGES_MIGRATION.md',
     'docs/PRODUCTION_TIMEZONE_MIGRATION.md',
 )
+RETIRED_INSTALLATION_DOCUMENTS = (
+    'deploy/self-hosting/polybot.service.example',
+    'docs/DATABASE_SETUP.md',
+    'docs/PRIVACY_READINESS_CHECKLIST.md',
+    'docs/PRIVILEGED_INTENT_SCREENSHOT_GUIDE.md',
+    'docs/SELF_HOSTING.md',
+    'docs/privileged-intent-review',
+)
 
 
 def _read(relative_path: str) -> str:
@@ -102,7 +110,11 @@ class RepositoryConsistencyTests(unittest.TestCase):
         self.assertNotIn('database', surface['operator'])
 
     def test_current_tree_excludes_retired_release_and_milestone_paths(self):
-        for relative_path in RETIRED_RELEASE_PATHS + RETIRED_MILESTONE_DOCUMENTS:
+        for relative_path in (
+            RETIRED_RELEASE_PATHS
+            + RETIRED_MILESTONE_DOCUMENTS
+            + RETIRED_INSTALLATION_DOCUMENTS
+        ):
             with self.subTest(relative_path=relative_path):
                 self.assertFalse((PROJECT_ROOT / relative_path).exists())
 
