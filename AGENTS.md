@@ -60,18 +60,28 @@ This file provides guidance to coding agents when working with code in this repo
 
 Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides matchmaking, ELO-based leaderboards, and league management across multiple Discord servers (primarily the main Polytopia server and PolyChampions).
 
-## Database and slash-command work
+## Database and Discord change boundaries
 
-For database-access and slash-command work, read and update
-`docs/DATABASE_AND_SLASH_MODERNIZATION.md`. It is the compact current contract
-for architecture, safety boundaries, compatibility decisions, validation, and
-the next bounded unit. Detailed completed execution history is available at
-Git checkpoint `e99ec18e` and should not be loaded for routine work.
-
-For broad planned work, use isolated Git worktrees and never let two tasks
-switch or edit the same checkout concurrently. Record the current bounded unit
-and its validation/deployment effects in the compact contract before splitting
-work across tasks.
+- No ordinary import, startup, reconnect, or ready path may create or alter
+  database schema or synchronize Discord application commands.
+- Blocking Peewee and filesystem work must not run on Discord's event-loop
+  thread. Capture primitive identifiers, use a worker-local connection, reload
+  mutable rows, and perform the complete write plus protected audit in one
+  bounded transaction.
+- Do not pass live Peewee models, Discord objects, lazy queries, connections, or
+  transactions between the event loop and workers. Revalidate permissions and
+  mutable state inside the transaction when they may have changed.
+- Publish Discord effects only after commit. A committed-but-unpublished result
+  requires reconciliation and must not encourage repeating the database write.
+- Schema changes use the explicit configured-target schema manager and its
+  reviewed plan/apply/verify boundary. Discord command changes use the explicit
+  guild-only manager; global synchronization is unsupported.
+- Production deploy/restart, schema or data writes, Discord inspection/apply,
+  and external messages retain their separate authorization boundaries.
+- For broad planned work, use isolated Git worktrees and never let two tasks
+  switch or edit the same checkout concurrently. Define the bounded objective,
+  affected command/data surface, authorization gates, and validation before
+  splitting work across tasks.
 
 ## Engineering Proportionality
 

@@ -1,9 +1,8 @@
-"""Model-free consistency checks for the current engineering contract."""
+"""Model-free checks for the current repository and command surface."""
 
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 import unittest
@@ -23,7 +22,8 @@ EXPECTED_ROOTS = (
     'staffhelp',
     'team',
 )
-RETIRED_HEAD_PATHS = (
+EXPECTED_OPERATOR_CHILDREN = ('bot', 'channels', 'guild', 'player', 'tribe')
+RETIRED_RELEASE_PATHS = (
     'deploy/polyelo-release',
     'deploy/sudoers/polyelo-release',
     'deploy/systemd/polyelo.service',
@@ -35,20 +35,30 @@ RETIRED_HEAD_PATHS = (
     'scripts/manage_release_candidate.py',
     'scripts/production_release.sh',
 )
+RETIRED_MILESTONE_DOCUMENTS = (
+    'docs/DATABASE_AND_SLASH_MODERNIZATION.md',
+    'docs/DYNAMIC_GUILD_CONFIGURATION_DESIGN.md',
+    'docs/DEVELOPMENT_GUILD_COMMAND_CAPABILITIES.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_AUTHORITY.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_CONTROL.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_DELEGATION.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_DRAFTS.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_SHADOW.md',
+    'docs/DEVELOPMENT_GUILD_CONFIGURATION_STORAGE.md',
+    'docs/DEVELOPMENT_GUILD_LIFECYCLE.md',
+    'docs/DEVELOPMENT_GUILD_ONBOARDING.md',
+    'docs/GAME_KEEP_ACTIVE_MIGRATION.md',
+    'docs/PLAYER_BADGES_MIGRATION.md',
+    'docs/PRODUCTION_TIMEZONE_MIGRATION.md',
+)
 
 
 def _read(relative_path: str) -> str:
     return (PROJECT_ROOT / relative_path).read_text(encoding='utf-8')
 
 
-def _section(text: str, heading: str) -> str:
-    start = text.index(heading)
-    next_heading = text.find('\n## ', start + len(heading))
-    return text[start:] if next_heading == -1 else text[start:next_heading]
-
-
-class ModernizationDocumentConsistencyTests(unittest.TestCase):
-    def test_current_source_and_engineering_contract_agree(self):
+class RepositoryConsistencyTests(unittest.TestCase):
+    def test_current_command_source_has_expected_roots_and_operator_groups(self):
         command_probe = subprocess.run(
             (
                 sys.executable,
@@ -73,7 +83,10 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
                 'from scripts.manage_application_commands import '
                 'load_command_source; '
                 'client, commands = load_command_source(); '
-                'print(json.dumps(sorted(command.name for command in commands))); '
+                'surface={command.name:sorted('
+                'child.name for child in getattr(command,"commands",())) '
+                'for command in commands}; '
+                'print(json.dumps(surface,sort_keys=True)); '
                 'asyncio.run(client.close())',
             ),
             cwd=PROJECT_ROOT,
@@ -83,37 +96,32 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
             text=True,
             timeout=30,
         )
-        loaded_roots = tuple(json.loads(command_probe.stdout.splitlines()[0]))
-        self.assertEqual(loaded_roots, EXPECTED_ROOTS)
+        surface = json.loads(command_probe.stdout.splitlines()[0])
+        self.assertEqual(tuple(sorted(surface)), EXPECTED_ROOTS)
+        self.assertEqual(tuple(surface['operator']), EXPECTED_OPERATOR_CHILDREN)
+        self.assertNotIn('database', surface['operator'])
 
-        contract = _read('docs/DATABASE_AND_SLASH_MODERNIZATION.md')
-        command_section = _section(contract, '## Discord command contract')
-        root_inventory = command_section.split(
-            'Current first-level structure:', 1
-        )[0]
-        documented_roots = tuple(
-            re.findall(r'(?m)^- `([^`]+)`$', root_inventory)
-        )
-        self.assertEqual(documented_roots, EXPECTED_ROOTS)
-        self.assertIn(
-            '/operator bot|channels|guild|player|tribe',
-            command_section,
-        )
-        self.assertNotIn('/operator database', command_section)
-        self.assertIn('There is no active modernization unit.', contract)
-        self.assertIn('pre-cleanup checkpoint\n`e99ec18e`', contract)
-
-    def test_current_tree_excludes_retired_release_interfaces(self):
-        for relative_path in RETIRED_HEAD_PATHS:
+    def test_current_tree_excludes_retired_release_and_milestone_paths(self):
+        for relative_path in RETIRED_RELEASE_PATHS + RETIRED_MILESTONE_DOCUMENTS:
             with self.subTest(relative_path=relative_path):
                 self.assertFalse((PROJECT_ROOT / relative_path).exists())
 
+    def test_documentation_map_points_to_current_state_authorities(self):
         documentation_map = _read('docs/README.md')
         self.assertIn('## Independent self-hosting', documentation_map)
-        self.assertIn('## Current upstream operations', documentation_map)
-        self.assertIn('## Current engineering references', documentation_map)
+        self.assertIn('## Upstream production operations', documentation_map)
+        self.assertIn('## Upstream development operations', documentation_map)
+        self.assertIn('## Policy and data operations', documentation_map)
         self.assertIn('## Git history', documentation_map)
+        self.assertIn('DEVELOPMENT_GUILD_CONFIGURATION.md', documentation_map)
+        self.assertIn('a226ade9', documentation_map)
         self.assertIn('e99ec18e', documentation_map)
+
+        guild_configuration = _read('docs/DEVELOPMENT_GUILD_CONFIGURATION.md')
+        self.assertIn('Status: **development-only**', guild_configuration)
+        self.assertIn('Production continues to', guild_configuration)
+        self.assertIn('/operator guild commands', guild_configuration)
+        self.assertNotIn('P10.', guild_configuration)
 
         readme = _read('README.md')
         self.assertIn('[documentation map](docs/README.md)', readme)
