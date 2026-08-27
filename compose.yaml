@@ -19,6 +19,11 @@ x-bot-runtime: &bot-runtime
     - ALL
   security_opt:
     - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
   tmpfs:
     - /tmp:size=256m,mode=1777
   volumes:
@@ -63,6 +68,11 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
     stop_grace_period: 60s
 

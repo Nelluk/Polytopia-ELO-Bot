@@ -1,8 +1,31 @@
 # Polytopia-ELO-Bot
-A discord bot for the game Polytopia, to enable matchmaking and leaderboards.
-Requires CPython 3.12, PostgreSQL, and
-[uv](https://docs.astral.sh/uv/). The deployed environment is locked by
-`pyproject.toml` and `uv.lock`.
+A Discord bot for Polytopia matchmaking, ELO leaderboards, match history, and
+private game-channel automation.
+
+[![Self-hosting smoke test](https://github.com/Nelluk/Polytopia-ELO-Bot/actions/workflows/self-hosting-smoke.yml/badge.svg)](https://github.com/Nelluk/Polytopia-ELO-Bot/actions/workflows/self-hosting-smoke.yml)
+
+## Recommended self-hosting path
+
+The recommended independent deployment uses Docker Compose and includes a
+private PostgreSQL database. Install Docker Engine or Docker Desktop with the
+Compose plugin, create a Discord application, and follow **[Run PolyBot with
+Docker Compose](docs/DOCKER.md)**.
+
+A new installation needs more than the Discord token. Gather:
+
+- the bot token and bot user ID from the Discord developer portal;
+- your Discord user ID, server ID, and one bot-command channel ID;
+- two new database passwords; and
+- the numeric host UID/GID that will own persistent files on Linux.
+
+The guide walks through the remaining schema, seed-data, slash-command,
+permission, startup, and backup steps. Normal startup does not silently change
+the database schema or synchronize Discord commands.
+
+The alternative native installation requires CPython 3.12, PostgreSQL, Git,
+and [uv](https://docs.astral.sh/uv/). It is documented in **[Self-hosting
+PolyBot](docs/SELF_HOSTING.md)**. Dependencies are locked by `pyproject.toml`
+and `uv.lock`.
 
 ## Policies and support
 
@@ -11,76 +34,24 @@ Requires CPython 3.12, PostgreSQL, and
 - [Data Retention Schedule](docs/DATA_RETENTION.md)
 - [Privacy Readiness Checklist](docs/PRIVACY_READINESS_CHECKLIST.md)
 
-For staff help or a privacy request, invoke `/staffhelp` with no options. In
-production, the bot relays the modal directly to that server's configured
-staff-only channel and pings its configured Helper role; it does not write a
-local feedback archive. The development beta additionally records its report
-in the restricted JSONL beta-feedback store before mirroring it to beta staff.
-For a privacy request, use `Privacy request` as the short summary and ask for
-private follow-up without posting credentials or unrelated sensitive details.
-Do not put personal information in a public GitHub issue.
+Users of the official upstream PolyELO deployment can invoke `/staffhelp` with
+no options for staff support or a privacy request. Do not put personal data,
+credentials, or vulnerability details in a public GitHub issue.
 
-## Self-hosting
-
-Create an application and bot account in the
-[Discord developer portal](https://discord.com/developers/applications). Enable
-the Server Members and Message Content privileged intents, then invite the bot
-with the `bot` and `applications.commands` scopes.
-
-```
-git clone <git repo address>
-cd /new/project/path
-uv sync --locked --no-dev --python 3.12
-```
-
-Create private production configuration from the installation-neutral examples:
-
-```bash
-cp config.ini-EXAMPLE config.ini
-cp server_settings-EXAMPLE.py server_settings.py
-chmod 600 config.ini server_settings.py
-```
-
-Replace every token/ID/password placeholder, create the configured PostgreSQL
-role and empty database, and validate the redacted profile:
-
-```bash
-POLYBOT_ENV=production .venv/bin/python scripts/check_runtime_config.py
-POLYBOT_ENV=production .venv/bin/python scripts/manage_schema.py
-```
-
-Stop every bot process that could use this database, review the schema plan,
-and rerun its printed command with `--apply --confirm '...'`. Then seed the
-reference tribes, deploy the configured guild's slash commands, and start:
-
-```
-POLYBOT_ENV=production .venv/bin/python bot.py --add_default_data --skip_tasks
-POLYBOT_ENV=production .venv/bin/python scripts/manage_application_commands.py \
-  --environment production --mode plan
-POLYBOT_ENV=production .venv/bin/python bot.py --skip_tasks
-```
-
-The command plan is offline. Remote command inspection/apply requires the exact
-guild ID and explicit confirmations described in the
-[self-hosting guide](docs/SELF_HOSTING.md). Keep `--skip_tasks` during initial
-validation; enable background tasks in `config.ini` only when ready.
-
-The complete guide covers PostgreSQL creation, configuration fields, schema
-upgrades, slash-command deployment, service operation, backups, and Discord
-permissions: **[Self-hosting PolyBot](docs/SELF_HOSTING.md)**.
-
-For a self-contained Docker installation, use the root `compose.yaml` directly.
-It provides the bot, bundled PostgreSQL with an external named volume, explicit
-schema and backup jobs, and ordinary Docker Compose lifecycle commands:
-**[Run PolyBot with Docker Compose](docs/DOCKER.md)**.
+The policies above describe the official upstream PolyELO deployment.
+Independent operators are responsible for publishing accurate policies and
+support contacts for their own instance. `/staffhelp` is intentionally disabled
+in the installation-neutral example until its private delivery routes are
+configured; see the self-hosting guide before enabling `tools_support`.
 
 Upstream maintainers run the isolated beta through the separate, direct
 [development Compose interface](docs/DEVELOPMENT_DOCKER.md). It uses the same
 root Dockerfile as the public stack and ordinary Compose commands.
 
-The upstream production Compose preparation is documented separately in
-[docs/PRODUCTION_DOCKER.md](docs/PRODUCTION_DOCKER.md). It is not the default
-self-hosting path and is not currently the active GreenCloud supervisor.
+The active upstream production Compose deployment is documented separately in
+[docs/PRODUCTION_DOCKER.md](docs/PRODUCTION_DOCKER.md). It contains GreenCloud-
+specific paths and credentials integration and is not the default self-hosting
+path.
 
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).

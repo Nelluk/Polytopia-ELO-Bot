@@ -24,6 +24,11 @@ x-beta-runtime: &beta-runtime
     - ALL
   security_opt:
     - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
   tmpfs:
     - /tmp:size=256m,mode=1777
   volumes:

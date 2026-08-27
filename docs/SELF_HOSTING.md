@@ -5,12 +5,13 @@ application, guild, PostgreSQL database, and credentials. Documents mentioning
 GreenCloud, `/srv/polyelo`, fixed PolyElo guild IDs, or modernization release
 candidates describe the upstream deployment and are not required here.
 
-For a self-contained installation using bundled PostgreSQL, follow the root
-[Docker Compose guide](DOCKER.md). Upstream maintainers use the separate
-host-PostgreSQL beta definition in `compose.beta.yaml`; independent deployments
-do not need it.
+For the recommended self-contained installation using bundled PostgreSQL,
+follow the root [Docker Compose guide](DOCKER.md). The native procedure below
+is for operators who already manage Python and PostgreSQL themselves. Upstream
+maintainers use the separate host-PostgreSQL beta definition in
+`compose.beta.yaml`; independent deployments do not need it.
 
-## Requirements
+## Native requirements
 
 - A Unix-like host with CPython 3.12, PostgreSQL, Git, and
   [uv](https://docs.astral.sh/uv/).
@@ -20,6 +21,34 @@ do not need it.
 
 Use a dedicated PostgreSQL role/database and a dedicated Discord application
 for each production or development installation.
+
+## Discord permissions and role placement
+
+Do not grant Discord Administrator merely to avoid selecting permissions.
+For the default `core_user` capability, grant the bot role:
+
+- View Channels, Send Messages, and Send Messages in Threads;
+- Embed Links, Attach Files, and Read Message History;
+- Add Reactions and Use External Emojis;
+- Manage Messages for reaction-driven game and cleanup workflows;
+- Manage Channels for private game-channel creation, permission overwrites,
+  archival, and deletion; and
+- Manage Roles for configured player, achievement, team, and inactivity roles.
+
+Place the bot's role above every ordinary role it is expected to add or remove.
+Discord will refuse role changes across or above the bot's highest role even
+when Manage Roles is granted. Also allow the bot to view and send in every
+configured bot, announcement, log, and staff-help channel.
+
+Optional features require additional permissions:
+
+- Moderate Members and Manage Messages allow the anti-scam listener to remove
+  a detected burst and apply its timeout; without them it logs the failed
+  enforcement.
+- Kick Members is required only for configured league inactivity removal.
+
+After inviting the bot, inspect its effective permissions in the configured
+channel rather than relying only on the server-wide role checkboxes.
 
 ## Install dependencies
 
@@ -62,9 +91,26 @@ to the upstream PolyChampions tournament workflow.
 
 In `server_settings.py`, replace `SERVER_GUILD_ID` and `BOT_CHANNEL_ID`.
 Discord's Developer Mode exposes **Copy ID** for users, guilds, and channels.
-The example assigns `core_user` and `tools_support` slash-command capabilities.
-Available capability families are defined in
-`modules/application_command_policy.py`.
+The example assigns only the `core_user` slash-command capability. Available
+capability families are defined in `modules/application_command_policy.py`.
+
+### Optional staff-help route
+
+`/staffhelp` is disabled by default because an independent installation has no
+safe delivery destination yet. To enable it:
+
+1. create a private staff channel and a non-`@everyone` Helper role;
+2. set `staff_help_channel` to that channel ID and make the first
+   `helper_roles` entry match the role's exact name;
+3. set `polyelo_feedback_route` to a mapping with `guild_id` and `channel_id`
+   for a private bug/feature destination controlled by this installation's
+   operator; and
+4. add `tools_support` beside `core_user` in
+   `application_command_capabilities`, then redeploy the guild's commands.
+
+Independent operators should not send their users' reports to upstream
+PolyELO channels. Publish instance-specific privacy, retention, security, and
+support information before inviting real users.
 
 Validate without connecting to Discord or PostgreSQL:
 
@@ -184,8 +230,10 @@ Back up all of the following:
 
 Do not commit private configuration, Discord tokens, database passwords,
 service-account JSON, logs, exports, or user data. Test database restores
-periodically. Review `PRIVACY.md`, `SECURITY.md`, and `docs/DATA_RETENTION.md`
-before inviting real users.
+periodically. `PRIVACY.md`, `SECURITY.md`, and `docs/DATA_RETENTION.md` document
+the upstream service and are useful templates, but an independent operator
+must review and adapt them to accurately describe their own infrastructure,
+retention, subprocessors, and contact path before inviting real users.
 
 ## Development profile
 

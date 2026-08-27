@@ -28,10 +28,7 @@ application_command_all_guild_capabilities = ()
 
 server_list = {
     'default': {
-        # `testers` grants Beta Lab access but is deliberately not staff.
-        # The exactly owned, zero-permission persona role is leased only while
-        # a guided session is active.
-        'helper_roles': ['Helper', 'Beta Lab Staff'],
+        'helper_roles': ['Helper'],
         'mod_roles': ['Mod'],
         'user_roles_level_4': [],
         'user_roles_level_3': ['@everyone'],

@@ -29,6 +29,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             'docs/DOCKER.md',
             'docs/DEVELOPMENT_DOCKER.md',
             'docs/PRODUCTION_DOCKER.md',
+            '.github/workflows/self-hosting-smoke.yml',
         ):
             self.assertTrue((self.root / relative_path).is_file(), relative_path)
 
@@ -47,6 +48,38 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('479029527553638401', compose)
         self.assertNotIn('478571892832206869', compose)
         self.assertNotIn('ports:', compose)
+
+    def test_public_workflow_exercises_bundled_compose_installation(self):
+        workflow = (
+            self.root / '.github/workflows/self-hosting-smoke.yml'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('  compose-install:', workflow)
+        self.assertIn('docker compose build bot', workflow)
+        self.assertIn('docker compose up -d database', workflow)
+        self.assertIn('docker compose run --rm schema --apply', workflow)
+        self.assertIn('python bot.py --add_default_data --skip_tasks', workflow)
+        self.assertIn('docker compose run --rm schema --verify', workflow)
+        self.assertIn('docker compose run --rm backup', workflow)
+        self.assertIn('docker compose down --remove-orphans', workflow)
+        self.assertNotIn('docker compose up -d bot', workflow)
+
+    def test_installation_neutral_examples_enable_only_configured_features(self):
+        production = (self.root / 'server_settings-EXAMPLE.py').read_text(
+            encoding='utf-8'
+        )
+        development = (
+            self.root / 'server_settings_dev-EXAMPLE.py'
+        ).read_text(encoding='utf-8')
+        guide = (self.root / 'docs/SELF_HOSTING.md').read_text(encoding='utf-8')
+
+        self.assertIn("SERVER_GUILD_ID: ('core_user',)", production)
+        self.assertNotIn("('core_user', 'tools_support')", production)
+        self.assertIn("'staff_help_channel': None", production)
+        self.assertIn('polyelo_feedback_route = {}', production)
+        self.assertIn('`/staffhelp` is disabled by default', guide)
+        self.assertIn('Discord permissions and role placement', guide)
+        self.assertNotIn('Beta Lab Staff', development)
 
     def test_beta_compose_uses_direct_standard_lifecycle(self):
         compose = (self.root / 'compose.beta.yaml').read_text(encoding='utf-8')
@@ -151,6 +184,9 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             with self.subTest(name=name):
                 compose = (self.root / name).read_text(encoding='utf-8')
                 self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
+                self.assertIn('driver: json-file', compose)
+                self.assertIn('max-size: "10m"', compose)
+                self.assertIn('max-file: "3"', compose)
 
     def test_shell_assets_are_syntactically_valid(self):
         for name in (

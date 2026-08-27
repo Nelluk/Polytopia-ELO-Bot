@@ -4,13 +4,17 @@ The repository root contains a conventional Compose deployment. Ordinary
 operation uses `docker compose` directly; no PolyBot deployment wrapper is
 required.
 
+This guide covers infrastructure and lifecycle. Complete the Discord
+application, permissions, support-route, and slash-command steps in the
+[self-hosting guide](SELF_HOSTING.md) as part of the same installation.
+
 ## Bundled PostgreSQL setup
 
 Install Docker Engine or Docker Desktop with the Compose plugin, then clone the
 repository and create the private deployment files:
 
 ```bash
-git clone YOUR_FORK_OR_UPSTREAM_URL polybot
+git clone https://github.com/Nelluk/Polytopia-ELO-Bot.git polybot
 cd polybot
 cp .env.example .env
 cp config.ini-EXAMPLE config.ini
@@ -69,7 +73,28 @@ docker compose logs --tail 100 bot
 Normal startup never changes schema or synchronizes Discord commands. Follow
 the explicit command inspection/apply procedure in
 [the self-hosting guide](SELF_HOSTING.md) after the bot identity and guild are
-verified.
+verified. Replacing the example guild ID, the Docker equivalents are:
+
+```bash
+docker compose run --rm bot python \
+  scripts/manage_application_commands.py \
+  --environment production --mode plan \
+  --guild-ids 123456789012345678
+
+docker compose run --rm bot python \
+  scripts/manage_application_commands.py \
+  --environment production --mode inspect \
+  --guild-ids 123456789012345678
+
+docker compose run --rm bot python \
+  scripts/manage_application_commands.py \
+  --environment production --mode apply \
+  --guild-ids 123456789012345678 \
+  --confirm-environment production \
+  --confirm-guild-ids 123456789012345678 \
+  --confirm-scope guild \
+  --confirm-no-global-sync
+```
 
 ## Ordinary operation
 
@@ -91,9 +116,12 @@ git pull --ff-only
 docker compose up -d --build
 ```
 
-When release notes identify a database change, run the schema plan and apply
-its printed confirmation separately before starting code that requires it.
-The stable `POLYBOT_IMAGE` value in `.env` does not change for each commit.
+Before every update, review the pulled commits for schema or command-tree
+changes. When a change requires a schema operation, run its plan and apply the
+printed confirmation before starting code that requires it. When command
+definitions or capability assignments change, repeat the explicit Discord
+inspection/apply procedure. The stable `POLYBOT_IMAGE` value in `.env` does not
+change for each commit.
 
 ## Logical backups
 
@@ -113,6 +141,28 @@ require stopping the bot.
 Retention, copies to another host or storage provider, and periodic restore
 tests remain operator responsibilities. Never back up or migrate PostgreSQL by
 copying its live Docker volume.
+
+## Production operating baseline
+
+Compose provides process restart policy and a PostgreSQL readiness check; it
+does not provide a host scheduler, alerting service, off-host storage, or disk
+monitor by itself. Before treating an installation as unattended production:
+
+- schedule `docker compose run --rm backup` and alert on a nonzero result;
+- copy completed database archives, `data/images`, and private configuration to
+  storage outside this host with an explicit retention policy;
+- retain or tighten the tracked three-file, 10 MB-per-file Docker log rotation
+  and monitor both Docker and `./logs` disk use;
+- alert when the bot is not running, PostgreSQL is unhealthy, restart counts
+  increase unexpectedly, a scheduled backup fails, or free space is low;
+- after every start, confirm the log shows the expected Discord bot identity
+  and a successful gateway connection rather than relying only on an `Up`
+  container state; and
+- periodically restore a backup into a separate volume using the procedure
+  below and verify the schema before relying on that backup set.
+
+Keep these controls outside the bot container so a failed deployment cannot
+silently disable its own monitoring or backups.
 
 ## Restore into a new volume
 
@@ -177,8 +227,9 @@ the host PostgreSQL operator.
 The upstream GreenCloud production bot has an explicit standalone definition,
 `compose.production.yaml`, because it additionally mounts the required Bullet
 credential. It is documented in
-[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md) and must not be started while the
-current `polyelo.service` writer is active.
+[PRODUCTION_DOCKER.md](PRODUCTION_DOCKER.md). GreenCloud now runs that Compose
+project; its disabled legacy systemd unit is rollback material and must never
+be started at the same time.
 
 ## Private and persistent files
 

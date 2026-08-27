@@ -18,9 +18,12 @@ server_shortcut_ids = {
 # Slash commands are default-deny. The self-hosting guide explains how to
 # select capabilities and deploy them to this exact guild.
 application_command_capabilities = {
-    SERVER_GUILD_ID: ('core_user', 'tools_support'),
+    SERVER_GUILD_ID: ('core_user',),
 }
 application_command_all_guild_capabilities = ()
+# ``tools_support`` exposes /staffhelp. Enable it only after configuring the
+# private staff-help channel, Helper role, and operator-owned feedback route
+# described in docs/SELF_HOSTING.md.
 polyelo_feedback_route = {}
 
 server_list = {

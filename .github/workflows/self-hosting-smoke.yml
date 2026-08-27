@@ -65,3 +65,68 @@ jobs:
           tests.test_runtime_config
           tests.test_startup_schema_authority
           tests.test_application_command_policy
+
+  compose-install:
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE_PROJECT_NAME: polybot-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_VOLUME_NAME: polybot-ci-postgres-${{ github.run_id }}-${{ github.run_attempt }}
+      POLYBOT_IMAGE: polybot-ci-${{ github.run_id }}:local
+      POSTGRES_ADMIN_PASSWORD: ci-admin-password
+      POLYBOT_DATABASE_NAME: polybot
+      POLYBOT_DATABASE_USER: polybot
+      POLYBOT_DATABASE_PASSWORD: ci-database-password
+      POLYBOT_BACKUP_PREFIX: polybot-ci
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create installation-neutral private configuration
+        run: |
+          cp .env.example .env
+          cp config.ini-EXAMPLE config.ini
+          cp server_settings-EXAMPLE.py server_settings.py
+          mkdir -p data/images logs backups
+          sed -i 's/YOUR_PRODUCTION_BOT_TOKEN/ci-discord-token/' config.ini
+          sed -i 's/REPLACE_WITH_YOUR_BOT_USER_ID/900000000000000001/' config.ini
+          sed -i 's/REPLACE_WITH_YOUR_DISCORD_USER_ID/900000000000000002/' config.ini
+          sed -i 's/REPLACE_WITH_A_STRONG_DATABASE_PASSWORD/ci-database-password/' config.ini
+          sed -i 's/psql_host = localhost/psql_host = database/' config.ini
+          printf 'POLYBOT_UID=%s\n' "$(id -u)" >>"$GITHUB_ENV"
+          printf 'POLYBOT_GID=%s\n' "$(id -g)" >>"$GITHUB_ENV"
+          chmod 700 data/images logs backups
+          chmod 600 .env config.ini server_settings.py
+      - name: Create protected database volume
+        run: docker volume create "$POSTGRES_VOLUME_NAME"
+      - name: Render and build the public deployment
+        run: |
+          docker compose config --quiet
+          docker compose build bot
+      - name: Verify private inputs are absent from the image
+        run: |
+          docker run --rm --network none --read-only --entrypoint /bin/sh \
+            "$POLYBOT_IMAGE" -c \
+            'test ! -e /app/.env &&
+             test ! -e /app/config.ini &&
+             test ! -e /app/server_settings.py &&
+             test ! -e /app/spreadsheet_creds.json &&
+             test ! -e /app/.operator-backup-release.json &&
+             test ! -e /app/graph.png'
+      - name: Bootstrap, seed, verify, and back up through Compose
+        run: |
+          docker compose up -d database
+          docker compose run --rm schema
+          docker compose run --rm schema --apply \
+            --confirm 'APPLY PRODUCTION SCHEMA TO polybot AS polybot'
+          docker compose run --rm bot \
+            python bot.py --add_default_data --skip_tasks
+          docker compose run --rm schema --verify
+          docker compose run --rm backup
+          test -n "$(find backups -maxdepth 1 -type f -name '*.dump' -print -quit)"
+          (cd backups && sha256sum --check ./*.dump.sha256)
+      - name: Remove isolated Compose resources
+        if: always()
+        run: |
+          docker compose down --remove-orphans
+          if docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+            docker volume rm "$POSTGRES_VOLUME_NAME"
+          fi
