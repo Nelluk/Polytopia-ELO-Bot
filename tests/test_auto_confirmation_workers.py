@@ -172,7 +172,7 @@ class AutoConfirmationWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         def slow_discovery(_request):
             started.set()
-            release.wait(timeout=2)
+            release.wait()
             return result
 
         request = self.workers.AutoConfirmationDiscoveryRequest(
@@ -189,15 +189,21 @@ class AutoConfirmationWorkerTests(unittest.IsolatedAsyncioTestCase):
             task = asyncio.create_task(
                 self.workers.run_discover_auto_confirmations(request)
             )
-            for _ in range(100):
-                if started.is_set():
-                    break
-                await asyncio.sleep(0.005)
-            heartbeat = asyncio.Event()
-            asyncio.get_running_loop().call_later(0.01, heartbeat.set)
-            await asyncio.wait_for(heartbeat.wait(), timeout=0.2)
-            release.set()
-            self.assertIs(await task, result)
+            try:
+                for _ in range(200):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.005)
+                self.assertTrue(started.is_set())
+
+                heartbeat = asyncio.Event()
+                asyncio.get_running_loop().call_soon(heartbeat.set)
+                await asyncio.wait_for(heartbeat.wait(), timeout=1)
+            finally:
+                release.set()
+                task_result = await asyncio.wait_for(task, timeout=2)
+
+            self.assertIs(task_result, result)
 
     async def test_cancellation_drains_discovery_before_returning(self):
         started = threading.Event()

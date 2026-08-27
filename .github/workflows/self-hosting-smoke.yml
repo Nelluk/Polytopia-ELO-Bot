@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           version: "0.11.32"
           enable-cache: true
@@ -54,8 +54,8 @@ jobs:
           --health-retries 12
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           version: "0.11.32"
           enable-cache: true
@@ -106,7 +106,7 @@ jobs:
       POLYBOT_BACKUP_PREFIX: polybot-ci
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create installation-neutral private configuration
         run: |
           cp .env.example .env
