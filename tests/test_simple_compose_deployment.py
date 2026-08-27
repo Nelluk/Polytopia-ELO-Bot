@@ -64,6 +64,23 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('docker compose down --remove-orphans', workflow)
         self.assertNotIn('docker compose up -d bot', workflow)
 
+    def test_public_workflow_runs_full_offline_regression_suite(self):
+        workflow = (
+            self.root / '.github/workflows/self-hosting-smoke.yml'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('  test-suite:', workflow)
+        self.assertIn('POLYBOT_ENV: development', workflow)
+        self.assertIn('.venv/bin/python -m unittest discover -v', workflow)
+        self.assertIn(
+            'cp config.development.ini-EXAMPLE config.development.ini',
+            workflow,
+        )
+        self.assertIn(
+            'cp server_settings_dev-EXAMPLE.py server_settings_dev.py',
+            workflow,
+        )
+
     def test_installation_neutral_examples_enable_only_configured_features(self):
         production = (self.root / 'server_settings-EXAMPLE.py').read_text(
             encoding='utf-8'

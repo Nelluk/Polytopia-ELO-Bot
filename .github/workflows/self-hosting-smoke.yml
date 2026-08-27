@@ -9,6 +9,33 @@ permissions:
   contents: read
 
 jobs:
+  test-suite:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked --python 3.12
+      - name: Create installation-neutral private configuration
+        run: |
+          cp config.development.ini-EXAMPLE config.development.ini
+          cp server_settings_dev-EXAMPLE.py server_settings_dev.py
+          sed -i 's/YOUR_DEVELOPMENT_BOT_TOKEN/ci-discord-token/' config.development.ini
+          sed -i 's/YOUR_SEPARATE_DEVELOPMENT_DATABASE_PASSWORD/ci-database-password/' config.development.ini
+          sed -i 's/123456789012345678/900000000000000001/' config.development.ini
+          sed -i 's/123456789012345679/900000000000000002/' config.development.ini
+          sed -i 's/123456789012345678/900000000000000003/' server_settings_dev.py
+          sed -i 's/123456789012345679/900000000000000004/' server_settings_dev.py
+          chmod 600 config.development.ini server_settings_dev.py
+      - name: Run full offline test suite
+        env:
+          POLYBOT_ENV: development
+        run: .venv/bin/python -m unittest discover -v
+
   fresh-install:
     runs-on: ubuntu-latest
     services:
