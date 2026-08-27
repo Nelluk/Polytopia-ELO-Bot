@@ -27,12 +27,6 @@ server_settings.py
 server_settings_dev.py
 .env
 backups/
-deploy/container/.env
-deploy/container/backups/
-deploy/container/config.development.ini
-deploy/container/server_settings_dev.py
-deploy/container/secrets/*.txt
-
 *.sublime*
 pyvenv.cfg
 pip-selfcheck.json

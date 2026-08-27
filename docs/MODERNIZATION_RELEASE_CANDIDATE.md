@@ -111,7 +111,7 @@ rewritten to certify post-RC3 source or acceptance.
 
 ## Tester-message boundary
 
-`release-candidate-manifests/tester-instructions-draft.md` is deliberately
-short and unsent. After Nelluk approves its final wording, delivery uses the
-existing development-only beta release tooling. Finish all planned downtime
-and health checks first; successful delivery remains the terminal action.
+`release-candidate-manifests/tester-instructions-draft.md` was deliberately
+short and unsent. It and the development-only beta release tooling were
+retired after the modernization reached `master`; the candidate commits retain
+their immutable historical copies.

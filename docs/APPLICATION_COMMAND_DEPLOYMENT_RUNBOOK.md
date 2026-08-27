@@ -62,7 +62,7 @@ owner/superuser checks remain the authoritative authorization boundary.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/manage_application_commands.py \
    --environment development \
    --mode plan \

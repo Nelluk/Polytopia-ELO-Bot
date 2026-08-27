@@ -4,17 +4,15 @@
 x-beta-runtime: &beta-runtime
   build:
     context: .
-    dockerfile: deploy/container/Dockerfile
+    dockerfile: Dockerfile
     args:
       POLYBOT_SOURCE_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
-      POLYBOT_RUNTIME_UID: ${POLYBOT_RUNTIME_UID:-1000}
-      POLYBOT_RUNTIME_GID: ${POLYBOT_RUNTIME_GID:-1000}
+      POLYBOT_UID: ${POLYBOT_RUNTIME_UID:-1000}
+      POLYBOT_GID: ${POLYBOT_RUNTIME_GID:-1000}
   image: ${POLYBOT_BOT_IMAGE:-polybot-beta:local}
   environment:
     POLYBOT_ENV: development
     POLYBOT_RESTART_SUPERVISOR: compose
-    POLYBOT_BETA_OPERATOR_CONTEXT: compose
-    POLYBOT_BETA_CONTROL: enabled
     POLYBOT_BETA_STARTUP_SYNC: disabled
     POLYBOT_BETA_CHECKPOINT: ${POLYBOT_SOURCE_CHECKPOINT:?Set the exact clean Git HEAD in .env}
     POLYBOT_BETA_APPLICATION_ID: "479029527553638401"
@@ -32,13 +30,13 @@ x-beta-runtime: &beta-runtime
     - /tmp:size=256m,mode=1777
   volumes:
     - type: bind
-      source: ./deploy/container/config.development.ini
+      source: ./config.development.ini
       target: /app/config.development.ini
       read_only: true
       bind:
         create_host_path: false
     - type: bind
-      source: ./deploy/container/server_settings_dev.py
+      source: ./server_settings_dev.py
       target: /app/server_settings_dev.py
       read_only: true
       bind:

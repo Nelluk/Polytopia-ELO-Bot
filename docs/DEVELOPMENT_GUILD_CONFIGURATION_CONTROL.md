@@ -93,7 +93,7 @@ Discord snapshot path and exact development database gate:
 ```bash
 POLYBOT_ENV=development \
 POLYBOT_P10_6A_CONTROL_INTEGRATION=1 \
-POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
+POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-beta/logs/development/guild-configuration/discord-snapshot.json \
   .venv/bin/python -m unittest -v \
   tests.test_operator_guild_configuration_database
 ```

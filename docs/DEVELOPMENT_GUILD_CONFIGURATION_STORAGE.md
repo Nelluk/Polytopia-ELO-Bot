@@ -85,10 +85,10 @@ rule or pretend that the legacy null value is effective behavior.
 
 ## Stopped-writer apply and verification
 
-Do not apply while the beta is active. Stop only
-`polybot-development-beta@main.service`, then run the host-wide development
-writer audit and require it to report clear. Keep the exact captured snapshot
-unchanged between plan and apply.
+Do not apply while the beta is active. From `/home/nelluk/PolyBot39-beta`, run
+`docker compose stop bot`, then run the host-wide development writer audit and
+require it to report clear. Keep the exact captured snapshot unchanged between
+plan and apply.
 
 ```bash
 POLYBOT_ENV=development .venv/bin/python \

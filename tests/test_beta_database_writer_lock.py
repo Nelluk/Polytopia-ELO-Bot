@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager, nullcontext
 import os
 from pathlib import Path
 import signal
@@ -13,7 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from modules import beta_database_writer_lock, beta_wider_setup
+from modules import beta_database_writer_lock
 from scripts import hold_development_beta_database_lock, run_development_beta
 
 
@@ -76,9 +75,6 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         required_sources = (
             'bot.py',
-            'scripts/manage_dev_fixtures.py',
-            'modules/beta_lab_personas.py',
-            'modules/beta_wider_setup.py',
             'scripts/manage_guild_configuration_storage.py',
             'scripts/manage_guild_configuration_drafts.py',
             'scripts/manage_guild_configuration_delegation.py',
@@ -131,54 +127,6 @@ class BetaDatabaseWriterLockTests(unittest.TestCase):
         ):
             lock.acquire()
         self.assertTrue(connection.closed)
-
-    def test_mutation_scope_holds_file_and_database_locks_through_publish(self):
-        events = []
-
-        @contextmanager
-        def file_guard(_profile):
-            events.append('file-enter')
-            try:
-                yield
-            finally:
-                events.append('file-exit')
-
-        database_lock = mock.Mock()
-        database_lock.acquire.side_effect = lambda: events.append('database-enter')
-        database_lock.release.side_effect = lambda: events.append('database-exit')
-        with mock.patch.object(
-            beta_wider_setup.beta_database_writer_lock,
-            'BetaDatabaseWriterLock',
-            return_value=database_lock,
-        ):
-            with beta_wider_setup._mutation_writer_scope(
-                profile(), writer_guard=file_guard,
-            ):
-                events.append('final-proof')
-                events.append('publish')
-
-        self.assertEqual(events, [
-            'file-enter', 'database-enter', 'final-proof', 'publish',
-            'database-exit', 'file-exit',
-        ])
-
-    def test_database_lock_refusal_is_a_fail_closed_setup_error(self):
-        database_lock = mock.Mock()
-        database_lock.acquire.side_effect = (
-            beta_database_writer_lock.BetaDatabaseWriterLockError('held')
-        )
-        with mock.patch.object(
-            beta_wider_setup.beta_database_writer_lock,
-            'BetaDatabaseWriterLock',
-            return_value=database_lock,
-        ), self.assertRaisesRegex(
-            beta_wider_setup.WiderBetaSetupSafetyError,
-            'Another process',
-        ):
-            with beta_wider_setup._mutation_writer_scope(
-                profile(), writer_guard=lambda _profile: nullcontext(),
-            ):
-                self.fail('mutation body must not run')
 
     def test_keeper_initial_refusal_reports_without_signalling_parent(self):
         read_fd, write_fd = os.pipe()

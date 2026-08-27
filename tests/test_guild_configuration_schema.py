@@ -289,7 +289,17 @@ class GuildConfigurationSchemaTests(unittest.TestCase):
         )
         tree = ast.parse(source)
         server_list = None
+        literal_names = {}
         for node in tree.body:
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                try:
+                    literal_names[node.targets[0].id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    pass
             if (
                 isinstance(node, ast.Assign)
                 and any(
@@ -298,7 +308,17 @@ class GuildConfigurationSchemaTests(unittest.TestCase):
                     for target in node.targets
                 )
             ):
-                server_list = ast.literal_eval(node.value)
+                class ResolveExampleConstants(ast.NodeTransformer):
+                    def visit_Name(self, name):
+                        if name.id in literal_names:
+                            return ast.copy_location(
+                                ast.Constant(literal_names[name.id]), name
+                            )
+                        return name
+
+                server_list = ast.literal_eval(
+                    ResolveExampleConstants().visit(node.value)
+                )
                 break
         self.assertIsNotNone(server_list)
         self.assertEqual(set(server_list['default']), LEGACY_DEFAULT_KEYS)

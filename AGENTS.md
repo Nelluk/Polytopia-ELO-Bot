@@ -50,8 +50,8 @@ This file provides guidance to coding agents when working with code in this repo
   the schema plan, and recreate only `bot` with Compose. Verify the
   authenticated application, checkpoint, stable container, and one-writer
   census. Do not synchronize commands when command definitions did not change.
-- Do not use the legacy `./polybot` deployment wrapper or a bundled PostgreSQL
-  mode on GreenCloud unless Nelluk explicitly approves a topology change.
+- GreenCloud has no deployment wrapper or bundled beta database. A bundled
+  PostgreSQL topology remains a separately approved change.
 
 ## Project Overview
 

@@ -225,15 +225,10 @@ class WatchdogTests(unittest.IsolatedAsyncioTestCase):
         bot._database_watchdog = watchdog
         task = watchdog.start()
         await asyncio.sleep(0)
-        beta_control = SimpleNamespace(stop=mock.AsyncMock())
-        bot.beta_release_control = beta_control
         await bot.close()
         self.assertTrue(task.cancelled())
-        beta_control.stop.assert_awaited_once()
-        self.assertIsNone(bot.beta_release_control)
         self.assertTrue(bot.is_closed())
         await bot.close()
-        beta_control.stop.assert_awaited_once()
         self.assertTrue(bot._close_complete)
 
 

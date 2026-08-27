@@ -75,9 +75,8 @@ schema and backup jobs, and ordinary Docker Compose lifecycle commands:
 **[Run PolyBot with Docker Compose](docs/DOCKER.md)**.
 
 Upstream maintainers run the isolated beta through the separate, direct
-[development Compose interface](docs/DEVELOPMENT_DOCKER.md). The older files
-under `deploy/container/` are retained as migration and rollback implementation
-material; they are not the public self-hosting interface.
+[development Compose interface](docs/DEVELOPMENT_DOCKER.md). It uses the same
+root Dockerfile as the public stack and ordinary Compose commands.
 
 For an isolated test bot, use a separate Discord application, guild, and
 database. See [Database setup for a test bot](docs/DATABASE_SETUP.md).

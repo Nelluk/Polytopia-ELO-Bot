@@ -34,17 +34,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertTrue(command.guild_only)
         self.assertEqual(
             [command.name for command in misc.misc.__cog_app_commands__],
-            ['staffhelp', 'whattotest'],
-        )
-
-    def test_whattotest_is_a_no_option_temporary_beta_root(self):
-        command = app_group(misc.misc, 'whattotest')
-
-        self.assertEqual(command.parameters, [])
-        self.assertTrue(command.guild_only)
-        self.assertNotIn(
-            'whattotest',
-            {command.name for command in misc.misc.__cog_commands__},
+            ['staffhelp'],
         )
 
     def test_staffhelp_has_no_retired_prefix_registration(self):
@@ -196,7 +186,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in operator_group.commands},
-            {'tribe', 'player', 'database', 'channels', 'bot', 'beta', 'guild'},
+            {'tribe', 'player', 'database', 'channels', 'bot', 'guild'},
         )
         self.assertEqual(
             {
@@ -232,13 +222,6 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 for command in operator_group.get_command('bot').commands
             },
             {'restart'},
-        )
-        self.assertEqual(
-            {
-                command.name
-                for command in operator_group.get_command('beta').commands
-            },
-            {'prepare', 'reset'},
         )
         self.assertEqual(
             {

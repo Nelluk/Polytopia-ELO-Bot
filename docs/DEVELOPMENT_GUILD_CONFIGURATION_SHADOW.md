@@ -62,7 +62,7 @@ gate and the reviewed private P10.3 Discord snapshot:
 ```bash
 POLYBOT_ENV=development \
 POLYBOT_P10_4_SHADOW_INTEGRATION=1 \
-POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
+POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-beta/logs/development/guild-configuration/discord-snapshot.json \
   .venv/bin/python -m unittest -v \
   tests.test_guild_configuration_shadow_database
 ```
@@ -74,7 +74,7 @@ development service from a clean reviewed accumulation checkpoint and verify:
 1. exactly one host-wide development writer and zero restart churn;
 2. the authenticated development application and expected checkpoint;
 3. one `status=matched promotion_ready=true` shadow log line;
-4. protected Beta Lab readiness remains healthy; and
+4. ordinary development command behavior remains healthy; and
 5. ordinary prefix/slash behavior still uses static settings.
 
 P10.4 changes no command shape, so it requires no application-command plan or

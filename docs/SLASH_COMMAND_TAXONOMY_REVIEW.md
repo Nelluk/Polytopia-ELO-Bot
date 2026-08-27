@@ -1367,9 +1367,9 @@ dozens of capabilities harder to scan and organize.
 
 ## Current implementation alignment
 
-P10.9's model-free source inventory loads these exact current roots (12):
+The model-free source inventory now loads these exact current roots (11):
 `elo`, `game`, `guild`, `house`, `leaderboard`, `league`, `operator`, `player`,
-`squad`, `staffhelp`, `team`, and `whattotest`.
+`squad`, `staffhelp`, and `team`.
 
 Their current first-level structure is:
 
@@ -1380,20 +1380,20 @@ Their current first-level structure is:
 - `/house create|image|list|name|show`;
 - `/leaderboard activity|players|roles|squads|teams`;
 - `/league badge|free-agents|guide|join-novas|maintenance|mark-active|roster|season|tokens`;
-- `/operator beta|bot|channels|database|guild|player|tribe`;
+- `/operator bot|channels|database|guild|player|tribe`;
 - `/player register|show|timezone`;
 - `/squad name|show`;
 - `/staffhelp` with no direct options;
-- `/team archive|create|emoji|house|image|name|server|show|tier`; and
-- development-only `/whattotest` with no direct options.
+- `/team archive|create|emoji|house|image|name|server|show|tier`.
 
 This is source inventory, not a claim that every root is assigned in every
-guild. Capability policy remains default-deny and `/whattotest` remains
-development-only. The `guild` and `operator` roots share the `operator`
-capability assignment, but only `/operator` is administrator-default; `/guild`
+guild. Capability policy remains default-deny. The `guild` and `operator`
+roots share the `operator` capability assignment, but only `/operator` is
+administrator-default; `/guild`
 contains no bot-wide or cross-guild controls. P9.20 recommends `tools_support`
 for every reviewed production guild; the initial production canary still
-omits `operator` and `beta_testing` capabilities.
+omits `operator`. The retired `beta_testing` capability remains as a no-root
+compatibility assignment until stored development configuration is next edited.
 
 ### Historical implementation notes
 

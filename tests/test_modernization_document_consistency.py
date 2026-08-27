@@ -22,7 +22,6 @@ EXPECTED_ROOTS = (
     'squad',
     'staffhelp',
     'team',
-    'whattotest',
 )
 
 

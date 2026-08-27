@@ -28,7 +28,7 @@ _ROOT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 KNOWN_TOP_LEVEL_ROOTS = frozenset({
     'about', 'elo', 'game', 'guide', 'help', 'house', 'leaderboard',
     'guild', 'league', 'operator', 'player', 'squad', 'staffhelp', 'support', 'team',
-    'tools', 'whattotest',
+    'tools',
 })
 
 # ``tools_support`` is deliberately explicit about the source roots it can
@@ -47,6 +47,7 @@ class CapabilityFamily:
     roots: tuple[str, ...]
     visibility: str = "public"
     description: str = ""
+    compatibility_only: bool = False
 
 
 # These are policy entries, not claims that every root already has a command
@@ -102,9 +103,10 @@ DEFAULT_CAPABILITY_FAMILIES = (
     ),
     CapabilityFamily(
         name="beta_testing",
-        roots=("whattotest",),
+        roots=(),
         visibility="development-only",
-        description="Temporary wider-beta testing guidance.",
+        description="Retired compatibility assignment with no command roots.",
+        compatibility_only=True,
     ),
     CapabilityFamily(
         name="operator",
@@ -172,6 +174,7 @@ def _family_map(
             roots=roots,
             visibility=family.visibility,
             description=family.description,
+            compatibility_only=family.compatibility_only,
         )
 
     return MappingProxyType(by_name)
@@ -274,7 +277,8 @@ def build_capability_policy(
                 raise ApplicationCommandPolicyError(
                     f'{context} references unknown capability {capability!r}.'
                 )
-            if not family_map[capability].roots:
+            if (not family_map[capability].roots
+                    and not family_map[capability].compatibility_only):
                 raise ApplicationCommandPolicyError(
                     f'Capability {capability!r} has no application-command '
                     'roots and cannot be registered.'

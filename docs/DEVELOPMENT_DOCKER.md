@@ -13,10 +13,9 @@ Run from the beta checkout:
 
 ```bash
 cp .env.beta.example .env
-cp config.development.ini-EXAMPLE deploy/container/config.development.ini
-cp server_settings_dev-EXAMPLE.py deploy/container/server_settings_dev.py
-chmod 600 .env deploy/container/config.development.ini \
-  deploy/container/server_settings_dev.py
+cp config.development.ini-EXAMPLE config.development.ini
+cp server_settings_dev-EXAMPLE.py server_settings_dev.py
+chmod 600 .env config.development.ini server_settings_dev.py
 ```
 
 Edit the two private configuration files for the isolated beta application,
@@ -75,9 +74,8 @@ docker compose exec bot python scripts/check_runtime_config.py
 
 Also verify the expected image/checkpoint, application identity, Unix-socket
 database transport, restart count, and one project bot with no host or other
-container writer. Beta Lab fixture readiness is not a deployment-health
-signal. The feature's eventual source and live-fixture retirement is tracked
-in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
+container writer. The retired Beta Lab and legacy deployment cleanup is
+recorded in [`BETA_ONLY_CLEANUP.md`](BETA_ONLY_CLEANUP.md).
 
 ## Updating
 

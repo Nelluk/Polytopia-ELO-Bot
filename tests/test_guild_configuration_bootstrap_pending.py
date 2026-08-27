@@ -637,28 +637,5 @@ class BootstrapPendingDispatchTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await instance.close()
 
-    async def test_pending_startup_persona_mutation_is_suppressed(self):
-        instance = bot_module.MyBot()
-        persona_module = SimpleNamespace(
-            manifest=lambda: SimpleNamespace(guild_id=GUILD_ID),
-            revoke_members_on_startup=mock.AsyncMock(return_value=1),
-        )
-        instance.get_guild = mock.Mock()
-        try:
-            with mock.patch.object(
-                bot_module.settings,
-                'runtime_profile',
-                SimpleNamespace(environment='development'),
-            ), mock.patch.dict(
-                sys.modules,
-                {'modules.beta_lab_personas': persona_module},
-            ):
-                self.assertEqual(await instance._revoke_beta_lab_personas(), 0)
-        finally:
-            await instance.close()
-        instance.get_guild.assert_not_called()
-        persona_module.revoke_members_on_startup.assert_not_awaited()
-
-
 if __name__ == '__main__':
     unittest.main()

@@ -63,10 +63,10 @@ are also not a valid rollback for this release.
 ## Current reconciliation
 
 P9.19 reconciles active readiness guidance without replacing the audit's
-historical evidence, and P9.20 resolves M6. The current model-free source roots
-(12) are: `elo`,
+historical evidence, and P9.20 resolves M6. After the temporary Beta Lab
+retirement, the current model-free source roots (11) are: `elo`,
 `game`, `guild`, `house`, `leaderboard`, `league`, `operator`, `player`,
-`squad`, `staffhelp`, `team`, and `whattotest`. P9.2 added `/operator` after
+`squad`, `staffhelp`, and `team`. P9.2 added `/operator` after
 the audit; P10.9 adds narrow same-guild `/guild edit` under the same
 default-deny capability without exposing the administrator-default operator
 surface to delegated managers. The initial production canary policy still
@@ -213,7 +213,8 @@ Initially omit:
 
 - `elo_maintenance`: owner/staff maintenance is unnecessary for the user
   canary and can be enabled later;
-- `beta_testing`: `/whattotest` is development-only; and
+- `beta_testing`: retained temporarily as a no-root compatibility assignment;
+  and
 - `operator`: omit it from the initial user canary. P9.2 supersedes the audit's
   earlier operator-only assumption by reserving a separately reviewed,
   Administrator-default `/operator` root with authoritative configured-ID

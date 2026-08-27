@@ -6,9 +6,9 @@ GreenCloud, `/srv/polyelo`, fixed PolyElo guild IDs, or modernization release
 candidates describe the upstream deployment and are not required here.
 
 For a self-contained installation using bundled PostgreSQL, follow the root
-[Docker Compose guide](DOCKER.md). The older Compose files under
-`deploy/container/` remain the upstream development-beta deployment until it is
-migrated and are not the public interface.
+[Docker Compose guide](DOCKER.md). Upstream maintainers use the separate
+host-PostgreSQL beta definition in `compose.beta.yaml`; independent deployments
+do not need it.
 
 ## Requirements
 

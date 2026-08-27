@@ -369,10 +369,6 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
                 'ensure_image_directories',
                 side_effect=lambda: events.append('images'),
             ), mock.patch.object(
-                bot_module.beta_operations,
-                'beta_control_enabled',
-                return_value=False,
-            ), mock.patch.object(
                 instance, 'load_extension', side_effect=load_extension,
             ), mock.patch.dict(
                 sys.modules,
@@ -441,44 +437,6 @@ class StartupIdentityOrderingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(instance._startup_identity_validated)
         self.assertFalse(instance._startup_schema_preflight_complete)
         self.assertFalse(instance._startup_bans_reconciled)
-
-    async def test_development_persona_reconciliation_runs_on_every_ready_cycle(self):
-        instance = self.make_bot()
-        guild = SimpleNamespace(id=300)
-        instance.get_guild = mock.Mock(return_value=guild)
-        persona_module = SimpleNamespace(
-            manifest=lambda: SimpleNamespace(guild_id=300),
-            revoke_members_on_startup=mock.AsyncMock(side_effect=(2, 0)),
-        )
-        try:
-            with mock.patch.object(
-                bot_module.settings,
-                'runtime_profile',
-                SimpleNamespace(environment='development'),
-            ), mock.patch.dict(
-                sys.modules,
-                {'modules.beta_lab_personas': persona_module},
-            ):
-                self.assertEqual(await instance._revoke_beta_lab_personas(), 2)
-                self.assertEqual(await instance._revoke_beta_lab_personas(), 0)
-        finally:
-            await instance.close()
-        self.assertEqual(persona_module.revoke_members_on_startup.await_count, 2)
-
-    async def test_production_never_enters_beta_persona_reconciliation(self):
-        instance = self.make_bot()
-        try:
-            with mock.patch.object(
-                bot_module.settings,
-                'runtime_profile',
-                SimpleNamespace(environment='production'),
-            ), mock.patch.object(
-                instance, 'get_guild',
-            ) as get_guild:
-                self.assertEqual(await instance._revoke_beta_lab_personas(), 0)
-        finally:
-            await instance.close()
-        get_guild.assert_not_called()
 
     def test_ordinary_init_has_no_pre_identity_database_import_or_connect(self):
         source = inspect.getsource(bot_module)

@@ -29,20 +29,18 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/audit_development_beta_processes.py --require-clear
    ```
 
-   The durable GreenCloud instance is
-   `polybot-development-beta@greencloud.service`. A sandboxed process view can
-   miss the user-systemd service and its advisory-lock keeper, so resolve the
-   unit from the candidate process cgroup and perform the final census from a
-   host-wide operator context.
+   Stop the direct Compose beta first with `docker compose stop bot` from
+   `/home/nelluk/PolyBot39-beta`. A sandboxed process view can miss container
+   processes, so perform the final census from a host-wide operator context.
 
 3. Preserve rollback material before replacing the development database.
-   Export the current development database through the existing guarded
-   `scripts/export_host_development_database.py` workflow, retain its archive
-   and SHA-256 sidecar off-host, and separately preserve the five current
+   Use the host's reviewed logical PostgreSQL backup procedure for
+   `polytopia_dev`, validate the custom archive with `pg_restore --list`, retain
+   its SHA-256 sidecar off-host, and separately preserve the five current
    `guild_configuration_*` tables: registry, revision, audit, draft, and
    delegation. These tables hold the beta's active authority and are restored
    after the production partial dump. Their backup/export is an operator
@@ -82,7 +80,7 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/bootstrap_development_database.py
    # review its exact token, then rerun with --apply --confirm TOKEN
    ```
@@ -106,7 +104,7 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/manage_historical_mirror.py plan
    ```
 
@@ -119,7 +117,7 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/manage_historical_mirror.py apply \
    --confirm 'HISTORICAL MIRROR APPLY ...'
    ```
@@ -141,7 +139,7 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/manage_historical_mirror.py verify \
    --confirm 'HISTORICAL MIRROR APPLY ...'
    ```
@@ -163,9 +161,10 @@ as a Discord guild.
 
    ```bash
    POLYBOT_ENV=development \
-   /home/nelluk/PolyBot39-dev/.venv/bin/python \
+   /home/nelluk/PolyBot39-beta/.venv/bin/python \
    scripts/check_runtime_config.py
-   systemctl --user start polybot-development-beta@greencloud.service
+   cd /home/nelluk/PolyBot39-beta
+   docker compose up -d bot
    ```
 
    The durable launcher itself receives its required `--skip_tasks` argument

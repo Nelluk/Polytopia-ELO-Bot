@@ -15,7 +15,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import beta_operations, image_storage, operator_restart
+from modules import image_storage, operator_restart
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -296,7 +296,6 @@ class MyBot(commands.Bot):
         # Each item is a (guild_id, channel_id, message_id) tuple.
         self.purgable_messages = []
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
-        self.beta_release_control = None
         self._startup_identity_validated = False
         self._startup_schema_preflight_complete = False
         self._startup_schema_preflight_lock = asyncio.Lock()
@@ -305,7 +304,6 @@ class MyBot(commands.Bot):
         self._guild_configuration_shadow_complete = False
         self._guild_configuration_shadow_lock = asyncio.Lock()
         self.guild_configuration_shadow_result = None
-        self._beta_persona_reconciliation_lock = asyncio.Lock()
         self._restart_exit_status = None
         self._database_watchdog = None
         self._close_lock = asyncio.Lock()
@@ -637,39 +635,6 @@ class MyBot(commands.Bot):
                 )
             return result
 
-    async def _revoke_beta_lab_personas(self) -> int:
-        """Fail closed across starts/reconnects for temporary beta authority."""
-
-        if settings.runtime_profile.environment != 'development':
-            return 0
-        async with self._beta_persona_reconciliation_lock:
-            personas = importlib.import_module('modules.beta_lab_personas')
-            policy = personas.manifest()
-            if settings.database_guild_configuration_bootstrap_pending(
-                    policy.guild_id
-            ):
-                logger.warning(
-                    'Suppressing Beta Lab startup mutation for bootstrap-pending '
-                    'guild %s.',
-                    policy.guild_id,
-                )
-                return 0
-            guild = self.get_guild(policy.guild_id)
-            if guild is None:
-                raise RuntimeError(
-                    'The configured development guild is unavailable for '
-                    'Beta Lab persona reconciliation.'
-                )
-            removed = await personas.revoke_members_on_startup(
-                settings.runtime_profile,
-                guild,
-            )
-            logger.info(
-                'Startup Beta Lab persona reconciliation revoked_members=%s',
-                removed,
-            )
-            return removed
-
     async def setup_hook(self):
         try:
             self._validate_startup_identity()
@@ -704,16 +669,6 @@ class MyBot(commands.Bot):
         database_health = importlib.import_module('modules.database_health')
         self._database_watchdog = database_health.DatabaseWatchdog(self)
         self._database_watchdog.start()
-        if beta_operations.beta_control_enabled():
-            self.beta_release_control = beta_operations.BetaReleaseControl(
-                self,
-                settings.runtime_profile,
-                startup_checkpoint=os.environ.get(
-                    beta_operations.BETA_CHECKPOINT_ENV,
-                ),
-            )
-            await self.beta_release_control.start()
-
     async def close(self):
         async with self._close_lock:
             if self._close_complete:
@@ -721,9 +676,6 @@ class MyBot(commands.Bot):
             if self._database_watchdog is not None:
                 await self._database_watchdog.stop()
                 self._database_watchdog = None
-            if self.beta_release_control is not None:
-                await self.beta_release_control.stop()
-                self.beta_release_control = None
             await super().close()
             self._close_complete = True
 
@@ -971,17 +923,6 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
                     g.id,
                     g.name,
                 )
-
-        try:
-            await bot._revoke_beta_lab_personas()
-        except Exception:
-            logger.critical(
-                'Startup Beta Lab persona reconciliation failed; closing '
-                'instead of retaining temporary staff authority.',
-                exc_info=True,
-            )
-            await bot.close()
-            raise
 
         logger.info(
             'Automatic application-command synchronization is disabled. '

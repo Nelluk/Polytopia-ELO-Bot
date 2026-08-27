@@ -20,12 +20,6 @@ data/images
 backups
 data/development/images
 logs
-deploy/container/backups
-deploy/container/.env
-deploy/container/config.development.ini
-deploy/container/server_settings_dev.py
-deploy/container/secrets/*.txt
-
 *.log*
 *.db*
 *.sql*

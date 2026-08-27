@@ -48,9 +48,6 @@ from modules import operator_channel_purge_views
 from modules import operator_channel_purge_workers
 from modules import operator_restart as operator_restart_service
 from modules import operator_restart_views
-from modules import operator_beta_fixtures as operator_beta_fixtures_service
-from modules import operator_beta_fixtures_views
-from modules import operator_beta_fixtures_workers
 from modules import operator_guild_configuration as operator_guild_configuration_service
 from modules import operator_guild_configuration_workers
 from modules import operator_guild_configuration_drafts as operator_guild_draft_service
@@ -231,12 +228,6 @@ class administration(commands.Cog):
     operator_bot_group = discord.app_commands.Group(
         name='bot',
         description='Run restricted bot lifecycle operations.',
-        parent=operator_group,
-        guild_only=True,
-    )
-    operator_beta_group = discord.app_commands.Group(
-        name='beta',
-        description='Prepare restricted development-beta test scenarios.',
         parent=operator_group,
         guild_only=True,
     )
@@ -2639,95 +2630,6 @@ class administration(commands.Cog):
             view.message = await interaction.original_response()
         except discord.HTTPException:
             pass
-
-    async def _open_beta_fixture_preview(
-        self,
-        interaction: discord.Interaction,
-        *,
-        operation: str,
-        user_ids: tuple[int, ...] = (),
-    ):
-        if interaction.guild_id is None:
-            return await interaction.response.send_message(
-                'This command can only be used in a server.', ephemeral=True
-            )
-        if int(interaction.user.id) != int(settings.owner_id):
-            return await interaction.response.send_message(
-                'Only the configured bot owner can prepare or reset beta '
-                'fixtures.',
-                ephemeral=True,
-            )
-        await interaction.response.defer(ephemeral=True)
-        try:
-            preview = await operator_beta_fixtures_workers.run_preview(
-                operator_beta_fixtures_service.preview_request(
-                    interaction,
-                    operation=operation,
-                    user_ids=user_ids,
-                )
-            )
-        except operator_beta_fixtures_workers.BetaFixtureError as exc:
-            return await interaction.followup.send(str(exc), ephemeral=True)
-        except Exception:
-            logger.exception('Unexpected beta fixture preview failure')
-            return await interaction.followup.send(
-                'The beta fixture preview could not be loaded. No database '
-                'changes were made.',
-                ephemeral=True,
-            )
-
-        async def confirm(component_interaction, accepted_preview):
-            return await operator_beta_fixtures_workers.run_commit(
-                operator_beta_fixtures_service.commit_request(
-                    component_interaction,
-                    accepted_preview,
-                )
-            )
-
-        view = operator_beta_fixtures_views.BetaFixturePreviewView(
-            requester_id=int(interaction.user.id),
-            preview=preview,
-            confirmer=confirm,
-        )
-        await interaction.edit_original_response(content=None, view=view)
-        try:
-            view.message = await interaction.original_response()
-        except discord.HTTPException:
-            pass
-        return preview
-
-    @operator_beta_group.command(
-        name='prepare',
-        description='Preview a fixed beta scenario bundle for two members.',
-    )
-    @discord.app_commands.describe(
-        participant_one='First registered development-guild participant.',
-        participant_two='Second registered development-guild participant.',
-    )
-    async def operator_beta_prepare_slash(
-        self,
-        interaction: discord.Interaction,
-        participant_one: discord.Member,
-        participant_two: discord.Member,
-    ):
-        return await self._open_beta_fixture_preview(
-            interaction,
-            operation=operator_beta_fixtures_workers.PREPARE,
-            user_ids=(int(participant_one.id), int(participant_two.id)),
-        )
-
-    @operator_beta_group.command(
-        name='reset',
-        description='Preview restoration of the exact owned beta scenarios.',
-    )
-    async def operator_beta_reset_slash(
-        self,
-        interaction: discord.Interaction,
-    ):
-        return await self._open_beta_fixture_preview(
-            interaction,
-            operation=operator_beta_fixtures_workers.RESET,
-        )
 
     @operator_bot_group.command(
         name='restart',

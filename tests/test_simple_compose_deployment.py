@@ -33,6 +33,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('  database:', compose)
         self.assertIn('  bot:', compose)
         self.assertIn('  schema:', compose)
+        self.assertIn('dockerfile: Dockerfile', compose)
         self.assertIn('  backup:', compose)
         self.assertIn('  restore:', compose)
         self.assertIn('external: true', compose)
@@ -59,6 +60,8 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
         self.assertIn('polybot_images:/app/data/development/images', compose)
         self.assertIn('polybot_logs:/app/logs/development', compose)
+        self.assertIn('source: ./config.development.ini', compose)
+        self.assertIn('source: ./server_settings_dev.py', compose)
         self.assertNotIn('\nname:', compose)
         self.assertNotIn('ports:', compose)
         self.assertNotIn('./polybot', compose)
@@ -88,7 +91,8 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('CMD ["python", "bot.py"]', dockerfile)
         self.assertNotIn('POLYBOT_ENV', dockerfile)
         self.assertNotIn('run_development_beta.py', dockerfile)
-        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', dockerfile)
+        self.assertIn('ARG POLYBOT_SOURCE_CHECKPOINT=unknown', dockerfile)
+        self.assertIn('/usr/local/share/polybot/image-checkpoint', dockerfile)
 
     def test_shell_assets_are_syntactically_valid(self):
         for name in (

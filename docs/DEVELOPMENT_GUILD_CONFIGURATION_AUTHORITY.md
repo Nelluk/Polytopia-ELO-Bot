@@ -77,7 +77,7 @@ The isolated read-only publication regression is:
 ```bash
 POLYBOT_ENV=development \
 POLYBOT_P10_5_AUTHORITY_INTEGRATION=1 \
-POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-dev/logs/development/guild-configuration/discord-snapshot.json \
+POLYBOT_DEVELOPMENT_GUILD_CONFIGURATION_SNAPSHOT=/home/nelluk/PolyBot39-beta/logs/development/guild-configuration/discord-snapshot.json \
   .venv/bin/python -m unittest -v \
   tests.test_guild_configuration_runtime_database
 ```
@@ -86,8 +86,8 @@ For deployment:
 
 1. verify the clean reviewed checkpoint and exactly one current development
    writer;
-2. stop only `polybot-development-beta@main.service` and require the host-wide
-   writer audit to be clear;
+2. from `/home/nelluk/PolyBot39-beta`, run `docker compose stop bot` and
+   require the host-wide writer audit to be clear;
 3. run the complete gated development PostgreSQL suite and the P10.4 verifier;
 4. set the ignored development selector to exact `database`;
 5. start the durable beta with startup synchronization disabled;
@@ -95,7 +95,7 @@ For deployment:
    churn, one writer, and a log line containing
    `source=database status=matched` plus the active generation; and
 7. verify representative retained-prefix and native permission/channel
-   behavior plus protected Beta Lab readiness.
+   behavior.
 
 No application-command apply is needed because P10.5 changes no command tree.
 This is an operator-visible authority change, not a new tester workflow, so it

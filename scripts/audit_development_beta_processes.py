@@ -19,8 +19,11 @@ import sys
 from typing import Iterable
 
 
-PRODUCTION_ROOT = Path('/home/nelluk/PolyBot39')
-DEVELOPMENT_ROOT = Path('/home/nelluk/PolyBot39-dev')
+PRODUCTION_ROOT = Path('/srv/polyelo/PolyBot39')
+DEVELOPMENT_ROOTS = (
+    Path('/home/nelluk/PolyBot39-beta'),
+    Path('/app'),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,9 +55,12 @@ def _path_is_under(value: str, root: Path) -> bool:
 
 def _is_development_path(value: str) -> bool:
     normalized = os.path.normpath(value)
-    if _path_is_under(normalized, DEVELOPMENT_ROOT):
+    if any(_path_is_under(normalized, root) for root in DEVELOPMENT_ROOTS):
         return True
-    return 'PolyBot39-dev' in Path(normalized).parts
+    return any(
+        part.startswith('PolyBot39-beta')
+        for part in Path(normalized).parts
+    )
 
 
 def _classify(command: Iterable[str], cwd: str) -> str:

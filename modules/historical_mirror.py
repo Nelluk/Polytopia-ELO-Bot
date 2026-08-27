@@ -15,7 +15,7 @@ import json
 import os
 from typing import Any, Callable, Iterable
 
-from modules import beta_database_writer_lock, beta_operations, beta_readiness
+from modules import beta_database_writer_lock, beta_operations
 
 
 SOURCE_GUILD_ID = 447883341463814144
@@ -141,7 +141,6 @@ def validate_profile(profile: Any, *, target_guild_id: int = TARGET_GUILD_ID) ->
     if os.environ.get('POLYBOT_ENV', '').strip() != 'development':
         raise HistoricalMirrorError('POLYBOT_ENV must be exactly development.')
     try:
-        beta_readiness.validate_database_profile(profile, target_guild_id)
         beta_operations.assert_beta_profile(profile)
     except Exception as exc:
         raise HistoricalMirrorError(str(exc)) from exc
@@ -192,8 +191,14 @@ def _table_exists(database: Any, table: str) -> bool:
 def _identity(database: Any) -> None:
     database_name, database_user = _row(
         database, 'SELECT current_database(), current_user')
-    beta_readiness.validate_live_database_identity(
-        str(database_name), str(database_user))
+    if (
+            str(database_name) != beta_operations.BETA_DATABASE_NAME
+            or str(database_user) != beta_operations.BETA_DATABASE_ROLE):
+        raise HistoricalMirrorError(
+            'The live PostgreSQL session is not connected to the approved '
+            f'{beta_operations.BETA_DATABASE_NAME} database as '
+            f'{beta_operations.BETA_DATABASE_ROLE}.'
+        )
 
 
 def _present_tables(database: Any) -> tuple[str, ...]:
