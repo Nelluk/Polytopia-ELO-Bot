@@ -604,7 +604,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.rebuild()
         await interaction.edit_original_response(view=self)
 
-    async def _refresh(self, interaction: Any) -> None:
+    async def _refresh_draft(self, interaction: Any) -> None:
         if not await self.ready(interaction):
             return
         await self.run_operation(interaction, workers.SHOW)
@@ -888,7 +888,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         activate.callback = self._activate
         controls.append(activate)
         refresh = discord.ui.Button(label='Refresh', disabled=self.busy)
-        refresh.callback = self._refresh
+        refresh.callback = self._refresh_draft
         controls.append(refresh)
         discard = discord.ui.Button(
             label='Discard',

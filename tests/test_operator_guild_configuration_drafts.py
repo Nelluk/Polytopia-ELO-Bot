@@ -669,6 +669,10 @@ class EditServiceAndViewTests(unittest.TestCase):
                 workspace.rebuild()
                 self.assertEqual(len(workspace.children), 1)
         self.assertIn('activate', workspace.status.lower())
+        self.assertNotIn(
+            '_refresh',
+            views.GuildConfigurationDraftWorkspace.__dict__,
+        )
 
     def test_identity_maps_show_names_not_only_ids(self):
         guild = SimpleNamespace(
