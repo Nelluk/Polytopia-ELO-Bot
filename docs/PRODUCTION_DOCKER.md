@@ -52,14 +52,16 @@ which can be inspected without maintaining duplicate source metadata:
 ```bash
 git status --short --branch
 git log -1 --oneline
-docker compose images
+docker compose config --images | sort -u
+docker image inspect --format '{{.Id}}' \
+  "$(docker compose config --images | sort -u)"
 ```
 
 Verify the built image itself without its runtime mounts:
 
 ```bash
 docker run --rm --network none --read-only --entrypoint /bin/sh \
-  "$(docker compose images -q bot)" -c \
+  "$(docker compose config --images | sort -u)" -c \
   'test ! -e /app/.env &&
    test ! -e /app/config.ini &&
    test ! -e /app/server_settings.py &&

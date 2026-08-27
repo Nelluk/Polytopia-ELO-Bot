@@ -110,6 +110,8 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertIn('COMPOSE_FILE=compose.production.yaml', environment)
         self.assertIn('COMPOSE_PROJECT_NAME=polyelo-production', environment)
         self.assertIn('Status: **prepared but inactive**', guide)
+        self.assertIn('docker compose config --images | sort -u', guide)
+        self.assertNotIn('docker compose images -q', guide)
         self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)
         self.assertNotIn('  database:', compose)
         self.assertNotIn('ports:', compose)
