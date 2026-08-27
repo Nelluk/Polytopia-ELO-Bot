@@ -5,7 +5,6 @@ description = "Discord matchmaking, ELO, and league bot for Polytopia"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "discord.py==2.7.1",
-    "duckdb==1.4.3",
     "fastapi==0.139.2",
     "google-auth==2.56.2",
     "gspread-asyncio==2.0.0",

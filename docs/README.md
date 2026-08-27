@@ -21,7 +21,6 @@ and releases are kept in Git history instead of the current documentation tree.
   production authority; not the generic self-hosting path.
 - [Application-command deployment](APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md)
   — upstream explicit guild-only planning, inspection, and synchronization.
-- [Reporting export](REPORTING_EXPORT.md) — DuckDB reporting snapshot boundary.
 
 ## Upstream development operations
 

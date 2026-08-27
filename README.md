@@ -71,7 +71,9 @@ under `data/images/`. This directory is intentionally excluded from Git and must
 be included in server backups. Direct HTTP(S) image URLs remain stored in
 PostgreSQL and are used whenever no local image exists.
 
-The tracked generic backup script is `scripts/backup_db.sh`.
+Independent Docker installations use the backup and restore workflow in
+[`docs/DOCKER.md`](docs/DOCKER.md). Operators must also back up the host
+`data/images/` directory.
 
 GreenCloud-specific documents describe upstream operations, not independent
 installation requirements. Completed modernization and release records live at

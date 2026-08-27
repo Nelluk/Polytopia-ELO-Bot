@@ -121,10 +121,12 @@ emergency engineering operation, not a supported release command: stop Compose,
 review the historical assets against the current host, and prove exactly one
 writer before starting anything.
 
-The existing host backup timers continue to own production backups. The
-cutover did not replace them with a Compose backup service. A retired
-`/srv/polyelo/bin/polyelo-release` host copy may remain pending separate host
-cleanup, but it is unsupported and must not be invoked.
+The existing host backup timer continues to own production backups. Its core
+backup, reporting export, and off-host delivery tools are GreenCloud host
+operations outside this release; none depends on the bot container or the
+checkout's development environment. A retired `/srv/polyelo/bin/polyelo-release`
+host copy may remain pending separate host cleanup, but it is unsupported and
+must not be invoked.
 
 There is intentionally no Discord command for manually starting a production
 backup. An administrator who needs an exceptional manual run should invoke the
@@ -133,7 +135,11 @@ successful off-host follow-up:
 
 ```bash
 sudo systemctl start polyelo-backup.service
-systemctl status polyelo-backup.service polyelo-backup-offhost.service \
+systemctl status \
+  polyelo-backup.service \
+  polyelo-backup-offhost.service \
+  polyelo-reporting-export.service \
+  polyelo-reporting-offhost.service \
   --no-pager
 ```
 
