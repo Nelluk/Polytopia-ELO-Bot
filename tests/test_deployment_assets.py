@@ -48,9 +48,6 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         script = (
             self.root / 'scripts/migrate_player_timezone_production.py'
         ).read_text(encoding='utf-8')
-        example_config = (
-            self.root / 'config.ini-EXAMPLE'
-        ).read_text(encoding='utf-8')
 
         self.assertIn('not standing\nauthorization', runbook)
         self.assertIn('P9-B1-PRODUCTION-TIMEZONE-APPLY', runbook)
@@ -61,7 +58,6 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertIn("mode.add_argument('--apply'", script)
         self.assertNotIn("add_argument('--rollback'", script)
         self.assertIn('create_directories=False', script)
-        self.assertIn('psql_db = polytopia2', example_config)
 
     def test_player_badge_migration_is_inventory_tracked_and_production_gated(self):
         badge_runbook = (
@@ -105,9 +101,6 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         canary = (
             self.root / 'deploy/systemd/polyelo-modernization-canary.conf'
         ).read_text(encoding='utf-8')
-        example_settings = (
-            self.root / 'server_settings-EXAMPLE.py'
-        ).read_text(encoding='utf-8')
 
         self.assertIn(
             'historical completed dependency-upgrade record only', historical
@@ -124,10 +117,6 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
         self.assertNotIn(
             'Initial native canary guild: PolyChampions, `478571892832206869`',
             runbook,
-        )
-        self.assertIn(
-            "'polychampions': 447883341463814144",
-            example_settings,
         )
         self.assertIn('unresolved adversarial-review items', runbook)
         self.assertIn(

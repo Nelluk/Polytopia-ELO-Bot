@@ -1,6 +1,7 @@
-# Optional Linux overlay for a PostgreSQL server running on the Docker host.
-# The generic external-database definition remains suitable for remote TCP
-# databases. This overlay exposes only the configured Unix-socket directory.
+# Linux-only overlay for `./polybot --mode external-socket`. It is combined
+# with compose.development.external-db.yaml and exposes only the configured
+# PostgreSQL Unix-socket directory, read-only. It does not start or configure
+# PostgreSQL; use external mode instead for a TCP-reachable database.
 
 services:
   schema:

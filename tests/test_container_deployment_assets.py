@@ -351,6 +351,7 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         runbook = (
             self.root / 'docs/CONTAINERIZED_DEVELOPMENT.md'
         ).read_text(encoding='utf-8')
+        quickstart = (self.assets / 'README.md').read_text(encoding='utf-8')
 
         self.assertIn('development-only live-engine infrastructure proof', runbook)
         self.assertIn('Docker 29.7.2 and Compose 5.4.0', runbook)
@@ -361,6 +362,11 @@ class ContainerDeploymentAssetTests(unittest.TestCase):
         self.assertIn('copying a live volume is not a\nbackup', runbook)
         self.assertIn('fresh-volume restore drill', runbook)
         self.assertIn('production migration', runbook)
+        self.assertIn('development-only upstream beta stack', quickstart)
+        self.assertIn('not the recommended production self-hosting path', quickstart)
+        self.assertIn('./polybot setup', quickstart)
+        self.assertIn('| `bundled` (default) |', quickstart)
+        self.assertIn('Prefer the wrapper', quickstart)
 
 
 if __name__ == '__main__':

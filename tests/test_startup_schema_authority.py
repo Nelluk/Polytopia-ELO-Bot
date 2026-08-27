@@ -46,6 +46,12 @@ class FakeCursor:
         elif 'information_schema.tables' in normalized:
             self.rows = [(table,) for table in self.connection.tables]
         elif 'information_schema.columns' in normalized:
+            if len(params or ()) == 3:
+                self.rows = [
+                    ('timezone_offset_minutes', 'smallint', 'YES', None),
+                    ('timezone_offset_cleared', 'boolean', 'NO', 'false'),
+                ] if self.connection.timezone else []
+                return
             column_name = str((params or ('', ''))[-1])
             if column_name == 'badges':
                 self.rows = [(
@@ -77,12 +83,14 @@ class FakeConnection:
         tables=REQUIRED_TABLES,
         winner_foreign_key=True,
         badges=True,
+        timezone=True,
         cleanup=True,
     ):
         self.identity = identity
         self.tables = tables
         self.winner_foreign_key = winner_foreign_key
         self.badges = badges
+        self.timezone = timezone
         self.cleanup = cleanup
         self.statements = []
         self.session = None
@@ -179,7 +187,7 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             {'readonly': True, 'autocommit': True},
         )
         self.assertTrue(connection.closed)
-        self.assertEqual(len(connection.statements), 8)
+        self.assertEqual(len(connection.statements), 10)
         for statement in connection.statements:
             normalized = ' '.join(statement.split()).upper()
             self.assertTrue(
@@ -233,6 +241,16 @@ class StartupSchemaPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 preflight.StartupSchemaPreflightError,
                 'missing game.cleanup_deferred_until',
+            ):
+                preflight.inspect_startup_schema(request())
+        self.assertTrue(connection.closed)
+
+    def test_missing_timezone_columns_fail_closed(self):
+        connection = FakeConnection(timezone=False)
+        with mock.patch.object(preflight, '_connect', return_value=connection):
+            with self.assertRaisesRegex(
+                preflight.StartupSchemaPreflightError,
+                'missing required player-timezone columns',
             ):
                 preflight.inspect_startup_schema(request())
         self.assertTrue(connection.closed)
@@ -301,7 +319,16 @@ class ModelImportAuthorityTests(unittest.TestCase):
         )
         self.assertIsNotNone(spec)
         module = importlib.util.module_from_spec(spec)
-        with mock.patch.object(
+        settings_stub = SimpleNamespace(
+            runtime_profile=SimpleNamespace(
+                database_name='offline',
+                database_user='offline',
+                database_password='offline',
+                database_host='localhost',
+                database_port=5432,
+            )
+        )
+        with mock.patch.dict('sys.modules', {'settings': settings_stub}), mock.patch.object(
             PostgresqlExtDatabase, 'connect'
         ) as connect, mock.patch.object(
             PostgresqlExtDatabase, 'execute_sql'

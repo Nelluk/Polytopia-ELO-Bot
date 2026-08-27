@@ -1,3 +1,7 @@
+# External-TCP-database development beta. Use ./polybot --mode external from
+# the repository root. Normal startup is bot only; profile "tools" contains
+# the one-shot schema job. PostgreSQL provisioning, backup, and restore remain
+# external responsibilities. The wrapper overrides this diagnostic name.
 name: polybot-development-external-db
 
 x-bot-service: &bot-service

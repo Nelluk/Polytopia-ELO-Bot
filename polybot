@@ -40,9 +40,12 @@ usage() {
   cat <<'EOF'
 Usage: ./polybot [--mode bundled|external|external-socket] COMMAND [ARGUMENT]
 
+Development-only upstream beta stack. The default mode is bundled.
+Use external for PostgreSQL over TCP or external-socket for a Linux host socket.
+
 Commands:
-  setup                 Prepare private inputs and the exact container image
-  deploy                Build exact HEAD and start or replace the beta
+  setup                 Prepare private inputs and build exact clean HEAD
+  deploy                Run setup, then start or replace the beta
   bootstrap-guild ID    Activate the first configured guild on a fresh database
   import-backup PATH    Import one fresh-volume-verified development archive
   start                 Start the sole development bot and managed services
@@ -54,6 +57,9 @@ Commands:
   verify-backup PATH    Restore-test an archive in the isolated recovery volume
   beta-lab [--mode bundled|external|external-socket] OPERATION [ARGUMENTS]
                         Run Beta Lab operations in the Compose namespace
+
+Bundled only: bootstrap-guild, import-backup, backup, and verify-backup.
+Guide: deploy/container/README.md
 EOF
 }
 

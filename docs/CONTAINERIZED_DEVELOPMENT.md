@@ -2,8 +2,36 @@
 
 Status: supported development-only operator interface with retained
 live-engine evidence. This is not a production runbook and does not authorize
-a production container migration. The earlier development-only live-engine infrastructure proof
-remains recorded below; this interface does not replace either existing systemd service.
+a production container migration. The earlier
+development-only live-engine infrastructure proof remains recorded below;
+this interface does not replace either existing systemd service.
+
+## Start here
+
+This stack is for the upstream development beta, not a general production
+Docker recipe. It contains fixed upstream beta application, guild, database,
+and role identities. Independent production operators should use the
+[self-hosting guide](SELF_HOSTING.md); contributors who need the beta stack can
+start with the shorter [`deploy/container` guide](../deploy/container/README.md).
+
+Run the wrapper from a clean repository root. It owns the Compose project name,
+profiles, exact image checkpoint, and private-input checks:
+
+```bash
+./polybot --help
+./polybot setup
+# Fill any placeholders reported by setup, then rerun it.
+./polybot deploy
+./polybot status
+./polybot logs
+```
+
+The default `bundled` mode manages an isolated PostgreSQL container and volume.
+Use `--mode external` for a separately managed TCP-reachable development
+database, or `--mode external-socket` on Linux for a read-only host PostgreSQL
+socket mount. Keep the non-default mode on every command. Bundled mode alone
+provides the repository's backup, restore-verification, import, and first-guild
+bootstrap workflows.
 
 ## Verdict
 

@@ -48,6 +48,10 @@ class PolybotOperatorInterfaceTests(unittest.TestCase):
             'beta-lab [--mode bundled|external|external-socket]',
         ):
             self.assertIn(command, result.stdout)
+        self.assertIn('Development-only upstream beta stack', result.stdout)
+        self.assertIn('The default mode is bundled', result.stdout)
+        self.assertIn('Bundled only:', result.stdout)
+        self.assertIn('deploy/container/README.md', result.stdout)
         self.assertNotIn('--profile', result.stdout)
         self.assertNotIn('--project-name', result.stdout)
         self.assertNotIn('POLYBOT_', result.stdout)

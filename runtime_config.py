@@ -383,25 +383,30 @@ def _validate_development_profile(
             'testing, development, or sandbox marker.'
         )
 
-    declared_production_database = _required_value(
-        parser, 'production_database_name', profile.config_path
-    )
-    if declared_production_database.upper().startswith(
+    declared_production_database = parser['DEFAULT'].get(
+        'production_database_name', ''
+    ).strip() or None
+    if declared_production_database and declared_production_database.upper().startswith(
             ('REPLACE_', 'YOUR_')):
         raise RuntimeConfigurationError(
-            'production_database_name must identify the current production '
-            'database.'
+            'production_database_name must be blank or identify this '
+            'installation\'s current production database.'
         )
-    declared_production_bot_id = _positive_int(
-        _required_value(
-            parser, 'production_bot_id', profile.config_path
-        ),
-        'production_bot_id',
-        profile.config_path,
+    declared_production_bot_value = parser['DEFAULT'].get(
+        'production_bot_id', ''
+    ).strip()
+    declared_production_bot_id = (
+        _positive_int(
+            declared_production_bot_value,
+            'production_bot_id',
+            profile.config_path,
+        )
+        if declared_production_bot_value
+        else None
     )
-    production_guild_value = _required_value(
-        parser, 'production_guild_ids', profile.config_path
-    )
+    production_guild_value = parser['DEFAULT'].get(
+        'production_guild_ids', ''
+    ).strip()
     try:
         declared_production_guild_ids = {
             int(value.strip())
@@ -413,13 +418,9 @@ def _validate_development_profile(
             'production_guild_ids must be a comma-separated list of integer '
             'Discord guild IDs.'
         ) from exc
-    if (
-            not declared_production_guild_ids
-            or any(guild_id <= 0 for guild_id
-                   in declared_production_guild_ids)):
+    if any(guild_id <= 0 for guild_id in declared_production_guild_ids):
         raise RuntimeConfigurationError(
-            'production_guild_ids must contain at least one positive Discord '
-            'guild ID.'
+            'production_guild_ids may contain only positive Discord guild IDs.'
         )
 
     (production_database, production_token, production_bot_id,

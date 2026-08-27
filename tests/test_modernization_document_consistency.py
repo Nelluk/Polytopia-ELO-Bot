@@ -42,7 +42,23 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
             (
                 sys.executable,
                 '-c',
-                'import asyncio, json; '
+                'import asyncio, json, runtime_config; '
+                'from types import SimpleNamespace as NS; '
+                'guild=900000000000000001; '
+                'server=NS(server_shortcut_ids={"main":guild,'
+                '"polychampions":guild,"test":guild},'
+                'server_list={"default":{},guild:{}},'
+                'application_command_capabilities={},'
+                'application_command_all_guild_capabilities=()); '
+                'runtime_config._runtime_profile=NS('
+                'server_settings=server,discord_token="offline",'
+                'database_user="offline",database_name="offline",'
+                'database_password="offline",database_host="localhost",'
+                'database_port=5432,owner_id=guild,superuser_ids=(guild,),'
+                'pastebin_key=None,expected_bot_id=guild,'
+                'guild_configuration_source="static",allowed_guild_ids=(guild,),'
+                'background_tasks_enabled=False,api_enabled=False,'
+                'bullet_enabled=False,environment="development"); '
                 'from scripts.manage_application_commands import '
                 'load_command_source; '
                 'client, commands = load_command_source(); '
@@ -126,12 +142,11 @@ class ModernizationDocumentConsistencyTests(unittest.TestCase):
         self.assertIn('Production writes no JSONL', compatibility_rows['C-007'])
 
         example_config = _read('config.ini-EXAMPLE')
-        self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polytopia2$')
-        self.assertRegex(
-            example_config,
-            r'(?m)^expected_bot_id\s*=\s*484067640302764042$',
-        )
-        self.assertRegex(example_config, r'(?m)^psql_password\s*=\s*CHANGEME$')
+        self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polybot$')
+        self.assertIn('REPLACE_WITH_YOUR_BOT_USER_ID', example_config)
+        self.assertRegex(example_config, r'(?m)^bullet_enabled\s*=\s*false$')
+        self.assertNotIn('484067640302764042', example_config)
+        self.assertNotIn('polytopia2', example_config)
 
 
 if __name__ == '__main__':

@@ -1,23 +1,26 @@
 [DEFAULT]
 guild_configuration_source = static
-discord_key = YOURAPIKEYHERE
-# private token from discord developer porter
-expected_bot_id = 484067640302764042
-# required explicit Discord application/bot ID expected after login; no fallback
-psql_user = nelluk
-# username for postgres database
-psql_db = polytopia2
-# database name
-psql_password = CHANGEME
-# required explicit database authentication value; no fallback
-psql_host =
-# leave host blank to use PostgreSQL's default local socket
-psql_port =
-# leave port blank to use PostgreSQL's default
-owner_id = 272510639124250625
-# discord user ID of bot installation owner. Above default is Nelluk.
+discord_key = YOUR_PRODUCTION_BOT_TOKEN
+# Private token from the Discord developer portal.
+expected_bot_id = REPLACE_WITH_YOUR_BOT_USER_ID
+# Discord user ID of the bot authenticated by discord_key.
+owner_id = REPLACE_WITH_YOUR_DISCORD_USER_ID
+# Discord user ID of this installation's owner.
 superuser_ids =
-# optional comma-separated Discord user IDs with cross-guild superuser access.
+# Optional comma-separated Discord user IDs with cross-guild superuser access.
 # The owner_id is always included automatically and need not be repeated.
-bullet_enabled = true
-# load the Google Sheets-backed Bullet cog
+
+psql_db = polybot
+psql_user = polybot
+psql_password = REPLACE_WITH_A_STRONG_DATABASE_PASSWORD
+psql_host = localhost
+psql_port = 5432
+
+# Start conservatively. Enable these only after configuring their dependencies
+# and understanding their write/network behavior.
+background_tasks_enabled = false
+api_enabled = false
+bullet_enabled = false
+
+image_root = data/images
+log_root = logs

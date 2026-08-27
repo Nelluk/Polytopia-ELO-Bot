@@ -1,3 +1,7 @@
+# Bundled-database development beta. Use ./polybot from the repository root;
+# normal startup is postgres + bot, profile "tools" contains one-shot setup
+# jobs, and profile "recovery" contains backup/restore jobs. The wrapper
+# overrides this diagnostic name with its fixed beta project name.
 name: polybot-development
 
 x-bot-service: &bot-service

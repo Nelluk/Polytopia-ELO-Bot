@@ -87,11 +87,10 @@ psql_port = 5432
 ```
 
 Also replace the Discord token, bot ID, guild IDs, and all other placeholders
-in both files. The three `production_*` settings are a safety denylist, not a
-second database connection. They must identify the upstream production bot's
-database, bot, and guilds so the development profile can reject accidental
-overlap. If you do not know the current values, ask the bot maintainer rather
-than inventing them.
+in both files. The optional `production_*` settings are an extra safety
+denylist, not a second database connection. Use this installation's production
+identifiers when its ignored production configuration is unavailable to the
+development checkout; a new standalone installation may leave them blank.
 
 Keep these development settings disabled initially:
 
@@ -122,29 +121,28 @@ database. Check that it reports the development environment,
 ## 5. Create the tables and seed tribes
 
 Normal bot startup and model import are schema-read-only. With the
-configuration check passing, first print the explicit development bootstrap
-plan (this does not connect):
+configuration check passing and every development writer stopped, inspect the
+configured database using the generic read-only schema plan:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python scripts/bootstrap_development_database.py
+POLYBOT_ENV=development .venv/bin/python scripts/manage_schema.py
 ```
 
 Review the database, role, bounded DDL description, and exact confirmation
-token printed by that plan. Then explicitly apply it, substituting the exact
-token the plan printed:
+token printed by that plan. Then explicitly apply it, substituting the token
+the plan printed:
 
 ```bash
-POLYBOT_ENV=development .venv/bin/python scripts/bootstrap_development_database.py \
+POLYBOT_ENV=development .venv/bin/python scripts/manage_schema.py \
   --apply \
-  --confirm 'BOOTSTRAP DEVELOPMENT DATABASE polytopia_dev AS polybot_dev'
+  --confirm 'APPLY DEVELOPMENT SCHEMA TO polytopia_dev AS polybot_dev'
 ```
 
-The apply path is development-only, verifies the live database and role before
-DDL, acquires the fixed PostgreSQL advisory lock, creates only missing model
-tables and the deferred `game.winner_id -> gameside.id` foreign key in one
-transaction, then verifies the startup schema through a new read-only
-connection. It is safe to rerun with a fresh exact confirmation when the
-schema is already complete.
+The configured-target apply verifies the live database and role before DDL,
+acquires a transaction-scoped PostgreSQL advisory lock, creates missing model
+tables, applies known additive column upgrades, and creates the deferred
+`game.winner_id -> gameside.id` foreign key in one transaction. It then verifies
+the startup schema through a new read-only connection. It is safe to rerun.
 
 After the schema bootstrap succeeds, seed the permanent tribe reference data:
 

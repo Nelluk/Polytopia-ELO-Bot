@@ -1,0 +1,67 @@
+name: Self-hosting smoke test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-install:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: polybot
+          POSTGRES_USER: polybot
+          POSTGRES_PASSWORD: ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U polybot -d polybot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked --python 3.12
+      - name: Create installation-neutral private configuration
+        run: |
+          cp config.ini-EXAMPLE config.ini
+          cp server_settings-EXAMPLE.py server_settings.py
+          sed -i 's/YOUR_PRODUCTION_BOT_TOKEN/ci-discord-token/' config.ini
+          sed -i 's/REPLACE_WITH_YOUR_BOT_USER_ID/900000000000000001/' config.ini
+          sed -i 's/REPLACE_WITH_YOUR_DISCORD_USER_ID/900000000000000002/' config.ini
+          sed -i 's/REPLACE_WITH_A_STRONG_DATABASE_PASSWORD/ci-database-password/' config.ini
+          chmod 600 config.ini server_settings.py
+      - name: Validate, bootstrap, seed, and verify fresh installation
+        env:
+          POLYBOT_ENV: production
+        run: |
+          .venv/bin/python scripts/check_runtime_config.py
+          .venv/bin/python scripts/manage_schema.py
+          .venv/bin/python scripts/manage_schema.py --apply \
+            --confirm 'APPLY PRODUCTION SCHEMA TO polybot AS polybot'
+          .venv/bin/python bot.py --add_default_data --skip_tasks
+          .venv/bin/python scripts/manage_schema.py --verify
+          .venv/bin/python scripts/manage_application_commands.py \
+            --environment production --mode plan \
+            --guild-ids 123456789012345678
+      - name: Run portability regression tests
+        env:
+          POLYBOT_ENV: production
+        run: >-
+          .venv/bin/python -m unittest -v
+          tests.test_schema_management
+          tests.test_runtime_config
+          tests.test_startup_schema_authority
+          tests.test_application_command_policy

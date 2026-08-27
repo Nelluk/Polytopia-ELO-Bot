@@ -17,7 +17,11 @@ from modules.database_schema_contract import (
     REQUIRED_TABLES,
     WINNER_FOREIGN_KEY_SQL,
 )
-from modules import game_keep_active_migration, player_badges_migration
+from modules import (
+    game_keep_active_migration,
+    player_badges_migration,
+    player_timezone_migration,
+)
 
 
 class StartupSchemaPreflightError(RuntimeError):
@@ -149,6 +153,26 @@ def inspect_startup_schema(
                     'Startup schema is missing the required player.badges '
                     'column. Stop the writer and run only the separately '
                     'reviewed badge migration operation for this environment.'
+                )
+
+            try:
+                table_exists, timezone_columns = (
+                    player_timezone_migration.schema_metadata(cursor)
+                )
+                timezone_plan = player_timezone_migration.plan_migration(
+                    timezone_columns,
+                    table_exists=table_exists,
+                )
+            except player_timezone_migration.MigrationSafetyError as exc:
+                raise StartupSchemaPreflightError(
+                    'Startup schema has incompatible player-timezone columns. '
+                    'Run the configured-target schema verification.'
+                ) from exc
+            if not timezone_plan.already_applied:
+                raise StartupSchemaPreflightError(
+                    'Startup schema is missing required player-timezone '
+                    'columns. Stop the writer and run the configured-target '
+                    'schema apply operation.'
                 )
 
             try:

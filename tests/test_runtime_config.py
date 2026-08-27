@@ -311,13 +311,19 @@ class RuntimeProfileTests(unittest.TestCase):
                     format_runtime_profile(profile),
                 )
 
-    def test_missing_production_resource_denylist_is_rejected(self):
-        self.write_config('development', production_guild_ids=None)
+    def test_optional_extra_production_denylist_may_be_blank(self):
+        self.write_config(
+            'development',
+            production_database_name=None,
+            production_bot_id=None,
+            production_guild_ids=None,
+        )
         self.write_server_settings('development')
 
-        with self.assertRaisesRegex(
-                RuntimeConfigurationError, 'production_guild_ids'):
-            self.load_development()
+        profile = self.load_development()
+
+        self.assertEqual(profile.environment, 'development')
+        self.assertEqual(profile.database_name, 'polytopia_dev')
 
     def test_redacted_inspection_output_contains_no_secrets(self):
         self.write_config('development')
