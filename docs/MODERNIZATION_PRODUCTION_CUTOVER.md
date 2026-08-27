@@ -1,10 +1,18 @@
 # Database/slash modernization production cutover and rollback
 
-Status: reviewed procedure only; not standing production authorization
+Status: **historical completed modernization-release procedure; not the
+systemd-to-Compose cutover authority**
+
+The database/slash modernization described below has already reached
+production. Do not repeat its systemd release wrapper, additive migration, or
+Discord synchronization sequence merely to change the process supervisor.
+The current systemd-to-Compose preparation and cutover authority is
+`docs/PRODUCTION_DOCKER.md`. A future source change that independently alters
+schema or commands still requires its own reviewed operation.
 
 This is the production operations authority for the database/slash
-modernization. `docs/PRODUCTION_CUTOVER.md` is a historical record of the
-completed Python 3.12 dependency upgrade and must not govern this release.
+modernization history. `docs/PRODUCTION_CUTOVER.md` is likewise a historical
+record of the completed Python 3.12 dependency upgrade.
 
 Every production read, backup, checkout update, service action, database
 verify/apply, Discord inspection/apply, and announcement remains separately

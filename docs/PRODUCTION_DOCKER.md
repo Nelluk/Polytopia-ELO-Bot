@@ -39,6 +39,13 @@ PostgreSQL peer authentication and private-file access depend on that identity.
 `POLYBOT_IMAGE` is a stable local image name and does not change for each
 commit.
 
+Before relying on the image, confirm `.dockerignore` excludes every ignored
+private/runtime input, including `config.ini`, `server_settings.py`,
+`spreadsheet_creds.json`, `.env`, operator release state, generated graphs,
+logs, backups, and persistent images. The private files belong only in the
+documented runtime bind mounts; they must not be present underneath those
+mounts in an image layer.
+
 Building an image does not start a bot. Docker records its immutable image ID,
 which can be inspected without maintaining duplicate source metadata:
 
@@ -48,11 +55,31 @@ git log -1 --oneline
 docker compose images
 ```
 
+Verify the built image itself without its runtime mounts:
+
+```bash
+docker run --rm --network none --read-only --entrypoint /bin/sh \
+  "$(docker compose images -q bot)" -c \
+  'test ! -e /app/.env &&
+   test ! -e /app/config.ini &&
+   test ! -e /app/server_settings.py &&
+   test ! -e /app/spreadsheet_creds.json &&
+   test ! -e /app/.operator-backup-release.json &&
+   test ! -e /app/graph.png'
+```
+
 The runtime configuration check is also offline and redacted:
 
 ```bash
 docker compose run --rm --no-deps bot \
   python scripts/check_runtime_config.py
+```
+
+The configured schema verification is read-only and must report no required
+operations before a topology-only cutover:
+
+```bash
+docker compose run --rm schema --verify
 ```
 
 Do not run the normal bot command while `polyelo.service` is active. A

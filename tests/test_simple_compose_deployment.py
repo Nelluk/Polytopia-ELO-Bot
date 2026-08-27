@@ -117,6 +117,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
 
     def test_image_is_environment_neutral_and_nonroot(self):
         dockerfile = (self.root / 'Dockerfile').read_text(encoding='utf-8')
+        dockerignore = (self.root / '.dockerignore').read_text(encoding='utf-8')
         self.assertIn('uv sync --locked --no-dev --no-install-project', dockerfile)
         self.assertIn('USER ${POLYBOT_UID}:${POLYBOT_GID}', dockerfile)
         self.assertIn('CMD ["python", "bot.py"]', dockerfile)
@@ -125,6 +126,18 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', dockerfile)
         self.assertNotIn('POLYBOT_IMAGE_CHECKPOINT', dockerfile)
         self.assertNotIn('/usr/local/share/polybot/image-checkpoint', dockerfile)
+        for private_path in (
+            '.env',
+            'config.ini',
+            'config.development.ini',
+            'server_settings.py',
+            'server_settings_dev.py',
+            'spreadsheet_creds.json',
+            '.operator-backup-release.json',
+            'graph.png',
+        ):
+            with self.subTest(private_path=private_path):
+                self.assertIn(private_path, dockerignore.splitlines())
 
     def test_all_compose_bot_runtimes_declare_compose_supervision(self):
         for name in (

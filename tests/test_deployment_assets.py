@@ -106,7 +106,13 @@ class ProductionDeploymentAssetTests(unittest.TestCase):
             'historical completed dependency-upgrade record only', historical
         )
         self.assertIn('MODERNIZATION_PRODUCTION_CUTOVER.md', historical)
-        self.assertIn('not standing production authorization', runbook)
+        self.assertIn(
+            'historical completed modernization-release procedure', runbook
+        )
+        self.assertIn('docs/PRODUCTION_DOCKER.md', runbook)
+        self.assertIn(
+            'Do not repeat its systemd release wrapper', runbook
+        )
         self.assertIn('POLYBOT_RELEASE_SHA', runbook)
         self.assertIn('POLYBOT_ROLLBACK_SHA', runbook)
         self.assertIn(
