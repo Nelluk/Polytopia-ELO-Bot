@@ -12,6 +12,8 @@ import threading
 import unittest
 from unittest import mock
 
+import discord
+
 from modules import administration
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_storage as storage
@@ -336,7 +338,11 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         target = SimpleNamespace(
             id=GUILD_ID,
             name='Existing Guild',
-            me=SimpleNamespace(guild_permissions=(('view_channel', True),)),
+            me=SimpleNamespace(guild_permissions=discord.Permissions(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+            )),
         )
         bot = SimpleNamespace(
             guilds=(target,),
@@ -360,7 +366,7 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             ) as capture, mock.patch.object(
                 service.workers, 'request_from_profile',
                 return_value=mock.sentinel.request,
-            ):
+            ) as request_from_profile:
             result = service.build_request(
                 bot=bot,
                 interaction=interaction,
@@ -372,6 +378,10 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(result, mock.sentinel.request)
         self.assertEqual(capture.call_args.kwargs['guild_ids'], (GUILD_ID,))
+        self.assertEqual(
+            request_from_profile.call_args.kwargs['bot_permissions'],
+            ('read_message_history', 'send_messages', 'view_channel'),
+        )
 
     async def test_non_owner_is_denied_before_defer(self):
         interaction = SimpleNamespace(

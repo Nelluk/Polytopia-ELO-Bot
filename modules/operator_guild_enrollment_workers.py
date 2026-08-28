@@ -369,10 +369,19 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
             for value in request.bot_permissions
         )
         or tuple(sorted(set(request.bot_permissions))) != request.bot_permissions
-        or not REQUIRED_BOT_PERMISSIONS.issubset(request.bot_permissions)
     ):
         raise OperatorGuildEnrollmentValidationError(
-            'The bot lacks required permissions in the target guild.'
+            'The target-guild bot permission evidence is invalid.'
+        )
+    missing_permissions = tuple(sorted(
+        REQUIRED_BOT_PERMISSIONS.difference(request.bot_permissions)
+    ))
+    if missing_permissions:
+        labels = ', '.join(
+            value.replace('_', ' ').title() for value in missing_permissions
+        )
+        raise OperatorGuildEnrollmentValidationError(
+            f'The bot is missing required target-guild permissions: {labels}.'
         )
     try:
         storage.validate_target(request.target)

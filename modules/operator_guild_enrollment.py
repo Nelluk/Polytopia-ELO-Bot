@@ -45,7 +45,8 @@ def _bot_permissions(target: Any) -> tuple[str, ...]:
             'The bot membership or permissions are unavailable in the target guild.'
         )
     return tuple(sorted(
-        name for name, enabled in permissions if bool(enabled)
+        name for name in workers.REQUIRED_BOT_PERMISSIONS
+        if bool(getattr(permissions, name, False))
     ))
 
 
