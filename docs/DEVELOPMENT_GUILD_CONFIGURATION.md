@@ -56,37 +56,43 @@ not repeat the database mutation.
 
 ## Current operator surface
 
-These workflows require development database authority and the configured
-owner unless a narrower delegated boundary is stated:
+The ordinary same-server entry point is:
+
+- `/guild settings` — privately view and edit settings for the server where
+  the command is invoked. The configured bot owner sees the complete editor;
+  an explicitly delegated guild manager sees ordinary fields only. Protected
+  settings such as persistent Teams, global leaderboard participation, roles,
+  private destinations, and command capabilities remain hidden and rejected
+  by the worker if submitted.
+
+The specialized `/operator guild ...` workflows require development database
+authority and the configured bot owner:
 
 - `/operator guild list` — list active, suspended, and pending-visible guilds.
-- `/operator guild settings` — inspect the invoking guild's active settings
-  and open the owner editor with **Edit settings**.
 - `/operator guild validate` — validate the invoking guild read-only against
   the database, typed schema, live Discord objects, and bot permissions.
 - `/operator guild history` — inspect bounded revision and audit history.
 - `/operator guild enroll` — preview and enroll a quarantined visible guild
   using the basic prefix-server template.
-- `/operator guild edit` — open the same owner editor directly; the normal
-  same-guild path creates or resumes a private editing session.
+- `/operator guild capabilities` — prepare a capability-only draft selecting
+  which top-level Discord command groups one server should receive.
 - `/operator guild rollback` — clone an earlier compatible document into a new
   active revision; history remains immutable.
-- `/operator guild commands` — activate a capability-changing draft or
-  reconcile one active guild's Discord command tree.
+- `/operator guild commands` — deploy a prepared capability draft or repair
+  one active guild's registered Discord command tree.
 - `/operator guild suspend` and `/operator guild resume` — change lifecycle
   state while preserving configuration history.
 - `/operator guild delegation` — grant or revoke the invoking guild's manager
   roles and optional activation permission.
-- `/guild edit` — allow a delegated manager to edit ordinary settings only in
-  the active guild where the command is invoked.
 
-The normal owner flow is **settings → Edit settings → Save changes**. It shows
+The normal settings flow is **`/guild settings` → choose a field → Save
+changes**. It shows
 human-readable field changes, asks for the displayed server name, and performs
 fresh complete validation as part of Save. Cancel discards only the inactive
 editing session. Internal version, generation, and digest checks still reject
-stale writes without exposing that machinery in the normal UI. Owner operations
-remain owner-only even when the `guild` and `operator` roots share a Discord
-capability assignment.
+stale writes without exposing that machinery in the normal UI. Discord guild
+ownership does not grant `/operator` access; those workflows remain protected
+by the configured bot-owner check.
 
 ## Onboarding and lifecycle
 

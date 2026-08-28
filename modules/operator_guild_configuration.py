@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 import logging
 from typing import Any, Iterable
 
@@ -32,7 +31,6 @@ SECTION_TITLES = {
 }
 MAX_LISTED_GUILDS = 20
 MAX_LISTED_HISTORY = 10
-SettingsEditCallback = Callable[[Any], Awaitable[Any]]
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -399,91 +397,24 @@ def result_embed(
     raise ValueError('Unknown guild-configuration result operation.')
 
 
-class GuildConfigurationSettingsView(discord.ui.View):
-    """Small owner-only bridge from inspection to the settings editor."""
-
-    def __init__(
-        self,
-        *,
-        requester_id: int,
-        guild_id: int,
-        edit_callback: SettingsEditCallback,
-        timeout: float = 600.0,
-    ):
-        super().__init__(timeout=timeout)
-        self.requester_id = int(requester_id)
-        self.guild_id = int(guild_id)
-        self.edit_callback = edit_callback
-        self.message: discord.Message | None = None
-        edit = discord.ui.Button(
-            label='Edit settings',
-            style=discord.ButtonStyle.primary,
-        )
-        edit.callback = self._edit
-        self.add_item(edit)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if (
-                int(interaction.user.id) == self.requester_id
-                and int(interaction.guild_id or 0) == self.guild_id
-        ):
-            return True
-        await interaction.response.send_message(
-            'Only the owner who opened this settings view can use it.',
-            ephemeral=True,
-        )
-        return False
-
-    async def _edit(self, interaction: discord.Interaction) -> None:
-        await self.edit_callback(interaction)
-
-    async def on_timeout(self) -> None:
-        for item in self.children:
-            if isinstance(item, discord.ui.Button):
-                item.disabled = True
-        if self.message is not None:
-            try:
-                await self.message.edit(view=self)
-            except discord.HTTPException:
-                pass
-
-
 async def publish_private(
     interaction: Any,
     result: workers.GuildConfigurationReadResult,
     *,
     section: str = OVERVIEW,
-    requester_id: int | None = None,
-    edit_callback: SettingsEditCallback | None = None,
 ) -> discord.Message:
-    view = None
-    if edit_callback is not None:
-        if result.operation != workers.SETTINGS or result.selected is None:
-            raise ValueError('Edit controls require one selected settings result.')
-        if requester_id is None:
-            raise ValueError('Edit controls require the original requester.')
-        view = GuildConfigurationSettingsView(
-            requester_id=requester_id,
-            guild_id=result.selected.guild_id,
-            edit_callback=edit_callback,
-        )
-    message = await interaction.followup.send(
+    return await interaction.followup.send(
         embed=result_embed(result, section=section),
-        view=view,
         ephemeral=True,
         wait=True,
         allowed_mentions=discord.AllowedMentions.none(),
     )
-    if view is not None:
-        view.message = message
-    return message
 
 
 __all__ = [
     'CAPABILITIES',
     'CHANNELS',
     'DESTINATIONS',
-    'GuildConfigurationSettingsView',
     'OVERVIEW',
     'PERMISSIONS',
     'SETTINGS_SECTIONS',

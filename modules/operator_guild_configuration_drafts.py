@@ -54,36 +54,145 @@ class DraftField:
     section: str
     path: tuple[str, ...]
     kind: str
+    help_text: str
 
 
 FIELDS = (
-    DraftField('display_name', 'Display name', IDENTITY, ('identity', 'display_name'), TEXT),
-    DraftField('command_prefix', 'Command prefix', IDENTITY, ('identity', 'command_prefix'), TEXT),
-    DraftField('helper_roles', 'Helper roles', PERMISSIONS, ('permissions', 'helper_role_ids'), ROLE_LIST),
-    DraftField('mod_roles', 'Moderator roles', PERMISSIONS, ('permissions', 'mod_role_ids'), ROLE_LIST),
-    DraftField('user_level_1_roles', 'User level 1 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_1'), ROLE_LIST),
-    DraftField('user_level_2_roles', 'User level 2 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_2'), ROLE_LIST),
-    DraftField('user_level_3_roles', 'User level 3 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_3'), ROLE_LIST),
-    DraftField('user_level_4_roles', 'User level 4 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_4'), ROLE_LIST),
-    DraftField('inactive_role', 'Inactive role', PERMISSIONS, ('permissions', 'inactive_role_id'), OPTIONAL_ROLE),
-    DraftField('require_teams', 'Require persistent Teams', TEAMS, ('teams', 'require_teams'), BOOLEAN),
-    DraftField('allow_teams', 'Allow persistent Teams', TEAMS, ('teams', 'allow_teams'), BOOLEAN),
-    DraftField('allow_uneven_teams', 'Allow unequal side sizes', TEAMS, ('teams', 'allow_uneven_teams'), BOOLEAN),
-    DraftField('max_team_size', 'Maximum players per side', TEAMS, ('teams', 'max_team_size'), INTEGER),
-    DraftField('global_leaderboard', 'Include in global leaderboard', TEAMS, ('visibility', 'include_in_global_leaderboard'), BOOLEAN),
-    DraftField('bot_channels', 'Bot channels', CHANNELS, ('channels', 'bot_channel_ids'), NULLABLE_CHANNEL_LIST),
-    DraftField('strict_bot_channels', 'Strict bot channels', CHANNELS, ('channels', 'strict_bot_channel_ids'), NULLABLE_CHANNEL_LIST),
-    DraftField('private_bot_channels', 'Private bot channels', CHANNELS, ('channels', 'private_bot_channel_ids'), CHANNEL_LIST),
-    DraftField('newbie_channels', 'Newbie message channels', CHANNELS, ('channels', 'newbie_message_channel_ids'), CHANNEL_LIST),
-    DraftField('challenge_channels', 'Match challenge channels', CHANNELS, ('channels', 'match_challenge_channel_ids'), CHANNEL_LIST),
-    DraftField('game_categories', 'Game channel categories', CHANNELS, ('channels', 'game_category_ids'), CATEGORY_LIST),
-    DraftField('ranked_game_channel', 'Ranked game channel', DESTINATIONS, ('channels', 'ranked_game_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('unranked_game_channel', 'Unranked game channel', DESTINATIONS, ('channels', 'unranked_game_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('steam_game_channel', 'Steam game channel', DESTINATIONS, ('channels', 'steam_game_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('log_channel', 'Log channel', DESTINATIONS, ('channels', 'log_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('game_announce_channel', 'Game announcement channel', DESTINATIONS, ('channels', 'game_announce_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('staff_help_channel', 'Staff-help channel', DESTINATIONS, ('channels', 'staff_help_channel_id'), OPTIONAL_CHANNEL),
-    DraftField('command_capabilities', 'Command capabilities', CAPABILITIES, ('command_capabilities',), CAPABILITY_LIST),
+    DraftField(
+        'display_name', 'Display name', IDENTITY,
+        ('identity', 'display_name'), TEXT,
+        'The name PolyElo displays for this server. This does not rename the Discord server.',
+    ),
+    DraftField(
+        'command_prefix', 'Command prefix', IDENTITY,
+        ('identity', 'command_prefix'), TEXT,
+        'Prefix for legacy text commands in this server. Slash commands are unaffected.',
+    ),
+    DraftField(
+        'helper_roles', 'Helper roles', PERMISSIONS,
+        ('permissions', 'helper_role_ids'), ROLE_LIST,
+        'Roles treated as PolyElo helpers (access level 5) for staff commands and checks. Bot-owner managed.',
+    ),
+    DraftField(
+        'mod_roles', 'Moderator roles', PERMISSIONS,
+        ('permissions', 'mod_role_ids'), ROLE_LIST,
+        'Roles treated as PolyElo moderators (access level 6) with broader management access. Bot-owner managed.',
+    ),
+    DraftField(
+        'user_level_1_roles', 'User level 1 roles', PERMISSIONS,
+        ('permissions', 'user_role_ids_level_1'), ROLE_LIST,
+        'May join ranked games up to 3 players and unranked games up to 6; may host games up to 3 players.',
+    ),
+    DraftField(
+        'user_level_2_roles', 'User level 2 roles', PERMISSIONS,
+        ('permissions', 'user_role_ids_level_2'), ROLE_LIST,
+        'May join ranked games up to 6 players and unranked games up to 12; may host ranked games up to 4 and unranked up to 6.',
+    ),
+    DraftField(
+        'user_level_3_roles', 'User level 3 roles', PERMISSIONS,
+        ('permissions', 'user_role_ids_level_3'), ROLE_LIST,
+        'Roles with no ordinary game-size restrictions when hosting or joining.',
+    ),
+    DraftField(
+        'user_level_4_roles', 'User level 4 roles', PERMISSIONS,
+        ('permissions', 'user_role_ids_level_4'), ROLE_LIST,
+        'Level 3 access plus advanced matchmaking actions, including placing other players in games.',
+    ),
+    DraftField(
+        'inactive_role', 'Inactive role', PERMISSIONS,
+        ('permissions', 'inactive_role_id'), OPTIONAL_ROLE,
+        'Role marking inactive members; Team rosters and league inactivity tools recognize it. Bot-owner managed.',
+    ),
+    DraftField(
+        'require_teams', 'Require persistent Teams', TEAMS,
+        ('teams', 'require_teams'), BOOLEAN,
+        'Require every multiplayer side to match one persistent Team when a game starts. Bot-owner only.',
+    ),
+    DraftField(
+        'allow_teams', 'Allow persistent Teams', TEAMS,
+        ('teams', 'allow_teams'), BOOLEAN,
+        'Enable persistent named Team records and /team features. Squads do not require this. Bot-owner only.',
+    ),
+    DraftField(
+        'allow_uneven_teams', 'Allow unequal side sizes', TEAMS,
+        ('teams', 'allow_uneven_teams'), BOOLEAN,
+        'Allow games whose sides contain different numbers of players.',
+    ),
+    DraftField(
+        'max_team_size', 'Maximum players per side', TEAMS,
+        ('teams', 'max_team_size'), INTEGER,
+        'Largest allowed side in ranked games; unranked games permit one additional player per side.',
+    ),
+    DraftField(
+        'global_leaderboard', 'Include in global leaderboard', TEAMS,
+        ('visibility', 'include_in_global_leaderboard'), BOOLEAN,
+        'Include this server in bot-wide leaderboard results. Bot-owner only and off by default.',
+    ),
+    DraftField(
+        'bot_channels', 'Bot channels', CHANNELS,
+        ('channels', 'bot_channel_ids'), NULLABLE_CHANNEL_LIST,
+        'Public channels where ordinary bot commands are allowed. Unset means unrestricted.',
+    ),
+    DraftField(
+        'strict_bot_channels', 'Strict bot channels', CHANNELS,
+        ('channels', 'strict_bot_channel_ids'), NULLABLE_CHANNEL_LIST,
+        'Smaller allowlist for noisy commands and reminders. Unset inherits Bot channels.',
+    ),
+    DraftField(
+        'private_bot_channels', 'Private bot channels', CHANNELS,
+        ('channels', 'private_bot_channel_ids'), CHANNEL_LIST,
+        'Additional private or staff channels accepted by bot-channel checks but not publicly suggested.',
+    ),
+    DraftField(
+        'newbie_channels', 'Newbie message channels', CHANNELS,
+        ('channels', 'newbie_message_channel_ids'), CHANNEL_LIST,
+        'Channels that receive periodic registration and getting-started notices when background tasks run.',
+    ),
+    DraftField(
+        'challenge_channels', 'Match challenge channels', CHANNELS,
+        ('channels', 'match_challenge_channel_ids'), CHANNEL_LIST,
+        'Channels that receive periodic lists of currently open games.',
+    ),
+    DraftField(
+        'game_categories', 'Game channel categories', CHANNELS,
+        ('channels', 'game_category_ids'), CATEGORY_LIST,
+        'Categories where PolyElo may create, locate, and clean up game channels.',
+    ),
+    DraftField(
+        'ranked_game_channel', 'Ranked game channel', DESTINATIONS,
+        ('channels', 'ranked_game_channel_id'), OPTIONAL_CHANNEL,
+        'Destination used for ranked open-game listings and ranked-game activity.',
+    ),
+    DraftField(
+        'unranked_game_channel', 'Unranked game channel', DESTINATIONS,
+        ('channels', 'unranked_game_channel_id'), OPTIONAL_CHANNEL,
+        'Destination used for unranked open-game listings and unranked-game activity.',
+    ),
+    DraftField(
+        'steam_game_channel', 'Steam game channel', DESTINATIONS,
+        ('channels', 'steam_game_channel_id'), OPTIONAL_CHANNEL,
+        'Destination used for Steam-edition game notices and activity.',
+    ),
+    DraftField(
+        'log_channel', 'Log channel', DESTINATIONS,
+        ('channels', 'log_channel_id'), OPTIONAL_CHANNEL,
+        'Private staff destination for operational, moderation, and reconciliation notices.',
+    ),
+    DraftField(
+        'game_announce_channel', 'Game announcement channel', DESTINATIONS,
+        ('channels', 'game_announce_channel_id'), OPTIONAL_CHANNEL,
+        'Public destination for new-game announcements and reaction-based joins.',
+    ),
+    DraftField(
+        'staff_help_channel', 'Staff-help channel', DESTINATIONS,
+        ('channels', 'staff_help_channel_id'), OPTIONAL_CHANNEL,
+        'Destination that receives requests submitted through /staffhelp. Bot-owner managed.',
+    ),
+    DraftField(
+        'command_capabilities', 'Command capabilities', CAPABILITIES,
+        ('command_capabilities',), CAPABILITY_LIST,
+        'Discord command groups registered for this server. Bot-owner only; changes use the dedicated command workflow.',
+    ),
 )
 FIELD_BY_KEY = {value.key: value for value in FIELDS}
 ORDINARY_FIELD_KEYS = frozenset({

@@ -126,7 +126,7 @@ def _operator_only_document(
         },
         # The owner receives only the roots needed to finish configuration.
         # Guild-only command registration remains a separate explicit apply.
-        'command_capabilities': ['operator'],
+        'command_capabilities': ['guild_admin', 'operator'],
     })
 
 

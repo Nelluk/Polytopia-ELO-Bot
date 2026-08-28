@@ -609,6 +609,16 @@ class AsyncOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
 
 class EditServiceAndViewTests(unittest.TestCase):
+    def test_every_settings_field_has_bounded_explanatory_text(self):
+        self.assertTrue(service.FIELDS)
+        for field in service.FIELDS:
+            with self.subTest(field=field.key):
+                self.assertTrue(field.help_text.strip())
+                self.assertLessEqual(
+                    len(views._option_description(field.help_text)),
+                    100,
+                )
+
     def test_editor_covers_every_mutable_document_leaf_once(self):
         document = document_to_mapping(fixtures.bundle().imports[0].document)
 
@@ -689,6 +699,28 @@ class EditServiceAndViewTests(unittest.TestCase):
                 workspace.field_key = field.key
                 workspace.rebuild()
                 self.assertEqual(len(workspace.children), 1)
+                items = tuple(workspace.walk_children())
+                rendered = '\n'.join(
+                    item.content
+                    for item in items
+                    if isinstance(item, discord.ui.TextDisplay)
+                )
+                self.assertIn(field.help_text, rendered)
+                field_select = next(
+                    item
+                    for item in items
+                    if isinstance(item, discord.ui.Select)
+                    and item.placeholder == 'Choose one field to edit'
+                )
+                selected_option = next(
+                    option
+                    for option in field_select.options
+                    if option.value == field.key
+                )
+                self.assertEqual(
+                    selected_option.description,
+                    views._option_description(field.help_text),
+                )
         self.assertIn('activate', workspace.status.lower())
         self.assertNotIn(
             '_refresh',
@@ -820,26 +852,93 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.cog = administration.administration.__new__(administration.administration)
         self.cog.bot = SimpleNamespace(guilds=())
-        operator = next(
+        self.guild = next(
+            command for command in administration.administration.__cog_app_commands__
+            if command.name == 'guild'
+        )
+        self.command = self.guild.get_command('settings')
+        self.operator = next(
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
         )
-        guild = operator.get_command('guild')
-        self.command = guild.get_command('edit')
-        self.assertIsNone(guild.get_command('draft'))
+        self.capabilities_command = self.operator.get_command(
+            'guild'
+        ).get_command('capabilities')
+        self.assertIsNotNone(self.command)
+        self.assertIsNotNone(self.capabilities_command)
+        self.assertIsNone(self.guild.get_command('edit'))
 
-    async def test_non_owner_denial_is_private_and_does_not_defer(self):
+    async def test_preflight_denial_is_private_and_does_not_defer(self):
         interaction = SimpleNamespace(
             guild_id=GUILD_ID, user=SimpleNamespace(id=OWNER_ID + 1),
             response=SimpleNamespace(
                 send_message=mock.AsyncMock(), defer=mock.AsyncMock()
             ),
         )
-        with mock.patch.object(service.settings, 'owner_id', OWNER_ID):
+        with mock.patch.object(
+            service,
+            'delegated_access_error',
+            return_value='Guild settings are unavailable.',
+        ):
             await self.command.callback(self.cog, interaction)
-        interaction.response.send_message.assert_awaited_once()
-        self.assertTrue(interaction.response.send_message.call_args.kwargs['ephemeral'])
+        interaction.response.send_message.assert_awaited_once_with(
+            'Guild settings are unavailable.',
+            ephemeral=True,
+        )
         interaction.response.defer.assert_not_awaited()
+
+    async def test_settings_routes_owner_to_full_current_guild_editor(self):
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID,
+            user=SimpleNamespace(id=OWNER_ID),
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            service,
+            'delegated_access_error',
+            return_value=None,
+        ), mock.patch.object(
+            service.settings,
+            'owner_id',
+            OWNER_ID,
+        ), mock.patch.object(
+            self.cog,
+            '_open_guild_draft_workspace',
+            new=mock.AsyncMock(),
+        ) as open_workspace:
+            await self.command.callback(self.cog, interaction)
+        open_workspace.assert_awaited_once_with(
+            interaction,
+            target=GUILD_ID,
+            ordinary_only=False,
+        )
+
+    async def test_capabilities_routes_owner_to_capability_only_editor(self):
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID,
+            user=SimpleNamespace(id=OWNER_ID),
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            service,
+            'access_error',
+            return_value=None,
+        ), mock.patch.object(
+            self.cog,
+            '_operator_target_guild_id',
+            return_value=GUILD_ID,
+        ), mock.patch.object(
+            self.cog,
+            '_open_guild_draft_workspace',
+            new=mock.AsyncMock(),
+        ) as open_workspace:
+            await self.capabilities_command.callback(self.cog, interaction)
+        open_workspace.assert_awaited_once_with(
+            interaction,
+            target=GUILD_ID,
+            ordinary_only=False,
+            capabilities_only=True,
+        )
 
     async def test_owner_editor_creates_private_draft_on_open(self):
         active = fixtures.bundle().imports[0].document

@@ -111,12 +111,21 @@ DEFAULT_CAPABILITY_FAMILIES = (
         compatibility_only=True,
     ),
     CapabilityFamily(
-        name="operator",
-        roots=("guild", "operator"),
-        visibility="administrator-default",
+        name="guild_admin",
+        roots=("guild",),
+        visibility="administrator",
         description=(
-            "Cross-guild operator commands with authoritative configured-ID "
-            "checks."
+            "Same-guild settings for the bot owner and explicitly delegated "
+            "guild managers."
+        ),
+    ),
+    CapabilityFamily(
+        name="operator",
+        roots=("operator",),
+        visibility="bot-owner",
+        description=(
+            "Bot-owner and configured-superuser operational commands. Discord "
+            "guild ownership grants no access."
         ),
     ),
 )

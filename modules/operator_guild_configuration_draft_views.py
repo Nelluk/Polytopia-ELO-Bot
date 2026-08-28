@@ -38,6 +38,16 @@ def _escape(value: Any) -> str:
     )
 
 
+def _option_description(value: str) -> str:
+    """Return one readable Discord select-option description."""
+
+    rendered = ' '.join(str(value).split())
+    if len(rendered) <= 100:
+        return rendered
+    prefix = rendered[:97].rsplit(' ', 1)[0]
+    return (prefix or rendered[:97]) + '…'
+
+
 def _object_id(value: Any) -> int:
     return int(getattr(value, 'id'))
 
@@ -63,11 +73,7 @@ class DraftValueModal(discord.ui.Modal):
         )
         self.add_item(discord.ui.Label(
             text=field.label[:45],
-            description=(
-                'Enter a whole number.'
-                if field.kind == service.INTEGER else
-                'Enter the complete replacement text.'
-            ),
+            description=_option_description(field.help_text),
             component=self.value,
         ))
 
@@ -183,7 +189,7 @@ class SaveSettingsModal(discord.ui.Modal):
 class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This guild-configuration draft workspace expired. Run '
-        '`/operator guild edit` again.'
+        '`/guild settings` again.'
     )
 
     def __init__(
@@ -219,6 +225,12 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.capabilities_only = bool(capabilities_only)
         self.ordinary_only = bool(ordinary_only)
         self.simple_owner = bool(simple_owner)
+        self.expired_message = (
+            'This command-capability workspace expired. Run '
+            '`/operator guild capabilities` again.'
+            if self.capabilities_only else
+            'This guild-settings workspace expired. Run `/guild settings` again.'
+        )
         self.sections = (
             (service.CAPABILITIES,)
             if self.capabilities_only else service.SECTIONS
@@ -775,6 +787,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                     discord.SelectOption(
                         label=value.label[:100],
                         value=value.key,
+                        description=_option_description(value.help_text),
                         default=value.key == self.field_key,
                     )
                     for value in fields
@@ -789,7 +802,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             children.extend((
                 discord.ui.TextDisplay(
                     f'## {SECTION_LABELS[self.section]} · {_escape(self.field.label)}\n'
-                    f'{self._format_value(current)}'
+                    f'{_escape(self.field.help_text)}\n\n'
+                    f'**Current value**\n{self._format_value(current)}'
                 ),
                 discord.ui.ActionRow(section),
                 discord.ui.ActionRow(field_select),
@@ -812,7 +826,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 + (
                     '\n-# Cross-guild editing is capability-only because Discord '
                     'role/channel selectors belong to the invoking guild. Enable '
-                    '`operator`, then edit other settings from inside the target.'
+                    '`guild_admin`, then edit other settings from inside the target.'
                     if self.capabilities_only else ''
                 )
                 + (
@@ -931,16 +945,17 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             children.append(discord.ui.ActionRow(select))
             return
         if field.kind == service.CAPABILITY_LIST:
-            capabilities = tuple(value.name for value in DEFAULT_CAPABILITY_FAMILIES)
+            capabilities = tuple(DEFAULT_CAPABILITY_FAMILIES)
             select = discord.ui.Select(
                 placeholder='Replace command capabilities',
                 min_values=0,
                 max_values=len(capabilities),
                 options=[
                     discord.SelectOption(
-                        label=value,
-                        value=value,
-                        default=value in current,
+                        label=value.name,
+                        value=value.name,
+                        description=_option_description(value.description),
+                        default=value.name in current,
                     )
                     for value in capabilities
                 ],

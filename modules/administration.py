@@ -188,7 +188,7 @@ class administration(commands.Cog):
     )
     guild_group = discord.app_commands.Group(
         name='guild',
-        description='Manage delegated settings for this server.',
+        description='View and manage settings for this server.',
         guild_only=True,
     )
     operator_group = discord.app_commands.Group(
@@ -1630,23 +1630,8 @@ class administration(commands.Cog):
                 operation=operation,
             )
             result = await operator_guild_configuration_workers.run_read(request)
-            publish_options = {'section': section}
-            if operation == operator_guild_configuration_workers.SETTINGS:
-                target = int(interaction.guild_id)
-
-                async def open_editor(button_interaction):
-                    return await self._open_guild_draft_workspace(
-                        button_interaction,
-                        target=target,
-                        ordinary_only=False,
-                    )
-
-                publish_options.update({
-                    'requester_id': int(interaction.user.id),
-                    'edit_callback': open_editor,
-                })
             await operator_guild_configuration_service.publish_private(
-                interaction, result, **publish_options,
+                interaction, result, section=section,
             )
             return result
         except operator_guild_configuration_workers.OperatorGuildConfigurationError as exc:
@@ -1669,36 +1654,6 @@ class administration(commands.Cog):
         return await self._operator_guild_configuration_read(
             interaction,
             operation=operator_guild_configuration_workers.LIST,
-        )
-
-    @operator_guild_group.command(
-        name='settings',
-        description='Privately inspect active settings for this guild.',
-    )
-    @discord.app_commands.choices(section=[
-        discord.app_commands.Choice(name='Overview', value='overview'),
-        discord.app_commands.Choice(name='Permissions', value='permissions'),
-        discord.app_commands.Choice(name='Teams', value='teams'),
-        discord.app_commands.Choice(name='Channels', value='channels'),
-        discord.app_commands.Choice(name='Destinations', value='destinations'),
-        discord.app_commands.Choice(name='Command capabilities', value='capabilities'),
-    ])
-    @discord.app_commands.describe(
-        section='One compact settings section; defaults to Overview.',
-    )
-    async def operator_guild_settings_slash(
-        self,
-        interaction: discord.Interaction,
-        section: discord.app_commands.Choice[str] | None = None,
-    ):
-        selected = (
-            operator_guild_configuration_service.OVERVIEW
-            if section is None else str(section.value)
-        )
-        return await self._operator_guild_configuration_read(
-            interaction,
-            operation=operator_guild_configuration_workers.SETTINGS,
-            section=selected,
         )
 
     @operator_guild_group.command(
@@ -2173,8 +2128,39 @@ class administration(commands.Cog):
         )
 
     @operator_guild_group.command(
+        name='capabilities',
+        description='Prepare which Discord command groups one server receives.',
+    )
+    @discord.app_commands.describe(
+        target_guild_id=(
+            'Active target server ID; omit to use the server where this command runs.'
+        ),
+    )
+    async def operator_guild_capabilities_slash(
+        self,
+        interaction: discord.Interaction,
+        target_guild_id: str | None = None,
+    ):
+        access_error = operator_guild_draft_service.access_error(interaction)
+        if access_error is not None:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        try:
+            target = self._operator_target_guild_id(interaction, target_guild_id)
+        except ValueError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
+        return await self._open_guild_draft_workspace(
+            interaction,
+            target=target,
+            ordinary_only=False,
+            capabilities_only=True,
+        )
+
+    @operator_guild_group.command(
         name='commands',
-        description='Plan capability activation or reconcile one guild command tree.',
+        description='Deploy prepared capabilities or repair one server command tree.',
     )
     @discord.app_commands.describe(
         target_guild_id=(
@@ -2287,6 +2273,7 @@ class administration(commands.Cog):
         *,
         target: int,
         ordinary_only: bool,
+        capabilities_only: bool = False,
     ):
         await interaction.response.defer(ephemeral=True)
         try:
@@ -2295,6 +2282,7 @@ class administration(commands.Cog):
                 int(interaction.user.id) == int(settings.owner_id)
                 and target == int(interaction.guild_id)
                 and not ordinary_only
+                and not capabilities_only
             )
             result = await self._operator_guild_draft_operation(
                 interaction,
@@ -2334,7 +2322,9 @@ class administration(commands.Cog):
                     )
                 ),
                 target_guild_id=target,
-                capabilities_only=(target != int(interaction.guild_id)),
+                capabilities_only=(
+                    capabilities_only or target != int(interaction.guild_id)
+                ),
                 ordinary_only=ordinary_only or result.delegated,
                 simple_owner=simple_owner,
             )
@@ -2353,38 +2343,11 @@ class administration(commands.Cog):
                 ephemeral=True,
             )
 
-    @operator_guild_group.command(
-        name='edit',
-        description='Privately edit and validate one active guild configuration.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id=(
-            'Active target server ID; omit to edit the server where this command runs.'
-        ),
-    )
-    async def operator_guild_draft_slash(
-        self,
-        interaction: discord.Interaction,
-        target_guild_id: str | None = None,
-    ):
-        access_error = operator_guild_draft_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error, ephemeral=True,
-            )
-        try:
-            target = self._operator_target_guild_id(interaction, target_guild_id)
-        except ValueError as exc:
-            return await interaction.response.send_message(str(exc), ephemeral=True)
-        return await self._open_guild_draft_workspace(
-            interaction, target=target, ordinary_only=False,
-        )
-
     @guild_group.command(
-        name='edit',
-        description='Privately edit delegated ordinary settings for this server.',
+        name='settings',
+        description='Privately view and edit settings for this server.',
     )
-    async def guild_draft_slash(self, interaction: discord.Interaction):
+    async def guild_settings_slash(self, interaction: discord.Interaction):
         access_error = operator_guild_draft_service.delegated_access_error(
             interaction
         )

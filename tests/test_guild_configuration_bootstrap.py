@@ -33,7 +33,10 @@ class FirstGuildPlanTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first.guild_id, GUILD_ID)
         self.assertEqual(first.guild_name, 'Fresh Development Guild')
-        self.assertEqual(first.document.command_capabilities, ('operator',))
+        self.assertEqual(
+            first.document.command_capabilities,
+            ('guild_admin', 'operator'),
+        )
         self.assertEqual(first.document.identity.command_prefix, '$')
         self.assertEqual(
             first.document.permissions.user_role_ids_level_2,
@@ -55,7 +58,10 @@ class FirstGuildPlanTests(unittest.TestCase):
         )
         rendered = bootstrap.plan_to_mapping(first)
         self.assertFalse(rendered['application_commands_synchronized'])
-        self.assertEqual(rendered['command_capabilities'], ['operator'])
+        self.assertEqual(
+            rendered['command_capabilities'],
+            ['guild_admin', 'operator'],
+        )
 
     def test_plan_requires_one_exact_discord_observed_guild(self):
         snapshot = fixtures.snapshot()

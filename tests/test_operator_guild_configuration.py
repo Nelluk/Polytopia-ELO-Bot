@@ -459,19 +459,13 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             {command.name for command in self.guild_group.commands},
             {
-                'list', 'settings', 'validate', 'history', 'edit', 'rollback',
-                'enroll', 'commands', 'suspend', 'resume', 'delegation',
+                'list', 'validate', 'history', 'rollback',
+                'enroll', 'capabilities', 'commands', 'suspend', 'resume',
+                'delegation',
             },
         )
-        settings_command = self.guild_group.get_command('settings')
-        self.assertEqual(
-            [(parameter.name, parameter.required) for parameter in settings_command.parameters],
-            [('section', False)],
-        )
-        self.assertEqual(
-            {choice.value for choice in settings_command.parameters[0].choices},
-            service.SETTINGS_SECTIONS,
-        )
+        self.assertIsNone(self.guild_group.get_command('settings'))
+        self.assertIsNone(self.guild_group.get_command('edit'))
         prefix_names = {
             command.name
             for command in administration.administration.__cog_commands__
@@ -524,62 +518,20 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIs(returned, result)
 
-    async def test_settings_view_is_owner_bound_and_opens_editor(self):
-        open_editor = mock.AsyncMock()
-        view = service.GuildConfigurationSettingsView(
-            requester_id=OWNER_ID,
-            guild_id=GUILD_ID,
-            edit_callback=open_editor,
-        )
-        allowed = SimpleNamespace(
-            guild_id=GUILD_ID,
-            user=SimpleNamespace(id=OWNER_ID),
-            response=SimpleNamespace(send_message=mock.AsyncMock()),
-        )
-        self.assertTrue(await view.interaction_check(allowed))
-        await view.children[0].callback(allowed)
-        open_editor.assert_awaited_once_with(allowed)
-
-        denied = SimpleNamespace(
-            guild_id=GUILD_ID,
-            user=SimpleNamespace(id=OWNER_ID + 1),
-            response=SimpleNamespace(send_message=mock.AsyncMock()),
-        )
-        self.assertFalse(await view.interaction_check(denied))
-        denied.response.send_message.assert_awaited_once_with(
-            'Only the owner who opened this settings view can use it.',
-            ephemeral=True,
-        )
-
-    async def test_settings_command_publishes_edit_entrypoint(self):
-        command = self.guild_group.get_command('settings')
+    async def test_read_only_publisher_omits_absent_view(self):
+        result = inspect_with(FakeConnection(), request(workers.LIST))
         interaction = SimpleNamespace(
-            guild_id=GUILD_ID,
-            user=SimpleNamespace(id=OWNER_ID),
-            response=SimpleNamespace(defer=mock.AsyncMock()),
-            followup=SimpleNamespace(send=mock.AsyncMock()),
+            followup=SimpleNamespace(send=mock.AsyncMock(
+                return_value=mock.sentinel.message,
+            )),
         )
-        result = mock.sentinel.result
-        with mock.patch.object(service, 'access_error', return_value=None), \
-                mock.patch.object(service, 'build_request', return_value=mock.sentinel.request), \
-                mock.patch.object(
-                    workers, 'run_read', new=mock.AsyncMock(return_value=result),
-                ), mock.patch.object(
-                    service, 'publish_private', new=mock.AsyncMock(),
-                ) as publish, mock.patch.object(
-                    self.cog, '_open_guild_draft_workspace', new=mock.AsyncMock(),
-                ) as open_workspace:
-            await command.callback(self.cog, interaction)
-            options = publish.await_args.kwargs
-            self.assertEqual(options['requester_id'], OWNER_ID)
-            self.assertTrue(callable(options['edit_callback']))
-            button_interaction = mock.sentinel.button_interaction
-            await options['edit_callback'](button_interaction)
-        open_workspace.assert_awaited_once_with(
-            button_interaction,
-            target=GUILD_ID,
-            ordinary_only=False,
-        )
+
+        returned = await service.publish_private(interaction, result)
+
+        options = interaction.followup.send.await_args.kwargs
+        self.assertNotIn('view', options)
+        self.assertTrue(options['ephemeral'])
+        self.assertIs(returned, mock.sentinel.message)
 
 
 if __name__ == '__main__':

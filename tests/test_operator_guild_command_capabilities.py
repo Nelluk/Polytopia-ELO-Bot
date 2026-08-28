@@ -114,7 +114,7 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         second = await activation_plan(second_bot)
 
         self.assertEqual(first, second)
-        self.assertEqual(first.creates, ('guild', 'operator'))
+        self.assertEqual(first.creates, ('operator',))
         self.assertEqual(first.removals, ())
         self.assertEqual(
             first.confirmation,
@@ -143,7 +143,7 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         bot = command_bot(current=current)
         with self.assertRaisesRegex(
             service.OperatorGuildCommandCapabilityError,
-            'external guild command tool',
+            'older registered version.*No configuration or Discord commands were changed',
         ):
             await activation_plan(bot)
         self.assertEqual(bot.tree.sync_scopes, [])
@@ -163,7 +163,7 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.guild_id, GUILD_ID)
         self.assertEqual(
             result.roots,
-            ('game', 'guild', 'leaderboard', 'operator', 'player'),
+            ('game', 'leaderboard', 'operator', 'player'),
         )
         self.assertEqual(bot.tree.sync_scopes, [GUILD_ID])
         self.assertEqual(bot.tree.clear_scope, GUILD_ID)
@@ -603,17 +603,23 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(workspace.sections, (draft_service.CAPABILITIES,))
         self.assertEqual(workspace.field.key, 'command_capabilities')
 
-    async def test_operator_commands_registered_and_edit_accepts_target(self):
+    async def test_operator_commands_registered_without_duplicate_editor(self):
         operator = next(
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
         )
         guild = operator.get_command('guild')
         commands = guild.get_command('commands')
+        capabilities = guild.get_command('capabilities')
         edit = guild.get_command('edit')
         self.assertIsNotNone(commands)
+        self.assertIsNotNone(capabilities)
         self.assertEqual([value.name for value in commands.parameters], ['target_guild_id'])
-        self.assertEqual([value.name for value in edit.parameters], ['target_guild_id'])
+        self.assertEqual(
+            [value.name for value in capabilities.parameters],
+            ['target_guild_id'],
+        )
+        self.assertIsNone(edit)
 
 
 class RuntimePublicationTests(unittest.TestCase):

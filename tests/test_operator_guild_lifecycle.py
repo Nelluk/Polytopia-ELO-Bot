@@ -484,9 +484,9 @@ class CommandPlanAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             current_capabilities=(), desired_capabilities=('operator',),
             mode=commands.LIFECYCLE,
         )
-        self.assertEqual(plan.creates, ('guild', 'operator'))
+        self.assertEqual(plan.creates, ('operator',))
         result = await commands.apply_command_plan(bot=bot, policy=policy, plan=plan)
-        self.assertEqual(result.roots, ('guild', 'operator'))
+        self.assertEqual(result.roots, ('operator',))
         self.assertEqual(bot.tree.sync_scopes, [TARGET_ID])
 
     def test_runtime_publication_removes_and_restores_exact_target(self):

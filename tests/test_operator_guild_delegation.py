@@ -344,7 +344,8 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
         self.assertIn('guild', roots)
         self.assertTrue(roots['operator'].default_permissions.administrator)
         self.assertIsNone(roots['guild'].default_permissions)
-        self.assertIsNotNone(roots['guild'].get_command('edit'))
+        self.assertIsNotNone(roots['guild'].get_command('settings'))
+        self.assertIsNone(roots['guild'].get_command('edit'))
         self.assertIsNotNone(
             roots['operator'].get_command('guild').get_command('delegation')
         )

@@ -20,9 +20,11 @@ application_command_capabilities = {
 ```
 
 The guild ID must already be in that profile's `server_list`. The policy is
-default-deny. Current families are `core_user`, `elo_maintenance`, `operator`,
-`team`, `league`, `house`, `squad`, and `tools_support`. `core_user` owns the
-`/leaderboard` root, including squad rankings; `squad` owns `/squad`; and
+default-deny. Current families are `core_user`, `elo_maintenance`,
+`guild_admin`, `operator`, `team`, `league`, `house`, `squad`, and
+`tools_support`. `guild_admin` owns the ordinary same-server `/guild` settings
+surface; `operator` owns the bot-owner `/operator` operations. `core_user` owns
+the `/leaderboard` root, including squad rankings; `squad` owns `/squad`; and
 `team` owns persistent `/team` functionality, which remains runtime-gated by
 the protected `allow_teams` guild setting. The current `tools_support` family
 exposes `/staffhelp` only. The taxonomy names
@@ -33,8 +35,8 @@ reserved; an assignment must not silently invent them. See
 An explicitly configured capability may apply to every allowed guild without
 copying the same assignment into each entry. The reviewed production use is
 `tools_support`, after every guild's `staff_help_channel` and first
-`helper_roles` entry has been verified; development may use `operator` under
-its separate policy:
+`helper_roles` entry has been verified; development may use `guild_admin` and
+`operator` under its separate policy:
 
 ```python
 application_command_all_guild_capabilities = ('tools_support',)
@@ -53,6 +55,8 @@ individual staff subcommand inside an otherwise-enabled public root. Use a
 runtime permission check or a separately approved root for that case.
 `/operator` is Administrator-visible by default, but its exact configured
 owner/superuser checks remain the authoritative authorization boundary.
+Discord guild ownership alone grants neither `/operator` authority nor a
+guild-configuration delegation policy.
 
 ## Required sequence
 
@@ -124,8 +128,9 @@ The profile-backed tool above remains authoritative for deploying changed
 command source and for initially deploying the database-authority operator
 surface. Once that surface is running, capability assignments come from its
 immutable active guild documents rather than ignored static settings. The owner
-may use `/operator guild commands` to activate a reviewed capability-changing
-draft or reconcile the active policy. That path repeats the empty-global guard,
+may use `/operator guild capabilities` to prepare a reviewed capability-only
+draft, then `/operator guild commands` to activate it or reconcile the active
+policy. That path repeats the empty-global guard,
 binds exact command fingerprints into its confirmation, and contains only an
 explicit target-guild `sync` call.
 

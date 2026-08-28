@@ -298,10 +298,13 @@ async def inspect_command_plan(
     ))
     if active_root_updates:
         raise OperatorGuildCommandCapabilityError(
-            'Existing active command source differs from Discord for root(s) '
-            + ', '.join(active_root_updates)
-            + '; deploy reviewed source-shape changes through the external '
-            'guild command tool before capability activation.'
+            'Discord has an older registered version of the active command '
+            + ('group' if len(active_root_updates) == 1 else 'groups')
+            + ': '
+            + ', '.join(f'/{value}' for value in active_root_updates)
+            + '. No configuration or Discord commands were changed. The bot '
+            'owner must deploy the reviewed command-definition update before '
+            'changing this server\'s command capabilities.'
         )
     current_evidence = _command_evidence(current_remote, tree=bot.tree)
     desired_evidence = tuple(
