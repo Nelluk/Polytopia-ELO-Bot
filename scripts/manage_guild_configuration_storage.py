@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Capture, plan, apply, or verify P10.3 development guild configuration.
+"""Capture, plan, apply, or verify static guild configuration storage.
 
 ``snapshot`` performs bounded read-only Discord HTTP requests. ``plan`` is
-offline and connection-free. ``apply`` and ``verify`` are fixed to the
-development profile and PostgreSQL identity; apply additionally requires the
-digest-bound confirmation printed by plan and a separately stopped beta.
+offline and connection-free.  The production preparation unit intentionally
+keeps ``apply`` disabled while allowing an exact production snapshot, plan,
+and read-only verification.
 """
 
 from __future__ import annotations
@@ -32,37 +32,53 @@ from modules import beta_database_writer_lock  # noqa: E402
 
 
 MAX_SNAPSHOT_BYTES = 512 * 1024
+PRODUCTION_MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 DEFAULT_SNAPSHOT = (
     'logs/development/guild-configuration/discord-snapshot.json'
 )
-SNAPSHOT_DIRECTORY = Path('logs/development/guild-configuration')
+PRODUCTION_DEFAULT_SNAPSHOT = (
+    'logs/production/guild-configuration/discord-snapshot.json'
+)
+PRODUCTION_GUILD_COUNT = 49
+POLYCHAMPIONS_GUILD_ID = 447883341463814144
+PCPLUS_GUILD_ID = 1289762588346814495
+PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS = frozenset({
+    283436219780825088,
+    POLYCHAMPIONS_GUILD_ID,
+    814317488418193478,
+    PCPLUS_GUILD_ID,
+})
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='P10.3 development-only guild configuration storage tooling.'
+        description='Guild configuration snapshot and storage tooling.'
     )
     operations = parser.add_subparsers(dest='operation', required=True)
     snapshot = operations.add_parser(
         'snapshot', help='capture bounded role/channel identity through Discord HTTP'
     )
-    snapshot.add_argument('--output', default=DEFAULT_SNAPSHOT)
+    snapshot.add_argument('--output')
     for name, help_text in (
         ('plan', 'build an offline import plan from a captured snapshot'),
         ('apply', 'apply the exact additive schema/import transaction'),
         ('verify', 'read and verify the exact stored schema/import'),
     ):
         operation = operations.add_parser(name, help=help_text)
-        operation.add_argument('--snapshot', default=DEFAULT_SNAPSHOT)
+        operation.add_argument('--snapshot')
         if name == 'apply':
             operation.add_argument('--confirm', required=True)
     return parser
 
 
 def _profile():
-    if os.environ.get('POLYBOT_ENV') != storage.DEVELOPMENT_ENVIRONMENT:
+    environment = os.environ.get('POLYBOT_ENV')
+    if environment not in {
+            storage.DEVELOPMENT_ENVIRONMENT,
+            storage.PRODUCTION_ENVIRONMENT,
+    }:
         raise storage.GuildConfigurationStorageError(
-            'Set exact POLYBOT_ENV=development; P10.3 never uses production.'
+            'Set exact POLYBOT_ENV=development or POLYBOT_ENV=production.'
         )
     return load_runtime_profile(
         project_root=PROJECT_ROOT,
@@ -83,7 +99,40 @@ def _target(profile: Any) -> storage.StorageTarget:
     )
 
 
-def _safe_relative_path(value: str, *, must_exist: bool) -> Path:
+def _snapshot_directory(environment: str) -> Path:
+    if environment not in {
+            storage.DEVELOPMENT_ENVIRONMENT,
+            storage.PRODUCTION_ENVIRONMENT,
+    }:
+        raise storage.GuildConfigurationStorageError(
+            'Snapshot environment is not supported.'
+        )
+    return Path('logs') / environment / 'guild-configuration'
+
+
+def _default_snapshot(environment: str) -> str:
+    return (
+        PRODUCTION_DEFAULT_SNAPSHOT
+        if environment == storage.PRODUCTION_ENVIRONMENT
+        else DEFAULT_SNAPSHOT
+    )
+
+
+def _max_snapshot_bytes(environment: str) -> int:
+    _snapshot_directory(environment)
+    return (
+        PRODUCTION_MAX_SNAPSHOT_BYTES
+        if environment == storage.PRODUCTION_ENVIRONMENT
+        else MAX_SNAPSHOT_BYTES
+    )
+
+
+def _safe_relative_path(
+    value: str,
+    *,
+    must_exist: bool,
+    environment: str = storage.DEVELOPMENT_ENVIRONMENT,
+) -> Path:
     if (
         not isinstance(value, str)
         or not value
@@ -98,10 +147,10 @@ def _safe_relative_path(value: str, *, must_exist: bool) -> Path:
     if any(part in {'', '.', '..'} for part in candidate.parts):
         raise storage.GuildConfigurationStorageError('Snapshot path is unsafe.')
     try:
-        candidate.relative_to(SNAPSHOT_DIRECTORY)
+        candidate.relative_to(_snapshot_directory(environment))
     except ValueError as exc:
         raise storage.GuildConfigurationStorageError(
-            'Snapshot path must remain in logs/development/guild-configuration.'
+            f'Snapshot path must remain in logs/{environment}/guild-configuration.'
         ) from exc
     path = (PROJECT_ROOT / candidate).resolve(strict=False)
     try:
@@ -128,15 +177,24 @@ def _safe_relative_path(value: str, *, must_exist: bool) -> Path:
     return path
 
 
-def _write_snapshot(path_value: str, value: dict[str, Any]) -> Path:
-    path = _safe_relative_path(path_value, must_exist=False)
+def _write_snapshot(
+    path_value: str,
+    value: dict[str, Any],
+    *,
+    environment: str = storage.DEVELOPMENT_ENVIRONMENT,
+) -> Path:
+    path = _safe_relative_path(
+        path_value,
+        must_exist=False,
+        environment=environment,
+    )
     payload = json.dumps(
         value,
         ensure_ascii=True,
         sort_keys=True,
         separators=(',', ':'),
     ).encode('utf-8') + b'\n'
-    if len(payload) > MAX_SNAPSHOT_BYTES:
+    if len(payload) > _max_snapshot_bytes(environment):
         raise storage.GuildConfigurationStorageError(
             'Captured Discord snapshot exceeds its byte bound.'
         )
@@ -172,10 +230,18 @@ def _write_snapshot(path_value: str, value: dict[str, Any]) -> Path:
     return path
 
 
-def _load_snapshot(path_value: str) -> dict[str, Any]:
-    path = _safe_relative_path(path_value, must_exist=True)
+def _load_snapshot(
+    path_value: str,
+    *,
+    environment: str = storage.DEVELOPMENT_ENVIRONMENT,
+) -> dict[str, Any]:
+    path = _safe_relative_path(
+        path_value,
+        must_exist=True,
+        environment=environment,
+    )
     payload = path.read_bytes()
-    if len(payload) > MAX_SNAPSHOT_BYTES:
+    if len(payload) > _max_snapshot_bytes(environment):
         raise storage.GuildConfigurationStorageError('Snapshot exceeds its byte bound.')
     try:
         value = json.loads(payload.decode('utf-8'))
@@ -254,14 +320,101 @@ async def _capture_snapshot(profile: Any) -> dict[str, Any]:
         await client.close()
 
 
+def _production_guild_types(profile: Any) -> dict[int, str] | None:
+    if profile.environment != storage.PRODUCTION_ENVIRONMENT:
+        return None
+    allowed = tuple(sorted(int(value) for value in profile.allowed_guild_ids))
+    if (
+            len(allowed) != PRODUCTION_GUILD_COUNT
+            or POLYCHAMPIONS_GUILD_ID not in allowed
+            or PCPLUS_GUILD_ID not in allowed
+    ):
+        raise storage.GuildConfigurationStorageError(
+            'Production guild inventory differs from the reviewed 49-guild '
+            'migration inventory.'
+        )
+    values = {guild_id: 'standard' for guild_id in allowed}
+    values[POLYCHAMPIONS_GUILD_ID] = 'league'
+    values[PCPLUS_GUILD_ID] = 'team'
+    return values
+
+
 def _bundle(profile: Any, target: storage.StorageTarget, snapshot_path: str):
-    snapshot = _load_snapshot(snapshot_path)
-    return storage.build_import_bundle(
+    snapshot = _load_snapshot(
+        snapshot_path,
+        environment=profile.environment,
+    )
+    bundle = storage.build_import_bundle(
         target=target,
         server_settings=profile.server_settings,
         allowed_guild_ids=profile.allowed_guild_ids,
         discord_snapshot=snapshot,
+        guild_type_overrides=_production_guild_types(profile),
     )
+    if profile.environment == storage.PRODUCTION_ENVIRONMENT:
+        _validate_production_bundle(bundle)
+    return bundle
+
+
+def _validate_production_bundle(
+    bundle: storage.ImportBundle,
+) -> dict[str, Any]:
+    imports = tuple(bundle.imports)
+    by_id = {value.guild_id: value.document for value in imports}
+    if len(imports) != PRODUCTION_GUILD_COUNT or len(by_id) != len(imports):
+        raise storage.GuildConfigurationStorageError(
+            'Production import bundle is not the exact 49-guild inventory.'
+        )
+    team_ids = {
+        guild_id for guild_id, document in by_id.items()
+        if document.teams.allow_teams
+    }
+    league_ids = {
+        guild_id for guild_id, document in by_id.items()
+        if document.teams.require_teams
+    }
+    global_ids = {
+        guild_id for guild_id, document in by_id.items()
+        if document.visibility.include_in_global_leaderboard
+    }
+    if team_ids != {POLYCHAMPIONS_GUILD_ID, PCPLUS_GUILD_ID}:
+        raise storage.GuildConfigurationStorageError(
+            'Production import must enable persistent Teams only for '
+            'PolyChampions and PCPLUS.'
+        )
+    if league_ids != {POLYCHAMPIONS_GUILD_ID}:
+        raise storage.GuildConfigurationStorageError(
+            'Production import must require Teams only for PolyChampions.'
+        )
+    if global_ids != PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS:
+        raise storage.GuildConfigurationStorageError(
+            'Production global-leaderboard inventory differs from the '
+            'reviewed four guilds.'
+        )
+    for guild_id, document in by_id.items():
+        capabilities = set(document.command_capabilities)
+        required = {'core_user', 'guild_admin', 'squad'}
+        if not required.issubset(capabilities):
+            raise storage.GuildConfigurationStorageError(
+                f'Guild {guild_id} is missing a standard command capability.'
+            )
+        expected_team = guild_id in team_ids
+        if ('team' in capabilities) != expected_team:
+            raise storage.GuildConfigurationStorageError(
+                f'Guild {guild_id} Team capability differs from its type.'
+            )
+        expected_league = guild_id == POLYCHAMPIONS_GUILD_ID
+        if ({'league', 'house'} <= capabilities) != expected_league:
+            raise storage.GuildConfigurationStorageError(
+                f'Guild {guild_id} league capabilities differ from its type.'
+            )
+    return {
+        'guild_count': len(imports),
+        'standard_guild_count': len(imports) - len(team_ids),
+        'team_guild_ids': sorted(team_ids - league_ids),
+        'league_guild_ids': sorted(league_ids),
+        'global_leaderboard_guild_ids': sorted(global_ids),
+    }
 
 
 def _connection(profile: Any, *, readonly: bool):
@@ -301,6 +454,19 @@ def main(argv: list[str] | None = None) -> int:
         profile = _profile()
         target = _target(profile)
         storage.validate_target(target)
+        if (
+                args.operation == 'apply'
+                and profile.environment == storage.PRODUCTION_ENVIRONMENT
+        ):
+            raise storage.GuildConfigurationStorageError(
+                'Production apply is intentionally disabled by this '
+                'source-only preparation unit.'
+            )
+        snapshot_path = (
+            getattr(args, 'output', None)
+            or getattr(args, 'snapshot', None)
+            or _default_snapshot(profile.environment)
+        )
         if args.operation == 'snapshot':
             snapshot = asyncio.run(_capture_snapshot(profile))
             storage.validate_discord_snapshot(
@@ -308,7 +474,11 @@ def main(argv: list[str] | None = None) -> int:
                 target=target,
                 allowed_guild_ids=profile.allowed_guild_ids,
             )
-            path = _write_snapshot(args.output, snapshot)
+            path = _write_snapshot(
+                snapshot_path,
+                snapshot,
+                environment=profile.environment,
+            )
             _emit({
                 'status': 'captured',
                 'path': str(path.relative_to(PROJECT_ROOT)),
@@ -318,9 +488,14 @@ def main(argv: list[str] | None = None) -> int:
             })
             return 0
 
-        bundle = _bundle(profile, target, args.snapshot)
+        bundle = _bundle(profile, target, snapshot_path)
         if args.operation == 'plan':
-            _emit(storage.bundle_to_mapping(bundle))
+            value = storage.bundle_to_mapping(bundle)
+            if profile.environment == storage.PRODUCTION_ENVIRONMENT:
+                value['production_migration_summary'] = (
+                    _validate_production_bundle(bundle)
+                )
+            _emit(value)
             return 0
         if args.operation == 'apply':
             writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
@@ -346,10 +521,10 @@ def main(argv: list[str] | None = None) -> int:
         storage.GuildConfigurationStorageError,
         beta_database_writer_lock.BetaDatabaseWriterLockError,
     ) as exc:
-        print(f'P10.3 refused: {exc}', file=sys.stderr)
+        print(f'Guild configuration operation refused: {exc}', file=sys.stderr)
         return 2
     except Exception as exc:
-        print(f'P10.3 operation failed: {exc}', file=sys.stderr)
+        print(f'Guild configuration operation failed: {exc}', file=sys.stderr)
         return 2
     finally:
         if connection is not None:

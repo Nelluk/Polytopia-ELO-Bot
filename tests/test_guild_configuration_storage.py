@@ -12,6 +12,7 @@ import unittest
 from unittest import mock
 
 from modules import guild_configuration_storage as storage
+from modules import guild_types
 from scripts import manage_guild_configuration_storage as script
 
 
@@ -80,6 +81,20 @@ def target(**changes) -> storage.StorageTarget:
     return storage.StorageTarget(**values)
 
 
+def production_target(**changes) -> storage.StorageTarget:
+    values = {
+        'environment': storage.PRODUCTION_ENVIRONMENT,
+        'database_name': storage.PRODUCTION_DATABASE,
+        'database_user': storage.PRODUCTION_ROLE,
+        'expected_application_id': storage.PRODUCTION_APPLICATION_ID,
+        'background_tasks_enabled': True,
+        'api_enabled': False,
+        'bullet_enabled': True,
+    }
+    values.update(changes)
+    return storage.StorageTarget(**values)
+
+
 def snapshot() -> dict:
     return {
         'schema_version': storage.SNAPSHOT_SCHEMA_VERSION,
@@ -120,22 +135,41 @@ def bundle() -> storage.ImportBundle:
 
 
 class TargetAndSnapshotTests(unittest.TestCase):
-    def test_target_is_exactly_development_and_effects_disabled(self):
+    def test_target_is_one_of_the_two_exact_reviewed_profiles(self):
         storage.validate_target(target())
-        for changes, pattern in (
-            ({'environment': 'production'}, 'development-only'),
-            ({'database_name': 'polytopia2'}, 'polytopia_dev'),
-            ({'database_user': 'prod'}, 'polybot_dev'),
-            ({'expected_application_id': 1}, 'application'),
-            ({'background_tasks_enabled': True}, 'disabled'),
-            ({'api_enabled': True}, 'disabled'),
-            ({'bullet_enabled': True}, 'disabled'),
+        storage.validate_target(production_target())
+        for value in (
+            target(database_name='polytopia2'),
+            target(background_tasks_enabled=True),
+            production_target(database_user='unexpected'),
+            production_target(expected_application_id=1),
+            production_target(api_enabled=True),
         ):
-            with self.subTest(changes=changes), self.assertRaisesRegex(
+            with self.subTest(target=value), self.assertRaisesRegex(
                 storage.GuildConfigurationStorageError,
-                pattern,
+                'exact reviewed',
             ):
-                storage.validate_target(target(**changes))
+                storage.validate_target(value)
+
+    def test_production_snapshot_must_match_production_environment_and_app(self):
+        value = snapshot()
+        value['environment'] = storage.PRODUCTION_ENVIRONMENT
+        value['application_id'] = storage.PRODUCTION_APPLICATION_ID
+        storage.validate_discord_snapshot(
+            value,
+            target=production_target(),
+            allowed_guild_ids=(GUILD_ID,),
+        )
+        value['environment'] = storage.DEVELOPMENT_ENVIRONMENT
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'environment',
+        ):
+            storage.validate_discord_snapshot(
+                value,
+                target=production_target(),
+                allowed_guild_ids=(GUILD_ID,),
+            )
 
     def test_live_identity_must_match_configured_development_target(self):
         storage.validate_live_identity(
@@ -247,6 +281,33 @@ class ImportBundleTests(unittest.TestCase):
         )
         self.assertEqual(settings.server_list, settings_before)
         self.assertEqual(inventory, snapshot_before)
+
+    def test_exact_guild_type_overrides_clean_up_legacy_team_policy(self):
+        value = storage.build_import_bundle(
+            target=target(),
+            server_settings=server_settings(),
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+            guild_type_overrides={GUILD_ID: 'standard'},
+        )
+        document = value.imports[0].document
+        self.assertFalse(document.teams.allow_teams)
+        self.assertFalse(document.teams.require_teams)
+        self.assertEqual(
+            document.command_capabilities,
+            ('core_user', 'guild_admin', 'operator', 'squad', 'tools_support'),
+        )
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'allowlist exactly',
+        ):
+            storage.build_import_bundle(
+                target=target(),
+                server_settings=server_settings(),
+                allowed_guild_ids=(GUILD_ID,),
+                discord_snapshot=snapshot(),
+                guild_type_overrides={},
+            )
 
     def test_ambiguous_or_managed_permission_roles_fail_closed(self):
         ambiguous = snapshot()
@@ -385,6 +446,21 @@ class ApplyAndVerifyTests(unittest.TestCase):
         with self.assertRaisesRegex(storage.GuildConfigurationStorageError, 'confirmation'):
             storage.apply_storage(
                 connection, target=target(), bundle=bundle(), confirmation='wrong'
+            )
+        connection.cursor.assert_not_called()
+
+    def test_production_apply_remains_disabled(self):
+        connection = mock.Mock()
+        value = bundle()
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'Production.*not enabled',
+        ):
+            storage.apply_storage(
+                connection,
+                target=production_target(),
+                bundle=value,
+                confirmation=value.confirmation,
             )
         connection.cursor.assert_not_called()
 
@@ -536,6 +612,95 @@ class ScriptTests(unittest.TestCase):
             ])
         self.assertEqual(result, 2)
         profile.assert_not_called()
+        connection.assert_not_called()
+
+    def test_production_inventory_has_one_league_one_team_and_47_standard(self):
+        profile = self.profile()
+        profile.environment = storage.PRODUCTION_ENVIRONMENT
+        profile.allowed_guild_ids = tuple(range(1, 48)) + (
+            script.POLYCHAMPIONS_GUILD_ID,
+            script.PCPLUS_GUILD_ID,
+        )
+        values = script._production_guild_types(profile)
+        self.assertEqual(len(values), 49)
+        self.assertEqual(values[script.POLYCHAMPIONS_GUILD_ID], 'league')
+        self.assertEqual(values[script.PCPLUS_GUILD_ID], 'team')
+        self.assertEqual(
+            sum(value == 'standard' for value in values.values()),
+            47,
+        )
+
+    def test_production_bundle_summary_enforces_accepted_policy(self):
+        guild_ids = tuple(range(1, 46)) + tuple(
+            script.PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS
+        ) + (
+            script.POLYCHAMPIONS_GUILD_ID,
+            script.PCPLUS_GUILD_ID,
+        )
+        guild_ids = tuple(sorted(set(guild_ids)))
+        self.assertEqual(len(guild_ids), 49)
+        base = bundle().imports[0].document
+        imports = []
+        for guild_id in guild_ids:
+            guild_type = (
+                guild_types.LEAGUE
+                if guild_id == script.POLYCHAMPIONS_GUILD_ID
+                else guild_types.TEAM
+                if guild_id == script.PCPLUS_GUILD_ID
+                else guild_types.STANDARD
+            )
+            document = guild_types.apply_guild_type(
+                base,
+                guild_type,
+                include_in_global_leaderboard=(
+                    guild_id
+                    in script.PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS
+                ),
+            )
+            imports.append(storage.GuildImport(
+                guild_id=guild_id,
+                document=document,
+                document_digest='a' * 64,
+                source_digest='b' * 64,
+            ))
+        value = storage.ImportBundle(1, 1, tuple(imports), 'c' * 64)
+        summary = script._validate_production_bundle(value)
+        self.assertEqual(summary['guild_count'], 49)
+        self.assertEqual(summary['standard_guild_count'], 47)
+        self.assertEqual(
+            summary['team_guild_ids'],
+            [script.PCPLUS_GUILD_ID],
+        )
+        self.assertEqual(
+            summary['league_guild_ids'],
+            [script.POLYCHAMPIONS_GUILD_ID],
+        )
+
+    def test_production_apply_is_refused_before_database_connection(self):
+        profile = self.profile()
+        profile.environment = storage.PRODUCTION_ENVIRONMENT
+        profile.database_name = storage.PRODUCTION_DATABASE
+        profile.database_user = storage.PRODUCTION_ROLE
+        profile.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        profile.background_tasks_enabled = True
+        profile.bullet_enabled = True
+        profile.allowed_guild_ids = tuple(range(1, 48)) + (
+            script.POLYCHAMPIONS_GUILD_ID,
+            script.PCPLUS_GUILD_ID,
+        )
+        with mock.patch.dict(
+                os.environ, {'POLYBOT_ENV': 'production'}, clear=True), \
+                mock.patch.object(script, '_profile', return_value=profile), \
+                mock.patch.object(
+                    script, '_bundle', return_value=bundle()
+                ) as build_bundle, \
+                mock.patch.object(script, '_connection') as connection:
+            result = script.main([
+                'apply', '--snapshot', script.PRODUCTION_DEFAULT_SNAPSHOT,
+                '--confirm', bundle().confirmation,
+            ])
+        self.assertEqual(result, 2)
+        build_bundle.assert_not_called()
         connection.assert_not_called()
 
     def test_snapshot_path_is_private_bounded_and_atomic(self):

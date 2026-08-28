@@ -1,4 +1,4 @@
-"""Development persistence and legacy import for guild configuration.
+"""Persistence and legacy import planning for guild configuration.
 
 This module owns the P10.3 additive PostgreSQL storage contract plus its exact
 initial import.  It is not a runtime settings service.  P10.4 reuses its pure
@@ -34,6 +34,10 @@ DEVELOPMENT_ROLE = 'polybot_dev'
 DEVELOPMENT_BETA_APPLICATION_ID = 479029527553638401
 DEVELOPMENT_BETA_GUILD_ID = 478571892832206869
 DEVELOPMENT_STAFF_HELP_CHANNEL_ID = 480078679930830849
+PRODUCTION_ENVIRONMENT = 'production'
+PRODUCTION_DATABASE = 'polytopia2'
+PRODUCTION_ROLE = 'polyelo'
+PRODUCTION_APPLICATION_ID = 484067640302764042
 IMPORT_ACTOR = 'p10.3-development-static-import'
 IMPORT_SOURCE_KIND = 'legacy_static_import'
 IMPORT_EVENT_TYPE = 'initial_import'
@@ -263,27 +267,28 @@ CREATE_SCHEMA_STATEMENTS = (
 def validate_target(target: StorageTarget) -> StorageTarget:
     if not isinstance(target, StorageTarget):
         raise GuildConfigurationStorageError('A frozen storage target is required.')
-    if target.environment != DEVELOPMENT_ENVIRONMENT:
-        raise GuildConfigurationStorageError('P10.3 storage is development-only.')
-    if target.database_name != DEVELOPMENT_DATABASE:
+    development = StorageTarget(
+        environment=DEVELOPMENT_ENVIRONMENT,
+        database_name=DEVELOPMENT_DATABASE,
+        database_user=DEVELOPMENT_ROLE,
+        expected_application_id=DEVELOPMENT_BETA_APPLICATION_ID,
+        background_tasks_enabled=False,
+        api_enabled=False,
+        bullet_enabled=False,
+    )
+    production = StorageTarget(
+        environment=PRODUCTION_ENVIRONMENT,
+        database_name=PRODUCTION_DATABASE,
+        database_user=PRODUCTION_ROLE,
+        expected_application_id=PRODUCTION_APPLICATION_ID,
+        background_tasks_enabled=True,
+        api_enabled=False,
+        bullet_enabled=True,
+    )
+    if target not in {development, production}:
         raise GuildConfigurationStorageError(
-            f'P10.3 requires database {DEVELOPMENT_DATABASE!r}.'
-        )
-    if target.database_user != DEVELOPMENT_ROLE:
-        raise GuildConfigurationStorageError(
-            f'P10.3 requires role {DEVELOPMENT_ROLE!r}.'
-        )
-    if target.expected_application_id != DEVELOPMENT_BETA_APPLICATION_ID:
-        raise GuildConfigurationStorageError(
-            'P10.3 requires the reviewed development application identity.'
-        )
-    if (
-        target.background_tasks_enabled
-        or target.api_enabled
-        or target.bullet_enabled
-    ):
-        raise GuildConfigurationStorageError(
-            'P10.3 requires disabled background tasks, API, and Bullet.'
+            'Guild-configuration storage requires an exact reviewed '
+            'development or production runtime target.'
         )
     return target
 
@@ -297,7 +302,7 @@ def validate_live_identity(
     validate_target(target)
     if actual_database != target.database_name or actual_user != target.database_user:
         raise GuildConfigurationStorageError(
-            'Development database identity mismatch: expected '
+            'Database identity mismatch: expected '
             f'{target.database_name!r}/{target.database_user!r}, received '
             f'{actual_database!r}/{actual_user!r}.'
         )
@@ -360,8 +365,10 @@ def validate_discord_snapshot(
         raise GuildConfigurationStorageError('Unsupported Discord snapshot version.')
     if root['kind'] != 'guild_configuration_discord_snapshot':
         raise GuildConfigurationStorageError('Unexpected Discord snapshot kind.')
-    if root['environment'] != DEVELOPMENT_ENVIRONMENT:
-        raise GuildConfigurationStorageError('Discord snapshot is not development.')
+    if root['environment'] != target.environment:
+        raise GuildConfigurationStorageError(
+            'Discord snapshot environment does not match the runtime target.'
+        )
     if root['application_id'] != target.expected_application_id:
         raise GuildConfigurationStorageError('Discord snapshot application mismatch.')
     guilds = root['guilds']
@@ -560,8 +567,9 @@ def build_import_bundle(
     server_settings: Any,
     allowed_guild_ids: Sequence[int],
     discord_snapshot: Mapping[str, Any],
+    guild_type_overrides: Mapping[int, str] | None = None,
 ) -> ImportBundle:
-    """Materialize every explicit development guild without database I/O."""
+    """Materialize every explicit static guild without database I/O."""
 
     validate_target(target)
     allowed = tuple(sorted({
@@ -583,6 +591,27 @@ def build_import_bundle(
         raise GuildConfigurationStorageError(
             'Server-settings guild inventory does not match the allowlist exactly.'
         )
+    normalized_types: dict[int, str] | None = None
+    if guild_type_overrides is not None:
+        from modules import guild_types
+
+        if not isinstance(guild_type_overrides, Mapping):
+            raise GuildConfigurationStorageError(
+                'Guild-type overrides must be an exact guild-ID mapping.'
+            )
+        if tuple(sorted(guild_type_overrides)) != allowed:
+            raise GuildConfigurationStorageError(
+                'Guild-type overrides do not match the allowlist exactly.'
+            )
+        try:
+            normalized_types = {
+                guild_id: guild_types.normalize_guild_type(
+                    guild_type_overrides[guild_id]
+                )
+                for guild_id in allowed
+            }
+        except guild_types.GuildTypeError as exc:
+            raise GuildConfigurationStorageError(str(exc)) from exc
     policy = policy_from_server_settings(server_settings, allowed)
     defaults = server_list['default']
     imports = []
@@ -611,6 +640,14 @@ def build_import_bundle(
             )
         except GuildConfigurationError as exc:
             raise GuildConfigurationStorageError(str(exc)) from exc
+        if normalized_types is not None:
+            try:
+                document = guild_types.apply_guild_type(
+                    document,
+                    normalized_types[guild_id],
+                )
+            except guild_types.GuildTypeError as exc:
+                raise GuildConfigurationStorageError(str(exc)) from exc
         _validate_document_references(document, snapshots[guild_id])
         source_payload = {
             'guild_id': guild_id,
@@ -633,6 +670,8 @@ def build_import_bundle(
             },
             'effective_staff_help_channel_override': route_override,
         }
+        if normalized_types is not None:
+            source_payload['migration_guild_type'] = normalized_types[guild_id]
         imports.append(GuildImport(
             guild_id=guild_id,
             document=document,
@@ -914,6 +953,11 @@ def apply_storage(
     """Create/import atomically; exact repeats verify as no-ops."""
 
     validate_target(target)
+    if target.environment == PRODUCTION_ENVIRONMENT:
+        raise GuildConfigurationStorageError(
+            'Production guild-configuration apply is not enabled by the '
+            'source-only preparation unit.'
+        )
     if not isinstance(bundle, ImportBundle) or not _HEX_DIGEST.fullmatch(
         bundle.bundle_digest
     ):
@@ -991,6 +1035,10 @@ __all__ = [
     'GuildImport',
     'IMPORT_ACTOR',
     'ImportBundle',
+    'PRODUCTION_APPLICATION_ID',
+    'PRODUCTION_DATABASE',
+    'PRODUCTION_ENVIRONMENT',
+    'PRODUCTION_ROLE',
     'REGISTRY_TABLE',
     'REVISION_TABLE',
     'SNAPSHOT_SCHEMA_VERSION',

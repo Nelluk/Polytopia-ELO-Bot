@@ -19,6 +19,8 @@ and releases are kept in Git history instead of the current documentation tree.
   production authority; not the generic self-hosting path.
 - [Application-command deployment](APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md)
   — upstream explicit guild-only planning, inspection, and synchronization.
+- [Production guild configuration](PRODUCTION_GUILD_CONFIGURATION.md) —
+  reviewed static-to-database preparation, cutover, and rollback boundary.
 
 ## Upstream development operations
 
