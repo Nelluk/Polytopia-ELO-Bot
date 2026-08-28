@@ -174,22 +174,11 @@ def _matches_status(game, status: str) -> bool:
     return status == 'all' or _status(game) == status
 
 
-def _target_outcome(game, players, teams) -> str:
-    if not game.is_completed or not game.is_confirmed:
+def _game_outcome(game) -> str:
+    if not game.is_completed or not game.winner_id:
         return '—'
-    if players:
-        _, side = game.has_player(player=players[0])
-        return 'Win' if side and game.winner_id == side.id else 'Loss'
-    if teams:
-        side = next(
-            (
-                game_side for game_side in game.gamesides
-                if game_side.team_id == teams[0].id
-            ),
-            None,
-        )
-        return 'Win' if side and game.winner_id == side.id else 'Loss'
-    return '—'
+    label = 'Winner' if game.is_confirmed else 'Claimed winner'
+    return f'{label}: {game.winner.name()}'
 
 
 def _model_id(value) -> int | None:
@@ -665,7 +654,7 @@ def load_game_search(request: GameSearchRequest) -> GameSearchSnapshot:
                 name=str(game.name or f'Game {game.id}'),
                 date=str(game.date),
                 status=_status(game),
-                outcome=_target_outcome(game, players, teams),
+                outcome=_game_outcome(game),
                 ranked=bool(game.is_ranked),
                 size=str(game.size_string()),
                 roster=str(game.get_gamesides_string()),

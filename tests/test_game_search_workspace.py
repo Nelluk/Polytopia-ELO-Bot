@@ -35,7 +35,7 @@ def snapshot(
                 name=f'Game {index + 1}',
                 date='2026-07-30',
                 status='completed',
-                outcome='Win',
+                outcome='Winner: Nelluk',
                 ranked=True,
                 size='2v2',
                 roster='Nelluk vs Ronin',
@@ -105,6 +105,25 @@ class GameSearchRegistrationTests(unittest.TestCase):
 
 
 class GameSearchViewTests(unittest.IsolatedAsyncioTestCase):
+    def test_completed_row_names_winner_explicitly(self):
+        row = workers.GameSearchRow(
+            game_id=153877,
+            name='Stone S22W1 Oomiian Sleds',
+            date='2026-05-17',
+            status='completed',
+            outcome='Winner: The Souls',
+            ranked=True,
+            size='3v3',
+            roster='The InFatis vs The Souls',
+            notes='',
+            channel_mention='',
+        )
+
+        rendered = views._row_text(row)
+
+        self.assertIn('Ranked · Winner: The Souls', rendered)
+        self.assertNotIn(' · Win\n', rendered)
+
     async def test_public_result_has_requester_only_controls(self):
         view = views.GameSearchWorkspace(
             requester_id=10,
@@ -308,6 +327,32 @@ class GameSearchViewTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GameSearchWorkerTests(unittest.IsolatedAsyncioTestCase):
+    def test_completed_outcome_names_confirmed_and_claimed_winners(self):
+        winner = SimpleNamespace(name=lambda: 'The Souls')
+        game = SimpleNamespace(
+            is_completed=True,
+            is_confirmed=True,
+            winner_id=7,
+            winner=winner,
+        )
+
+        self.assertEqual(workers._game_outcome(game), 'Winner: The Souls')
+
+        game.is_confirmed = False
+        self.assertEqual(
+            workers._game_outcome(game),
+            'Claimed winner: The Souls',
+        )
+
+    def test_incomplete_outcome_omits_winner(self):
+        game = SimpleNamespace(
+            is_completed=False,
+            is_confirmed=False,
+            winner_id=None,
+        )
+
+        self.assertEqual(workers._game_outcome(game), '—')
+
     def test_request_and_result_are_immutable(self):
         request = workers.GameSearchRequest(
             guild_id=1,
