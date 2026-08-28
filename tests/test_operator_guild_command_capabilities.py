@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import discord
+
 import bot as bot_module
 from modules import administration
 from modules import operator_guild_command_capabilities as service
@@ -169,6 +171,26 @@ class PurePlanAndApplyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bot.tree.clear_scope, GUILD_ID)
         self.assertEqual(bot.tree.add_scope, GUILD_ID)
         self.assertEqual(bot.tree.fetch_scopes.count(None), 3)
+
+    def test_local_guild_install_does_not_copy_live_command_binding(self):
+        class UncopyableCommand:
+            name = 'game'
+
+            def __deepcopy__(self, _memo):
+                raise TypeError('cannot copy live binding')
+
+        command = UncopyableCommand()
+        descriptor = SimpleNamespace(name='game', command=command)
+        tree = SimpleNamespace(
+            clear_commands=mock.Mock(),
+            add_command=mock.Mock(),
+        )
+        guild = discord.Object(id=GUILD_ID)
+
+        service._replace_local_guild_commands(tree, (descriptor,), guild)
+
+        tree.clear_commands.assert_called_once_with(guild=guild)
+        tree.add_command.assert_called_once_with(command, guild=guild)
 
     async def test_remote_drift_blocks_apply_without_sync(self):
         current = tuple(FakeCommand(name) for name in (

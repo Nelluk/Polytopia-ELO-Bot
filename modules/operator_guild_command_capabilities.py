@@ -7,7 +7,6 @@ remote guild apply.  It has no database imports and no global sync path.
 
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -207,6 +206,25 @@ def _digest(value: Mapping[str, Any]) -> str:
         separators=(',', ':'),
     ).encode('utf-8')
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _replace_local_guild_commands(
+    tree: Any,
+    desired: Sequence[Any],
+    guild: discord.Object,
+) -> None:
+    """Install source templates without deep-copying their live cog bindings."""
+
+    tree.clear_commands(guild=guild)
+    for descriptor in desired:
+        if descriptor.command is None:
+            raise OperatorGuildCommandCapabilityError(
+                f'No local template exists for command root {descriptor.name!r}.'
+            )
+        # This matches discord.py's copy_global_to(): one command object may
+        # safely occupy global and guild mappings. Deepcopy would traverse the
+        # bound cog and fail on normal runtime objects such as thread locks.
+        tree.add_command(descriptor.command, guild=guild)
 
 
 async def inspect_command_plan(
@@ -420,13 +438,7 @@ async def apply_command_plan(
             'The local command source changed after preview; open a fresh plan.'
         )
     if desired.diff.has_changes:
-        bot.tree.clear_commands(guild=guild)
-        for descriptor in desired.desired:
-            if descriptor.command is None:
-                raise OperatorGuildCommandCapabilityError(
-                    f'No local template exists for command root {descriptor.name!r}.'
-                )
-            bot.tree.add_command(copy.deepcopy(descriptor.command), guild=guild)
+        _replace_local_guild_commands(bot.tree, desired.desired, guild)
         synced = tuple(await bot.tree.sync(guild=guild))
     else:
         synced = ()
@@ -469,4 +481,5 @@ __all__ = [
     'apply_command_plan',
     'candidate_policy',
     'inspect_command_plan',
+    '_replace_local_guild_commands',
 ]

@@ -503,6 +503,10 @@ class administration(commands.Cog):
             except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError:
                 raise
             except Exception as exc:
+                logger.exception(
+                    'Unexpected exact guild command apply failure for guild %s',
+                    plan.guild_id,
+                )
                 raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
                     'The exact guild command apply could not be verified. No '
                     'database revision was written; open a fresh plan before retrying.'
