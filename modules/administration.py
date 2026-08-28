@@ -1616,13 +1616,37 @@ class administration(commands.Cog):
                 operator_guild_configuration_workers.GuildConfigurationReadResult,
         ):
             return result
-        view = operator_guild_console_views.GuildRegistryConsole(
+        view = self._operator_guild_console_view(interaction, result)
+        await operator_guild_console_views.publish_private(interaction, view)
+        return view
+
+    def _operator_guild_console_view(
+        self,
+        interaction: discord.Interaction,
+        result: operator_guild_configuration_workers.GuildConfigurationReadResult,
+    ):
+        return operator_guild_console_views.GuildRegistryConsole(
             requester_id=int(interaction.user.id),
             result=result,
             runner=self._operator_guild_console_action,
         )
-        await operator_guild_console_views.publish_private(interaction, view)
-        return view
+
+    async def _operator_guild_console_back(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        result = await self._operator_guild_configuration_read(
+            interaction,
+            operation=operator_guild_configuration_workers.LIST,
+            publish=False,
+        )
+        if not isinstance(
+                result,
+                operator_guild_configuration_workers.GuildConfigurationReadResult,
+        ):
+            return
+        view = self._operator_guild_console_view(interaction, result)
+        await operator_guild_console_views.replace_private(interaction, view)
 
     async def _operator_guild_console_action(
         self,
@@ -1631,10 +1655,24 @@ class administration(commands.Cog):
         target_guild_id: int,
     ) -> None:
         if action == operator_guild_console_views.VALIDATE:
-            await self._operator_guild_configuration_read(
+            result = await self._operator_guild_configuration_read(
                 interaction,
                 operation=operator_guild_configuration_workers.VALIDATE,
                 target_guild_id=target_guild_id,
+                publish=False,
+            )
+            if not isinstance(
+                    result,
+                    operator_guild_configuration_workers.GuildConfigurationReadResult,
+            ):
+                return
+            view = operator_guild_console_views.GuildValidationWorkspace(
+                requester_id=int(interaction.user.id),
+                result=result,
+                back_runner=self._operator_guild_console_back,
+            )
+            await operator_guild_console_views.replace_private(
+                interaction, view,
             )
             return
 
@@ -1654,8 +1692,9 @@ class administration(commands.Cog):
                 requester_id=int(interaction.user.id),
                 result=result,
                 rollback_runner=self._operator_guild_console_rollback,
+                back_runner=self._operator_guild_console_back,
             )
-            await operator_guild_console_views.publish_history(
+            await operator_guild_console_views.replace_private(
                 interaction, view,
             )
             return
@@ -1681,14 +1720,11 @@ class administration(commands.Cog):
                     preview=preview,
                     command_plan=plan,
                     runner=self._operator_guild_lifecycle_commit,
+                    back_runner=self._operator_guild_console_back,
                 )
-                message = await interaction.followup.send(
-                    view=view,
-                    ephemeral=True,
-                    wait=True,
-                    allowed_mentions=discord.AllowedMentions.none(),
+                await operator_guild_console_views.replace_private(
+                    interaction, view,
                 )
-                view.message = message
             except (
                 operator_guild_lifecycle_workers.OperatorGuildLifecycleError,
                 operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
@@ -1724,6 +1760,7 @@ class administration(commands.Cog):
                         guild_name=str(guild.name),
                         plan=plan,
                         runner=self._operator_guild_command_commit,
+                        back_runner=self._operator_guild_console_back,
                     )
                 )
                 await operator_guild_command_capability_views.publish_private(
@@ -1762,8 +1799,9 @@ class administration(commands.Cog):
                             guild
                         )
                     ),
+                    back_runner=self._operator_guild_console_back,
                 )
-                await operator_guild_delegation_views.publish_private(
+                await operator_guild_console_views.replace_private(
                     interaction, view,
                 )
             except operator_guild_delegation_workers.OperatorGuildDelegationError as exc:
@@ -1805,9 +1843,10 @@ class administration(commands.Cog):
                         self._operator_guild_draft_operation,
                         target_guild_id=int(target_guild_id),
                     ),
+                    back_runner=self._operator_guild_console_back,
                 )
             )
-            await operator_guild_configuration_rollback_views.publish_private(
+            await operator_guild_console_views.replace_private(
                 interaction, view,
             )
         except operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError as exc:

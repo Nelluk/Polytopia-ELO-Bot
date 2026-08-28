@@ -10,6 +10,7 @@ import discord
 
 from modules import components_v2
 from modules import operator_guild_command_capabilities as commands
+from modules import operator_guild_console_views as console
 from modules import operator_guild_lifecycle_workers as workers
 
 
@@ -84,12 +85,14 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
         preview: workers.GuildLifecyclePreview,
         command_plan: commands.GuildCommandCapabilityPlan,
         runner: Runner,
+        back_runner: console.BackRunner | None = None,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
         self.preview = preview
         self.command_plan = command_plan
         self.runner = runner
+        self.back_runner = back_runner
         self.busy = False
         self.terminal = False
         self.status = 'Review the exact lifecycle and Discord command-tree evidence.'
@@ -119,7 +122,8 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
         self.status = 'Cancelled. No lifecycle or command-tree change was made.'
         self.rebuild()
         await interaction.response.edit_message(view=self)
-        self.stop()
+        if self.back_runner is None:
+            self.stop()
 
     async def commit(self, interaction: Any, confirmation: str) -> None:
         if not await self.authorize(interaction):
@@ -212,7 +216,8 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
                     'Could not publish guild-lifecycle success fallback for guild %s',
                     self.preview.guild_id,
                 )
-        self.stop()
+        if self.back_runner is None:
+            self.stop()
 
     def rebuild(self) -> None:
         self.clear_items()
@@ -245,6 +250,11 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
             disabled=self.busy or self.terminal,
         )
         cancel.callback = self._cancel
+        controls = [confirm, cancel]
+        if self.back_runner is not None:
+            controls.append(console.guild_list_back_button(
+                self, self.back_runner, disabled=self.busy,
+            ))
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(
                 f'# {preview.action.title()} guild\n'
@@ -269,7 +279,7 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(f'**Status:** {_escape(self.status)}'),
-            discord.ui.ActionRow(confirm, cancel),
+            discord.ui.ActionRow(*controls),
             accent_colour=discord.Colour.orange(),
         ))
 

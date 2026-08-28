@@ -516,15 +516,24 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         async def runner(*_args, **_kwargs):
             return result
 
+        async def back_runner(_interaction):
+            return None
+
         workspace = views.GuildConfigurationRollbackWorkspace(
             requester_id=OWNER_ID,
             result=result,
             runner=runner,
+            back_runner=back_runner,
         )
         modal = views.GuildConfigurationRollbackModal(workspace)
         self.assertEqual(modal.expected, result.rollback_preview.confirmation)
         self.assertEqual(modal.confirmation.max_length, len(modal.expected))
         self.assertIn(result.rollback_preview.source_document_digest, str(workspace.to_components()))
+        self.assertTrue(any(
+            item.label == 'Back to server list'
+            for item in workspace.walk_children()
+            if hasattr(item, 'label')
+        ))
 
     async def test_committed_panel_edit_failure_uses_truthful_fallback(self):
         preview = preview_result()

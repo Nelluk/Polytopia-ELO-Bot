@@ -115,6 +115,44 @@ class GuildRegistryConsoleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(buttons['Managers'].disabled)
         self.assertTrue(buttons['Repair commands'].disabled)
 
+    async def test_validation_back_button_returns_to_fresh_server_list(self):
+        called = []
+
+        async def back_runner(interaction):
+            called.append(interaction)
+
+        selected = record(1)
+        result = workers.GuildConfigurationReadResult(
+            operation=workers.VALIDATE,
+            guild_id=selected.guild_id,
+            records=(selected,),
+            selected=selected,
+            validation=workers.GuildConfigurationValidationSummary(
+                storage_schema_valid=True,
+                database_identity_valid=True,
+                active_document_valid=True,
+                live_references_valid=True,
+                running_snapshot_current=True,
+            ),
+        )
+        workspace = views.GuildValidationWorkspace(
+            requester_id=OWNER_ID,
+            result=result,
+            back_runner=back_runner,
+        )
+        back = next(
+            item for item in workspace.walk_children()
+            if isinstance(item, discord.ui.Button)
+            and item.label == 'Back to server list'
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=OWNER_ID),
+            guild_id=None,
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        await back.callback(interaction)
+        self.assertEqual(called, [interaction])
+
 
 class GuildHistoryWorkspaceTests(unittest.TestCase):
     def test_history_exposes_earlier_revision_restore_in_same_workflow(self):
@@ -145,12 +183,18 @@ class GuildHistoryWorkspaceTests(unittest.TestCase):
             requester_id=OWNER_ID,
             result=result,
             rollback_runner=rollback,
+            back_runner=rollback,
         )
         select = next(
             item for item in workspace.walk_children()
             if isinstance(item, discord.ui.Select)
         )
         self.assertEqual([option.value for option in select.options], ['2', '1'])
+        self.assertTrue(any(
+            isinstance(item, discord.ui.Button)
+            and item.label == 'Back to server list'
+            for item in workspace.walk_children()
+        ))
         self.assertLessEqual(workspace.total_children_count, 40)
 
 

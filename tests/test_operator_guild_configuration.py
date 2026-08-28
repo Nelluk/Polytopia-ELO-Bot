@@ -551,6 +551,31 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(options['ephemeral'])
         self.assertIs(returned, mock.sentinel.message)
 
+    async def test_back_refreshes_registry_and_replaces_current_panel(self):
+        interaction = SimpleNamespace(user=SimpleNamespace(id=OWNER_ID))
+        result = workers.GuildConfigurationReadResult(
+            operation=workers.LIST,
+            guild_id=GUILD_ID,
+            records=(),
+        )
+        self.cog._operator_guild_configuration_read = mock.AsyncMock(
+            return_value=result,
+        )
+        view = mock.sentinel.view
+        self.cog._operator_guild_console_view = mock.Mock(return_value=view)
+        with mock.patch.object(
+                operator_guild_console_views,
+                'replace_private',
+                new=mock.AsyncMock(),
+        ) as replace_private:
+            await self.cog._operator_guild_console_back(interaction)
+        self.cog._operator_guild_configuration_read.assert_awaited_once_with(
+            interaction,
+            operation=workers.LIST,
+            publish=False,
+        )
+        replace_private.assert_awaited_once_with(interaction, view)
+
 
 if __name__ == '__main__':
     unittest.main()

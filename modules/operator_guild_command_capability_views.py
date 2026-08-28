@@ -10,6 +10,7 @@ import discord
 
 from modules import components_v2
 from modules import operator_guild_command_capabilities as service
+from modules import operator_guild_console_views as console
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -79,12 +80,14 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
         guild_name: str,
         plan: service.GuildCommandCapabilityPlan,
         runner: Runner,
+        back_runner: console.BackRunner | None = None,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
         self.guild_name = str(guild_name)
         self.plan = plan
         self.runner = runner
+        self.back_runner = back_runner
         self.busy = False
         self.terminal = False
         self.status = (
@@ -245,7 +248,12 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
             disabled=self.busy or self.terminal,
         )
         confirm.callback = self._confirm
-        children.append(discord.ui.ActionRow(confirm))
+        controls = [confirm]
+        if self.back_runner is not None:
+            controls.append(console.guild_list_back_button(
+                self, self.back_runner, disabled=self.busy,
+            ))
+        children.append(discord.ui.ActionRow(*controls))
         self.add_item(discord.ui.Container(
             *children,
             accent_colour=components_v2.DEFAULT_ACCENT,

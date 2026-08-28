@@ -332,14 +332,23 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
         async def runner(*_args, **_kwargs):
             return result
 
+        async def back_runner(_interaction):
+            return None
+
         workspace = views.GuildDelegationWorkspace(
             requester_id=OWNER_ID, result=result, runner=runner,
             role_names={200: 'Managers'},
+            back_runner=back_runner,
         )
         self.assertRegex(workspace.confirmation, rf'^DELEGATE {GUILD_ID} [0-9a-f]{{64}}$')
         modal = views.DelegationConfirmationModal(workspace)
         self.assertEqual(modal.expected, workspace.confirmation)
         self.assertEqual(modal.confirmation.min_length, len(modal.expected))
+        self.assertTrue(any(
+            isinstance(item, discord.ui.Button)
+            and item.label == 'Back to server list'
+            for item in workspace.walk_children()
+        ))
 
     def test_remote_manager_roles_resolve_exact_name_or_id_and_refuse_ambiguity(self):
         result = workers.GuildDelegationResult(

@@ -12,6 +12,8 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import discord
+
 from modules import administration
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_storage as storage
@@ -589,9 +591,12 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         async def runner(*_args):
             raise AssertionError('not called')
 
+        async def back_runner(_interaction):
+            return None
+
         workspace = views.GuildLifecycleWorkspace(
             requester_id=OWNER_ID, preview=preview,
-            command_plan=plan, runner=runner,
+            command_plan=plan, runner=runner, back_runner=back_runner,
         )
         modal = views.GuildLifecycleConfirmationModal(workspace)
         self.assertEqual(modal.expected, preview.confirmation('d' * 64))
@@ -600,6 +605,11 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             response=SimpleNamespace(send_message=mock.AsyncMock()),
         )
         self.assertFalse(await workspace.authorize(denied))
+        self.assertTrue(any(
+            isinstance(item, discord.ui.Button)
+            and item.label == 'Back to server list'
+            for item in workspace.walk_children()
+        ))
 
     async def test_confirmation_mismatch_stops_before_replan_or_database(self):
         cog = administration.administration.__new__(administration.administration)

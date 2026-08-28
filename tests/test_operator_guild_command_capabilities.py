@@ -475,11 +475,15 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         async def runner(*_args):
             raise AssertionError('not called')
 
+        async def back_runner(_interaction):
+            return None
+
         workspace = views.GuildCommandCapabilityWorkspace(
             requester_id=OWNER_ID,
             guild_name='Target',
             plan=plan,
             runner=runner,
+            back_runner=back_runner,
         )
         modal = views.GuildCommandCapabilityConfirmationModal(workspace)
         self.assertEqual(modal.expected, plan.confirmation)
@@ -489,6 +493,11 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             response=SimpleNamespace(send_message=mock.AsyncMock()),
         )
         self.assertFalse(await workspace.interaction_check(denied))
+        self.assertTrue(any(
+            item.label == 'Back to server list'
+            for item in workspace.walk_children()
+            if hasattr(item, 'label')
+        ))
 
     async def test_successful_commit_uses_private_fallback_if_terminal_edit_fails(self):
         bot = command_bot(current=tuple(FakeCommand(name) for name in (

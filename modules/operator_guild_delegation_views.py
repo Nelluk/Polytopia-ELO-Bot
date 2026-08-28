@@ -9,6 +9,7 @@ import discord
 
 from modules import components_v2
 from modules import guild_configuration_delegation_storage as storage
+from modules import operator_guild_console_views as console
 from modules import operator_guild_delegation_workers as workers
 
 
@@ -95,11 +96,13 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
         result: workers.GuildDelegationResult,
         runner: Runner,
         role_names: Mapping[int, str],
+        back_runner: console.BackRunner | None = None,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
         self.result = result
         self.runner = runner
+        self.back_runner = back_runner
         self.role_names = dict(role_names)
         policy = result.policy
         self.manager_role_ids = (
@@ -352,8 +355,16 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
             disabled=self.busy,
         )
         apply.callback = self._confirm
+        children.append(
+            discord.ui.ActionRow(add, remove, activation, disable, apply)
+        )
+        if self.back_runner is not None:
+            children.append(discord.ui.ActionRow(
+                console.guild_list_back_button(
+                    self, self.back_runner, disabled=self.busy,
+                )
+            ))
         children.extend((
-            discord.ui.ActionRow(add, remove, activation, disable, apply),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Status:** {discord.utils.escape_markdown(self.status)}\n'

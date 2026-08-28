@@ -23,6 +23,7 @@ COMMANDS = 'commands'
 
 ActionRunner = Callable[[Any, str, int], Awaitable[None]]
 RollbackRunner = Callable[[Any, int, int], Awaitable[None]]
+BackRunner = Callable[[Any], Awaitable[None]]
 
 
 def _escape(value: Any) -> str:
@@ -33,6 +34,32 @@ def _escape(value: Any) -> str:
 
 def _trim(value: str, limit: int) -> str:
     return value if len(value) <= limit else value[:limit - 1].rstrip() + '…'
+
+
+def guild_list_back_button(
+    view: components_v2.RequesterLayoutView,
+    runner: BackRunner,
+    *,
+    disabled: bool = False,
+) -> discord.ui.Button:
+    """Build a requester-bound button that reloads the owner guild console."""
+
+    button = discord.ui.Button(
+        label='Back to server list',
+        disabled=disabled,
+    )
+
+    async def callback(interaction: Any) -> None:
+        if not await view.authorize(interaction):
+            return
+        if bool(getattr(view, 'busy', False)):
+            return await interaction.response.send_message(
+                'Wait for the current server action to finish.', ephemeral=True,
+            )
+        await runner(interaction)
+
+    button.callback = callback
+    return button
 
 
 class GuildRegistryConsole(components_v2.RequesterLayoutView):
@@ -251,8 +278,8 @@ class GuildRegistryConsole(components_v2.RequesterLayoutView):
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Status:** {_escape(self.status)}\n'
-                '-# Read-only actions open separately. Changes always receive '
-                'their own target-bound preview and confirmation.'
+                '-# Actions stay in this panel. Use **Back to server list** '
+                'to return; changes still require a target-bound confirmation.'
             ),
         ))
         self.add_item(discord.ui.Container(
@@ -275,6 +302,7 @@ class GuildHistoryWorkspace(components_v2.RequesterLayoutView):
         requester_id: int,
         result: workers.GuildConfigurationReadResult,
         rollback_runner: RollbackRunner,
+        back_runner: BackRunner | None = None,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
@@ -282,6 +310,7 @@ class GuildHistoryWorkspace(components_v2.RequesterLayoutView):
             raise ValueError('The history workspace requires one selected guild.')
         self.result = result
         self.rollback_runner = rollback_runner
+        self.back_runner = back_runner
         self.selected_revision: int | None = None
         self.busy = False
         self.rebuild()
@@ -397,6 +426,12 @@ class GuildHistoryWorkspace(components_v2.RequesterLayoutView):
                 'No earlier revision is available to restore.'
             )
             children.append(discord.ui.TextDisplay(f'-# {reason}'))
+        if self.back_runner is not None:
+            children.append(discord.ui.ActionRow(
+                guild_list_back_button(
+                    self, self.back_runner, disabled=self.busy,
+                )
+            ))
         children.append(discord.ui.TextDisplay(
             '-# Restore always creates a new revision; history is never erased '
             'or rewound.'
@@ -404,6 +439,66 @@ class GuildHistoryWorkspace(components_v2.RequesterLayoutView):
         self.add_item(discord.ui.Container(
             *children,
             accent_colour=components_v2.DEFAULT_ACCENT,
+        ))
+
+
+class GuildValidationWorkspace(components_v2.RequesterLayoutView):
+    """Read-only validation result with a route back to the guild console."""
+
+    def __init__(
+        self,
+        *,
+        requester_id: int,
+        result: workers.GuildConfigurationReadResult,
+        back_runner: BackRunner,
+        timeout: float = 600.0,
+    ):
+        super().__init__(requester_id=int(requester_id), timeout=timeout)
+        if (
+                result.operation != workers.VALIDATE
+                or result.selected is None
+                or result.validation is None
+        ):
+            raise ValueError('A complete validation result is required.')
+        validation = result.validation
+        if not all((
+                validation.storage_schema_valid,
+                validation.database_identity_valid,
+                validation.active_document_valid,
+                validation.live_references_valid,
+                validation.running_snapshot_current,
+        )):
+            raise ValueError('A failed validation cannot render as passed.')
+        self.result = result
+        self.back_runner = back_runner
+        self.rebuild()
+
+    @property
+    def page_count(self) -> int:
+        return 1
+
+    def rebuild(self) -> None:
+        self.clear_items()
+        selected = self.result.selected
+        assert selected is not None
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(
+                '# Configuration validation passed\n'
+                f'**Server:** {_escape(selected.display_name)} '
+                f'(`{selected.guild_id}`)\n'
+                f'**Revision:** `r{selected.active_revision}` · '
+                f'**Generation:** `g{selected.generation}`\n\n'
+                '✅ Exact development database and role\n'
+                '✅ Exact configuration storage schema\n'
+                '✅ Active document schema and digest\n'
+                '✅ Current Discord role/channel references\n'
+                '✅ Running revision, generation, and digest\n\n'
+                '-# Read-only; validation changed nothing.'
+            ),
+            discord.ui.ActionRow(
+                guild_list_back_button(self, self.back_runner)
+            ),
+            accent_colour=discord.Colour.green(),
         ))
 
 
@@ -429,10 +524,24 @@ async def publish_history(interaction: Any, view: GuildHistoryWorkspace):
     return message
 
 
+async def replace_private(
+    interaction: Any,
+    view: components_v2.RequesterLayoutView,
+):
+    message = await interaction.edit_original_response(
+        content=None,
+        embed=None,
+        view=view,
+    )
+    view.message = message
+    return message
+
+
 __all__ = [
     'COMMANDS',
     'GuildHistoryWorkspace',
     'GuildRegistryConsole',
+    'GuildValidationWorkspace',
     'HISTORY',
     'MANAGERS',
     'PAGE_SIZE',
@@ -441,4 +550,6 @@ __all__ = [
     'VALIDATE',
     'publish_private',
     'publish_history',
+    'replace_private',
+    'guild_list_back_button',
 ]
