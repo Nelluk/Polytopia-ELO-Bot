@@ -9,10 +9,13 @@ sync, configuration edit, deploy, stop, or restart.
 
 The source permits an exact production Discord snapshot, an offline import
 plan, digest-bound command planning, and an explicitly acknowledged atomic
-production import. Runtime database authority and the operator workers accept
-only the exact reviewed production application/database topology. None of
-those source paths runs at startup or from an ordinary deployment while the
-selector remains `static`.
+production import. The import can be staged while the running bot remains on
+`static` authority: all five tables are new, the transaction touches no
+existing application table, and the running bot does not read or write the new
+storage. Runtime database authority and the operator workers accept only the
+exact reviewed production application/database topology. None of those source
+paths runs at startup or from an ordinary deployment while the selector
+remains `static`.
 
 Verified on 2026-08-28:
 
@@ -53,24 +56,30 @@ The import must prove these invariants before any write:
 
 ## Minimal release and cutover
 
-1. Merge the reviewed source and deploy it while production remains on
-   `guild_configuration_source = static`. Do not sync commands. Verify identity,
-   schema plan, stable container, and the one-writer census.
-2. Capture one bounded live Discord role/channel snapshot and produce the
-   offline import bundle. Record its digest and the invariant summary above.
-   Because the static list is stable, recapture only if the static file or a
-   referenced Discord role/channel changes.
+1. Update the clean production checkout and build the reviewed image while the
+   existing bot continues running from its current immutable image. Retain the
+   running image ID, verify the new image still selects
+   `guild_configuration_source = static`, and do not recreate the bot or sync
+   commands.
+2. Through one-off containers using the reviewed image, capture one bounded
+   live Discord role/channel snapshot and produce the offline import bundle.
+   Record its digest and the invariant summary above. Because the static list
+   is stable, recapture only if the static file or a referenced Discord
+   role/channel changes.
 3. Inspect the exact per-guild Discord command diff from the digest-bound
    import plan.
    Expected policy effects are `/squad` and `/guild` on all active guilds,
    `/team` only on PolyChampions and PCPLUS, `/league` and `/house` only on
    PolyChampions, and staff help only where a destination exists.
-4. In one short approved maintenance action: take the normal production
-   backup, stop the production bot, verify zero production writers, atomically
-   create all five additive tables and import the 49 revision-one documents,
-   verify every row/digest, change the bound `config.ini` selector to
-   `database`, apply the reviewed guild command plans, and start the bot.
-5. Verify the authenticated identity, all 49 published runtime documents,
+4. After a normal production backup and separate database-write approval,
+   atomically stage all five additive tables and the 49 revision-one documents
+   while the existing bot continues running on static authority. Verify every
+   row and digest. An exact repeat is a verified no-op.
+5. In one short approved maintenance action, stop the production bot, verify
+   the staged bundle again, change the bound `config.ini` selector to
+   `database`, apply the reviewed guild command plans, and start the reviewed
+   image.
+6. Verify the authenticated identity, all 49 published runtime documents,
    stable restart count, and one writer. Smoke-test PolyChampions, PCPLUS,
    Polytopia Main, and one former legacy-Team house guild.
 
@@ -79,18 +88,19 @@ or soak period is required by the demonstrated risk.
 
 ## Prepared command shape
 
-After the reviewed source is deployed while the selector remains `static`, the
-read-only preparation commands run from `/srv/polyelo/PolyBot39`:
+After the reviewed image is built while the selector remains `static`, the
+read-only preparation commands run from `/srv/polyelo/PolyBot39`. Use one-off
+containers because the existing bot intentionally remains on its prior image:
 
 ```bash
-docker compose exec -T bot python \
+docker compose run --rm --no-deps --entrypoint python bot \
   scripts/manage_guild_configuration_storage.py snapshot
 
-docker compose exec -T bot python \
+docker compose run --rm --no-deps --entrypoint python bot \
   scripts/manage_guild_configuration_storage.py plan \
   --output logs/production/guild-configuration/import-plan.json
 
-docker compose exec -T bot python \
+docker compose run --rm --no-deps --entrypoint python bot \
   scripts/manage_application_commands.py \
   --environment production \
   --mode inspect \
@@ -99,22 +109,32 @@ docker compose exec -T bot python \
   logs/production/guild-configuration/import-plan.json
 ```
 
-These commands still cross the live-Discord inspection boundary and require
-that approval, but they do not write PostgreSQL or Discord.
+The snapshot and command inspection cross the live-Discord inspection boundary
+and require that approval, but none of these commands writes PostgreSQL or
+Discord.
 
-The following is deliberately only a command shape. It must not be run until
-the backup, database-write, Discord-apply, configuration-edit, and downtime
-approvals have been given and the printed digest placeholders have been
-replaced with the exact reviewed values:
+The following online staging command is deliberately only a command shape. It
+must not be run until the backup and database-write approvals have been given
+and the placeholder has been replaced with the exact
+`online_static_staging_confirmation` printed by the reviewed plan. The command
+refuses production profiles whose bound selector is not exactly `static`:
+
+```bash
+docker compose run --rm --no-deps --entrypoint python bot \
+  scripts/manage_guild_configuration_storage.py stage \
+  --snapshot logs/production/guild-configuration/discord-snapshot.json \
+  --confirm 'PRODUCTION GUILD CONFIGURATION ONLINE STATIC STAGE <bundle-digest>'
+
+docker compose run --rm --no-deps --entrypoint python bot \
+  scripts/manage_guild_configuration_storage.py verify \
+  --snapshot logs/production/guild-configuration/discord-snapshot.json
+```
+
+After staging has verified, the following remains the separately approved
+downtime, configuration-edit, and Discord-write boundary:
 
 ```bash
 docker compose stop bot
-
-docker compose run --rm --no-deps --entrypoint python bot \
-  scripts/manage_guild_configuration_storage.py apply \
-  --snapshot logs/production/guild-configuration/discord-snapshot.json \
-  --confirm 'PRODUCTION GUILD CONFIGURATION APPLY <bundle-digest>' \
-  --production-maintenance
 
 docker compose run --rm --no-deps --entrypoint python bot \
   scripts/manage_guild_configuration_storage.py verify \
@@ -158,7 +178,7 @@ source approval:
 
 - deploying/recreating the production container while it remains static;
 - capturing or inspecting live Discord state;
-- writing the five tables and 49 imported configurations;
+- staging the five tables and 49 imported configurations while static;
 - editing `config.ini` to select database authority;
 - applying guild-scoped Discord commands; and
 - stopping or starting the production bot.

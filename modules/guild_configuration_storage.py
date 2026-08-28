@@ -42,6 +42,8 @@ IMPORT_ACTOR = 'p10.3-development-static-import'
 PRODUCTION_IMPORT_ACTOR = 'production-static-import'
 IMPORT_SOURCE_KIND = 'legacy_static_import'
 IMPORT_EVENT_TYPE = 'initial_import'
+PRODUCTION_MODE_MAINTENANCE = 'maintenance'
+PRODUCTION_MODE_ONLINE_STATIC_STAGE = 'online_static_stage'
 # P11.5C reads this existing immutable audit evidence; it deliberately does
 # not add a schema column or infer trust from the document's permissions.
 FIRST_GUILD_BOOTSTRAP_EVENT_TYPE = 'first_guild_bootstrap'
@@ -101,6 +103,21 @@ def confirmation_for_target(
     if target.environment == PRODUCTION_ENVIRONMENT:
         return f'PRODUCTION GUILD CONFIGURATION APPLY {bundle.bundle_digest}'
     return bundle.confirmation
+
+
+def online_staging_confirmation_for_target(
+    bundle: ImportBundle,
+    target: StorageTarget,
+) -> str:
+    validate_target(target)
+    if target.environment != PRODUCTION_ENVIRONMENT:
+        raise GuildConfigurationStorageError(
+            'Online static staging is supported only for production.'
+        )
+    return (
+        'PRODUCTION GUILD CONFIGURATION ONLINE STATIC STAGE '
+        f'{bundle.bundle_digest}'
+    )
 
 
 def import_actor_for_target(target: StorageTarget) -> str:
@@ -736,7 +753,7 @@ def bundle_to_mapping(
 
             statements.extend(drafts.CREATE_DRAFT_SCHEMA_STATEMENTS)
             statements.extend(delegation.CREATE_DELEGATION_SCHEMA_STATEMENTS)
-    return {
+    mapping = {
         'schema_version': bundle.schema_version,
         'storage_schema_version': bundle.storage_schema_version,
         'bundle_digest': bundle.bundle_digest,
@@ -752,6 +769,11 @@ def bundle_to_mapping(
         ],
         'planned_schema_statements': statements,
     }
+    if target is not None and target.environment == PRODUCTION_ENVIRONMENT:
+        mapping['online_static_staging_confirmation'] = (
+            online_staging_confirmation_for_target(bundle, target)
+        )
+    return mapping
 
 
 def bundle_from_mapping(
@@ -772,6 +794,8 @@ def bundle_from_mapping(
         'schema_version', 'storage_schema_version', 'bundle_digest',
         'confirmation', 'guilds', 'planned_schema_statements',
     }
+    if target.environment == PRODUCTION_ENVIRONMENT:
+        expected_fields.add('online_static_staging_confirmation')
     if set(root) != expected_fields:
         raise GuildConfigurationStorageError(
             'Import plan shape does not match the storage contract.'
@@ -1129,6 +1153,7 @@ def apply_storage(
     target: StorageTarget,
     bundle: ImportBundle,
     confirmation: str,
+    production_mode: str | None = None,
 ) -> StorageResult:
     """Create/import atomically; exact repeats verify as no-ops."""
 
@@ -1137,7 +1162,25 @@ def apply_storage(
         bundle.bundle_digest
     ):
         raise GuildConfigurationStorageError('A validated import bundle is required.')
-    expected_confirmation = confirmation_for_target(bundle, target)
+    if target.environment == PRODUCTION_ENVIRONMENT:
+        if production_mode == PRODUCTION_MODE_MAINTENANCE:
+            expected_confirmation = confirmation_for_target(bundle, target)
+        elif production_mode == PRODUCTION_MODE_ONLINE_STATIC_STAGE:
+            expected_confirmation = online_staging_confirmation_for_target(
+                bundle,
+                target,
+            )
+        else:
+            raise GuildConfigurationStorageError(
+                'Production storage requires an explicit maintenance or '
+                'online-static-stage mode.'
+            )
+    else:
+        if production_mode is not None:
+            raise GuildConfigurationStorageError(
+                'Production storage modes are not valid for development.'
+            )
+        expected_confirmation = confirmation_for_target(bundle, target)
     if confirmation != expected_confirmation:
         raise GuildConfigurationStorageError(
             f'Apply requires exact confirmation {expected_confirmation!r}.'
@@ -1234,6 +1277,8 @@ __all__ = [
     'PRODUCTION_DATABASE',
     'PRODUCTION_ENVIRONMENT',
     'PRODUCTION_IMPORT_ACTOR',
+    'PRODUCTION_MODE_MAINTENANCE',
+    'PRODUCTION_MODE_ONLINE_STATIC_STAGE',
     'PRODUCTION_ROLE',
     'REGISTRY_TABLE',
     'REVISION_TABLE',
@@ -1250,6 +1295,7 @@ __all__ = [
     'confirmation_for_target',
     'import_actor_for_target',
     'inspect_schema_inventory',
+    'online_staging_confirmation_for_target',
     'validate_discord_snapshot',
     'validate_document_references',
     'validate_live_identity',

@@ -407,6 +407,13 @@ class ImportBundleTests(unittest.TestCase):
             )
         )
         self.assertEqual(
+            production['online_static_staging_confirmation'],
+            storage.online_staging_confirmation_for_target(
+                value,
+                production_target(),
+            ),
+        )
+        self.assertEqual(
             storage.bundle_from_mapping(
                 production,
                 target=production_target(),
@@ -530,6 +537,44 @@ class ApplyAndVerifyTests(unittest.TestCase):
                 target=production_target(),
                 bundle=value,
                 confirmation=value.confirmation,
+                production_mode=storage.PRODUCTION_MODE_MAINTENANCE,
+            )
+        connection.cursor.assert_not_called()
+
+    def test_production_apply_requires_explicit_operation_mode(self):
+        connection = mock.Mock()
+        value = bundle()
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'explicit maintenance or online-static-stage mode',
+        ):
+            storage.apply_storage(
+                connection,
+                target=production_target(),
+                bundle=value,
+                confirmation=storage.confirmation_for_target(
+                    value,
+                    production_target(),
+                ),
+            )
+        connection.cursor.assert_not_called()
+
+    def test_online_stage_requires_its_distinct_confirmation(self):
+        connection = mock.Mock()
+        value = bundle()
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'ONLINE STATIC STAGE',
+        ):
+            storage.apply_storage(
+                connection,
+                target=production_target(),
+                bundle=value,
+                confirmation=storage.confirmation_for_target(
+                    value,
+                    production_target(),
+                ),
+                production_mode=storage.PRODUCTION_MODE_ONLINE_STATIC_STAGE,
             )
         connection.cursor.assert_not_called()
 
@@ -560,6 +605,7 @@ class ApplyAndVerifyTests(unittest.TestCase):
                 target=production_target(),
                 bundle=value,
                 confirmation=confirmation,
+                production_mode=storage.PRODUCTION_MODE_MAINTENANCE,
             )
         self.assertTrue(result.schema_created)
         auxiliary.assert_called_once_with(connection.cursor_value)
@@ -699,6 +745,21 @@ class ScriptTests(unittest.TestCase):
             server_settings=server_settings(),
         )
 
+    def production_profile(self, *, source='static'):
+        profile = self.profile()
+        profile.environment = storage.PRODUCTION_ENVIRONMENT
+        profile.database_name = storage.PRODUCTION_DATABASE
+        profile.database_user = storage.PRODUCTION_ROLE
+        profile.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        profile.background_tasks_enabled = True
+        profile.bullet_enabled = True
+        profile.guild_configuration_source = source
+        profile.allowed_guild_ids = tuple(range(1, 48)) + (
+            script.POLYCHAMPIONS_GUILD_ID,
+            script.PCPLUS_GUILD_ID,
+        )
+        return profile
+
     def test_plan_is_offline_and_does_not_open_database_or_discord(self):
         value = bundle()
         emitted = []
@@ -788,17 +849,7 @@ class ScriptTests(unittest.TestCase):
         )
 
     def test_production_apply_requires_maintenance_before_database_connection(self):
-        profile = self.profile()
-        profile.environment = storage.PRODUCTION_ENVIRONMENT
-        profile.database_name = storage.PRODUCTION_DATABASE
-        profile.database_user = storage.PRODUCTION_ROLE
-        profile.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
-        profile.background_tasks_enabled = True
-        profile.bullet_enabled = True
-        profile.allowed_guild_ids = tuple(range(1, 48)) + (
-            script.POLYCHAMPIONS_GUILD_ID,
-            script.PCPLUS_GUILD_ID,
-        )
+        profile = self.production_profile()
         with mock.patch.dict(
                 os.environ, {'POLYBOT_ENV': 'production'}, clear=True), \
                 mock.patch.object(script, '_profile', return_value=profile), \
@@ -815,17 +866,7 @@ class ScriptTests(unittest.TestCase):
         connection.assert_not_called()
 
     def test_acknowledged_production_apply_uses_no_beta_writer_lock(self):
-        profile = self.profile()
-        profile.environment = storage.PRODUCTION_ENVIRONMENT
-        profile.database_name = storage.PRODUCTION_DATABASE
-        profile.database_user = storage.PRODUCTION_ROLE
-        profile.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
-        profile.background_tasks_enabled = True
-        profile.bullet_enabled = True
-        profile.allowed_guild_ids = tuple(range(1, 48)) + (
-            script.POLYCHAMPIONS_GUILD_ID,
-            script.PCPLUS_GUILD_ID,
-        )
+        profile = self.production_profile()
         value = bundle()
         result_value = storage.StorageResult(
             True, (GUILD_ID,), (), (GUILD_ID,), value.bundle_digest,
@@ -852,7 +893,70 @@ class ScriptTests(unittest.TestCase):
             ])
         self.assertEqual(result, 0)
         beta_lock.assert_not_called()
-        apply.assert_called_once()
+        apply.assert_called_once_with(
+            connection_value,
+            target=production_target(),
+            bundle=value,
+            confirmation=storage.confirmation_for_target(
+                value,
+                production_target(),
+            ),
+            production_mode=storage.PRODUCTION_MODE_MAINTENANCE,
+        )
+        connection_value.close.assert_called_once()
+
+    def test_online_stage_refuses_database_authority_before_bundle_or_connection(self):
+        profile = self.production_profile(source='database')
+        with mock.patch.dict(
+                os.environ, {'POLYBOT_ENV': 'production'}, clear=True), \
+                mock.patch.object(script, '_profile', return_value=profile), \
+                mock.patch.object(script, '_bundle') as build_bundle, \
+                mock.patch.object(script, '_connection') as connection:
+            result = script.main([
+                'stage',
+                '--snapshot', script.PRODUCTION_DEFAULT_SNAPSHOT,
+                '--confirm', 'irrelevant',
+            ])
+        self.assertEqual(result, 2)
+        build_bundle.assert_not_called()
+        connection.assert_not_called()
+
+    def test_online_stage_uses_distinct_confirmation_and_no_beta_writer_lock(self):
+        profile = self.production_profile()
+        value = bundle()
+        result_value = storage.StorageResult(
+            True, (GUILD_ID,), (), (GUILD_ID,), value.bundle_digest,
+        )
+        connection_value = mock.Mock()
+        confirmation = storage.online_staging_confirmation_for_target(
+            value,
+            production_target(),
+        )
+        with mock.patch.dict(
+                os.environ, {'POLYBOT_ENV': 'production'}, clear=True), \
+                mock.patch.object(script, '_profile', return_value=profile), \
+                mock.patch.object(script, '_bundle', return_value=value), \
+                mock.patch.object(
+                    script, '_connection', return_value=connection_value,
+                ), mock.patch.object(
+                    script.storage, 'apply_storage', return_value=result_value,
+                ) as apply, mock.patch.object(
+                    script.beta_database_writer_lock, 'BetaDatabaseWriterLock',
+                ) as beta_lock:
+            result = script.main([
+                'stage',
+                '--snapshot', script.PRODUCTION_DEFAULT_SNAPSHOT,
+                '--confirm', confirmation,
+            ])
+        self.assertEqual(result, 0)
+        beta_lock.assert_not_called()
+        apply.assert_called_once_with(
+            connection_value,
+            target=production_target(),
+            bundle=value,
+            confirmation=confirmation,
+            production_mode=storage.PRODUCTION_MODE_ONLINE_STATIC_STAGE,
+        )
         connection_value.close.assert_called_once()
 
     def test_snapshot_path_is_private_bounded_and_atomic(self):

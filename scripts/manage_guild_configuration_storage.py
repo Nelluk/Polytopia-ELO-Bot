@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Capture, plan, apply, or verify static guild configuration storage.
+"""Capture, plan, stage, apply, or verify static guild configuration storage.
 
 ``snapshot`` performs bounded read-only Discord HTTP requests. ``plan`` is
-offline and connection-free. Production ``apply`` additionally requires the
-maintenance acknowledgement and the digest-bound confirmation printed by the
-exact plan; operations still require their external approval boundary.
+offline and connection-free. Production ``stage`` is an online, dormant write
+that is allowed only while the bound runtime selector remains ``static``.
+Production ``apply`` retains its maintenance acknowledgement. Both write paths
+require a distinct digest-bound confirmation and their external approval.
 """
 
 from __future__ import annotations
@@ -61,6 +62,10 @@ def _parser() -> argparse.ArgumentParser:
     snapshot.add_argument('--output')
     for name, help_text in (
         ('plan', 'build an offline import plan from a captured snapshot'),
+        (
+            'stage',
+            'create and import dormant production storage while authority is static',
+        ),
         ('apply', 'apply the exact additive schema/import transaction'),
         ('verify', 'read and verify the exact stored schema/import'),
     ):
@@ -71,8 +76,9 @@ def _parser() -> argparse.ArgumentParser:
                 '--output',
                 help='write the exact plan as a private JSON file',
             )
-        if name == 'apply':
+        if name in {'stage', 'apply'}:
             operation.add_argument('--confirm', required=True)
+        if name == 'apply':
             operation.add_argument(
                 '--production-maintenance',
                 action='store_true',
@@ -467,6 +473,15 @@ def main(argv: list[str] | None = None) -> int:
         profile = _profile()
         target = _target(profile)
         storage.validate_target(target)
+        if args.operation == 'stage':
+            if profile.environment != storage.PRODUCTION_ENVIRONMENT:
+                raise storage.GuildConfigurationStorageError(
+                    'Online static staging is supported only for production.'
+                )
+            if profile.guild_configuration_source != 'static':
+                raise storage.GuildConfigurationStorageError(
+                    'Online staging requires guild_configuration_source=static.'
+                )
         if (
                 args.operation == 'apply'
                 and profile.environment == storage.PRODUCTION_ENVIRONMENT
@@ -520,6 +535,9 @@ def main(argv: list[str] | None = None) -> int:
                     'path': str(path.relative_to(PROJECT_ROOT)),
                     'bundle_digest': bundle.bundle_digest,
                     'confirmation': value['confirmation'],
+                    'online_static_staging_confirmation': value.get(
+                        'online_static_staging_confirmation'
+                    ),
                     'production_migration_summary': value.get(
                         'production_migration_summary'
                     ),
@@ -529,18 +547,26 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 _emit(value)
             return 0
-        if args.operation == 'apply':
+        if args.operation in {'stage', 'apply'}:
             if profile.environment == storage.DEVELOPMENT_ENVIRONMENT:
                 writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(
                     profile
                 )
                 writer_lock.acquire()
+            production_mode = None
+            if profile.environment == storage.PRODUCTION_ENVIRONMENT:
+                production_mode = (
+                    storage.PRODUCTION_MODE_ONLINE_STATIC_STAGE
+                    if args.operation == 'stage'
+                    else storage.PRODUCTION_MODE_MAINTENANCE
+                )
             connection = _connection(profile, readonly=False)
             result = storage.apply_storage(
                 connection,
                 target=target,
                 bundle=bundle,
                 confirmation=args.confirm,
+                production_mode=production_mode,
             )
         else:
             connection = _connection(profile, readonly=True)
