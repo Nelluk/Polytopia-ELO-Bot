@@ -46,13 +46,12 @@ PRODUCTION_DEFAULT_OWNER_INVENTORY = (
 DEFAULT_OWNER_INVENTORY = (
     'logs/development/guild-configuration/owner-inventory.json'
 )
-PRODUCTION_GUILD_COUNT = 49
+PRODUCTION_GUILD_COUNT = 25
 POLYCHAMPIONS_GUILD_ID = 447883341463814144
 PCPLUS_GUILD_ID = 1289762588346814495
 PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS = frozenset({
     283436219780825088,
     POLYCHAMPIONS_GUILD_ID,
-    814317488418193478,
     PCPLUS_GUILD_ID,
 })
 
@@ -440,7 +439,7 @@ def _production_guild_types(profile: Any) -> dict[int, str] | None:
             or PCPLUS_GUILD_ID not in allowed
     ):
         raise storage.GuildConfigurationStorageError(
-            'Production guild inventory differs from the reviewed 49-guild '
+            'Production guild inventory differs from the reviewed 25-guild '
             'migration inventory.'
         )
     values = {guild_id: 'standard' for guild_id in allowed}
@@ -513,7 +512,7 @@ def _validate_production_bundle(
     by_id = {value.guild_id: value.document for value in imports}
     if len(imports) != PRODUCTION_GUILD_COUNT or len(by_id) != len(imports):
         raise storage.GuildConfigurationStorageError(
-            'Production import bundle is not the exact 49-guild inventory.'
+            'Production import bundle is not the exact 25-guild inventory.'
         )
     team_ids = {
         guild_id for guild_id, document in by_id.items()
@@ -539,7 +538,7 @@ def _validate_production_bundle(
     if global_ids != PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS:
         raise storage.GuildConfigurationStorageError(
             'Production global-leaderboard inventory differs from the '
-            'reviewed four guilds.'
+            'reviewed three guilds.'
         )
     for guild_id, document in by_id.items():
         capabilities = set(document.command_capabilities)

@@ -4197,11 +4197,6 @@ class polygames(commands.Cog):
                 )
             return await ctx.send(message)
 
-        if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
-            return await fail_record(
-                'For **The Polympics** only server staff may open games.'
-            )
-
         ranked_flag = not (ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'])
         # Mobile and Steam now have full cross-play. Retain the legacy field
         # with its canonical compatibility value until the schema and all

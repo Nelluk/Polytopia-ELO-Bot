@@ -175,13 +175,6 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
 
     with models.db.connection_context():
         with models.db.atomic():
-            if (
-                request.guild_id == 814317488418193478
-                and not request.requester_is_staff
-            ):
-                raise OpenGameValidationError(
-                    'For **The Polympics** only server staff may open games.'
-                )
             team_sizes = tuple(side.size for side in request.sides)
             if (
                 len(team_sizes) < 2

@@ -982,31 +982,31 @@ class ScriptTests(unittest.TestCase):
         profile.assert_not_called()
         connection.assert_not_called()
 
-    def test_production_inventory_has_one_league_one_team_and_47_standard(self):
+    def test_production_inventory_has_one_league_one_team_and_23_standard(self):
         profile = self.profile()
         profile.environment = storage.PRODUCTION_ENVIRONMENT
-        profile.allowed_guild_ids = tuple(range(1, 48)) + (
+        profile.allowed_guild_ids = tuple(range(1, 24)) + (
             script.POLYCHAMPIONS_GUILD_ID,
             script.PCPLUS_GUILD_ID,
         )
         values = script._production_guild_types(profile)
-        self.assertEqual(len(values), 49)
+        self.assertEqual(len(values), 25)
         self.assertEqual(values[script.POLYCHAMPIONS_GUILD_ID], 'league')
         self.assertEqual(values[script.PCPLUS_GUILD_ID], 'team')
         self.assertEqual(
             sum(value == 'standard' for value in values.values()),
-            47,
+            23,
         )
 
     def test_production_bundle_summary_enforces_accepted_policy(self):
-        guild_ids = tuple(range(1, 46)) + tuple(
+        guild_ids = tuple(range(1, 23)) + tuple(
             script.PRODUCTION_GLOBAL_LEADERBOARD_GUILD_IDS
         ) + (
             script.POLYCHAMPIONS_GUILD_ID,
             script.PCPLUS_GUILD_ID,
         )
         guild_ids = tuple(sorted(set(guild_ids)))
-        self.assertEqual(len(guild_ids), 49)
+        self.assertEqual(len(guild_ids), 25)
         base = bundle().imports[0].document
         imports = []
         for guild_id in guild_ids:
@@ -1033,8 +1033,8 @@ class ScriptTests(unittest.TestCase):
             ))
         value = storage.ImportBundle(1, 1, tuple(imports), 'c' * 64)
         summary = script._validate_production_bundle(value)
-        self.assertEqual(summary['guild_count'], 49)
-        self.assertEqual(summary['standard_guild_count'], 47)
+        self.assertEqual(summary['guild_count'], 25)
+        self.assertEqual(summary['standard_guild_count'], 23)
         self.assertEqual(
             summary['team_guild_ids'],
             [script.PCPLUS_GUILD_ID],
