@@ -332,6 +332,47 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             list(guild_types.GUILD_TYPES),
         )
 
+    def test_existing_target_is_not_duplicated_in_discord_snapshot(self):
+        target = SimpleNamespace(
+            id=GUILD_ID,
+            name='Existing Guild',
+            me=SimpleNamespace(guild_permissions=(('view_channel', True),)),
+        )
+        bot = SimpleNamespace(
+            guilds=(target,),
+            get_guild=lambda guild_id: target if guild_id == GUILD_ID else None,
+        )
+        interaction = SimpleNamespace(
+            guild_id=GUILD_ID,
+            user=SimpleNamespace(id=OWNER_ID),
+        )
+        current = runtime_fixtures.snapshot().guilds[GUILD_ID]
+        with mock.patch.object(
+                service.settings, 'database_guild_ids', return_value=(GUILD_ID,)
+            ), mock.patch.object(
+                service.settings, 'database_guild_configuration',
+                return_value=current,
+            ), mock.patch.object(
+                service.settings, 'runtime_profile', profile()
+            ), mock.patch.object(
+                service.shadow, 'capture_discord_snapshot',
+                return_value=mock.sentinel.snapshot,
+            ) as capture, mock.patch.object(
+                service.workers, 'request_from_profile',
+                return_value=mock.sentinel.request,
+            ):
+            result = service.build_request(
+                bot=bot,
+                interaction=interaction,
+                target_guild_id=GUILD_ID,
+                template=workers.BASIC_PREFIX_TEMPLATE,
+                guild_type=guild_types.TEAM,
+                include_in_global_leaderboard=None,
+            )
+
+        self.assertIs(result, mock.sentinel.request)
+        self.assertEqual(capture.call_args.kwargs['guild_ids'], (GUILD_ID,))
+
     async def test_non_owner_is_denied_before_defer(self):
         interaction = SimpleNamespace(
             guild_id=GUILD_ID, user=SimpleNamespace(id=OWNER_ID + 1),

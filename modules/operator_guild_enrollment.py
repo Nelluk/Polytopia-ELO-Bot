@@ -72,10 +72,15 @@ def build_request(
             'The running database guild inventory is incomplete.'
         )
     target = _target_guild(bot, target_guild_id)
+    snapshot_guild_ids = (
+        current_ids
+        if target_guild_id in current_ids
+        else (*current_ids, target_guild_id)
+    )
     snapshot = shadow.capture_discord_snapshot(
         profile=settings.runtime_profile,
         guilds=tuple(bot.guilds),
-        guild_ids=(*current_ids, target_guild_id),
+        guild_ids=snapshot_guild_ids,
     )
     return workers.request_from_profile(
         profile=settings.runtime_profile,

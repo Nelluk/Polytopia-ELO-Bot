@@ -2251,8 +2251,8 @@ class administration(commands.Cog):
         except Exception:
             logger.exception('Unexpected operator guild-enrollment preview failure')
             return await interaction.followup.send(
-                'Could not open the guild-enrollment preview. The target remains '
-                'quarantined and no configuration was changed.',
+                'Could not open the guild enrollment or update preview. '
+                'No configuration was changed.',
                 ephemeral=True,
             )
 
