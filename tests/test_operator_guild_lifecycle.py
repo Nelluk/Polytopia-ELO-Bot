@@ -550,14 +550,10 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         )
         self.guild = operator.get_command('guild')
 
-    def test_commands_are_owner_surface_with_exact_required_target(self):
+    def test_lifecycle_is_contextual_not_a_standalone_slash_surface(self):
         for name in ('suspend', 'resume'):
             command = self.guild.get_command(name)
-            self.assertIsNotNone(command)
-            self.assertEqual(
-                [(value.name, value.required) for value in command.parameters],
-                [('target_guild_id', True)],
-            )
+            self.assertIsNone(command)
 
     def test_lifecycle_publication_values_are_frozen_and_model_free(self):
         request, state, generation, document = lifecycle_request()

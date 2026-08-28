@@ -60,7 +60,8 @@ class GuildConfigurationRollbackModal(discord.ui.Modal):
 
 class GuildConfigurationRollbackWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
-        'This rollback preview expired. Run `/operator guild rollback` again.'
+        'This restore preview expired. Reopen **History** from '
+        '`/operator guild list`.'
     )
 
     def __init__(

@@ -56,9 +56,9 @@ class GuildConfigurationReadRequest:
     guild_id: int
     target: storage.StorageTarget
     allowed_guild_ids: tuple[int, ...]
-    runtime_revision: int
-    runtime_generation: int
-    runtime_document_digest: str
+    runtime_revision: int | None
+    runtime_generation: int | None
+    runtime_document_digest: str | None
     database_password: str = field(repr=False)
     database_host: str | None = None
     database_port: int | None = None
@@ -194,17 +194,35 @@ def _validate_request(
                 or value <= 0
                 for value in allowed
             )
-            or request.guild_id not in allowed
+            or (
+                request.operation != HISTORY
+                and request.guild_id not in allowed
+            )
     ):
         raise OperatorGuildConfigurationValidationError(
             'The current guild is outside the exact development allowlist.'
         )
-    _strict_positive(request.runtime_revision, 'Running revision')
-    _strict_positive(request.runtime_generation, 'Running generation')
-    if not _HEX_DIGEST.fullmatch(request.runtime_document_digest):
+    runtime_values = (
+        request.runtime_revision,
+        request.runtime_generation,
+        request.runtime_document_digest,
+    )
+    if request.operation in {SETTINGS, VALIDATE} and any(
+            value is None for value in runtime_values):
         raise OperatorGuildConfigurationValidationError(
-            'The running document digest is invalid.'
+            'The running database guild configuration is not published.'
         )
+    if any(value is not None for value in runtime_values):
+        if any(value is None for value in runtime_values):
+            raise OperatorGuildConfigurationValidationError(
+                'The running guild evidence is incomplete.'
+            )
+        _strict_positive(request.runtime_revision, 'Running revision')
+        _strict_positive(request.runtime_generation, 'Running generation')
+        if not _HEX_DIGEST.fullmatch(request.runtime_document_digest):
+            raise OperatorGuildConfigurationValidationError(
+                'The running document digest is invalid.'
+            )
     if not request.database_password:
         raise OperatorGuildConfigurationValidationError(
             'Development database authentication is unavailable.'
@@ -240,7 +258,7 @@ def request_from_profile(
         raise OperatorGuildConfigurationValidationError(
             'Guild configuration inspection requires development database authority.'
         )
-    if runtime_record is None:
+    if runtime_record is None and operation in {SETTINGS, VALIDATE}:
         raise OperatorGuildConfigurationValidationError(
             'The running database guild configuration is not published.'
         )
@@ -273,9 +291,16 @@ def request_from_profile(
         guild_id=int(guild_id),
         target=target,
         allowed_guild_ids=tuple(sorted(int(value) for value in allowed_source)),
-        runtime_revision=int(runtime_record.revision),
-        runtime_generation=int(runtime_record.generation),
-        runtime_document_digest=str(runtime_record.document_digest),
+        runtime_revision=(
+            None if runtime_record is None else int(runtime_record.revision)
+        ),
+        runtime_generation=(
+            None if runtime_record is None else int(runtime_record.generation)
+        ),
+        runtime_document_digest=(
+            None if runtime_record is None
+            else str(runtime_record.document_digest)
+        ),
         database_password=profile.database_password,
         database_host=profile.database_host,
         database_port=profile.database_port,
@@ -564,6 +589,8 @@ def _audit_summaries(
 def _selected_record(
     records: Sequence[GuildConfigurationRecord],
     guild_id: int,
+    *,
+    require_active: bool,
 ) -> GuildConfigurationRecord:
     selected = tuple(record for record in records if record.guild_id == guild_id)
     if len(selected) != 1:
@@ -571,9 +598,11 @@ def _selected_record(
             'The current guild is not uniquely enrolled.'
         )
     record = selected[0]
-    if record.enrollment_state != 'active' or record.document is None:
+    if record.document is None or (
+            require_active and record.enrollment_state != 'active'
+    ):
         raise OperatorGuildConfigurationValidationError(
-            'The current guild does not have an active configuration.'
+            'The selected guild does not have the required configuration.'
         )
     return record
 
@@ -663,8 +692,13 @@ def inspect_guild_configuration(
                     guild_id=request.guild_id,
                     records=records,
                 )
-            selected = _selected_record(records, request.guild_id)
-            _validate_runtime_match(request, selected)
+            selected = _selected_record(
+                records,
+                request.guild_id,
+                require_active=request.operation in {SETTINGS, VALIDATE},
+            )
+            if request.operation in {SETTINGS, VALIDATE}:
+                _validate_runtime_match(request, selected)
             revisions = ()
             audits = ()
             revisions_truncated = False

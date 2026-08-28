@@ -18,6 +18,7 @@ import discord
 from modules import administration
 from modules import guild_configuration_storage as storage
 from modules import operator_guild_configuration as service
+from modules import operator_guild_console_views
 from modules import operator_guild_configuration_workers as workers
 from modules.guild_configuration_schema import document_to_mapping
 from tests import test_guild_configuration_runtime as runtime_fixtures
@@ -61,13 +62,13 @@ def request(operation=workers.SETTINGS, *, snapshot=None):
     )
 
 
-def registry_row(*, generation=1, digest=None, document=None):
+def registry_row(*, generation=1, digest=None, document=None, state='active'):
     imported = fixtures.bundle().imports[0]
     document = imported.document if document is None else document
     return (
         GUILD_ID,
         storage.STORAGE_SCHEMA_VERSION,
-        'active',
+        state,
         1,
         generation,
         NOW,
@@ -334,6 +335,22 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(result.audits[0].event_type, 'initial_import')
         self.assertEqual(result.audits[0].generation, 1)
 
+    def test_history_remains_available_for_suspended_guild_without_runtime_record(self):
+        value = workers.request_from_profile(
+            profile=profile(),
+            requester_id=OWNER_ID,
+            guild_id=GUILD_ID,
+            operation=workers.HISTORY,
+            runtime_record=None,
+            runtime_guild_ids=(GUILD_ID,),
+        )
+        result = inspect_with(
+            FakeConnection(registry=[registry_row(state='suspended')]),
+            value,
+        )
+        self.assertEqual(result.selected.enrollment_state, 'suspended')
+        self.assertEqual(result.revisions[0].revision_number, 1)
+
     def test_source_has_no_configuration_write_statement(self):
         source = inspect.getsource(workers)
         for statement in ('INSERT INTO', 'UPDATE "guild_configuration', 'DELETE FROM'):
@@ -458,11 +475,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     def test_exact_registration_shape(self):
         self.assertEqual(
             {command.name for command in self.guild_group.commands},
-            {
-                'list', 'validate', 'history', 'rollback',
-                'enroll', 'sync', 'suspend', 'resume',
-                'delegation',
-            },
+            {'list', 'enroll'},
         )
         self.assertIsNone(self.guild_group.get_command('settings'))
         self.assertIsNone(self.guild_group.get_command('edit'))
@@ -493,8 +506,8 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         response.defer.assert_not_awaited()
         run.assert_not_awaited()
 
-    async def test_owner_defers_then_runs_worker_and_private_publisher(self):
-        command = self.guild_group.get_command('validate')
+    async def test_owner_list_opens_targetable_management_console(self):
+        command = self.guild_group.get_command('list')
         response = SimpleNamespace(defer=mock.AsyncMock())
         interaction = SimpleNamespace(
             guild_id=GUILD_ID,
@@ -503,20 +516,25 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             followup=SimpleNamespace(send=mock.AsyncMock()),
         )
         request_value = mock.sentinel.request
-        result = mock.sentinel.result
+        result = workers.GuildConfigurationReadResult(
+            operation=workers.LIST,
+            guild_id=GUILD_ID,
+            records=(),
+        )
         with mock.patch.object(service, 'access_error', return_value=None), \
                 mock.patch.object(service, 'build_request', return_value=request_value), \
                 mock.patch.object(workers, 'run_read', new=mock.AsyncMock(return_value=result)) as run, \
-                mock.patch.object(service, 'publish_private', new=mock.AsyncMock()) as publish:
+                mock.patch.object(
+                    operator_guild_console_views,
+                    'publish_private',
+                    new=mock.AsyncMock(),
+                ) as publish:
             returned = await command.callback(self.cog, interaction)
         response.defer.assert_awaited_once_with(ephemeral=True)
         run.assert_awaited_once_with(request_value)
-        publish.assert_awaited_once_with(
-            interaction,
-            result,
-            section=service.OVERVIEW,
-        )
-        self.assertIs(returned, result)
+        view = publish.await_args.args[1]
+        self.assertIsInstance(view, operator_guild_console_views.GuildRegistryConsole)
+        self.assertIs(returned, view)
 
     async def test_read_only_publisher_omits_absent_view(self):
         result = inspect_with(FakeConnection(), request(workers.LIST))

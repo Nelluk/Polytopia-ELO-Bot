@@ -62,8 +62,11 @@ def build_request(
     bot: Any,
     interaction: Any,
     operation: str,
+    target_guild_id: int | None = None,
 ) -> workers.GuildConfigurationReadRequest:
-    guild_id = int(interaction.guild_id)
+    guild_id = int(
+        interaction.guild_id if target_guild_id is None else target_guild_id
+    )
     runtime_guild_ids = settings.database_guild_ids()
     snapshot = None
     if operation == workers.VALIDATE:

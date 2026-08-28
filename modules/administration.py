@@ -47,6 +47,7 @@ from modules import operator_channel_purge_workers
 from modules import operator_restart as operator_restart_service
 from modules import operator_restart_views
 from modules import operator_guild_configuration as operator_guild_configuration_service
+from modules import operator_guild_console_views
 from modules import operator_guild_configuration_workers
 from modules import operator_guild_configuration_drafts as operator_guild_draft_service
 from modules import operator_guild_configuration_draft_views
@@ -224,7 +225,7 @@ class administration(commands.Cog):
     )
     operator_guild_group = discord.app_commands.Group(
         name='guild',
-        description='Inspect development guild configuration.',
+        description='Enroll and maintain PolyElo servers. Bot owner only.',
         parent=operator_group,
         guild_only=True,
     )
@@ -369,23 +370,6 @@ class administration(commands.Cog):
             channel=channel,
         )
         return result
-
-    @staticmethod
-    def _operator_target_guild_id(
-        interaction: discord.Interaction,
-        target_guild_id: str | None,
-    ) -> int:
-        raw = (
-            str(interaction.guild_id)
-            if target_guild_id is None else target_guild_id.strip()
-        )
-        try:
-            normalized = int(raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError('Enter the exact positive numeric target guild ID.') from exc
-        if normalized <= 0 or str(normalized) != raw:
-            raise ValueError('Enter the exact positive numeric target guild ID.')
-        return normalized
 
     def _operator_visible_target_guild(self, target_guild_id: int):
         guild = self.bot.get_guild(int(target_guild_id))
@@ -1582,6 +1566,8 @@ class administration(commands.Cog):
         *,
         operation: str,
         section: str = operator_guild_configuration_service.OVERVIEW,
+        target_guild_id: int | None = None,
+        publish: bool = True,
     ):
         access_error = operator_guild_configuration_service.access_error(interaction)
         if access_error is not None:
@@ -1595,11 +1581,13 @@ class administration(commands.Cog):
                 bot=self.bot,
                 interaction=interaction,
                 operation=operation,
+                target_guild_id=target_guild_id,
             )
             result = await operator_guild_configuration_workers.run_read(request)
-            await operator_guild_configuration_service.publish_private(
-                interaction, result, section=section,
-            )
+            if publish:
+                await operator_guild_configuration_service.publish_private(
+                    interaction, result, section=section,
+                )
             return result
         except operator_guild_configuration_workers.OperatorGuildConfigurationError as exc:
             return await interaction.followup.send(str(exc), ephemeral=True)
@@ -1612,42 +1600,227 @@ class administration(commands.Cog):
 
     @operator_guild_group.command(
         name='list',
-        description='Privately list enrolled development guilds.',
+        description='Select and manage an enrolled PolyElo server.',
     )
     async def operator_guild_list_slash(
         self,
         interaction: discord.Interaction,
     ):
-        return await self._operator_guild_configuration_read(
+        result = await self._operator_guild_configuration_read(
             interaction,
             operation=operator_guild_configuration_workers.LIST,
+            publish=False,
         )
+        if not isinstance(
+                result,
+                operator_guild_configuration_workers.GuildConfigurationReadResult,
+        ):
+            return result
+        view = operator_guild_console_views.GuildRegistryConsole(
+            requester_id=int(interaction.user.id),
+            result=result,
+            runner=self._operator_guild_console_action,
+        )
+        await operator_guild_console_views.publish_private(interaction, view)
+        return view
 
-    @operator_guild_group.command(
-        name='validate',
-        description='Validate this active guild configuration read-only.',
-    )
-    async def operator_guild_validate_slash(
+    async def _operator_guild_console_action(
         self,
         interaction: discord.Interaction,
-    ):
-        return await self._operator_guild_configuration_read(
-            interaction,
-            operation=operator_guild_configuration_workers.VALIDATE,
+        action: str,
+        target_guild_id: int,
+    ) -> None:
+        if action == operator_guild_console_views.VALIDATE:
+            await self._operator_guild_configuration_read(
+                interaction,
+                operation=operator_guild_configuration_workers.VALIDATE,
+                target_guild_id=target_guild_id,
+            )
+            return
+
+        if action == operator_guild_console_views.HISTORY:
+            result = await self._operator_guild_configuration_read(
+                interaction,
+                operation=operator_guild_configuration_workers.HISTORY,
+                target_guild_id=target_guild_id,
+                publish=False,
+            )
+            if not isinstance(
+                    result,
+                    operator_guild_configuration_workers.GuildConfigurationReadResult,
+            ):
+                return
+            view = operator_guild_console_views.GuildHistoryWorkspace(
+                requester_id=int(interaction.user.id),
+                result=result,
+                rollback_runner=self._operator_guild_console_rollback,
+            )
+            await operator_guild_console_views.publish_history(
+                interaction, view,
+            )
+            return
+
+        if action in {
+            operator_guild_console_views.SUSPEND,
+            operator_guild_console_views.RESUME,
+        }:
+            lifecycle_action = (
+                operator_guild_lifecycle_workers.SUSPEND
+                if action == operator_guild_console_views.SUSPEND else
+                operator_guild_lifecycle_workers.RESUME
+            )
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            try:
+                preview, plan = await self._operator_guild_lifecycle_plan(
+                    interaction,
+                    target_guild_id=target_guild_id,
+                    action=lifecycle_action,
+                )
+                view = operator_guild_lifecycle_views.GuildLifecycleWorkspace(
+                    requester_id=int(interaction.user.id),
+                    preview=preview,
+                    command_plan=plan,
+                    runner=self._operator_guild_lifecycle_commit,
+                )
+                message = await interaction.followup.send(
+                    view=view,
+                    ephemeral=True,
+                    wait=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                view.message = message
+            except (
+                operator_guild_lifecycle_workers.OperatorGuildLifecycleError,
+                operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
+            ) as exc:
+                await interaction.followup.send(str(exc), ephemeral=True)
+            except Exception:
+                logger.exception(
+                    'Unexpected operator guild lifecycle console failure'
+                )
+                await interaction.followup.send(
+                    'Could not open that lifecycle plan. No server state was changed.',
+                    ephemeral=True,
+                )
+            return
+
+        if action == operator_guild_console_views.COMMANDS:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            try:
+                plan = await self._operator_guild_command_plan(
+                    interaction, target_guild_id,
+                )
+                guild = self._operator_visible_target_guild(target_guild_id)
+                if not (plan.creates or plan.updates or plan.removals):
+                    await interaction.followup.send(
+                        f'`{guild.name}` already has the commands derived from '
+                        'its active server type. No Discord write was needed.',
+                        ephemeral=True,
+                    )
+                    return
+                view = (
+                    operator_guild_command_capability_views.GuildCommandCapabilityWorkspace(
+                        requester_id=int(interaction.user.id),
+                        guild_name=str(guild.name),
+                        plan=plan,
+                        runner=self._operator_guild_command_commit,
+                    )
+                )
+                await operator_guild_command_capability_views.publish_private(
+                    interaction, view,
+                )
+            except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError as exc:
+                await interaction.followup.send(str(exc), ephemeral=True)
+            except Exception:
+                logger.exception(
+                    'Unexpected operator guild command console failure'
+                )
+                await interaction.followup.send(
+                    'Could not inspect that server command plan. '
+                    'No Discord commands were changed.',
+                    ephemeral=True,
+                )
+            return
+
+        if action == operator_guild_console_views.MANAGERS:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            try:
+                result = await self._operator_guild_delegation_operation(
+                    interaction,
+                    operator_guild_delegation_workers.SHOW,
+                    target_guild_id=target_guild_id,
+                )
+                guild = operator_guild_delegation_service.target_guild(
+                    self.bot, target_guild_id,
+                )
+                view = operator_guild_delegation_views.GuildDelegationWorkspace(
+                    requester_id=int(interaction.user.id),
+                    result=result,
+                    runner=self._operator_guild_delegation_operation,
+                    role_names=(
+                        operator_guild_delegation_service.assignable_role_names(
+                            guild
+                        )
+                    ),
+                )
+                await operator_guild_delegation_views.publish_private(
+                    interaction, view,
+                )
+            except operator_guild_delegation_workers.OperatorGuildDelegationError as exc:
+                await interaction.followup.send(str(exc), ephemeral=True)
+            except Exception:
+                logger.exception(
+                    'Unexpected operator guild manager console failure'
+                )
+                await interaction.followup.send(
+                    'Could not inspect that server manager policy. '
+                    'No delegation policy was changed.',
+                    ephemeral=True,
+                )
+            return
+
+        await interaction.response.send_message(
+            'That server-management action is unavailable.', ephemeral=True,
         )
 
-    @operator_guild_group.command(
-        name='history',
-        description='Privately inspect revision and audit history.',
-    )
-    async def operator_guild_history_slash(
+    async def _operator_guild_console_rollback(
         self,
         interaction: discord.Interaction,
-    ):
-        return await self._operator_guild_configuration_read(
-            interaction,
-            operation=operator_guild_configuration_workers.HISTORY,
-        )
+        target_guild_id: int,
+        revision: int,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            result = await self._operator_guild_draft_operation(
+                interaction,
+                operator_guild_configuration_draft_workers.ROLLBACK_PREVIEW,
+                target_revision=int(revision),
+                target_guild_id=int(target_guild_id),
+            )
+            view = (
+                operator_guild_configuration_rollback_views.GuildConfigurationRollbackWorkspace(
+                    requester_id=int(interaction.user.id),
+                    result=result,
+                    runner=functools.partial(
+                        self._operator_guild_draft_operation,
+                        target_guild_id=int(target_guild_id),
+                    ),
+                )
+            )
+            await operator_guild_configuration_rollback_views.publish_private(
+                interaction, view,
+            )
+        except operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception(
+                'Unexpected operator guild history restore console failure'
+            )
+            await interaction.followup.send(
+                'Could not prepare that restore preview. '
+                'No guild configuration was changed.',
+                ephemeral=True,
+            )
 
     async def _operator_guild_draft_operation(
         self,
@@ -1804,6 +1977,7 @@ class administration(commands.Cog):
         interaction: discord.Interaction,
         operation: str,
         *,
+        target_guild_id: int,
         expected_policy_version: int | None = None,
         manager_role_ids: tuple[int, ...] | None = None,
         allow_activation: bool | None = None,
@@ -1813,6 +1987,7 @@ class administration(commands.Cog):
         runner = lambda: self._operator_guild_delegation_operation_uncoordinated(
             interaction,
             operation,
+            target_guild_id=target_guild_id,
             expected_policy_version=expected_policy_version,
             manager_role_ids=manager_role_ids,
             allow_activation=allow_activation,
@@ -1824,7 +1999,7 @@ class administration(commands.Cog):
         return await self._run_guild_mutation_claim(
             interaction,
             operation='guild configuration delegation',
-            guild_id=int(interaction.guild_id),
+            guild_id=int(target_guild_id),
             runner=runner,
             conflict_type=(
                 operator_guild_delegation_workers.OperatorGuildDelegationValidationError
@@ -1836,6 +2011,7 @@ class administration(commands.Cog):
         interaction: discord.Interaction,
         operation: str,
         *,
+        target_guild_id: int,
         expected_policy_version: int | None = None,
         manager_role_ids: tuple[int, ...] | None = None,
         allow_activation: bool | None = None,
@@ -1843,7 +2019,9 @@ class administration(commands.Cog):
         confirmation_text: str | None = None,
     ):
         request = operator_guild_delegation_service.build_request(
+            bot=self.bot,
             interaction=interaction,
+            target_guild_id=target_guild_id,
             operation=operation,
             expected_policy_version=expected_policy_version,
             manager_role_ids=manager_role_ids,
@@ -2039,204 +2217,6 @@ class administration(commands.Cog):
                 ephemeral=True,
             )
 
-    async def _operator_guild_lifecycle_slash(
-        self,
-        interaction: discord.Interaction,
-        *,
-        target_guild_id: str,
-        action: str,
-    ):
-        access_error = operator_guild_lifecycle_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error,
-                ephemeral=True,
-            )
-        try:
-            target = self._operator_target_guild_id(interaction, target_guild_id)
-        except ValueError as exc:
-            return await interaction.response.send_message(str(exc), ephemeral=True)
-        await interaction.response.defer(ephemeral=True)
-        try:
-            preview, plan = await self._operator_guild_lifecycle_plan(
-                interaction,
-                target_guild_id=target,
-                action=action,
-            )
-            if not preview.write_required and not (
-                    plan.creates or plan.updates or plan.removals
-            ):
-                safe_name = discord.utils.escape_mentions(
-                    discord.utils.escape_markdown(preview.guild_name)
-                )
-                return await interaction.edit_original_response(
-                    content=(
-                        f'`{safe_name}` (`{target}`) is already '
-                        f'`{preview.desired_state}` and its command tree is '
-                        'converged. No database or Discord write was needed.'
-                    )
-                )
-            view = operator_guild_lifecycle_views.GuildLifecycleWorkspace(
-                requester_id=int(interaction.user.id),
-                preview=preview,
-                command_plan=plan,
-                runner=self._operator_guild_lifecycle_commit,
-            )
-            await operator_guild_lifecycle_views.publish_private(interaction, view)
-            return view
-        except (
-            operator_guild_lifecycle_workers.OperatorGuildLifecycleError,
-            operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
-        ) as exc:
-            return await interaction.edit_original_response(content=str(exc))
-        except Exception:
-            logger.exception('Unexpected operator guild-lifecycle planning failure')
-            return await interaction.edit_original_response(
-                content=(
-                    'Could not build a trustworthy guild-lifecycle plan. '
-                    'No configuration or Discord command tree was changed.'
-                )
-            )
-
-    @operator_guild_group.command(
-        name='suspend',
-        description='Suspend one active guild while preserving its configuration.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id='Exact active target server ID; must differ from this server.',
-    )
-    async def operator_guild_suspend_slash(
-        self,
-        interaction: discord.Interaction,
-        target_guild_id: str,
-    ):
-        return await self._operator_guild_lifecycle_slash(
-            interaction,
-            target_guild_id=target_guild_id,
-            action=operator_guild_lifecycle_workers.SUSPEND,
-        )
-
-    @operator_guild_group.command(
-        name='resume',
-        description='Resume one suspended guild after full live validation.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id='Exact suspended target server ID; must differ from this server.',
-    )
-    async def operator_guild_resume_slash(
-        self,
-        interaction: discord.Interaction,
-        target_guild_id: str,
-    ):
-        return await self._operator_guild_lifecycle_slash(
-            interaction,
-            target_guild_id=target_guild_id,
-            action=operator_guild_lifecycle_workers.RESUME,
-        )
-
-    @operator_guild_group.command(
-        name='sync',
-        description='Preview or synchronize one server’s type-derived commands.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id=(
-            'Active server ID; omit to use the server where this command runs.'
-        ),
-    )
-    async def operator_guild_sync_slash(
-        self,
-        interaction: discord.Interaction,
-        target_guild_id: str | None = None,
-    ):
-        access_error = operator_guild_draft_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error,
-                ephemeral=True,
-            )
-        try:
-            target = self._operator_target_guild_id(interaction, target_guild_id)
-        except ValueError as exc:
-            return await interaction.response.send_message(str(exc), ephemeral=True)
-        await interaction.response.defer(ephemeral=True)
-        try:
-            plan = await self._operator_guild_command_plan(interaction, target)
-            guild = self._operator_visible_target_guild(target)
-            if not (plan.creates or plan.updates or plan.removals):
-                return await interaction.edit_original_response(
-                    content=(
-                        f'`{guild.name}` (`{target}`) already has the commands '
-                        'derived from its active server type. No Discord write '
-                        'was needed.'
-                    )
-                )
-            view = operator_guild_command_capability_views.GuildCommandCapabilityWorkspace(
-                requester_id=int(interaction.user.id),
-                guild_name=str(guild.name),
-                plan=plan,
-                runner=self._operator_guild_command_commit,
-            )
-            await operator_guild_command_capability_views.publish_private(
-                interaction,
-                view,
-            )
-            return view
-        except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError as exc:
-            return await interaction.edit_original_response(content=str(exc))
-        except Exception:
-            logger.exception('Unexpected operator guild-command sync failure')
-            return await interaction.edit_original_response(
-                content=(
-                    'Could not build a trustworthy server-command plan. '
-                    'No configuration or Discord command tree was changed.'
-                )
-            )
-
-    @operator_guild_group.command(
-        name='rollback',
-        description='Restore an earlier document as a new configuration revision.',
-    )
-    @discord.app_commands.describe(
-        revision='Earlier revision number shown by /operator guild history.',
-    )
-    async def operator_guild_rollback_slash(
-        self,
-        interaction: discord.Interaction,
-        revision: discord.app_commands.Range[int, 1],
-    ):
-        access_error = operator_guild_draft_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error,
-                ephemeral=True,
-            )
-        await interaction.response.defer(ephemeral=True)
-        try:
-            result = await self._operator_guild_draft_operation(
-                interaction,
-                operator_guild_configuration_draft_workers.ROLLBACK_PREVIEW,
-                target_revision=int(revision),
-            )
-            view = operator_guild_configuration_rollback_views.GuildConfigurationRollbackWorkspace(
-                requester_id=int(interaction.user.id),
-                result=result,
-                runner=self._operator_guild_draft_operation,
-            )
-            await operator_guild_configuration_rollback_views.publish_private(
-                interaction,
-                view,
-            )
-            return view
-        except operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError as exc:
-            return await interaction.followup.send(str(exc), ephemeral=True)
-        except Exception:
-            logger.exception('Unexpected operator guild-configuration rollback failure')
-            return await interaction.followup.send(
-                'Could not open the guild-configuration rollback preview. '
-                'Active configuration was unchanged.',
-                ephemeral=True,
-            )
-
     async def _open_guild_draft_workspace(
         self,
         interaction: discord.Interaction,
@@ -2330,44 +2310,6 @@ class administration(commands.Cog):
             target=int(interaction.guild_id),
             ordinary_only=(int(interaction.user.id) != int(settings.owner_id)),
         )
-
-    @operator_guild_group.command(
-        name='delegation',
-        description='Privately grant or revoke this guild manager policy.',
-    )
-    async def operator_guild_delegation_slash(
-        self, interaction: discord.Interaction,
-    ):
-        access_error = operator_guild_delegation_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error, ephemeral=True,
-            )
-        await interaction.response.defer(ephemeral=True)
-        try:
-            result = await self._operator_guild_delegation_operation(
-                interaction, operator_guild_delegation_workers.SHOW,
-            )
-            role_names = {
-                int(role.id): str(role.name)
-                for role in tuple(interaction.guild.roles)
-            }
-            view = operator_guild_delegation_views.GuildDelegationWorkspace(
-                requester_id=int(interaction.user.id),
-                result=result,
-                runner=self._operator_guild_delegation_operation,
-                role_names=role_names,
-            )
-            await operator_guild_delegation_views.publish_private(interaction, view)
-            return view
-        except operator_guild_delegation_workers.OperatorGuildDelegationError as exc:
-            return await interaction.followup.send(str(exc), ephemeral=True)
-        except Exception:
-            logger.exception('Unexpected operator guild delegation failure')
-            return await interaction.followup.send(
-                'Could not open the guild delegation workspace. No policy changed.',
-                ephemeral=True,
-            )
 
     @operator_channels_group.command(
         name='purge',

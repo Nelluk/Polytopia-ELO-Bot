@@ -508,7 +508,7 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
         )
-        self.command = operator.get_command('guild').get_command('rollback')
+        self.assertIsNone(operator.get_command('guild').get_command('rollback'))
 
     async def test_full_digest_modal_and_requester_bound_workspace(self):
         result = preview_result()
@@ -525,19 +525,6 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(modal.expected, result.rollback_preview.confirmation)
         self.assertEqual(modal.confirmation.max_length, len(modal.expected))
         self.assertIn(result.rollback_preview.source_document_digest, str(workspace.to_components()))
-
-    async def test_non_owner_is_denied_before_defer(self):
-        interaction = SimpleNamespace(
-            guild_id=GUILD_ID,
-            user=SimpleNamespace(id=OWNER_ID + 1),
-            response=SimpleNamespace(
-                send_message=mock.AsyncMock(), defer=mock.AsyncMock(),
-            ),
-        )
-        with mock.patch.object(service.settings, 'owner_id', OWNER_ID):
-            await self.command.callback(self.cog, interaction, 1)
-        interaction.response.send_message.assert_awaited_once()
-        interaction.response.defer.assert_not_awaited()
 
     async def test_committed_panel_edit_failure_uses_truthful_fallback(self):
         preview = preview_result()

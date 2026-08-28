@@ -53,9 +53,13 @@ def request(operation=workers.SHOW, **kwargs):
 
 
 def manager_request(operation=workers.SHOW, **kwargs):
+    requester_role_ids = kwargs.pop('requester_role_ids', (900,))
+    requester_is_guild_owner = kwargs.pop('requester_is_guild_owner', False)
     return workers.request_from_profile(
         profile=profile(), requester_id=OWNER_ID + 1, guild_id=GUILD_ID,
-        invoking_guild_id=GUILD_ID, requester_role_ids=(900,),
+        invoking_guild_id=GUILD_ID,
+        requester_role_ids=requester_role_ids,
+        requester_is_guild_owner=requester_is_guild_owner,
         operation=operation, runtime_record=runtime_record(), **kwargs,
     )
 
@@ -453,6 +457,60 @@ class RequestAndWorkerTests(unittest.TestCase):
         self.assertTrue(result.delegated)
         self.assertFalse(result.activation_allowed)
         write.assert_called_once()
+
+    def test_discord_guild_owner_has_ordinary_edit_and_activation_fallback(self):
+        active = fixtures.bundle().imports[0].document
+        edited = service.replace_field(
+            active, service.FIELD_BY_KEY['display_name'], 'Owner edit',
+        )
+        old = stored(edited)
+        value = manager_request(
+            workers.ACTIVATE,
+            requester_role_ids=(),
+            requester_is_guild_owner=True,
+            expected_draft_version=old.draft_version,
+            expected_draft_digest=old.document_digest,
+            discord_snapshot=fixtures.snapshot(),
+        )
+        committed = activation(edited)
+        reloaded = runtime_fixtures.snapshot()
+        reloaded = replace(
+            reloaded,
+            guilds={GUILD_ID: replace(
+                reloaded.guilds[GUILD_ID],
+                revision=2,
+                generation=2,
+                document=edited,
+                document_digest=document_digest(edited),
+            )},
+        )
+        connection = Connection()
+        with mock.patch.object(
+            workers.delegation, 'select_delegation',
+        ) as delegation_read, mock.patch.object(
+            workers.drafts, 'activate_draft', return_value=committed,
+        ), mock.patch.object(
+            workers, '_post_commit_runtime_snapshot', return_value=reloaded,
+        ):
+            result = run_with(connection, value, selected=old)
+        self.assertTrue(result.delegated)
+        self.assertTrue(result.activation_allowed)
+        delegation_read.assert_not_called()
+
+    def test_discord_guild_owner_fallback_still_rejects_protected_settings(self):
+        active = fixtures.bundle().imports[0].document
+        protected = service.replace_field(
+            active, service.FIELD_BY_KEY['allow_teams'], False,
+        )
+        value = manager_request(
+            requester_role_ids=(),
+            requester_is_guild_owner=True,
+        )
+        with self.assertRaisesRegex(
+            workers.OperatorGuildConfigurationDraftPermissionError,
+            'owner-only configuration',
+        ):
+            run_with(Connection(), value, selected=stored(protected))
 
     def test_delegated_manager_cannot_read_or_overwrite_protected_draft(self):
         active = fixtures.bundle().imports[0].document

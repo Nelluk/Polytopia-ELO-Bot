@@ -10,6 +10,8 @@ import time
 import unittest
 from unittest import mock
 
+import discord
+
 from modules import administration
 from modules import guild_configuration_delegation_storage as storage
 from modules import operator_guild_delegation as service
@@ -308,12 +310,16 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
             user=SimpleNamespace(id=OWNER_ID),
             guild=SimpleNamespace(id=GUILD_ID, roles=(manager, everyone)),
         )
+        bot = SimpleNamespace(get_guild=lambda guild_id: interaction.guild)
         with mock.patch.object(service.settings, 'runtime_profile', profile()), \
                 mock.patch.object(
                     service.settings, 'database_guild_ids', return_value=(GUILD_ID,),
                 ):
             value = service.build_request(
-                interaction=interaction, operation=workers.SHOW,
+                bot=bot,
+                interaction=interaction,
+                target_guild_id=GUILD_ID,
+                operation=workers.SHOW,
             )
         self.assertEqual(tuple(item.role_id for item in value.role_evidence), (200, GUILD_ID))
         self.assertTrue(value.role_evidence[-1].everyone)
@@ -335,6 +341,35 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
         self.assertEqual(modal.expected, workspace.confirmation)
         self.assertEqual(modal.confirmation.min_length, len(modal.expected))
 
+    def test_remote_manager_roles_resolve_exact_name_or_id_and_refuse_ambiguity(self):
+        result = workers.GuildDelegationResult(
+            workers.SHOW, GUILD_ID, policy(), 'a' * 64,
+        )
+
+        async def runner(*_args, **_kwargs):
+            return result
+
+        workspace = views.GuildDelegationWorkspace(
+            requester_id=OWNER_ID,
+            result=result,
+            runner=runner,
+            role_names={200: 'Managers', 201: 'Helpers'},
+        )
+        self.assertEqual(workspace.resolve_role('managers', remove=False), 200)
+        self.assertEqual(workspace.resolve_role('201', remove=False), 201)
+        duplicate = views.GuildDelegationWorkspace(
+            requester_id=OWNER_ID,
+            result=result,
+            runner=runner,
+            role_names={200: 'Managers', 201: 'MANAGERS'},
+        )
+        with self.assertRaisesRegex(ValueError, 'More than one role'):
+            duplicate.resolve_role('Managers', remove=False)
+        self.assertFalse(any(
+            isinstance(item, discord.ui.RoleSelect)
+            for item in workspace.walk_children()
+        ))
+
     def test_operator_policy_command_and_public_delegated_entry_are_separate(self):
         roots = {
             command.name: command
@@ -346,7 +381,7 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
         self.assertIsNone(roots['guild'].default_permissions)
         self.assertIsNotNone(roots['guild'].get_command('settings'))
         self.assertIsNone(roots['guild'].get_command('edit'))
-        self.assertIsNotNone(
+        self.assertIsNone(
             roots['operator'].get_command('guild').get_command('delegation')
         )
 

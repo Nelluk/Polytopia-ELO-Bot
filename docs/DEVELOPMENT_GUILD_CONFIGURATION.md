@@ -76,24 +76,16 @@ The ordinary same-server entry point is:
   and private destinations remain hidden and rejected
   by the worker if submitted.
 
-The specialized `/operator guild ...` workflows require development database
-authority and the configured bot owner:
+The `/operator guild ...` surface requires development database authority and
+the configured bot owner. It intentionally has only two subcommands:
 
-- `/operator guild list` — list active, suspended, and pending-visible guilds.
-- `/operator guild validate` — validate the invoking guild read-only against
-  the database, typed schema, live Discord objects, and bot permissions.
-- `/operator guild history` — inspect bounded revision and audit history.
+- `/operator guild list` — open the paginated server-management console.
+  Select any enrolled server visible to the bot, then use target-bound actions
+  for validation, history and restore, suspension/resumption, manager policy,
+  or command-tree repair.
 - `/operator guild enroll` — preview and enroll a quarantined visible guild,
   or update an enrolled guild's Standard/Team/League type and optional global
   leaderboard participation without resetting its other settings.
-- `/operator guild rollback` — clone an earlier compatible document into a new
-  active revision; history remains immutable.
-- `/operator guild sync` — preview and synchronize the command roots derived
-  from one active guild's type and configured destinations.
-- `/operator guild suspend` and `/operator guild resume` — change lifecycle
-  state while preserving configuration history.
-- `/operator guild delegation` — grant or revoke the invoking guild's manager
-  roles and optional activation permission.
 
 The normal settings flow is **`/guild settings` → choose a field → Save
 changes**. It shows
@@ -102,7 +94,9 @@ fresh complete validation as part of Save. Cancel discards only the inactive
 editing session. Internal version, generation, and digest checks still reject
 stale writes without exposing that machinery in the normal UI. Discord guild
 ownership does not grant `/operator` access; those workflows remain protected
-by the configured bot-owner check.
+by the configured bot-owner check. The Discord guild owner always has the same
+ordinary-setting edit and activation access as a delegated manager, but cannot
+edit protected settings.
 
 ## Onboarding and lifecycle
 
@@ -114,15 +108,16 @@ begin at access level 2,
 persistent Teams and league behavior are disabled, unequal side sizes are
 disabled, sides are limited to two players, and global leaderboard
 participation is disabled. The owner then reviews ordinary settings and uses
-the separate guild-only command synchronization step when ready.
+the selected server's **Repair commands** action when ready.
 
-Suspension and resumption must be run from a different active operator guild.
+Suspension and resumption are opened for the selected target from
+`/operator guild list` in an active operator guild.
 Suspension preserves revisions, drafts, delegation, and audit history while
 removing the guild from the running active snapshot. Resumption performs full
 stored and live Discord validation before republishing it. A database lifecycle
 commit and its Discord command-tree reconciliation are distinct effects; when
-the latter fails, use `/operator guild sync` to reconcile without repeating
-the lifecycle write.
+the latter fails, reopen the target from `/operator guild list` and choose
+**Repair commands** without repeating the lifecycle write.
 
 ## Drafts, rollback, and delegation
 
@@ -134,12 +129,16 @@ The owner editor does not need a separate validation step: Save revalidates the
 draft against current database, runtime, role, and channel state immediately
 before the transaction commits.
 
-Rollback never rewrites history. It creates a new revision from an earlier
-same-guild document and refuses a source whose command capabilities differ from
-the active revision. Command-tree changes must use their dedicated workflow.
+Restore from the selected server's **History** action never rewrites history.
+It creates a new revision from an earlier same-guild document and refuses a
+source whose command capabilities differ from the active revision.
 
-Delegation is opt-in per active guild. The owner selects exact manager role IDs
-and whether those managers may activate ordinary-setting drafts. Delegated
+Delegation is opt-in per active guild. From the selected server's **Managers**
+action, the bot owner enters an exact role name or numeric role ID. Ambiguous
+duplicate names are refused and the resolved target role is shown before
+confirmation. The owner also chooses whether those managers may activate
+ordinary-setting drafts. The Discord guild owner has ordinary edit and
+activation access independently of this optional role policy. Delegated
 managers cannot edit capabilities, lifecycle, ownership, delegation, another
 guild, or bot-wide operator state. `allow_teams`, `require_teams`, and global
 leaderboard participation are protected owner settings; delegated managers can
@@ -159,8 +158,9 @@ PCPLUS while the Team records continue to be owned by PolyChampions.
 Normal startup never synchronizes application commands. Source-level command
 changes use [APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md](APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md).
 Once the database-authority development bot already exposes the operator
-workflow, `/operator guild sync` reconciles the active type-derived policy for
-one exact guild.
+workflow, the selected server's **Repair commands** action under
+`/operator guild list` reconciles the active type-derived policy for one exact
+guild.
 
 The capability split follows the same concepts. `core_user` includes
 `/leaderboard squads`; the separate `squad` capability exposes `/squad`.

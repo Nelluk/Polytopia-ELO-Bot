@@ -227,7 +227,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.simple_owner = bool(simple_owner)
         self.expired_message = (
             'This command-capability workspace expired. Run '
-            '`/operator guild capabilities` again.'
+            '`/operator guild list` and choose **Repair commands** again.'
             if self.capabilities_only else
             'This guild-settings workspace expired. Run `/guild settings` again.'
         )

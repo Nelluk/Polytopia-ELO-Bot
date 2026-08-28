@@ -376,6 +376,18 @@ def requester_role_ids(interaction: Any) -> tuple[int, ...]:
     return tuple(sorted(values))
 
 
+def requester_is_guild_owner(interaction: Any) -> bool:
+    guild = getattr(interaction, 'guild', None)
+    owner_id = getattr(guild, 'owner_id', None)
+    if owner_id is None:
+        owner = getattr(guild, 'owner', None)
+        owner_id = getattr(owner, 'id', None)
+    try:
+        return int(interaction.user.id) == int(owner_id)
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 def build_request(
     *,
     bot: Any,
@@ -409,6 +421,7 @@ def build_request(
         runtime_record=settings.database_guild_configuration(guild_id),
         invoking_guild_id=int(interaction.guild_id),
         requester_role_ids=requester_role_ids(interaction),
+        requester_is_guild_owner=requester_is_guild_owner(interaction),
         expected_draft_version=expected_draft_version,
         expected_draft_digest=expected_draft_digest,
         replacement_document=(
@@ -457,6 +470,7 @@ def build_rollback_request(
         runtime_record=settings.database_guild_configuration(guild_id),
         invoking_guild_id=int(interaction.guild_id),
         requester_role_ids=requester_role_ids(interaction),
+        requester_is_guild_owner=requester_is_guild_owner(interaction),
         discord_snapshot=snapshot,
         target_revision=int(target_revision),
         expected_target_digest=expected_target_digest,
@@ -504,4 +518,5 @@ __all__ = [
     'remove_id',
     'replace_field',
     'requester_role_ids',
+    'requester_is_guild_owner',
 ]

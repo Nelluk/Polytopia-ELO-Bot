@@ -133,6 +133,7 @@ class GuildConfigurationDraftRequest:
     database_port: int | None = None
     invoking_guild_id: int | None = None
     requester_role_ids: tuple[int, ...] = ()
+    requester_is_guild_owner: bool = False
     expected_draft_version: int | None = None
     expected_draft_digest: str | None = None
     replacement_document_json: str | None = field(default=None, repr=False)
@@ -222,6 +223,10 @@ def _validate_request(
     if request.invoking_guild_id is not None:
         _strict_positive(request.invoking_guild_id, 'Invoking guild ID')
     roles = tuple(request.requester_role_ids)
+    if not isinstance(request.requester_is_guild_owner, bool):
+        raise OperatorGuildConfigurationDraftValidationError(
+            'The requester guild-owner evidence is invalid.'
+        )
     if (
             any(
                 isinstance(value, bool) or not isinstance(value, int) or value <= 0
@@ -234,7 +239,7 @@ def _validate_request(
         )
     if not owner and (
             request.invoking_guild_id != request.guild_id
-            or not roles
+            or (not roles and not request.requester_is_guild_owner)
             or request.operation in {
                 ACTIVATE_COMMANDS, ROLLBACK_PREVIEW, ROLLBACK_COMMIT,
             }
@@ -436,6 +441,7 @@ def request_from_profile(
     runtime_record: Any,
     invoking_guild_id: int | None = None,
     requester_role_ids: Sequence[int] = (),
+    requester_is_guild_owner: bool = False,
     expected_draft_version: int | None = None,
     expected_draft_digest: str | None = None,
     replacement_document: Mapping[str, Any] | None = None,
@@ -499,6 +505,7 @@ def request_from_profile(
             None if invoking_guild_id is None else int(invoking_guild_id)
         ),
         requester_role_ids=tuple(sorted(int(value) for value in requester_role_ids)),
+        requester_is_guild_owner=requester_is_guild_owner,
         database_password=profile.database_password,
         database_host=profile.database_host,
         database_port=profile.database_port,
@@ -661,9 +668,11 @@ def _changed_paths(
 def _delegated_authority(
     cursor: Any,
     request: GuildConfigurationDraftRequest,
-) -> delegation.GuildConfigurationDelegation | None:
+) -> tuple[bool, bool]:
     if int(request.requester_id) == int(settings.owner_id):
-        return None
+        return False, True
+    if request.requester_is_guild_owner:
+        return True, True
     try:
         policy = delegation.select_delegation(
             cursor, request.guild_id, for_update=False,
@@ -682,7 +691,7 @@ def _delegated_authority(
         raise OperatorGuildConfigurationDraftPermissionError(
             'You do not currently hold a configured guild-manager role.'
         )
-    return policy
+    return True, policy.allow_activation
 
 
 def _require_ordinary(
@@ -786,10 +795,8 @@ def execute_draft_operation(
             active_revision, active_generation, active_document, active_digest = (
                 _active(cursor, request, for_update=not readonly)
             )
-            delegated_policy = _delegated_authority(cursor, request)
-            delegated = delegated_policy is not None
-            activation_allowed = (
-                not delegated or delegated_policy.allow_activation
+            delegated, activation_allowed = _delegated_authority(
+                cursor, request,
             )
             actor = f'discord:{request.requester_id}'
             validation = None

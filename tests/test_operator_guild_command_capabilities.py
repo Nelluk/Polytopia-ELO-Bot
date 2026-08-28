@@ -592,7 +592,7 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(workspace.sections, (draft_service.CAPABILITIES,))
         self.assertEqual(workspace.field.key, 'command_capabilities')
 
-    async def test_only_type_derived_sync_workflow_is_registered(self):
+    async def test_command_repair_is_contextual_not_a_standalone_command(self):
         operator = next(
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
@@ -604,8 +604,11 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         edit = guild.get_command('edit')
         self.assertIsNone(commands)
         self.assertIsNone(capabilities)
-        self.assertIsNotNone(sync)
-        self.assertEqual([value.name for value in sync.parameters], ['target_guild_id'])
+        self.assertIsNone(sync)
+        self.assertEqual(
+            {value.name for value in guild.commands},
+            {'list', 'enroll'},
+        )
         self.assertIsNone(edit)
 
 

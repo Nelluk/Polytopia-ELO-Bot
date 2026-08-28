@@ -129,14 +129,15 @@ command source and for initially deploying the database-authority operator
 surface. Once that surface is running, command policy comes from its immutable
 active guild documents rather than ignored static settings. Server type and
 configured destinations derive that policy; there is no raw capability editor.
-The owner may use `/operator guild sync` to reconcile the already-active policy.
+The owner may select a server under `/operator guild list` and choose
+**Repair commands** to reconcile the already-active policy.
 That path repeats the empty-global guard,
 binds exact command fingerprints into its confirmation, and contains only an
 explicit target-guild `sync` call.
 
 Do not use the profile-backed offline plan as evidence for a database-backed
 command policy: it intentionally does not connect to PostgreSQL. Use the
-private `/operator guild sync` plan for that revision. Production remains
+private **Repair commands** plan for that revision. Production remains
 on this separately approved out-of-process procedure unless production database
 authority is explicitly authorized.
 

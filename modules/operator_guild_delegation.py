@@ -8,24 +8,6 @@ import settings
 from modules import operator_guild_delegation_workers as workers
 
 
-def access_error(interaction: Any) -> str | None:
-    if getattr(interaction, 'guild_id', None) is None:
-        return 'This command can only be used in a server.'
-    if int(interaction.user.id) != int(settings.owner_id):
-        return 'Only the configured bot owner can grant configuration delegation.'
-    profile = settings.runtime_profile
-    if (
-            profile.environment != 'development'
-            or profile.guild_configuration_source != 'database'
-    ):
-        return 'Guild delegation requires development database authority.'
-    if not settings.guild_configuration_ready():
-        return 'The running database guild configuration is not published.'
-    if settings.database_guild_configuration(int(interaction.guild_id)) is None:
-        return 'This server is not active in the running configuration snapshot.'
-    return None
-
-
 def _role_evidence(guild: Any) -> tuple[workers.DiscordRoleEvidence, ...]:
     values = []
     for role in tuple(getattr(guild, 'roles', ())):
@@ -42,9 +24,35 @@ def _role_evidence(guild: Any) -> tuple[workers.DiscordRoleEvidence, ...]:
     return tuple(sorted(values, key=lambda value: value.role_id))
 
 
+def target_guild(bot: Any, target_guild_id: int) -> Any:
+    guild = bot.get_guild(int(target_guild_id))
+    if guild is None:
+        raise workers.OperatorGuildDelegationValidationError(
+            'The selected server is not visible to this development bot.'
+        )
+    return guild
+
+
+def assignable_role_names(guild: Any) -> dict[int, str]:
+    values = {}
+    for role in tuple(getattr(guild, 'roles', ())):
+        role_id = int(role.id)
+        is_default = getattr(role, 'is_default', None)
+        if (
+                role_id <= 0
+                or bool(getattr(role, 'managed', False))
+                or (callable(is_default) and bool(is_default()))
+        ):
+            continue
+        values[role_id] = str(role.name)
+    return values
+
+
 def build_request(
     *,
+    bot: Any,
     interaction: Any,
+    target_guild_id: int,
     operation: str,
     expected_policy_version: int | None = None,
     manager_role_ids: tuple[int, ...] | None = None,
@@ -52,12 +60,13 @@ def build_request(
     expected_plan_digest: str | None = None,
     confirmation_text: str | None = None,
 ) -> workers.GuildDelegationRequest:
+    guild = target_guild(bot, target_guild_id)
     return workers.request_from_profile(
         profile=settings.runtime_profile,
         requester_id=int(interaction.user.id),
-        guild_id=int(interaction.guild_id),
+        guild_id=int(target_guild_id),
         operation=operation,
-        role_evidence=_role_evidence(interaction.guild),
+        role_evidence=_role_evidence(guild),
         runtime_guild_ids=settings.database_guild_ids(),
         expected_policy_version=expected_policy_version,
         manager_role_ids=manager_role_ids,
@@ -67,4 +76,6 @@ def build_request(
     )
 
 
-__all__ = ['access_error', 'build_request']
+__all__ = [
+    'assignable_role_names', 'build_request', 'target_guild',
+]

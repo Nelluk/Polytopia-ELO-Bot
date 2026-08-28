@@ -68,8 +68,8 @@ class GuildCommandCapabilityConfirmationModal(discord.ui.Modal):
 
 class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
-        'This server-command plan expired. Run `/operator guild sync` '
-        'again for fresh database and Discord evidence.'
+        'This server-command plan expired. Reopen the server from '
+        '`/operator guild list` and choose **Repair commands**.'
     )
 
     def __init__(
@@ -156,8 +156,9 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
             self.terminal = True
             self.status = (
                 'The operation stopped without a trustworthy terminal result. '
-                'Do not repeat a database change; reopen `/operator guild sync` '
-                'to inspect current truth.'
+                'Do not repeat a database change; reopen the server from '
+                '`/operator guild list` and choose **Repair commands** to '
+                'inspect current truth.'
             )
             self.rebuild()
             try:

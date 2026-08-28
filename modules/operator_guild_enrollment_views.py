@@ -183,8 +183,8 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         self.status = (
             f'{"Enrolled" if mutation.created else "Updated"} and published at '
             f'revision {mutation.revision} / generation {mutation.generation}. '
-            'Discord commands were not synchronized; apply the separately '
-            'reviewed guild-only command plan when ready.'
+            'Discord commands were not synchronized; reopen this server from '
+            '`/operator guild list` and choose **Repair commands** when ready.'
         )
         self.rebuild()
         await self._publish_terminal(interaction)

@@ -53,8 +53,9 @@ class OperatorGuildCommandCapabilityCommitted(
         super().__init__(
             f'Configuration r{self.revision}/g{self.generation} committed and '
             'the running policy is fail-closed, but the exact guild command '
-            f'tree is not verified ({detail}). Run `/operator guild sync` '
-            'again to reconcile without another database write.'
+            f'tree is not verified ({detail}). Reopen the server from '
+            '`/operator guild list` and choose **Repair commands** to '
+            'reconcile without another database write.'
         )
 
 
@@ -304,8 +305,8 @@ async def inspect_command_plan(
             + ', '.join(f'/{value}' for value in active_root_updates)
             + '. No configuration or Discord commands were changed. Deploy '
             'the reviewed source update with the external guild command tool, '
-            'then run `/operator guild sync` again if the server type also '
-            'changed.'
+            'then reopen the server from `/operator guild list` and choose '
+            '**Repair commands** if its type also changed.'
         )
     current_evidence = _command_evidence(current_remote, tree=bot.tree)
     desired_evidence = tuple(

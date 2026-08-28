@@ -47,10 +47,45 @@ class DelegationConfirmationModal(discord.ui.Modal):
         await self.workspace.apply(interaction, self.expected)
 
 
+class DelegationRoleModal(discord.ui.Modal):
+    def __init__(
+        self,
+        workspace: 'GuildDelegationWorkspace',
+        *,
+        remove: bool,
+    ):
+        self.workspace = workspace
+        self.remove = remove
+        super().__init__(
+            title='Remove manager role' if remove else 'Add manager role',
+            timeout=180.0,
+        )
+        self.role = discord.ui.TextInput(
+            placeholder='Exact role name or numeric role ID',
+            min_length=1,
+            max_length=100,
+        )
+        self.add_item(discord.ui.Label(
+            text='Role in the selected server',
+            description=(
+                'Duplicate role names are refused; use the numeric role ID '
+                'to disambiguate.'
+            ),
+            component=self.role,
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.workspace.stage_role(
+            interaction,
+            str(self.role.value),
+            remove=self.remove,
+        )
+
+
 class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
-        'This delegation workspace expired. Run '
-        '`/operator guild delegation` again.'
+        'This manager workspace expired. Reopen it from '
+        '`/operator guild list`.'
     )
 
     def __init__(
@@ -108,30 +143,79 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
             return False
         return True
 
-    async def _select_roles(self, interaction: Any, select: Any) -> None:
+    def resolve_role(self, value: str, *, remove: bool) -> int:
+        raw = value.strip()
+        if raw.isdigit():
+            role_id = int(raw)
+            if remove and role_id in self.manager_role_ids:
+                return role_id
+            if role_id in self.role_names:
+                return role_id
+            raise ValueError('That role ID is not assignable in the selected server.')
+        matches = tuple(sorted(
+            role_id for role_id, name in self.role_names.items()
+            if name.casefold() == raw.casefold()
+            and (not remove or role_id in self.manager_role_ids)
+        ))
+        if not matches:
+            raise ValueError('No assignable role has that exact name.')
+        if len(matches) != 1:
+            raise ValueError(
+                'More than one role has that name; enter the numeric role ID.'
+            )
+        return matches[0]
+
+    async def stage_role(
+        self,
+        interaction: Any,
+        value: str,
+        *,
+        remove: bool,
+    ) -> None:
         if not await self.ready(interaction):
             return
-        selected = tuple(select.values)
-        invalid = tuple(
-            role for role in selected
-            if bool(getattr(role, 'managed', False))
-            or (
-                callable(getattr(role, 'is_default', None))
-                and role.is_default()
-            )
-        )
-        if invalid:
-            return await _private(
-                interaction,
-                'Choose assignable guild roles; `@everyone` and managed roles '
-                'cannot receive configuration authority.',
-            )
-        self.manager_role_ids = tuple(sorted(int(role.id) for role in selected))
+        try:
+            role_id = self.resolve_role(value, remove=remove)
+        except ValueError as exc:
+            return await _private(interaction, str(exc))
+        roles = set(self.manager_role_ids)
+        if remove:
+            if role_id not in roles:
+                return await _private(interaction, 'That role is not a manager.')
+            roles.remove(role_id)
+        else:
+            if role_id in roles:
+                return await _private(interaction, 'That role is already a manager.')
+            if len(roles) >= storage.MAX_MANAGER_ROLES:
+                return await _private(
+                    interaction,
+                    f'At most {storage.MAX_MANAGER_ROLES} manager roles are allowed.',
+                )
+            roles.add(role_id)
+        self.manager_role_ids = tuple(sorted(roles))
         if not self.manager_role_ids:
             self.allow_activation = False
-        self.status = 'Staged role selection; no database change yet.'
+        self.status = (
+            f'Staged removal of role `{role_id}`; no database change yet.'
+            if remove else
+            f'Staged manager role `{role_id}`; no database change yet.'
+        )
         self.rebuild()
         await interaction.response.edit_message(view=self)
+
+    async def _add_role(self, interaction: Any) -> None:
+        if await self.ready(interaction):
+            await interaction.response.send_modal(
+                DelegationRoleModal(self, remove=False)
+            )
+
+    async def _remove_role(self, interaction: Any) -> None:
+        if await self.ready(interaction):
+            if not self.manager_role_ids:
+                return await _private(interaction, 'No manager roles are staged.')
+            await interaction.response.send_modal(
+                DelegationRoleModal(self, remove=True)
+            )
 
     async def _toggle_activation(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -181,6 +265,7 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
             result = await self.runner(
                 interaction,
                 workers.APPLY,
+                target_guild_id=self.result.guild_id,
                 expected_policy_version=self.expected_version,
                 manager_role_ids=self.manager_role_ids,
                 allow_activation=self.allow_activation,
@@ -213,6 +298,10 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
 
     def rebuild(self) -> None:
         self.clear_items()
+        activation_description = (
+            'managers allowed'
+            if self.allow_activation else 'guild/bot owner only'
+        )
         roles = '\n'.join(
             f'- <@&{role_id}> `{role_id}` '
             f'({discord.utils.escape_markdown(self.role_names.get(role_id, "unresolved"))})'
@@ -225,19 +314,22 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
                 f'**Current policy version:** '
                 f'`{self.expected_version or "none"}`\n'
                 f'**Ordinary-setting activation:** '
-                f'`{"allowed" if self.allow_activation else "owner only"}`\n\n'
+                f'`{activation_description}`\n\n'
                 f'## Staged manager roles\n{roles}'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
         ]
-        select = discord.ui.RoleSelect(
-            placeholder='Replace manager roles (select zero to clear)',
-            min_values=0,
-            max_values=storage.MAX_MANAGER_ROLES,
+        add = discord.ui.Button(
+            label='Add role',
+            style=discord.ButtonStyle.primary,
             disabled=self.busy,
         )
-        select.callback = lambda interaction: self._select_roles(interaction, select)
-        children.append(discord.ui.ActionRow(select))
+        add.callback = self._add_role
+        remove = discord.ui.Button(
+            label='Remove role',
+            disabled=self.busy or not self.manager_role_ids,
+        )
+        remove.callback = self._remove_role
         activation = discord.ui.Button(
             label=(
                 'Managers may activate' if self.allow_activation
@@ -261,14 +353,16 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
         )
         apply.callback = self._confirm
         children.extend((
-            discord.ui.ActionRow(activation, disable, apply),
+            discord.ui.ActionRow(add, remove, activation, disable, apply),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'**Status:** {discord.utils.escape_markdown(self.status)}\n'
                 '-# Managers can edit only ordinary settings in this guild. '
                 'Roles, private/log/staff routes, global visibility, command '
                 'capabilities, lifecycle, delegation, and cross-guild access '
-                'remain owner-only.'
+                'remain bot-owner-only. The Discord guild owner always has '
+                'ordinary-setting edit and activation access, even when no '
+                'manager roles are configured.'
             ),
         ))
         self.add_item(discord.ui.Container(
@@ -286,5 +380,6 @@ async def publish_private(interaction: Any, view: GuildDelegationWorkspace):
 
 
 __all__ = [
-    'DelegationConfirmationModal', 'GuildDelegationWorkspace', 'publish_private',
+    'DelegationConfirmationModal', 'DelegationRoleModal',
+    'GuildDelegationWorkspace', 'publish_private',
 ]

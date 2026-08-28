@@ -222,10 +222,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 command.name
                 for command in operator_group.get_command('guild').commands
             },
-            {
-                'list', 'validate', 'history', 'rollback', 'enroll',
-                'sync', 'suspend', 'resume', 'delegation',
-            },
+            {'list', 'enroll'},
         )
         self.assertEqual(
             operator_group.default_permissions,
