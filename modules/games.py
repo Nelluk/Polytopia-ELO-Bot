@@ -1312,13 +1312,13 @@ class polygames(commands.Cog):
             )
 
     @settings.in_bot_channel_strict()
-    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 20, commands.BucketType.channel)
     async def lbsquad(self, ctx, *, filters: str = ''):
         """Display squad leaderboard
 
-        A squad is any combination of players that have completed at least two games together.
+        A squad is an automatically tracked combination of players that has
+        completed at least two multiplayer games together.
         To set a squad name use `/squad name`.
 
         **Examples:**

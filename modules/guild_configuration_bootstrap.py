@@ -95,9 +95,9 @@ def _operator_only_document(
         'permissions': {
             'helper_role_ids': [],
             'mod_role_ids': [],
-            'user_role_ids_level_1': [guild_id],
+            'user_role_ids_level_1': [],
             'user_role_ids_level_2': [guild_id],
-            'user_role_ids_level_3': [guild_id],
+            'user_role_ids_level_3': [],
             'user_role_ids_level_4': [],
             'inactive_role_id': None,
         },
@@ -105,7 +105,7 @@ def _operator_only_document(
             'require_teams': False,
             'allow_teams': False,
             'allow_uneven_teams': False,
-            'max_team_size': 1,
+            'max_team_size': 2,
         },
         'visibility': {
             'include_in_global_leaderboard': False,

@@ -36,10 +36,17 @@ class FirstGuildPlanTests(unittest.TestCase):
         self.assertEqual(first.document.command_capabilities, ('operator',))
         self.assertEqual(first.document.identity.command_prefix, '$')
         self.assertEqual(
-            first.document.permissions.user_role_ids_level_3,
+            first.document.permissions.user_role_ids_level_2,
             (GUILD_ID,),
         )
+        self.assertEqual(first.document.permissions.user_role_ids_level_1, ())
+        self.assertEqual(first.document.permissions.user_role_ids_level_3, ())
         self.assertFalse(first.document.teams.allow_teams)
+        self.assertFalse(first.document.teams.require_teams)
+        self.assertEqual(first.document.teams.max_team_size, 2)
+        self.assertFalse(
+            first.document.visibility.include_in_global_leaderboard
+        )
         self.assertIsNone(first.document.channels.bot_channel_ids)
         self.assertRegex(first.plan_digest, r'^[0-9a-f]{64}$')
         self.assertEqual(

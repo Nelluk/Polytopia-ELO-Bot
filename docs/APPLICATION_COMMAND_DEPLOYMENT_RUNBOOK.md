@@ -21,8 +21,11 @@ application_command_capabilities = {
 
 The guild ID must already be in that profile's `server_list`. The policy is
 default-deny. Current families are `core_user`, `elo_maintenance`, `operator`,
-and reserved `team`, `league`, `house`, `squad`, and `tools_support`. The
-current `tools_support` family exposes `/staffhelp` only. The taxonomy names
+`team`, `league`, `house`, `squad`, and `tools_support`. `core_user` owns the
+`/leaderboard` root, including squad rankings; `squad` owns `/squad`; and
+`team` owns persistent `/team` functionality, which remains runtime-gated by
+the protected `allow_teams` guild setting. The current `tools_support` family
+exposes `/staffhelp` only. The taxonomy names
 `/about`, `/guide`, `/help`, `/support`, and `/tools` remain unloaded and
 reserved; an assignment must not silently invent them. See
 `modules/application_command_policy.py` for the authoritative membership.

@@ -66,10 +66,10 @@ FIELDS = (
     DraftField('user_level_3_roles', 'User level 3 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_3'), ROLE_LIST),
     DraftField('user_level_4_roles', 'User level 4 roles', PERMISSIONS, ('permissions', 'user_role_ids_level_4'), ROLE_LIST),
     DraftField('inactive_role', 'Inactive role', PERMISSIONS, ('permissions', 'inactive_role_id'), OPTIONAL_ROLE),
-    DraftField('require_teams', 'Require teams', TEAMS, ('teams', 'require_teams'), BOOLEAN),
-    DraftField('allow_teams', 'Allow teams', TEAMS, ('teams', 'allow_teams'), BOOLEAN),
-    DraftField('allow_uneven_teams', 'Allow uneven teams', TEAMS, ('teams', 'allow_uneven_teams'), BOOLEAN),
-    DraftField('max_team_size', 'Maximum team size', TEAMS, ('teams', 'max_team_size'), INTEGER),
+    DraftField('require_teams', 'Require persistent Teams', TEAMS, ('teams', 'require_teams'), BOOLEAN),
+    DraftField('allow_teams', 'Allow persistent Teams', TEAMS, ('teams', 'allow_teams'), BOOLEAN),
+    DraftField('allow_uneven_teams', 'Allow unequal side sizes', TEAMS, ('teams', 'allow_uneven_teams'), BOOLEAN),
+    DraftField('max_team_size', 'Maximum players per side', TEAMS, ('teams', 'max_team_size'), INTEGER),
     DraftField('global_leaderboard', 'Include in global leaderboard', TEAMS, ('visibility', 'include_in_global_leaderboard'), BOOLEAN),
     DraftField('bot_channels', 'Bot channels', CHANNELS, ('channels', 'bot_channel_ids'), NULLABLE_CHANNEL_LIST),
     DraftField('strict_bot_channels', 'Strict bot channels', CHANNELS, ('channels', 'strict_bot_channel_ids'), NULLABLE_CHANNEL_LIST),
@@ -88,7 +88,7 @@ FIELDS = (
 FIELD_BY_KEY = {value.key: value for value in FIELDS}
 ORDINARY_FIELD_KEYS = frozenset({
     'display_name', 'command_prefix',
-    'require_teams', 'allow_teams', 'allow_uneven_teams', 'max_team_size',
+    'allow_uneven_teams', 'max_team_size',
     'bot_channels', 'strict_bot_channels', 'newbie_channels',
     'challenge_channels', 'game_categories', 'ranked_game_channel',
     'unranked_game_channel', 'steam_game_channel', 'game_announce_channel',

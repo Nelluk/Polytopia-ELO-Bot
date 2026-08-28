@@ -36,6 +36,18 @@ The stored envelope consists of:
 - at most one expiring inactive draft per enrolled guild; and
 - an optional versioned delegation policy for an active guild.
 
+Three related game concepts remain deliberately separate:
+
+- A **Side** is the set of players allied together in one game.
+- A **Squad** is the automatically tracked, guild-scoped combination formed
+  when the same players complete multiplayer games together.
+- A **Team** is a persistent named organization. Persistent Team and league
+  features are opt-in and are not required for multiplayer Sides or Squads.
+
+The stored keys `allow_uneven_teams` and `max_team_size` are retained for
+compatibility, but the user-facing policy names are **Allow unequal side
+sizes** and **Maximum players per side**.
+
 Ordinary reads use the published snapshot, not live database queries. A
 committed configuration change must reload and publish the complete active
 graph before it is reported as reconciled. If a commit succeeds but publication
@@ -81,7 +93,10 @@ capability assignment.
 An unknown but allowed development guild is quarantined: the bot may observe
 enough identity to offer enrollment, but it does not treat that guild as active
 configuration authority. Enrollment creates the first immutable revision from
-the basic prefix-server template. The owner then reviews ordinary settings and
+the basic prefix-server template. Ordinary users begin at access level 2,
+persistent Teams and league behavior are disabled, unequal side sizes are
+disabled, sides are limited to two players, and global leaderboard
+participation is disabled. The owner then reviews ordinary settings and
 separately deploys any desired application-command capabilities.
 
 Suspension and resumption must be run from a different active operator guild.
@@ -109,8 +124,18 @@ the active revision. Command-tree changes must use their dedicated workflow.
 Delegation is opt-in per active guild. The owner selects exact manager role IDs
 and whether those managers may activate ordinary-setting drafts. Delegated
 managers cannot edit capabilities, lifecycle, ownership, delegation, another
-guild, or bot-wide operator state. Runtime permission checks remain
-authoritative even when Discord hides or exposes a command root.
+guild, or bot-wide operator state. `allow_teams`, `require_teams`, and global
+leaderboard participation are protected owner settings; delegated managers can
+still manage the unequal-side and maximum-players-per-side controls. Runtime
+permission checks remain authoritative even when Discord hides or exposes a
+command root.
+
+Persistent `/team` behavior remains gated by `allow_teams`. In a deliberately
+Team-enabled guild, configured moderators may manage that guild's Team records,
+including `Team.external_server`. League-only House and tier behavior retains
+its PolyChampions/test scope. PCPLUS remains a satellite/event venue: its
+case-insensitive name/notes routing override sends eligible side channels to
+PCPLUS while the Team records continue to be owned by PolyChampions.
 
 ## Discord command synchronization
 
@@ -119,6 +144,13 @@ changes use [APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md](APPLICATION_COMMAND_DEPL
 Once the database-authority development bot already exposes the operator
 workflow, `/operator guild commands` owns capability activation and
 reconciliation for one exact active guild.
+
+The capability split follows the same concepts. `core_user` includes
+`/leaderboard squads`; the separate `squad` capability exposes `/squad`.
+Neither requires `allow_teams`. The `team` capability exposes `/team`, whose
+runtime checks still require the protected `allow_teams` setting. Changing a
+capability assignment therefore remains a Discord command-tree operation even
+when the underlying runtime policy is already enabled.
 
 Both paths are guild-only, inspect the global tree, and refuse apply while any
 global commands exist. A nonempty global tree is evidence for separate review,

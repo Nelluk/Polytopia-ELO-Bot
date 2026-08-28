@@ -47,7 +47,7 @@ def side(side_id, position, players, *, name='Alpha', channel=None):
     return value
 
 
-def game_graph(*, notes='Notes', game_channel=None):
+def game_graph(*, name='Fields of Fire', notes='Notes', game_channel=None):
     first = side(
         11,
         1,
@@ -64,7 +64,7 @@ def game_graph(*, notes='Notes', game_channel=None):
     game = SimpleNamespace(
         id=42,
         guild_id=300,
-        name='Fields of Fire',
+        name=name,
         notes=notes,
         host=SimpleNamespace(name='Host'),
         league_season=None,
@@ -76,7 +76,7 @@ def game_graph(*, notes='Notes', game_channel=None):
     return game
 
 
-def frozen_plan(*, preferred_guild_id=None):
+def frozen_plan(*, preferred_guild_id=None, force_pcplus_guild=False):
     members = (
         workers.ChannelPlayer('One', workers.ChannelDiscordMember(1001)),
         workers.ChannelPlayer('Two', workers.ChannelDiscordMember(1002)),
@@ -101,6 +101,7 @@ def frozen_plan(*, preferred_guild_id=None):
                 team_name='The Team',
                 players=members,
                 preferred_guild_id=preferred_guild_id,
+                force_pcplus_guild=force_pcplus_guild,
             ),
         ),
         central_target=None,
@@ -132,6 +133,21 @@ class StartedChannelPlanTests(unittest.TestCase):
             tuple(target.side_id for target in plan.side_targets),
             (12,),
         )
+
+    def test_pcplus_name_and_notes_override_is_case_insensitive(self):
+        with mock.patch.object(workers.models.Team, 'create') as create_team:
+            for game in (
+                game_graph(notes='pCpLuS event'),
+                game_graph(name='Finals pcplus round', notes='ordinary notes'),
+            ):
+                with self.subTest(name=game.name, notes=game.notes):
+                    plan = workers.freeze_started_channel_plan(game)
+                    self.assertTrue(plan.side_targets)
+                    self.assertTrue(all(
+                        target.force_pcplus_guild
+                        for target in plan.side_targets
+                    ))
+        create_team.assert_not_called()
 
 
 class StartedChannelPersistenceTests(unittest.TestCase):
@@ -297,6 +313,50 @@ class StartedChannelDiscordTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result.warnings, ())
         channel.delete.assert_not_awaited()
+
+    async def test_pcplus_override_wins_over_team_external_server(self):
+        source = self.guild(300)
+        external = self.guild(700)
+        pcplus = self.guild(workers.PCPLUS_GUILD_ID)
+        channel = SimpleNamespace(
+            id=901,
+            guild=pcplus,
+            delete=mock.AsyncMock(),
+        )
+        created_in = []
+
+        async def create(guild, **kwargs):
+            created_in.append((guild.id, kwargs['using_team_server_flag']))
+            return channel
+
+        with mock.patch.object(
+            creation.channels,
+            'create_game_channel',
+            side_effect=create,
+        ), mock.patch.object(
+            creation.workers,
+            'run_persist_started_channel',
+            new=mock.AsyncMock(),
+        ) as persist, mock.patch.object(
+            creation.channels,
+            'greet_game_channel',
+            new=mock.AsyncMock(),
+        ):
+            result = await creation.create_started_game_channels(
+                plan=frozen_plan(
+                    preferred_guild_id=700,
+                    force_pcplus_guild=True,
+                ),
+                source_guild=source,
+                bot_guilds=(source, external, pcplus),
+            )
+
+        self.assertEqual(created_in, [(workers.PCPLUS_GUILD_ID, False)])
+        self.assertEqual(
+            persist.await_args.args[0].channel_guild_id,
+            workers.PCPLUS_GUILD_ID,
+        )
+        self.assertEqual(result.warnings, ())
 
     async def test_unclaimed_channel_is_deleted_and_never_greeted(self):
         source = self.guild(300)

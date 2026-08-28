@@ -46,8 +46,6 @@ _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 ORDINARY_CHANGED_PATHS = frozenset({
     'identity.display_name',
     'identity.command_prefix',
-    'teams.require_teams',
-    'teams.allow_teams',
     'teams.allow_uneven_teams',
     'teams.max_team_size',
     'channels.bot_channel_ids',

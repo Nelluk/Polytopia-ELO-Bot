@@ -57,7 +57,6 @@ class SquadShowRequest:
     requester_id: int
     member_ids: tuple[int, ...] = ()
     squad_id: int | None = None
-    team_enabled: bool = True
     channel_allowed: bool = True
     # This is only a display snapshot.  Name mutation workers revalidate
     # authority independently at submission time.
@@ -168,8 +167,6 @@ def _validate_request(request: SquadShowRequest) -> None:
         raise SquadShowValidationError(
             'squad_id must be a positive integer.'
         )
-    if not bool(request.team_enabled):
-        raise SquadShowPermissionError('Teams are not enabled on this server.')
     if not bool(request.channel_allowed):
         raise SquadShowPermissionError(
             'This command can only be used in a designated ELO bot channel.'

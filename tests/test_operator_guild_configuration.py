@@ -403,6 +403,17 @@ class ServiceTests(unittest.TestCase):
                 ))
                 self.assertIn('Read-only', value['footer']['text'])
 
+        team_policy = service.result_embed(
+            result,
+            section=service.TEAMS,
+        ).to_dict()
+        rendered = str(team_policy)
+        self.assertIn('Sides & persistent Teams', rendered)
+        self.assertIn('Allow unequal side sizes', rendered)
+        self.assertIn('Maximum players per side', rendered)
+        self.assertNotIn('Allow uneven teams', rendered)
+        self.assertNotIn('Max team size', rendered)
+
     def test_validate_and_history_render_actionable_bounded_summaries(self):
         validated = inspect_with(
             FakeConnection(),

@@ -267,7 +267,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                 'allow_uneven_teams',
             ) and not all(size == team_sizes[0] for size in team_sizes):
                 raise OpenGameValidationError(
-                    'Uneven team games are not allowed on this server.'
+                    'Unequal side sizes are not allowed on this server.'
                 )
 
             warnings: list[str] = []
@@ -283,7 +283,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                     )
                     and min(team_sizes) <= server_size_max
                 ):
-                    warnings.append(':warning: Team sizes are uneven.')
+                    warnings.append(':warning: Side sizes are unequal.')
                 elif request.requester_is_mod:
                     warnings.append('Moderator over-riding server size limits')
                 elif not request.is_ranked and max(team_sizes) <= server_size_max + 1:
@@ -292,8 +292,8 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                     )
                 else:
                     raise OpenGameValidationError(
-                        f'Maximum ranked team size on this server is '
-                        f'{server_size_max}. Maximum team size for an '
+                        f'Maximum players per ranked side on this server is '
+                        f'{server_size_max}. Maximum players per side for an '
                         f'unranked game is {server_size_max + 1}.'
                     )
             role_warning_position = len(warnings)

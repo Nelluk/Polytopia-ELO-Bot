@@ -70,8 +70,6 @@ def native_access_error(
 ) -> str | None:
     """Return the private preflight error for the legacy read boundary."""
 
-    if not bool(_setting(guild_id, 'allow_teams', False)):
-        return 'Teams are not enabled on this server.'
     if _channel_allowed(member, guild_id, channel_id):
         return None
     bot_channels = _setting(guild_id, 'bot_channels', ()) or ()
@@ -127,7 +125,6 @@ def build_request(
         requester_id=int(member.id),
         member_ids=captured_member_ids,
         squad_id=(int(squad_id) if squad_id is not None else None),
-        team_enabled=bool(_setting(guild_id, 'allow_teams', False)),
         channel_allowed=_channel_allowed(member, guild_id, channel_id),
         requester_is_staff=_is_staff(member),
     )

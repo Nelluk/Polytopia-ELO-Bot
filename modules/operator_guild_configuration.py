@@ -27,6 +27,9 @@ SETTINGS_SECTIONS = frozenset({
     DESTINATIONS,
     CAPABILITIES,
 })
+SECTION_TITLES = {
+    TEAMS: 'Sides & persistent Teams',
+}
 MAX_LISTED_GUILDS = 20
 MAX_LISTED_HISTORY = 10
 SettingsEditCallback = Callable[[Any], Awaitable[Any]]
@@ -198,7 +201,9 @@ def _settings_embed(
         raise ValueError('The settings result has no active document.')
     document = record.document
     embed = _base_embed(result)
-    embed.title = f'{record.display_name} — {section.title()}'
+    embed.title = (
+        f'{record.display_name} — {SECTION_TITLES.get(section, section.title())}'
+    )
     embed.description = (
         f'Active settings for guild {_inline(record.guild_id)}. '
         'Use **Edit settings** below to make changes.'
@@ -241,12 +246,13 @@ def _settings_embed(
     elif section == TEAMS:
         policy = document.teams
         embed.add_field(
-            name='Team policy',
+            name='Side and persistent Team policy',
             value=(
-                f'Require teams: **{_bool(policy.require_teams)}**\n'
-                f'Allow teams: **{_bool(policy.allow_teams)}**\n'
-                f'Allow uneven teams: **{_bool(policy.allow_uneven_teams)}**\n'
-                f'Max team size: `{policy.max_team_size}`'
+                f'Require persistent Teams: **{_bool(policy.require_teams)}**\n'
+                f'Allow persistent Teams: **{_bool(policy.allow_teams)}**\n'
+                'Allow unequal side sizes: '
+                f'**{_bool(policy.allow_uneven_teams)}**\n'
+                f'Maximum players per side: `{policy.max_team_size}`'
             ),
             inline=False,
         )

@@ -467,6 +467,7 @@ class TeamAttributeWorkerTests(unittest.TestCase):
                 attribute=workers.TEAM_ATTRIBUTE_SERVER,
                 team_lookup='The Ronin',
                 server_id=123456,
+                league_scope=False,
             )
         )
         self.assertEqual(server.value, 123456)
@@ -832,6 +833,12 @@ class TeamAttributeWorkerTests(unittest.TestCase):
         with self.assertRaises(workers.TeamAttributePermissionError):
             workers.read_team_attribute(read_request(team_enabled=False))
         with self.assertRaises(workers.TeamAttributePermissionError):
+            workers.read_team_attribute(read_request(
+                attribute=workers.TEAM_ATTRIBUTE_TIER,
+                team_enabled=False,
+                league_scope=True,
+            ))
+        with self.assertRaises(workers.TeamAttributePermissionError):
             workers.read_team_attribute(
                 read_request(
                     attribute=workers.TEAM_ATTRIBUTE_TIER,
@@ -871,8 +878,8 @@ class TeamAttributeWorkerTests(unittest.TestCase):
             workers.set_team_attribute(mutation_request())
         self.assertEqual(self.team.external_server, None)
         self.assertEqual(self.database.logs, [])
-        self.assertEqual(self.database.connection_opened, 8)
-        self.assertEqual(self.database.connection_closed, 8)
+        self.assertEqual(self.database.connection_opened, 9)
+        self.assertEqual(self.database.connection_closed, 9)
 
     def test_worker_keeps_loop_responsive_and_drains_cancelled_mutation(self):
         async def check():
@@ -928,6 +935,27 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             name='Mod',
             mention='<@100>',
         )
+
+    def test_external_server_is_mod_managed_in_any_team_enabled_guild(self):
+        with mock.patch.object(
+            service,
+            '_team_enabled',
+            return_value=True,
+        ), mock.patch.object(
+            service,
+            '_league_scope',
+            return_value=False,
+        ), mock.patch.object(
+            service,
+            '_requester_is_mod',
+            return_value=True,
+        ):
+            self.assertIsNone(service.native_access_error(
+                self.member,
+                300,
+                workers.TEAM_ATTRIBUTE_SERVER,
+                mutation=True,
+            ))
 
     def test_house_access_is_public_for_reads_but_mod_only_for_mutations(self):
         with mock.patch.object(
@@ -1440,6 +1468,10 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             service,
             '_requester_is_mod',
             return_value=True,
+        ), mock.patch.object(
+            service,
+            '_team_enabled',
+            return_value=True,
         ):
             self.assertEqual(
                 service.native_access_error(
@@ -1484,6 +1516,10 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             administration.team_attributes_service,
             '_requester_is_mod',
+            return_value=True,
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            '_team_enabled',
             return_value=True,
         ), mock.patch.object(
             administration.team_attributes_service,

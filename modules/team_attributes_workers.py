@@ -52,8 +52,8 @@ class TeamAttributeReadRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
-    # Captured before worker submission; tier authorization also enforces this
-    # legacy PolyChampions/test scope in the worker.
+    # Captured before worker submission; league-only attributes also enforce
+    # the legacy PolyChampions/test scope in the worker.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -70,8 +70,8 @@ class TeamAttributeMutationRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
-    # Captured before worker submission; tier authorization also enforces this
-    # legacy PolyChampions/test scope in the worker.
+    # Captured before worker submission; league-only attributes also enforce
+    # the legacy PolyChampions/test scope in the worker.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -148,10 +148,7 @@ def _validate_attribute(attribute: str) -> str:
 
 def _validate_access(request) -> str:
     attribute = _validate_attribute(request.attribute)
-    if (
-        attribute != TEAM_ATTRIBUTE_TIER
-        and not bool(request.team_enabled)
-    ):
+    if not bool(request.team_enabled):
         raise TeamAttributePermissionError('Teams are not enabled on this server.')
     if attribute in {TEAM_ATTRIBUTE_TIER, TEAM_ATTRIBUTE_HOUSE} and not bool(
         request.league_scope

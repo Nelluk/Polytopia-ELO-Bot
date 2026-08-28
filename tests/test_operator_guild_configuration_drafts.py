@@ -412,6 +412,12 @@ class RequestAndWorkerTests(unittest.TestCase):
         edited = service.replace_field(
             active, service.FIELD_BY_KEY['display_name'], 'Manager edit',
         )
+        edited = service.replace_field(
+            edited, service.FIELD_BY_KEY['allow_uneven_teams'], False,
+        )
+        edited = service.replace_field(
+            edited, service.FIELD_BY_KEY['max_team_size'], 2,
+        )
         old = stored()
         updated = stored(edited, version=2)
         value = manager_request(
@@ -433,20 +439,35 @@ class RequestAndWorkerTests(unittest.TestCase):
 
     def test_delegated_manager_cannot_read_or_overwrite_protected_draft(self):
         active = fixtures.bundle().imports[0].document
-        protected = service.replace_field(
-            active, service.FIELD_BY_KEY['helper_roles'], (999,),
-        )
-        connection = Connection()
-        with mock.patch.object(
-            workers.delegation, 'select_delegation', return_value=manager_policy(),
-        ):
-            with self.assertRaisesRegex(
-                workers.OperatorGuildConfigurationDraftPermissionError,
-                'owner-only configuration',
+        protected_documents = {
+            'helper_roles': service.replace_field(
+                active, service.FIELD_BY_KEY['helper_roles'], (999,),
+            ),
+            'allow_teams': service.replace_field(
+                active, service.FIELD_BY_KEY['allow_teams'], False,
+            ),
+            'require_teams': service.replace_field(
+                active, service.FIELD_BY_KEY['require_teams'], True,
+            ),
+            'global_leaderboard': service.replace_field(
+                active, service.FIELD_BY_KEY['global_leaderboard'], False,
+            ),
+        }
+        for field, protected in protected_documents.items():
+            with self.subTest(field=field), mock.patch.object(
+                workers.delegation,
+                'select_delegation',
+                return_value=manager_policy(),
             ):
-                run_with(
-                    connection, manager_request(), selected=stored(protected),
-                )
+                with self.assertRaisesRegex(
+                    workers.OperatorGuildConfigurationDraftPermissionError,
+                    'owner-only configuration',
+                ):
+                    run_with(
+                        Connection(),
+                        manager_request(),
+                        selected=stored(protected),
+                    )
 
     def test_delegated_activation_requires_separate_owner_opt_in(self):
         active = fixtures.bundle().imports[0].document
@@ -778,9 +799,21 @@ class EditServiceAndViewTests(unittest.TestCase):
             for section in workspace.sections
             for field in service.fields_for_section(section, ordinary_only=True)
         ))
-        rendered = str(workspace.children)
-        self.assertNotIn('Helper roles', rendered)
-        self.assertNotIn('Command capabilities', rendered)
+        ordinary_labels = {
+            field.label
+            for section in workspace.sections
+            for field in service.fields_for_section(
+                section,
+                ordinary_only=True,
+            )
+        }
+        self.assertIn('Allow unequal side sizes', ordinary_labels)
+        self.assertIn('Maximum players per side', ordinary_labels)
+        self.assertNotIn('Allow persistent Teams', ordinary_labels)
+        self.assertNotIn('Require persistent Teams', ordinary_labels)
+        self.assertNotIn('Include in global leaderboard', ordinary_labels)
+        self.assertNotIn('Helper roles', ordinary_labels)
+        self.assertNotIn('Command capabilities', ordinary_labels)
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):

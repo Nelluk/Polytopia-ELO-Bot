@@ -166,6 +166,8 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
 
 
 class Team(BaseModel):
+    """A persistent named organization owned by one guild."""
+
     house = ForeignKeyField(House, null=True, backref='teams', on_delete='SET NULL')
     name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
@@ -1910,22 +1912,22 @@ class Game(BaseModel):
         if len(set(shape)) > 1:
             if settings.guild_setting(guild_id, 'allow_uneven_teams'):
                 warnings.append(
-                    'Warning: uneven teams. This is allowed, but may not '
+                    'Warning: unequal side sizes. This is allowed, but may not '
                     'be what you want.'
                 )
             else:
-                raise ValueError('This server does not allow uneven teams.')
+                raise ValueError('This server does not allow unequal side sizes.')
         max_team_size = settings.guild_setting(guild_id, 'max_team_size')
         if max(shape) > max_team_size:
             if mod_override:
                 warnings.append(
-                    'Warning: maximum team size on this server is '
+                    'Warning: maximum players per side on this server is '
                     f'{max_team_size}, but you have overriden this.'
                 )
             else:
                 raise ValueError(
-                    'This server does not allow teams with over '
-                    f'{max_team_size} members.'
+                    'This server does not allow sides with over '
+                    f'{max_team_size} players.'
                 )
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(
             discord_groups, guild_id,
@@ -3074,6 +3076,8 @@ class Game(BaseModel):
 
 
 class Squad(BaseModel):
+    """A guild-scoped player combination tracked from multiplayer games."""
+
     elo = SmallIntegerField(default=1000)
     guild_id = BitField(unique=False, null=False)
     name = TextField(null=False, default='')
@@ -3249,6 +3253,8 @@ class SquadMember(BaseModel):
 
 
 class GameSide(BaseModel):
+    """The players allied together on one side of one game."""
+
     game = ForeignKeyField(Game, null=False, backref='gamesides', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='SET NULL')
     team = ForeignKeyField(Team, null=True, backref='gamesides', on_delete='RESTRICT')

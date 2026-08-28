@@ -58,7 +58,9 @@ DEFAULT_CAPABILITY_FAMILIES = (
         name="core_user",
         roots=("game", "leaderboard", "player"),
         visibility="public",
-        description="Core read and game-user commands.",
+        description=(
+            "Core read and game-user commands, including squad leaderboards."
+        ),
     ),
     CapabilityFamily(
         name="elo_maintenance",
@@ -69,8 +71,8 @@ DEFAULT_CAPABILITY_FAMILIES = (
     CapabilityFamily(
         name="team",
         roots=("team",),
-        visibility="future",
-        description="Reserved team command root.",
+        visibility="staff",
+        description="Persistent named-organization commands; requires allow_teams.",
     ),
     CapabilityFamily(
         name="league",
@@ -87,8 +89,8 @@ DEFAULT_CAPABILITY_FAMILIES = (
     CapabilityFamily(
         name="squad",
         roots=("squad",),
-        visibility="future",
-        description="Reserved squad command root.",
+        visibility="public",
+        description="Automatically tracked multiplayer-combination commands.",
     ),
     CapabilityFamily(
         name="tools_support",

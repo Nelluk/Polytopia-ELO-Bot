@@ -81,6 +81,24 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         }, [10])
         self.assertEqual(beta_policy.roots_for_guild(10), ())
 
+        squad_team_policy = build_capability_policy({
+            10: ('core_user', 'squad'),
+            20: ('team',),
+        }, [10, 20])
+        self.assertEqual(
+            squad_team_policy.roots_for_guild(10),
+            ('game', 'leaderboard', 'player', 'squad'),
+        )
+        self.assertEqual(squad_team_policy.roots_for_guild(20), ('team',))
+        self.assertIn(
+            'Automatically tracked',
+            squad_team_policy.families['squad'].description,
+        )
+        self.assertIn(
+            'allow_teams',
+            squad_team_policy.families['team'].description,
+        )
+
     def test_unknown_guild_and_capability_are_rejected(self):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'not in'):
             build_capability_policy({30: ('core_user',)}, [10, 20])

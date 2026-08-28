@@ -308,7 +308,7 @@ class NewGameWorkerTests(unittest.TestCase):
                 }.get(name),
             ),
         ):
-            with self.assertRaisesRegex(ValueError, 'over 2 members'):
+            with self.assertRaisesRegex(ValueError, 'over 2 players'):
                 game_workers.models.Game.create_game(
                     groups,
                     guild_id=300,
@@ -393,7 +393,9 @@ class NewGameWorkerTests(unittest.TestCase):
 
         self.assertEqual(game.id, 99)
         self.assertTrue(any('maximum players per game' in item for item in warnings_value))
-        self.assertTrue(any('maximum team size' in item for item in warnings_value))
+        self.assertTrue(
+            any('maximum players per side' in item for item in warnings_value)
+        )
 
     def test_audit_log_failure_rolls_back_game_host_and_log(self):
         state = {'games': [], 'hosts': [], 'logs': []}

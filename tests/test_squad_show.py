@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import AbstractContextManager
 from dataclasses import FrozenInstanceError, replace
+import inspect
 import threading
 import time
 from types import SimpleNamespace
@@ -233,6 +234,11 @@ class RegistrationAndCompatibilityTests(unittest.TestCase):
             if command.name == 'lbsquad'
         )
         self.assertEqual(set(lbsquad.aliases), {'squadlb'})
+        self.assertFalse(any(
+            inspect.getclosurevars(check).nonlocals.get('setting_name')
+            == 'allow_teams'
+            for check in lbsquad.checks
+        ))
 
 
 class WorkerBoundaryTests(unittest.TestCase):
@@ -241,7 +247,6 @@ class WorkerBoundaryTests(unittest.TestCase):
             guild_id=300,
             requester_id=999,
             member_ids=(999,),
-            team_enabled=True,
             channel_allowed=True,
         )
         values.update(kwargs)
@@ -365,7 +370,7 @@ class WorkerBoundaryTests(unittest.TestCase):
 
     def test_permission_and_member_validation_happen_at_worker_boundary(self):
         with self.assertRaises(workers.SquadShowPermissionError):
-            workers.load_squad_show(self.request(team_enabled=False))
+            workers.load_squad_show(self.request(channel_allowed=False))
         with self.assertRaises(workers.SquadShowValidationError):
             workers.load_squad_show(self.request(member_ids=(1, 1)))
         with self.assertRaises(workers.SquadShowValidationError):
@@ -490,7 +495,7 @@ class ServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
             service,
             '_setting',
             side_effect=lambda _guild, name, default=None: {
-                'allow_teams': True,
+                'allow_teams': False,
                 'bot_channels': (123,),
                 'bot_channels_private': (456,),
             }.get(name, default),
@@ -498,6 +503,12 @@ class ServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(service.native_access_error(member, 300, 123))
             self.assertIsNone(service.native_access_error(member, 300, 456))
             self.assertIsNotNone(service.native_access_error(member, 300, 789))
+            request = service.build_request(
+                member=member,
+                guild=SimpleNamespace(id=300),
+                channel_id=123,
+            )
+            self.assertFalse(hasattr(request, 'team_enabled'))
             self.assertEqual(
                 service.capture_member_ids([SimpleNamespace(id=1), 2]),
                 (1, 2),
@@ -842,7 +853,7 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             service,
             'native_access_error',
-            return_value='Teams are not enabled on this server.',
+            return_value='This command can only be used in a bot channel.',
         ), mock.patch.object(
             workers,
             'run_squad_show',
@@ -852,7 +863,7 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
 
         interaction_value.response.defer.assert_awaited_once_with(ephemeral=True)
         interaction_value.followup.send.assert_awaited_once_with(
-            'Teams are not enabled on this server.',
+            'This command can only be used in a bot channel.',
             ephemeral=True,
         )
         run.assert_not_awaited()

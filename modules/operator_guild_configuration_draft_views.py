@@ -19,7 +19,7 @@ logger = logging.getLogger('polybot.' + __name__)
 SECTION_LABELS = {
     service.IDENTITY: 'Identity',
     service.PERMISSIONS: 'Permissions',
-    service.TEAMS: 'Teams & visibility',
+    service.TEAMS: 'Sides & persistent Teams',
     service.CHANNELS: 'Channel policy',
     service.DESTINATIONS: 'Destinations',
     service.CAPABILITIES: 'Command capabilities',

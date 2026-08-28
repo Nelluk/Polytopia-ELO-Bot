@@ -220,7 +220,7 @@ def native_access_error(
     """Return a private pre-defer denial while retaining legacy gates."""
 
     attribute = str(attribute)
-    if attribute != workers.TEAM_ATTRIBUTE_TIER and not _team_enabled(guild_id):
+    if not _team_enabled(guild_id):
         return 'Teams are not enabled on this server.'
     if attribute == workers.TEAM_ATTRIBUTE_HOUSE:
         if not _league_scope(guild_id):

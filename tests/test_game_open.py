@@ -435,7 +435,7 @@ class OpenGameWorkerTests(unittest.TestCase):
         self.assertEqual(
             result.warnings,
             (
-                ':warning: Team sizes are uneven.',
+                ':warning: Side sizes are unequal.',
                 '**Side 2** will be locked to players with role *Jets*\n',
             ),
         )
