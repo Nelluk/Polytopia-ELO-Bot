@@ -115,6 +115,18 @@ class OwnerNotificationPlanningTests(unittest.TestCase):
         self.assertIn('preserved', text)
         self.assertNotIn('cleared', text)
 
+    def test_duplicate_channel_cleanup_notice_says_destination_is_preserved(self):
+        text = notifications._issue_text({
+            'field': 'bot_channels',
+            'kind': 'duplicate_channel_id',
+            'configured_value': 300,
+            'resolution': 'duplicate_dropped',
+        })
+
+        self.assertIn('300', text)
+        self.assertIn('preserved', text)
+        self.assertNotIn('cleared', text)
+
     def test_cleanup_owner_identity_must_match_digest_bound_guild_set(self):
         mapping = import_plan()
         mapping['production_cleanup_report']['guilds'][0]['owner']['owner_id'] = 0

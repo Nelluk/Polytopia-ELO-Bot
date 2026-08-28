@@ -530,6 +530,38 @@ class ImportBundleTests(unittest.TestCase):
         self.assertEqual(issue['resolution'], 'singleton_unwrapped')
         self.assertEqual(issue['resolved_channel_id'], 300)
 
+    def test_live_reference_cleanup_deduplicates_channel_lists(self):
+        configured = server_settings()
+        configured.server_list[GUILD_ID] = {
+            **configured.server_list[GUILD_ID],
+            'bot_channels': [300, 300],
+        }
+
+        report = storage.build_live_reference_cleanup_report(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+        )
+        value = storage.build_import_bundle(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+            normalize_live_references=True,
+        )
+
+        self.assertEqual(
+            value.imports[0].document.channels.bot_channel_ids,
+            (300,),
+        )
+        issue = next(
+            issue for issue in report['guilds'][0]['issues']
+            if issue['field'] == 'bot_channels'
+        )
+        self.assertEqual(issue['kind'], 'duplicate_channel_id')
+        self.assertEqual(issue['resolution'], 'duplicate_dropped')
+
     def test_bundle_mapping_is_complete_and_returns_copies(self):
         value = bundle()
         mapping = storage.bundle_to_mapping(value)

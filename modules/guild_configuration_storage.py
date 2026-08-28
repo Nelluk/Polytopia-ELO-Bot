@@ -725,8 +725,18 @@ def _normalize_live_references(
             continue
         channel_ids = [] if raw_ids is None else list(raw_ids)
         kept_ids = []
+        seen_ids = set()
         for channel_id in channel_ids:
             if valid_ordinary_channel(channel_id):
+                if channel_id in seen_ids:
+                    issues.append(_issue(
+                        field=field,
+                        kind='duplicate_channel_id',
+                        configured_value=channel_id,
+                        resolution='duplicate_dropped',
+                    ))
+                    continue
+                seen_ids.add(channel_id)
                 kept_ids.append(channel_id)
             else:
                 kind, observed = invalid_channel_kind(channel_id)
@@ -769,12 +779,22 @@ def _normalize_live_references(
             ))
 
     kept_categories = []
+    seen_categories = set()
     for channel_id in list(effective['game_channel_categories'] or ()):
         if (
                 isinstance(channel_id, int)
                 and not isinstance(channel_id, bool)
                 and channel_id in category_ids
         ):
+            if channel_id in seen_categories:
+                issues.append(_issue(
+                    field='game_channel_categories',
+                    kind='duplicate_channel_id',
+                    configured_value=channel_id,
+                    resolution='duplicate_dropped',
+                ))
+                continue
+            seen_categories.add(channel_id)
             kept_categories.append(channel_id)
         else:
             kind, observed = invalid_channel_kind(channel_id)

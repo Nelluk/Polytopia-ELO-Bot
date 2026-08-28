@@ -172,6 +172,11 @@ def _issue_text(issue: Mapping[str, Any]) -> str:
             f'{field}: its sole configured channel ID '
             f'{issue.get("resolved_channel_id")} will be preserved.'
         )
+    if kind == 'duplicate_channel_id':
+        return (
+            f'{field}: duplicate channel ID {configured} will be reduced '
+            'to one preserved destination.'
+        )
     if 'channel' in str(kind):
         return f'{field}: channel ID {configured} no longer resolves and will be cleared.'
     return f'{field}: {configured!r} no longer resolves and will be cleared.'
