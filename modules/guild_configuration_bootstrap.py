@@ -139,6 +139,11 @@ def build_first_guild_plan(
     """Build one deterministic, database-free bootstrap plan."""
 
     storage.validate_target(target)
+    if target.environment != storage.DEVELOPMENT_ENVIRONMENT:
+        raise FirstGuildBootstrapError(
+            'First-guild bootstrap is development-only; production uses the '
+            'reviewed complete static import.'
+        )
     allowed = tuple(allowed_guild_ids)
     if (
         len(allowed) != 1
@@ -465,6 +470,11 @@ def apply_first_guild_bootstrap(
     """Atomically create configuration storage and activate the first guild."""
 
     storage.validate_target(target)
+    if target.environment != storage.DEVELOPMENT_ENVIRONMENT:
+        raise FirstGuildBootstrapError(
+            'First-guild bootstrap is development-only; production uses the '
+            'reviewed complete static import.'
+        )
     _validate_plan(plan)
     expected_source_digest = _canonical_digest({
         'schema_version': BOOTSTRAP_SCHEMA_VERSION,

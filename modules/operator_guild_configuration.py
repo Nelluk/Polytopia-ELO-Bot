@@ -43,12 +43,11 @@ def access_error(interaction: Any) -> str | None:
         return 'Only the configured bot owner can inspect guild configuration.'
     profile = settings.runtime_profile
     if (
-            profile.environment != 'development'
+            profile.environment not in {'development', 'production'}
             or profile.guild_configuration_source != 'database'
     ):
         return (
-            'Guild configuration inspection requires development database '
-            'authority.'
+            'Guild configuration inspection requires database authority.'
         )
     if not settings.guild_configuration_ready():
         return 'The running database guild configuration is not published.'
@@ -313,7 +312,7 @@ def _validation_embed(
         title=f'{_safe(record.display_name)} — validation passed',
         color=discord.Color.green(),
         description=(
-            '✅ Exact development database and role\n'
+            '✅ Exact runtime database and role\n'
             '✅ Exact P10 storage schema\n'
             '✅ Active document schema and digest\n'
             '✅ Current Discord role/channel references\n'

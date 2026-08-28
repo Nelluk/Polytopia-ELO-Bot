@@ -12,6 +12,9 @@ import unittest
 from unittest import mock
 
 from modules import guild_configuration_storage as storage
+from modules import guild_configuration_bootstrap as bootstrap
+from modules import guild_configuration_delegation_storage as delegation
+from modules import guild_configuration_draft_storage as drafts
 from modules import guild_types
 from scripts import manage_guild_configuration_storage as script
 
@@ -169,6 +172,40 @@ class TargetAndSnapshotTests(unittest.TestCase):
                 value,
                 target=production_target(),
                 allowed_guild_ids=(GUILD_ID,),
+            )
+
+    def test_production_rejects_partial_schema_and_first_guild_paths(self):
+        with self.assertRaisesRegex(
+            drafts.GuildConfigurationDraftStorageError,
+            'atomically',
+        ):
+            drafts.apply_draft_schema(
+                mock.Mock(),
+                target=production_target(),
+                plan=mock.sentinel.plan,
+                confirmation='no',
+            )
+        with self.assertRaisesRegex(
+            delegation.GuildConfigurationDelegationStorageError,
+            'atomically',
+        ):
+            delegation.apply_delegation_schema(
+                mock.Mock(),
+                target=production_target(),
+                plan=mock.sentinel.plan,
+                confirmation='no',
+            )
+        production_snapshot = snapshot()
+        production_snapshot['environment'] = storage.PRODUCTION_ENVIRONMENT
+        production_snapshot['application_id'] = storage.PRODUCTION_APPLICATION_ID
+        with self.assertRaisesRegex(
+            bootstrap.FirstGuildBootstrapError,
+            'development-only',
+        ):
+            bootstrap.build_first_guild_plan(
+                target=production_target(),
+                allowed_guild_ids=(GUILD_ID,),
+                discord_snapshot=production_snapshot,
             )
 
     def test_live_identity_must_match_configured_development_target(self):
@@ -355,6 +392,38 @@ class ImportBundleTests(unittest.TestCase):
         mapping['guilds'][0]['document']['permissions']['helper_role_ids'].append(999)
         self.assertEqual(value.imports[0].document.permissions.helper_role_ids, (201, 202))
 
+        production = storage.bundle_to_mapping(
+            value,
+            target=production_target(),
+        )
+        self.assertEqual(len(production['planned_schema_statements']), 6)
+        self.assertEqual(
+            production['confirmation'],
+            storage.confirmation_for_target(value, production_target()),
+        )
+        self.assertTrue(
+            production['confirmation'].startswith(
+                'PRODUCTION GUILD CONFIGURATION APPLY '
+            )
+        )
+        self.assertEqual(
+            storage.bundle_from_mapping(
+                production,
+                target=production_target(),
+            ),
+            value,
+        )
+        tampered = copy.deepcopy(production)
+        tampered['guilds'][0]['document']['teams']['allow_teams'] = False
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'digest differs',
+        ):
+            storage.bundle_from_mapping(
+                tampered,
+                target=production_target(),
+            )
+
 
 class SchemaContractTests(unittest.TestCase):
     def test_absent_schema_is_distinct_from_exact_schema(self):
@@ -449,12 +518,12 @@ class ApplyAndVerifyTests(unittest.TestCase):
             )
         connection.cursor.assert_not_called()
 
-    def test_production_apply_remains_disabled(self):
+    def test_production_apply_requires_production_confirmation(self):
         connection = mock.Mock()
         value = bundle()
         with self.assertRaisesRegex(
             storage.GuildConfigurationStorageError,
-            'Production.*not enabled',
+            'PRODUCTION GUILD CONFIGURATION APPLY',
         ):
             storage.apply_storage(
                 connection,
@@ -463,6 +532,48 @@ class ApplyAndVerifyTests(unittest.TestCase):
                 confirmation=value.confirmation,
             )
         connection.cursor.assert_not_called()
+
+    def test_production_apply_creates_all_schema_and_uses_production_actor(self):
+        connection = DummyConnection()
+        value = bundle()
+        confirmation = storage.confirmation_for_target(
+            value,
+            production_target(),
+        )
+        with mock.patch.object(
+            storage,
+            '_session_identity',
+            return_value=(storage.PRODUCTION_DATABASE, storage.PRODUCTION_ROLE),
+        ), mock.patch.object(
+            storage, '_schema_inventory', return_value=self.exact_schema()
+        ), mock.patch.object(
+            storage, '_ensure_production_auxiliary_schema', return_value=True,
+        ) as auxiliary, mock.patch.object(
+            storage, '_registry_rows', return_value=()
+        ), mock.patch.object(
+            storage, '_insert_import'
+        ) as insert, mock.patch.object(
+            storage, '_verify_cursor', return_value=(GUILD_ID,)
+        ) as verify:
+            result = storage.apply_storage(
+                connection,
+                target=production_target(),
+                bundle=value,
+                confirmation=confirmation,
+            )
+        self.assertTrue(result.schema_created)
+        auxiliary.assert_called_once_with(connection.cursor_value)
+        insert.assert_called_once_with(
+            connection.cursor_value,
+            value.imports[0],
+            actor=storage.PRODUCTION_IMPORT_ACTOR,
+        )
+        verify.assert_called_once_with(
+            connection.cursor_value,
+            value,
+            expected_actor=storage.PRODUCTION_IMPORT_ACTOR,
+        )
+        self.assertEqual(connection.commits, 1)
 
     def test_fresh_apply_creates_schema_imports_verifies_and_commits(self):
         connection = DummyConnection()
@@ -676,7 +787,7 @@ class ScriptTests(unittest.TestCase):
             [script.POLYCHAMPIONS_GUILD_ID],
         )
 
-    def test_production_apply_is_refused_before_database_connection(self):
+    def test_production_apply_requires_maintenance_before_database_connection(self):
         profile = self.profile()
         profile.environment = storage.PRODUCTION_ENVIRONMENT
         profile.database_name = storage.PRODUCTION_DATABASE
@@ -702,6 +813,47 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(result, 2)
         build_bundle.assert_not_called()
         connection.assert_not_called()
+
+    def test_acknowledged_production_apply_uses_no_beta_writer_lock(self):
+        profile = self.profile()
+        profile.environment = storage.PRODUCTION_ENVIRONMENT
+        profile.database_name = storage.PRODUCTION_DATABASE
+        profile.database_user = storage.PRODUCTION_ROLE
+        profile.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        profile.background_tasks_enabled = True
+        profile.bullet_enabled = True
+        profile.allowed_guild_ids = tuple(range(1, 48)) + (
+            script.POLYCHAMPIONS_GUILD_ID,
+            script.PCPLUS_GUILD_ID,
+        )
+        value = bundle()
+        result_value = storage.StorageResult(
+            True, (GUILD_ID,), (), (GUILD_ID,), value.bundle_digest,
+        )
+        connection_value = mock.Mock()
+        with mock.patch.dict(
+                os.environ, {'POLYBOT_ENV': 'production'}, clear=True), \
+                mock.patch.object(script, '_profile', return_value=profile), \
+                mock.patch.object(script, '_bundle', return_value=value), \
+                mock.patch.object(
+                    script, '_connection', return_value=connection_value,
+                ), mock.patch.object(
+                    script.storage, 'apply_storage', return_value=result_value,
+                ) as apply, mock.patch.object(
+                    script.beta_database_writer_lock, 'BetaDatabaseWriterLock',
+                ) as beta_lock:
+            result = script.main([
+                'apply',
+                '--snapshot', script.PRODUCTION_DEFAULT_SNAPSHOT,
+                '--confirm', storage.confirmation_for_target(
+                    value, production_target()
+                ),
+                '--production-maintenance',
+            ])
+        self.assertEqual(result, 0)
+        beta_lock.assert_not_called()
+        apply.assert_called_once()
+        connection_value.close.assert_called_once()
 
     def test_snapshot_path_is_private_bounded_and_atomic(self):
         with tempfile.TemporaryDirectory() as directory:

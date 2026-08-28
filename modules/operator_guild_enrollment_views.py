@@ -30,8 +30,8 @@ class GuildEnrollmentModal(discord.ui.Modal):
         self.expected = workspace.preview.confirmation
         super().__init__(
             title=(
-                'Update development guild'
-                if workspace.preview.existing else 'Enroll development guild'
+                'Update guild'
+                if workspace.preview.existing else 'Enroll guild'
             ),
             timeout=180.0,
         )

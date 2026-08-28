@@ -130,7 +130,7 @@ class RepositoryConsistencyTests(unittest.TestCase):
         self.assertIn('e99ec18e', documentation_map)
 
         guild_configuration = _read('docs/DEVELOPMENT_GUILD_CONFIGURATION.md')
-        self.assertIn('Status: **development-only**', guild_configuration)
+        self.assertIn('Status: **beta operations guide**', guild_configuration)
         self.assertIn('Production continues to', guild_configuration)
         self.assertIn('**Repair commands**', guild_configuration)
         self.assertNotIn('P10.', guild_configuration)

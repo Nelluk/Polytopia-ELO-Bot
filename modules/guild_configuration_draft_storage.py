@@ -1,4 +1,4 @@
-"""Development-only schema and persistence contract for guild-config drafts.
+"""Schema and persistence contract for guild-configuration drafts.
 
 The active registry/revision/audit envelope remains owned by
 ``guild_configuration_storage``.  This module adds one independently
@@ -311,6 +311,11 @@ def apply_draft_schema(
     plan: DraftSchemaPlan,
     confirmation: str,
 ) -> DraftSchemaResult:
+    if target.environment == storage.PRODUCTION_ENVIRONMENT:
+        raise GuildConfigurationDraftStorageError(
+            'Production draft schema must be applied atomically with the '
+            'complete guild-configuration import.'
+        )
     expected = draft_schema_plan(target)
     if plan != expected or confirmation != expected.confirmation:
         raise GuildConfigurationDraftStorageError(

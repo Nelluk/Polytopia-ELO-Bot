@@ -494,11 +494,15 @@ class MyBot(commands.Bot):
             )
             return result
 
-    async def _run_development_guild_configuration_shadow(self):
+    async def _run_guild_configuration_authority(self):
         """Compare once and publish only an explicitly selected DB authority."""
 
         profile = settings.runtime_profile
-        if profile.environment != 'development':
+        database_selected = (
+            getattr(profile, 'guild_configuration_source', 'static')
+            == 'database'
+        )
+        if profile.environment == 'production' and not database_selected:
             return None
         if not self._startup_identity_validated or not self._startup_schema_preflight_complete:
             raise RuntimeError(
@@ -512,10 +516,6 @@ class MyBot(commands.Bot):
                 return self.guild_configuration_shadow_result
             shadow = importlib.import_module(
                 'modules.guild_configuration_shadow'
-            )
-            database_selected = (
-                getattr(profile, 'guild_configuration_source', 'static')
-                == 'database'
             )
             try:
                 if database_selected:
@@ -578,6 +578,7 @@ class MyBot(commands.Bot):
                         stored_configurations=result.stored_configurations,
                         discord_snapshot=discord_snapshot,
                         allowed_guild_ids=result.matched_guild_ids,
+                        target=shadow.target_from_profile(profile),
                     )
                     settings.activate_database_guild_configuration(
                         runtime_snapshot
@@ -886,7 +887,7 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             raise
 
         try:
-            await bot._run_development_guild_configuration_shadow()
+            await bot._run_guild_configuration_authority()
         except Exception:
             logger.critical(
                 'Guild configuration startup failed; closing before command '

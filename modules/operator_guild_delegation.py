@@ -28,7 +28,7 @@ def target_guild(bot: Any, target_guild_id: int) -> Any:
     guild = bot.get_guild(int(target_guild_id))
     if guild is None:
         raise workers.OperatorGuildDelegationValidationError(
-            'The selected server is not visible to this development bot.'
+            'The selected server is not visible to this bot.'
         )
     return guild
 

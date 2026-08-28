@@ -204,7 +204,7 @@ class TemplateAndValidationTests(unittest.TestCase):
     def test_production_target_and_missing_permissions_fail_before_connection(self):
         value = enrollment_request()
         for changed, pattern in (
-            (replace(value, forbidden_guild_ids=(TARGET_ID,)), 'production'),
+            (replace(value, forbidden_guild_ids=(TARGET_ID,)), 'protected'),
             (replace(value, bot_permissions=('view_channel',)), 'permissions'),
         ):
             with self.subTest(pattern=pattern), mock.patch.object(

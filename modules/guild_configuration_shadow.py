@@ -1,4 +1,4 @@
-"""Development-only startup comparison for guild configuration.
+"""Startup comparison and database loading for guild configuration.
 
 P10.4 uses the result as static-authority shadow health. P10.5 may consume an
 exact matched result to build the database-authority runtime snapshot. This
@@ -125,7 +125,7 @@ _executor = ThreadPoolExecutor(
 
 
 def target_from_profile(profile: Any) -> storage.StorageTarget:
-    """Freeze and validate the exact development-only runtime target."""
+    """Freeze and validate one exact reviewed runtime target."""
 
     target = storage.StorageTarget(
         environment=profile.environment,

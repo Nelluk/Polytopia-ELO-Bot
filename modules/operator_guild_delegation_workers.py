@@ -35,7 +35,7 @@ class OperatorGuildDelegationValidationError(OperatorGuildDelegationError):
 
 
 class OperatorGuildDelegationUnavailable(OperatorGuildDelegationError):
-    """The exact development database is unavailable."""
+    """The exact runtime database is unavailable."""
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ def _validate_request(request: GuildDelegationRequest) -> GuildDelegationRequest
             or request.guild_id not in request.allowed_guild_ids
     ):
         raise OperatorGuildDelegationValidationError(
-            'Delegation requires an active development guild.'
+            'Delegation requires an active guild.'
         )
     evidence_ids = tuple(value.role_id for value in request.role_evidence)
     if (
@@ -191,11 +191,14 @@ def request_from_profile(
     confirmation_text: str | None = None,
 ) -> GuildDelegationRequest:
     if (
-            getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
+            getattr(profile, 'environment', None) not in {
+                storage.DEVELOPMENT_ENVIRONMENT,
+                storage.PRODUCTION_ENVIRONMENT,
+            }
             or getattr(profile, 'guild_configuration_source', None) != 'database'
     ):
         raise OperatorGuildDelegationValidationError(
-            'Guild delegation requires development database authority.'
+            'Guild delegation requires database authority.'
         )
     try:
         target = shadow.target_from_profile(profile)
@@ -242,7 +245,7 @@ def execute_delegation(request: GuildDelegationRequest) -> GuildDelegationResult
         connection = _connect(request)
     except psycopg2.Error as exc:
         raise OperatorGuildDelegationUnavailable(
-            'The development guild delegation database is unavailable.'
+            'The guild delegation database is unavailable.'
         ) from exc
     try:
         readonly = request.operation == SHOW
@@ -312,7 +315,7 @@ def execute_delegation(request: GuildDelegationRequest) -> GuildDelegationResult
         return GuildDelegationResult(APPLY, request.guild_id, policy, digest, True)
     except psycopg2.OperationalError as exc:
         raise OperatorGuildDelegationUnavailable(
-            'The development guild delegation operation was interrupted.'
+            'The guild delegation operation was interrupted.'
         ) from exc
     except (
         storage.GuildConfigurationStorageError,
@@ -321,7 +324,7 @@ def execute_delegation(request: GuildDelegationRequest) -> GuildDelegationResult
         raise OperatorGuildDelegationValidationError(str(exc)) from exc
     except psycopg2.Error as exc:
         raise OperatorGuildDelegationValidationError(
-            'The development guild delegation transaction was invalid.'
+            'The guild delegation transaction was invalid.'
         ) from exc
     finally:
         try:

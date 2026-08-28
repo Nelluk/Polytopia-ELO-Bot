@@ -2,9 +2,9 @@
 """Capture, plan, apply, or verify static guild configuration storage.
 
 ``snapshot`` performs bounded read-only Discord HTTP requests. ``plan`` is
-offline and connection-free.  The production preparation unit intentionally
-keeps ``apply`` disabled while allowing an exact production snapshot, plan,
-and read-only verification.
+offline and connection-free. Production ``apply`` additionally requires the
+maintenance acknowledgement and the digest-bound confirmation printed by the
+exact plan; operations still require their external approval boundary.
 """
 
 from __future__ import annotations
@@ -66,8 +66,21 @@ def _parser() -> argparse.ArgumentParser:
     ):
         operation = operations.add_parser(name, help=help_text)
         operation.add_argument('--snapshot')
+        if name == 'plan':
+            operation.add_argument(
+                '--output',
+                help='write the exact plan as a private JSON file',
+            )
         if name == 'apply':
             operation.add_argument('--confirm', required=True)
+            operation.add_argument(
+                '--production-maintenance',
+                action='store_true',
+                help=(
+                    'acknowledge that the separately approved production '
+                    'backup and zero-writer maintenance checks are complete'
+                ),
+            )
     return parser
 
 
@@ -457,17 +470,18 @@ def main(argv: list[str] | None = None) -> int:
         if (
                 args.operation == 'apply'
                 and profile.environment == storage.PRODUCTION_ENVIRONMENT
+                and not args.production_maintenance
         ):
             raise storage.GuildConfigurationStorageError(
-                'Production apply is intentionally disabled by this '
-                'source-only preparation unit.'
+                'Production apply requires --production-maintenance after '
+                'separate approval, backup, and zero-writer verification.'
             )
         snapshot_path = (
-            getattr(args, 'output', None)
-            or getattr(args, 'snapshot', None)
+            getattr(args, 'snapshot', None)
             or _default_snapshot(profile.environment)
         )
         if args.operation == 'snapshot':
+            snapshot_path = args.output or _default_snapshot(profile.environment)
             snapshot = asyncio.run(_capture_snapshot(profile))
             storage.validate_discord_snapshot(
                 snapshot,
@@ -490,16 +504,37 @@ def main(argv: list[str] | None = None) -> int:
 
         bundle = _bundle(profile, target, snapshot_path)
         if args.operation == 'plan':
-            value = storage.bundle_to_mapping(bundle)
+            value = storage.bundle_to_mapping(bundle, target=target)
             if profile.environment == storage.PRODUCTION_ENVIRONMENT:
                 value['production_migration_summary'] = (
                     _validate_production_bundle(bundle)
                 )
-            _emit(value)
+            if args.output:
+                path = _write_snapshot(
+                    args.output,
+                    value,
+                    environment=profile.environment,
+                )
+                _emit({
+                    'status': 'planned',
+                    'path': str(path.relative_to(PROJECT_ROOT)),
+                    'bundle_digest': bundle.bundle_digest,
+                    'confirmation': value['confirmation'],
+                    'production_migration_summary': value.get(
+                        'production_migration_summary'
+                    ),
+                    'database_connected': False,
+                    'discord_connected': False,
+                })
+            else:
+                _emit(value)
             return 0
         if args.operation == 'apply':
-            writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(profile)
-            writer_lock.acquire()
+            if profile.environment == storage.DEVELOPMENT_ENVIRONMENT:
+                writer_lock = beta_database_writer_lock.BetaDatabaseWriterLock(
+                    profile
+                )
+                writer_lock.acquire()
             connection = _connection(profile, readonly=False)
             result = storage.apply_storage(
                 connection,

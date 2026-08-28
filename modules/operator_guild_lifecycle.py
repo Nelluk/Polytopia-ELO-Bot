@@ -18,14 +18,14 @@ def access_error(interaction: Any) -> str | None:
         return 'Only the configured bot owner can suspend or resume a guild.'
     profile = settings.runtime_profile
     if (
-            profile.environment != 'development'
+            profile.environment not in {'development', 'production'}
             or profile.guild_configuration_source != 'database'
     ):
-        return 'Guild lifecycle controls require development database authority.'
+        return 'Guild lifecycle controls require database authority.'
     if not settings.guild_configuration_ready():
         return 'The running database guild configuration is not published.'
     if settings.database_guild_configuration(int(guild_id)) is None:
-        return 'Run guild lifecycle controls from an active development guild.'
+        return 'Run guild lifecycle controls from an active guild.'
     return None
 
 
@@ -33,7 +33,7 @@ def target_guild(bot: Any, target_guild_id: int) -> Any:
     guild = bot.get_guild(int(target_guild_id))
     if guild is None:
         raise workers.OperatorGuildLifecycleValidationError(
-            'The exact target guild is not visible to this development bot.'
+            'The exact target guild is not visible to this bot.'
         )
     return guild
 

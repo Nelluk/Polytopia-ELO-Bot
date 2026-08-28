@@ -3,7 +3,10 @@
 import asyncio
 from contextlib import redirect_stdout
 import io
+import json
+from pathlib import Path
 from types import SimpleNamespace
+import tempfile
 import unittest
 from unittest import mock
 
@@ -16,7 +19,9 @@ from modules.application_command_policy import (
     build_capability_policy,
     plan_application_commands,
 )
+from modules import guild_configuration_storage as guild_storage
 from scripts import manage_application_commands as manager
+from tests import test_guild_configuration_storage as storage_fixtures
 
 
 class FakeCommand:
@@ -33,7 +38,61 @@ class FakeCommand:
 
 
 class ApplicationCommandManagementTests(unittest.TestCase):
+    def test_production_import_plan_drives_digest_bound_command_policy(self):
+        value = storage_fixtures.bundle()
+        mapping = guild_storage.bundle_to_mapping(
+            value,
+            target=storage_fixtures.production_target(),
+        )
+        profile = SimpleNamespace(
+            environment=guild_storage.PRODUCTION_ENVIRONMENT,
+            database_name=guild_storage.PRODUCTION_DATABASE,
+            database_user=guild_storage.PRODUCTION_ROLE,
+            expected_bot_id=guild_storage.PRODUCTION_APPLICATION_ID,
+            background_tasks_enabled=True,
+            api_enabled=False,
+            bullet_enabled=True,
+            allowed_guild_ids=(storage_fixtures.GUILD_ID,),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            relative = Path(
+                'logs/production/guild-configuration/import-plan.json'
+            )
+            path = root / relative
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(mapping), encoding='utf-8')
+            with mock.patch.object(manager, 'PROJECT_ROOT', root):
+                loaded = manager.policy_from_guild_configuration_plan(
+                    str(relative),
+                    profile=profile,
+                )
+                self.assertEqual(loaded.bundle_digest, value.bundle_digest)
+                self.assertEqual(
+                    loaded.policy.capabilities_for_guild(
+                        storage_fixtures.GUILD_ID
+                    ),
+                    value.imports[0].document.command_capabilities,
+                )
+
+                mapping['guilds'][0]['source_digest'] = 'f' * 64
+                path.write_text(json.dumps(mapping), encoding='utf-8')
+                with self.assertRaisesRegex(
+                    manager.CommandManagementError,
+                    'invalid',
+                ):
+                    manager.policy_from_guild_configuration_plan(
+                        str(relative),
+                        profile=profile,
+                    )
+
     def test_target_guilds_default_to_allowlist_and_reject_unknowns(self):
+        self.assertEqual(
+            manager._parse_guild_scope(
+                'all', option_name='--guild-ids', allowed_guild_ids=(30, 10),
+            ),
+            (10, 30),
+        )
         self.assertEqual(
             manager.validate_target_guilds(None, (30, 10)),
             (10, 30),

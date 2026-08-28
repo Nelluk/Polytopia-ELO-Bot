@@ -187,7 +187,7 @@ def inspect_with(connection, value):
 
 
 class WorkerContractTests(unittest.TestCase):
-    def test_request_is_frozen_and_requires_development_database_authority(self):
+    def test_request_is_frozen_and_requires_database_authority(self):
         value = request()
         with self.assertRaises(FrozenInstanceError):
             value.operation = workers.LIST
@@ -200,7 +200,7 @@ class WorkerContractTests(unittest.TestCase):
             selected.guild_configuration_source = source
             with self.assertRaisesRegex(
                 workers.OperatorGuildConfigurationValidationError,
-                'development database authority',
+                'database authority',
             ):
                 workers.request_from_profile(
                     profile=selected,
@@ -209,6 +209,24 @@ class WorkerContractTests(unittest.TestCase):
                     operation=workers.LIST,
                     runtime_record=runtime_record(),
                 )
+
+    def test_request_accepts_exact_production_database_authority(self):
+        selected = profile()
+        selected.environment = storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.PRODUCTION_DATABASE
+        selected.database_user = storage.PRODUCTION_ROLE
+        selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+        value = workers.request_from_profile(
+            profile=selected,
+            requester_id=OWNER_ID,
+            guild_id=GUILD_ID,
+            operation=workers.LIST,
+            runtime_record=runtime_record(),
+        )
+        self.assertEqual(value.target.environment, storage.PRODUCTION_ENVIRONMENT)
+        self.assertEqual(value.target.database_name, storage.PRODUCTION_DATABASE)
 
     def test_non_owner_is_rejected_before_connection(self):
         value = request()

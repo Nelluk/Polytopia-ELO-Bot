@@ -30,10 +30,11 @@ synchronizes commands.
 
 PostgreSQL remains authoritative for operational data such as members,
 players, games, teams, and ratings. The repository also contains a
-database-backed guild-configuration subsystem, but it is currently enabled
-only for the upstream development profile. Production rejects
-`guild_configuration_source = database` and continues to require
-`server_settings.py` with `guild_configuration_source = static`.
+database-backed guild-configuration subsystem for the exact reviewed upstream
+development and production identities. Independent/self-hosted production
+profiles continue to require `server_settings.py` with
+`guild_configuration_source = static`; the upstream production cutover has its
+own explicit runbook and approval boundary.
 
 Even the development database mode still loads `server_settings_dev.py` to
 establish its allowed guild inventory and historical shortcut names; a

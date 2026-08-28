@@ -334,10 +334,10 @@ def access_error(interaction: Any) -> str | None:
         return 'Only the configured bot owner can manage guild configuration drafts.'
     profile = settings.runtime_profile
     if (
-            profile.environment != 'development'
+            profile.environment not in {'development', 'production'}
             or profile.guild_configuration_source != 'database'
     ):
-        return 'Guild configuration drafts require development database authority.'
+        return 'Guild configuration drafts require database authority.'
     if not settings.guild_configuration_ready():
         return 'The running database guild configuration is not published.'
     if settings.database_guild_configuration(int(interaction.guild_id)) is None:
@@ -350,10 +350,10 @@ def delegated_access_error(interaction: Any) -> str | None:
         return 'This command can only be used in a server.'
     profile = settings.runtime_profile
     if (
-            profile.environment != 'development'
+            profile.environment not in {'development', 'production'}
             or profile.guild_configuration_source != 'database'
     ):
-        return 'Guild configuration editing requires development database authority.'
+        return 'Guild configuration editing requires database authority.'
     if not settings.guild_configuration_ready():
         return 'The running database guild configuration is not published.'
     if settings.database_guild_configuration(int(interaction.guild_id)) is None:

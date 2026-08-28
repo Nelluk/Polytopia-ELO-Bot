@@ -184,7 +184,7 @@ class RequestAndWorkerTests(unittest.TestCase):
         selected.guild_configuration_source = 'static'
         with self.assertRaisesRegex(
             workers.OperatorGuildConfigurationDraftValidationError,
-            'development database authority',
+                'database authority',
         ):
             workers.request_from_profile(
                 profile=selected, requester_id=OWNER_ID, guild_id=GUILD_ID,

@@ -38,9 +38,11 @@ from modules.application_command_policy import (  # noqa: E402
     CapabilityPolicy,
     CommandDescriptor,
     GuildCommandPlan,
+    build_capability_policy,
     plan_application_commands,
     policy_from_server_settings,
 )
+from modules import guild_configuration_storage as guild_storage  # noqa: E402
 from runtime_config import (  # noqa: E402
     RuntimeConfigurationError,
     load_runtime_profile,
@@ -64,12 +66,21 @@ class CommandManagementError(RuntimeError):
     """Raised when the explicit deployment workflow cannot proceed safely."""
 
 
+MAX_GUILD_CONFIGURATION_PLAN_BYTES = 16 * 1024 * 1024
+
+
 @dataclass(frozen=True)
 class RemoteCommandSnapshot:
     """Read-only remote state used to guard guild-scoped deployment."""
 
     global_commands: tuple[Any, ...]
     guild_commands: Mapping[int, tuple[Any, ...]]
+
+
+@dataclass(frozen=True)
+class GuildConfigurationPlanPolicy:
+    policy: CapabilityPolicy
+    bundle_digest: str
 
 
 class _ModelImportPlaceholder:
@@ -202,6 +213,19 @@ def _parse_guild_ids(value: str | None, *, option_name: str) -> tuple[int, ...]:
             f'{option_name} must contain positive integer guild IDs.'
         )
     return guild_ids
+
+
+def _parse_guild_scope(
+    value: str | None,
+    *,
+    option_name: str,
+    allowed_guild_ids: Iterable[int],
+) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    if value.strip().casefold() == 'all':
+        return tuple(sorted(allowed_guild_ids))
+    return _parse_guild_ids(value, option_name=option_name)
 
 
 def validate_target_guilds(
@@ -392,8 +416,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         '--guild-ids',
-        help='Comma-separated exact target guild IDs; required for remote modes.',
+        help=(
+            'Comma-separated exact target guild IDs, or "all" for the exact '
+            'runtime allowlist; required for remote modes.'
+        ),
     )
+    parser.add_argument(
+        '--guild-configuration-plan',
+        help=(
+            'Production-only digest-bound import plan whose active document '
+            'capabilities replace legacy static command assignments.'
+        ),
+    )
+    parser.add_argument('--confirm-guild-configuration-plan')
     parser.add_argument('--confirm-environment')
     parser.add_argument('--confirm-guild-ids')
     parser.add_argument('--confirm-scope')
@@ -403,6 +438,96 @@ def _parser() -> argparse.ArgumentParser:
         help='Required acknowledgment that this tool cannot deploy globally.',
     )
     return parser
+
+
+def policy_from_guild_configuration_plan(
+    path_value: str,
+    *,
+    profile: Any,
+) -> GuildConfigurationPlanPolicy:
+    if profile.environment != guild_storage.PRODUCTION_ENVIRONMENT:
+        raise CommandManagementError(
+            'A guild-configuration import plan is production-only.'
+        )
+    if (
+            not isinstance(path_value, str)
+            or not path_value
+            or '\x00' in path_value
+            or Path(path_value).is_absolute()
+            or Path(path_value).suffix != '.json'
+    ):
+        raise CommandManagementError(
+            'Guild-configuration plan must be one relative JSON file.'
+        )
+    relative = Path(path_value)
+    directory = Path('logs/production/guild-configuration')
+    try:
+        relative.relative_to(directory)
+    except ValueError as exc:
+        raise CommandManagementError(
+            'Guild-configuration plan must remain in '
+            'logs/production/guild-configuration.'
+        ) from exc
+    if any(part in {'', '.', '..'} for part in relative.parts):
+        raise CommandManagementError('Guild-configuration plan path is unsafe.')
+    path = (PROJECT_ROOT / relative).resolve(strict=False)
+    try:
+        path.relative_to(PROJECT_ROOT.resolve())
+    except ValueError as exc:
+        raise CommandManagementError(
+            'Guild-configuration plan must remain inside the checkout.'
+        ) from exc
+    current = PROJECT_ROOT
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise CommandManagementError(
+                'Guild-configuration plan path may not traverse a symlink.'
+            )
+    if not path.is_file():
+        raise CommandManagementError(
+            f'Guild-configuration plan does not exist: {relative}'
+        )
+    payload = path.read_bytes()
+    if len(payload) > MAX_GUILD_CONFIGURATION_PLAN_BYTES:
+        raise CommandManagementError(
+            'Guild-configuration plan exceeds its byte bound.'
+        )
+    try:
+        mapping = json.loads(payload.decode('utf-8'))
+        target = guild_storage.StorageTarget(
+            environment=profile.environment,
+            database_name=profile.database_name,
+            database_user=profile.database_user,
+            expected_application_id=profile.expected_bot_id,
+            background_tasks_enabled=profile.background_tasks_enabled,
+            api_enabled=profile.api_enabled,
+            bullet_enabled=profile.bullet_enabled,
+        )
+        bundle = guild_storage.bundle_from_mapping(mapping, target=target)
+    except (
+        UnicodeError,
+        json.JSONDecodeError,
+        guild_storage.GuildConfigurationStorageError,
+    ) as exc:
+        raise CommandManagementError(
+            'Guild-configuration plan is invalid or does not match production.'
+        ) from exc
+    allowed = tuple(sorted(int(value) for value in profile.allowed_guild_ids))
+    if tuple(item.guild_id for item in bundle.imports) != allowed:
+        raise CommandManagementError(
+            'Guild-configuration plan does not match the runtime allowlist.'
+        )
+    return GuildConfigurationPlanPolicy(
+        policy=build_capability_policy(
+            {
+                item.guild_id: item.document.command_capabilities
+                for item in bundle.imports
+            },
+            allowed,
+        ),
+        bundle_digest=bundle.bundle_digest,
+    )
 
 
 async def _remote_mode(
@@ -456,13 +581,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             environ=os.environ,
             create_directories=False,
         )
-        policy = policy_from_server_settings(
-            profile.server_settings,
-            profile.allowed_guild_ids,
-        )
-        requested = (
-            None if args.guild_ids is None
-            else _parse_guild_ids(args.guild_ids, option_name='--guild-ids')
+        loaded_plan = None
+        if args.guild_configuration_plan is not None:
+            loaded_plan = policy_from_guild_configuration_plan(
+                args.guild_configuration_plan,
+                profile=profile,
+            )
+            policy = loaded_plan.policy
+        else:
+            policy = policy_from_server_settings(
+                profile.server_settings,
+                profile.allowed_guild_ids,
+            )
+        requested = _parse_guild_scope(
+            args.guild_ids,
+            option_name='--guild-ids',
+            allowed_guild_ids=profile.allowed_guild_ids,
         )
         guild_ids = validate_target_guilds(
             requested,
@@ -470,12 +604,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             require_explicit=args.mode in ('inspect', 'apply'),
         )
         if args.mode == 'apply':
-            confirmed = (
-                None if args.confirm_guild_ids is None
-                else _parse_guild_ids(
-                    args.confirm_guild_ids,
-                    option_name='--confirm-guild-ids',
+            if loaded_plan is not None and (
+                    args.confirm_guild_configuration_plan
+                    != loaded_plan.bundle_digest
+            ):
+                raise CommandManagementError(
+                    'Apply requires the exact guild-configuration plan digest.'
                 )
+            if (
+                    loaded_plan is None
+                    and args.confirm_guild_configuration_plan is not None
+            ):
+                raise CommandManagementError(
+                    'A guild-configuration plan digest was confirmed without '
+                    'a plan.'
+                )
+            confirmed = _parse_guild_scope(
+                args.confirm_guild_ids,
+                option_name='--confirm-guild-ids',
+                allowed_guild_ids=profile.allowed_guild_ids,
             )
             validate_apply_confirmation(
                 selected_environment=args.environment,

@@ -201,6 +201,7 @@ def build_runtime_snapshot_from_stored(
     stored_configurations: Sequence[StoredGuildConfiguration],
     discord_snapshot: Mapping[str, Any],
     allowed_guild_ids: Sequence[int],
+    target: storage.StorageTarget | None = None,
 ) -> GuildConfigurationRuntimeSnapshot:
     """Build runtime authority directly from a validated active DB graph."""
 
@@ -227,18 +228,20 @@ def build_runtime_snapshot_from_stored(
             or tuple(sorted(stored_by_id)) != allowed
     ):
         raise GuildConfigurationRuntimeError('stored_inventory_incomplete')
+    if target is None:
+        target = storage.StorageTarget(
+            environment=storage.DEVELOPMENT_ENVIRONMENT,
+            database_name=storage.DEVELOPMENT_DATABASE,
+            database_user=storage.DEVELOPMENT_ROLE,
+            expected_application_id=storage.DEVELOPMENT_BETA_APPLICATION_ID,
+            background_tasks_enabled=False,
+            api_enabled=False,
+            bullet_enabled=False,
+        )
     try:
         validated_discord = storage.validate_discord_snapshot(
             discord_snapshot,
-            target=storage.StorageTarget(
-                environment=storage.DEVELOPMENT_ENVIRONMENT,
-                database_name=storage.DEVELOPMENT_DATABASE,
-                database_user=storage.DEVELOPMENT_ROLE,
-                expected_application_id=storage.DEVELOPMENT_BETA_APPLICATION_ID,
-                background_tasks_enabled=False,
-                api_enabled=False,
-                bullet_enabled=False,
-            ),
+            target=target,
             allowed_guild_ids=allowed,
         )
     except storage.GuildConfigurationStorageError as exc:

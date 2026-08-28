@@ -63,7 +63,7 @@ class OperatorGuildEnrollmentValidationError(OperatorGuildEnrollmentError):
 
 
 class OperatorGuildEnrollmentUnavailable(OperatorGuildEnrollmentError):
-    """The exact development database operation was unavailable."""
+    """The exact runtime database operation was unavailable."""
 
 
 class OperatorGuildEnrollmentCommitted(OperatorGuildEnrollmentError):
@@ -340,7 +340,7 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
         )
     if not existing and request.target_guild_id in request.forbidden_guild_ids:
         raise OperatorGuildEnrollmentValidationError(
-            'A known production guild cannot be enrolled by development.'
+            'A protected guild cannot be enrolled from this runtime.'
         )
     for value in current:
         _positive(value.guild_id, 'Running guild ID')
@@ -378,7 +378,7 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
         storage.validate_target(request.target)
     except storage.GuildConfigurationStorageError as exc:
         raise OperatorGuildEnrollmentValidationError(
-            'The development guild-enrollment target is invalid.'
+            'The guild-enrollment target is invalid.'
         ) from exc
     if not request.database_password or not request.discord_snapshot_json:
         raise OperatorGuildEnrollmentValidationError(
@@ -503,11 +503,14 @@ def request_from_profile(
     confirmation_text: str | None = None,
 ) -> GuildEnrollmentRequest:
     if (
-        getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
+        getattr(profile, 'environment', None) not in {
+            storage.DEVELOPMENT_ENVIRONMENT,
+            storage.PRODUCTION_ENVIRONMENT,
+        }
         or getattr(profile, 'guild_configuration_source', None) != 'database'
     ):
         raise OperatorGuildEnrollmentValidationError(
-            'Guild enrollment requires development database authority.'
+            'Guild enrollment requires database authority.'
         )
     try:
         target = shadow.target_from_profile(profile)
@@ -780,6 +783,7 @@ def _post_commit_snapshot(
         stored_configurations=active,
         discord_snapshot=snapshot_value,
         allowed_guild_ids=active_ids,
+        target=request.target,
     )
 
 
@@ -792,7 +796,7 @@ def execute_enrollment(
         connection = _connect(request)
     except psycopg2.Error as exc:
         raise OperatorGuildEnrollmentUnavailable(
-            'The development guild-configuration database is unavailable.'
+            'The guild-configuration database is unavailable.'
         ) from exc
     enrollment = None
     committed = False
@@ -871,13 +875,13 @@ def execute_enrollment(
         if committed and enrollment is not None:
             raise OperatorGuildEnrollmentCommitted(enrollment) from exc
         raise OperatorGuildEnrollmentUnavailable(
-            'The development guild enrollment was interrupted.'
+            'The guild enrollment was interrupted.'
         ) from exc
     except psycopg2.Error as exc:
         if committed and enrollment is not None:
             raise OperatorGuildEnrollmentCommitted(enrollment) from exc
         raise OperatorGuildEnrollmentValidationError(
-            'The development guild-enrollment transaction was invalid.'
+            'The guild-enrollment transaction was invalid.'
         ) from exc
     finally:
         if not committed:

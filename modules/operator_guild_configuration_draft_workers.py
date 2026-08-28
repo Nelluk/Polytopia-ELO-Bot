@@ -75,7 +75,7 @@ class OperatorGuildConfigurationDraftPermissionError(
 class OperatorGuildConfigurationDraftUnavailable(
     OperatorGuildConfigurationDraftError,
 ):
-    """The exact development draft store is unavailable."""
+    """The exact runtime draft store is unavailable."""
 
 
 class OperatorGuildConfigurationDraftConflict(
@@ -266,7 +266,7 @@ def _validate_request(
             or request.guild_id not in allowed
     ):
         raise OperatorGuildConfigurationDraftValidationError(
-            'The current guild is outside the exact development allowlist.'
+            'The current guild is outside the exact runtime allowlist.'
         )
     _strict_positive(request.runtime_revision, 'Running revision')
     _strict_positive(request.runtime_generation, 'Running generation')
@@ -456,11 +456,14 @@ def request_from_profile(
     runtime_guild_ids: Sequence[int] | None = None,
 ) -> GuildConfigurationDraftRequest:
     if (
-            getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
+            getattr(profile, 'environment', None) not in {
+                storage.DEVELOPMENT_ENVIRONMENT,
+                storage.PRODUCTION_ENVIRONMENT,
+            }
             or getattr(profile, 'guild_configuration_source', None) != 'database'
     ):
         raise OperatorGuildConfigurationDraftValidationError(
-            'Guild configuration drafts require development database authority.'
+            'Guild configuration drafts require database authority.'
         )
     if runtime_record is None:
         raise OperatorGuildConfigurationDraftValidationError(
@@ -739,6 +742,7 @@ def _post_commit_runtime_snapshot(
             stored_configurations=active,
             discord_snapshot=discord_snapshot,
             allowed_guild_ids=active_ids,
+            target=request.target,
         )
     except (
         json.JSONDecodeError,
@@ -759,7 +763,7 @@ def execute_draft_operation(
         connection = _connect(request)
     except psycopg2.Error as exc:
         raise OperatorGuildConfigurationDraftUnavailable(
-            'The development guild-configuration database is unavailable.'
+            'The guild-configuration database is unavailable.'
         ) from exc
     committed = False
     activation = None
@@ -1044,11 +1048,11 @@ def execute_draft_operation(
             )
     except psycopg2.OperationalError as exc:
         raise OperatorGuildConfigurationDraftUnavailable(
-            'The development guild-configuration draft operation was interrupted.'
+            'The guild-configuration draft operation was interrupted.'
         ) from exc
     except psycopg2.Error as exc:
         raise OperatorGuildConfigurationDraftValidationError(
-            'The development guild-configuration draft transaction was invalid.'
+            'The guild-configuration draft transaction was invalid.'
         ) from exc
     finally:
         try:

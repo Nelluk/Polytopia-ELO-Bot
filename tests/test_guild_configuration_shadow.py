@@ -444,11 +444,11 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 shadow, 'run_shadow_comparison', run,
             ):
                 self.assertIs(
-                    await instance._run_development_guild_configuration_shadow(),
+                    await instance._run_guild_configuration_authority(),
                     result,
                 )
                 self.assertIs(
-                    await instance._run_development_guild_configuration_shadow(),
+                    await instance._run_guild_configuration_authority(),
                     result,
                 )
         finally:
@@ -476,7 +476,7 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ), mock.patch.object(
                 shadow, 'run_shadow_comparison', run,
             ):
-                result = await instance._run_development_guild_configuration_shadow()
+                result = await instance._run_guild_configuration_authority()
         finally:
             await instance.close()
         self.assertEqual(result.status, shadow.STATUS_UNAVAILABLE)
@@ -504,7 +504,7 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ), mock.patch.object(
                 shadow, 'run_active_configuration', run,
             ):
-                result = await instance._run_development_guild_configuration_shadow()
+                result = await instance._run_guild_configuration_authority()
         finally:
             await instance.close()
         activate.assert_called_once()
@@ -530,7 +530,7 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 RuntimeError,
                 'database guild configuration is unavailable',
             ):
-                await instance._run_development_guild_configuration_shadow()
+                await instance._run_guild_configuration_authority()
         finally:
             await instance.close()
         self.assertFalse(instance._guild_configuration_shadow_complete)
@@ -545,16 +545,52 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 'bot.importlib.import_module'
             ) as import_module:
                 self.assertIsNone(
-                    await instance._run_development_guild_configuration_shadow()
+                    await instance._run_guild_configuration_authority()
                 )
         finally:
             await instance.close()
         import_module.assert_not_called()
         source = inspect.getsource(bot_module.init_bot)
         self.assertIn(
-            'await bot._run_development_guild_configuration_shadow()',
+            'await bot._run_guild_configuration_authority()',
             source,
         )
+
+    async def test_production_database_source_loads_exact_runtime_target(self):
+        instance = self.make_bot()
+        selected = profile()
+        selected.environment = storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.PRODUCTION_DATABASE
+        selected.database_user = storage.PRODUCTION_ROLE
+        selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+        selected.guild_configuration_source = 'database'
+        snapshot_value = fixtures.snapshot()
+        snapshot_value['environment'] = storage.PRODUCTION_ENVIRONMENT
+        snapshot_value['application_id'] = storage.PRODUCTION_APPLICATION_ID
+        stored = shadow._stored_values((stored_row(),))
+        activate = mock.Mock()
+        try:
+            with mock.patch.object(
+                bot_module.settings, 'runtime_profile', selected,
+            ), mock.patch.object(
+                bot_module.settings,
+                'activate_database_guild_configuration',
+                activate,
+            ), mock.patch.object(
+                shadow, 'capture_discord_snapshot', return_value=snapshot_value,
+            ), mock.patch.object(
+                shadow, 'run_active_configuration',
+                new=mock.AsyncMock(return_value=stored),
+            ):
+                result = await instance._run_guild_configuration_authority()
+        finally:
+            await instance.close()
+        self.assertTrue(result.promotion_ready)
+        activate.assert_called_once()
+        published = activate.call_args.args[0]
+        self.assertEqual(tuple(published.guilds), (GUILD_ID,))
 
     async def test_unpublished_database_source_blocks_prefix_and_slash_dispatch(self):
         interaction = SimpleNamespace(

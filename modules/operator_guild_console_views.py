@@ -488,7 +488,7 @@ class GuildValidationWorkspace(components_v2.RequesterLayoutView):
                 f'(`{selected.guild_id}`)\n'
                 f'**Revision:** `r{selected.active_revision}` · '
                 f'**Generation:** `g{selected.generation}`\n\n'
-                '✅ Exact development database and role\n'
+                '✅ Exact runtime database and role\n'
                 '✅ Exact configuration storage schema\n'
                 '✅ Active document schema and digest\n'
                 '✅ Current Discord role/channel references\n'

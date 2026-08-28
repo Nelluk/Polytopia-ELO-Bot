@@ -2,8 +2,8 @@
 
 Application-command registration is an explicit, guild-scoped operation. The
 bot does not synchronize commands from `on_ready`; launching a beta cannot
-change the Discord command tree. A database-authority development bot also
-offers a separate owner-confirmed one-guild capability workflow described in
+change the Discord command tree. A database-authority bot also offers a
+separate owner-confirmed one-guild capability workflow described in
 `DEVELOPMENT_GUILD_CONFIGURATION.md`; it is not a startup side effect or a
 replacement for this source-deployment procedure.
 
@@ -122,24 +122,29 @@ guild-configuration delegation policy.
   command source are not silently ignored. Reserved roots are harmless while
   their capabilities remain unassigned.
 
-## Database-authority development exception
+## Database-authority policy
 
 The profile-backed tool above remains authoritative for deploying changed
-command source and for initially deploying the database-authority operator
-surface. Once that surface is running, command policy comes from its immutable
-active guild documents rather than ignored static settings. Server type and
-configured destinations derive that policy; there is no raw capability editor.
+command source. For the production static-to-database cutover, pass the exact
+private import-plan JSON with `--guild-configuration-plan`; apply additionally
+requires its bundle digest through `--confirm-guild-configuration-plan`. This
+keeps the command policy bound to the same documents imported into PostgreSQL
+instead of the legacy static capability assignments. `--guild-ids all` and
+`--confirm-guild-ids all` mean the exact runtime allowlist, not an unbounded or
+global Discord scope.
+
+Once that surface is running, command policy comes from its immutable active
+guild documents rather than ignored static settings. Server type and configured
+destinations derive that policy; there is no raw capability editor.
 The owner may select a server under `/operator guild list` and choose
 **Repair commands** to reconcile the already-active policy.
 That path repeats the empty-global guard,
 binds exact command fingerprints into its confirmation, and contains only an
 explicit target-guild `sync` call.
 
-Do not use the profile-backed offline plan as evidence for a database-backed
-command policy: it intentionally does not connect to PostgreSQL. Use the
-private **Repair commands** plan for that revision. Production remains
-on this separately approved out-of-process procedure unless production database
-authority is explicitly authorized.
+Do not use legacy static policy as evidence for a database-backed command
+policy. Use the digest-bound import plan during initial production cutover and
+the private **Repair commands** plan for a later active revision.
 
 Repository tests exercise offline planning only. No live Discord inspection or
 apply is implied by this runbook or by a green offline test suite.

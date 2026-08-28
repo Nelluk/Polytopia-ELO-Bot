@@ -1,12 +1,12 @@
 # Development guild configuration
 
-Status: **development-only**
+Status: **beta operations guide**
 
-The development beta can load guild configuration from PostgreSQL and manage
+The development beta loads guild configuration from PostgreSQL and manages
 that configuration through private Discord workflows. Production continues to
-use the reviewed static `server_settings.py` profile. This document describes
-the current subsystem; it is not authorization to enable database authority in
-production, change a database, or synchronize Discord commands.
+use the reviewed static `server_settings.py` profile until the separately
+approved cutover in `PRODUCTION_GUILD_CONFIGURATION.md`. This document is not
+authorization to change a database or synchronize Discord commands.
 
 ## Authority model
 
@@ -22,11 +22,11 @@ or:
 guild_configuration_source = database
 ```
 
-`static` uses the development settings module. `database` requires the exact
-development environment, database, and role; validates the complete stored
-graph before publishing it; and exposes one immutable in-memory snapshot to
-the running process. Startup fails closed on an absent, partial, mismatched, or
-invalid graph. Production rejects database guild-configuration authority.
+`static` uses the selected environment's settings module. `database` requires
+one exact reviewed application/database topology; validates the complete
+stored graph before publishing it; and exposes one immutable in-memory snapshot
+to the running process. Startup fails closed on an absent, partial, mismatched,
+or invalid graph. Production remains static until its explicit cutover.
 
 The stored envelope consists of:
 
@@ -76,7 +76,7 @@ The ordinary same-server entry point is:
   and private destinations remain hidden and rejected
   by the worker if submitted.
 
-The `/operator guild ...` surface requires development database authority and
+The `/operator guild ...` surface requires database authority and
 the configured bot owner. It intentionally has only two subcommands:
 
 - `/operator guild list` — open the paginated server-management console.

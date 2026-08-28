@@ -179,12 +179,7 @@ def _guild_configuration_source(
         parser: configparser.ConfigParser,
         environment: str,
         config_path: Path) -> str:
-    """Select the pre-start guild-policy authority for one process.
-
-    P10.5 permits database authority only in development. Production retains
-    its compatibility-safe static default until a separately approved
-    production import/canary unit makes its own selector explicit.
-    """
+    """Select the explicit pre-start guild-policy authority for one process."""
 
     raw = parser['DEFAULT'].get('guild_configuration_source')
     if environment == 'production' and raw is None:
@@ -195,11 +190,6 @@ def _guild_configuration_source(
             'Setting \'guild_configuration_source\' in '
             f'{config_path} must be exactly "static" or "database"; '
             f'received {value!r}.'
-        )
-    if environment != 'development' and value != 'static':
-        raise RuntimeConfigurationError(
-            'Database guild configuration authority is development-only '
-            'until a separately approved production unit.'
         )
     return value
 

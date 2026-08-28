@@ -39,6 +39,7 @@ PRODUCTION_DATABASE = 'polytopia2'
 PRODUCTION_ROLE = 'polyelo'
 PRODUCTION_APPLICATION_ID = 484067640302764042
 IMPORT_ACTOR = 'p10.3-development-static-import'
+PRODUCTION_IMPORT_ACTOR = 'production-static-import'
 IMPORT_SOURCE_KIND = 'legacy_static_import'
 IMPORT_EVENT_TYPE = 'initial_import'
 # P11.5C reads this existing immutable audit evidence; it deliberately does
@@ -90,6 +91,25 @@ class ImportBundle:
     @property
     def confirmation(self) -> str:
         return f'P10.3 APPLY {self.bundle_digest}'
+
+
+def confirmation_for_target(
+    bundle: ImportBundle,
+    target: StorageTarget,
+) -> str:
+    validate_target(target)
+    if target.environment == PRODUCTION_ENVIRONMENT:
+        return f'PRODUCTION GUILD CONFIGURATION APPLY {bundle.bundle_digest}'
+    return bundle.confirmation
+
+
+def import_actor_for_target(target: StorageTarget) -> str:
+    validate_target(target)
+    return (
+        PRODUCTION_IMPORT_ACTOR
+        if target.environment == PRODUCTION_ENVIRONMENT
+        else IMPORT_ACTOR
+    )
 
 
 @dataclass(frozen=True)
@@ -441,7 +461,7 @@ def validate_discord_snapshot(
         }
     if tuple(sorted(by_guild)) != allowed:
         raise GuildConfigurationStorageError(
-            'Discord snapshot guild set does not match the development allowlist.'
+            'Discord snapshot guild set does not match the runtime allowlist.'
         )
     return by_guild
 
@@ -698,14 +718,29 @@ def build_import_bundle(
     )
 
 
-def bundle_to_mapping(bundle: ImportBundle) -> dict[str, Any]:
+def bundle_to_mapping(
+    bundle: ImportBundle,
+    *,
+    target: StorageTarget | None = None,
+) -> dict[str, Any]:
     if not isinstance(bundle, ImportBundle):
         raise GuildConfigurationStorageError('A validated import bundle is required.')
+    statements = list(CREATE_SCHEMA_STATEMENTS)
+    confirmation = bundle.confirmation
+    if target is not None:
+        validate_target(target)
+        confirmation = confirmation_for_target(bundle, target)
+        if target.environment == PRODUCTION_ENVIRONMENT:
+            from modules import guild_configuration_delegation_storage as delegation
+            from modules import guild_configuration_draft_storage as drafts
+
+            statements.extend(drafts.CREATE_DRAFT_SCHEMA_STATEMENTS)
+            statements.extend(delegation.CREATE_DELEGATION_SCHEMA_STATEMENTS)
     return {
         'schema_version': bundle.schema_version,
         'storage_schema_version': bundle.storage_schema_version,
         'bundle_digest': bundle.bundle_digest,
-        'confirmation': bundle.confirmation,
+        'confirmation': confirmation,
         'guilds': [
             {
                 'guild_id': value.guild_id,
@@ -715,8 +750,101 @@ def bundle_to_mapping(bundle: ImportBundle) -> dict[str, Any]:
             }
             for value in bundle.imports
         ],
-        'planned_schema_statements': list(CREATE_SCHEMA_STATEMENTS),
+        'planned_schema_statements': statements,
     }
+
+
+def bundle_from_mapping(
+    value: Mapping[str, Any],
+    *,
+    target: StorageTarget,
+) -> ImportBundle:
+    """Validate and reconstruct one exact emitted import plan."""
+
+    validate_target(target)
+    if not isinstance(value, Mapping):
+        raise GuildConfigurationStorageError('Import plan must be an object.')
+    root = dict(value)
+    # The production planner adds a human-readable derivative summary. It is
+    # not part of the digest-bound import contract.
+    root.pop('production_migration_summary', None)
+    expected_fields = {
+        'schema_version', 'storage_schema_version', 'bundle_digest',
+        'confirmation', 'guilds', 'planned_schema_statements',
+    }
+    if set(root) != expected_fields:
+        raise GuildConfigurationStorageError(
+            'Import plan shape does not match the storage contract.'
+        )
+    raw_guilds = root['guilds']
+    if not isinstance(raw_guilds, list) or not raw_guilds:
+        raise GuildConfigurationStorageError(
+            'Import plan must contain at least one guild.'
+        )
+    imports: list[GuildImport] = []
+    for raw in raw_guilds:
+        if not isinstance(raw, Mapping) or set(raw) != {
+                'guild_id', 'document_digest', 'source_digest', 'document'}:
+            raise GuildConfigurationStorageError(
+                'Import plan guild shape is invalid.'
+            )
+        guild_id = _strict_int(raw['guild_id'], 'import plan guild ID')
+        if (
+                not isinstance(raw['document_digest'], str)
+                or not _HEX_DIGEST.fullmatch(raw['document_digest'])
+                or not isinstance(raw['source_digest'], str)
+                or not _HEX_DIGEST.fullmatch(raw['source_digest'])
+        ):
+            raise GuildConfigurationStorageError(
+                f'Guild {guild_id} import plan digest is invalid.'
+            )
+        try:
+            document = validate_document(raw['document'])
+        except GuildConfigurationError as exc:
+            raise GuildConfigurationStorageError(
+                f'Guild {guild_id} import plan document is invalid.'
+            ) from exc
+        if (
+                document.guild_id != guild_id
+                or document_digest(document) != raw['document_digest']
+        ):
+            raise GuildConfigurationStorageError(
+                f'Guild {guild_id} import plan document digest differs.'
+            )
+        imports.append(GuildImport(
+            guild_id=guild_id,
+            document=document,
+            document_digest=raw['document_digest'],
+            source_digest=raw['source_digest'],
+        ))
+    guild_ids = tuple(item.guild_id for item in imports)
+    if guild_ids != tuple(sorted(set(guild_ids))):
+        raise GuildConfigurationStorageError(
+            'Import plan guild inventory is not unique and sorted.'
+        )
+    payload = {
+        'schema_version': IMPORT_SCHEMA_VERSION,
+        'storage_schema_version': STORAGE_SCHEMA_VERSION,
+        'imports': [
+            {
+                'guild_id': item.guild_id,
+                'document_digest': item.document_digest,
+                'source_digest': item.source_digest,
+            }
+            for item in imports
+        ],
+    }
+    bundle = ImportBundle(
+        schema_version=IMPORT_SCHEMA_VERSION,
+        storage_schema_version=STORAGE_SCHEMA_VERSION,
+        imports=tuple(imports),
+        bundle_digest=_canonical_digest(payload),
+    )
+    if root != bundle_to_mapping(bundle, target=target):
+        raise GuildConfigurationStorageError(
+            'Import plan differs from its exact digest-bound bundle.'
+        )
+    return bundle
 
 
 def _schema_inventory(cursor: Any) -> SchemaInventory:
@@ -815,7 +943,12 @@ def _audit_rows(cursor: Any, guild_id: int) -> tuple[tuple[Any, ...], ...]:
     return tuple(tuple(row) for row in cursor.fetchall())
 
 
-def _verify_cursor(cursor: Any, bundle: ImportBundle) -> tuple[int, ...]:
+def _verify_cursor(
+    cursor: Any,
+    bundle: ImportBundle,
+    *,
+    expected_actor: str = IMPORT_ACTOR,
+) -> tuple[int, ...]:
     validate_schema_inventory(_schema_inventory(cursor))
     expected_ids = tuple(value.guild_id for value in bundle.imports)
     registry = _registry_rows(cursor)
@@ -854,7 +987,7 @@ def _verify_cursor(cursor: Any, bundle: ImportBundle) -> tuple[int, ...]:
             or source_digest != expected.source_digest
             or parent_revision is not None
             or source_kind != IMPORT_SOURCE_KIND
-            or actor != IMPORT_ACTOR
+            or actor != expected_actor
         ):
             raise GuildConfigurationStorageError(
                 f'Guild {guild_id} revision 1 differs from the exact import bundle.'
@@ -866,7 +999,7 @@ def _verify_cursor(cursor: Any, bundle: ImportBundle) -> tuple[int, ...]:
             1,
             1,
             expected.document_digest,
-            IMPORT_ACTOR,
+            expected_actor,
             {'source_digest': expected.source_digest},
         ),):
             raise GuildConfigurationStorageError(
@@ -889,11 +1022,24 @@ def verify_storage(
             actual_database=actual_database,
             actual_user=actual_user,
         )
-        verified = _verify_cursor(cursor, bundle)
+        if target.environment == PRODUCTION_ENVIRONMENT:
+            _validate_production_auxiliary_schema(cursor)
+            verified = _verify_cursor(
+                cursor,
+                bundle,
+                expected_actor=import_actor_for_target(target),
+            )
+        else:
+            verified = _verify_cursor(cursor, bundle)
     return StorageResult(False, (), verified, verified, bundle.bundle_digest)
 
 
-def _insert_import(cursor: Any, value: GuildImport) -> None:
+def _insert_import(
+    cursor: Any,
+    value: GuildImport,
+    *,
+    actor: str = IMPORT_ACTOR,
+) -> None:
     document_json = json.dumps(
         document_to_mapping(value.document),
         ensure_ascii=False,
@@ -920,7 +1066,7 @@ def _insert_import(cursor: Any, value: GuildImport) -> None:
             value.document_digest,
             value.source_digest,
             IMPORT_SOURCE_KIND,
-            IMPORT_ACTOR,
+            actor,
         ),
     )
     cursor.execute(
@@ -937,10 +1083,44 @@ def _insert_import(cursor: Any, value: GuildImport) -> None:
             value.guild_id,
             IMPORT_EVENT_TYPE,
             value.document_digest,
-            IMPORT_ACTOR,
+            actor,
             json.dumps({'source_digest': value.source_digest}, sort_keys=True),
         ),
     )
+
+
+def _validate_production_auxiliary_schema(cursor: Any) -> None:
+    from modules import guild_configuration_delegation_storage as delegation
+    from modules import guild_configuration_draft_storage as drafts
+
+    if not drafts.validate_draft_schema(drafts.inspect_draft_schema(cursor)):
+        raise GuildConfigurationStorageError(
+            'Production guild-configuration draft storage is absent.'
+        )
+    if not delegation.validate_delegation_schema(
+            delegation.inspect_delegation_schema(cursor)):
+        raise GuildConfigurationStorageError(
+            'Production guild-configuration delegation storage is absent.'
+        )
+
+
+def _ensure_production_auxiliary_schema(cursor: Any) -> bool:
+    from modules import guild_configuration_delegation_storage as delegation
+    from modules import guild_configuration_draft_storage as drafts
+
+    created = False
+    draft_inventory = drafts.inspect_draft_schema(cursor)
+    if not drafts.validate_draft_schema(draft_inventory):
+        for statement in drafts.CREATE_DRAFT_SCHEMA_STATEMENTS:
+            cursor.execute(statement)
+        created = True
+    delegation_inventory = delegation.inspect_delegation_schema(cursor)
+    if not delegation.validate_delegation_schema(delegation_inventory):
+        for statement in delegation.CREATE_DELEGATION_SCHEMA_STATEMENTS:
+            cursor.execute(statement)
+        created = True
+    _validate_production_auxiliary_schema(cursor)
+    return created
 
 
 def apply_storage(
@@ -953,18 +1133,14 @@ def apply_storage(
     """Create/import atomically; exact repeats verify as no-ops."""
 
     validate_target(target)
-    if target.environment == PRODUCTION_ENVIRONMENT:
-        raise GuildConfigurationStorageError(
-            'Production guild-configuration apply is not enabled by the '
-            'source-only preparation unit.'
-        )
     if not isinstance(bundle, ImportBundle) or not _HEX_DIGEST.fullmatch(
         bundle.bundle_digest
     ):
         raise GuildConfigurationStorageError('A validated import bundle is required.')
-    if confirmation != bundle.confirmation:
+    expected_confirmation = confirmation_for_target(bundle, target)
+    if confirmation != expected_confirmation:
         raise GuildConfigurationStorageError(
-            f'Development apply requires exact confirmation {bundle.confirmation!r}.'
+            f'Apply requires exact confirmation {expected_confirmation!r}.'
         )
     imported: list[int] = []
     unchanged: list[int] = []
@@ -989,6 +1165,11 @@ def apply_storage(
                     cursor.execute(statement)
                 schema_created = True
                 validate_schema_inventory(_schema_inventory(cursor))
+            if target.environment == PRODUCTION_ENVIRONMENT:
+                schema_created = (
+                    _ensure_production_auxiliary_schema(cursor)
+                    or schema_created
+                )
 
             existing_rows = _registry_rows(cursor)
             existing_ids = tuple(row[0] for row in existing_rows)
@@ -1003,9 +1184,23 @@ def apply_storage(
                 if value.guild_id in existing_ids:
                     unchanged.append(value.guild_id)
                 else:
-                    _insert_import(cursor, value)
+                    if target.environment == PRODUCTION_ENVIRONMENT:
+                        _insert_import(
+                            cursor,
+                            value,
+                            actor=import_actor_for_target(target),
+                        )
+                    else:
+                        _insert_import(cursor, value)
                     imported.append(value.guild_id)
-            verified = _verify_cursor(cursor, bundle)
+            if target.environment == PRODUCTION_ENVIRONMENT:
+                verified = _verify_cursor(
+                    cursor,
+                    bundle,
+                    expected_actor=import_actor_for_target(target),
+                )
+            else:
+                verified = _verify_cursor(cursor, bundle)
         connection.commit()
         return StorageResult(
             schema_created,
@@ -1038,6 +1233,7 @@ __all__ = [
     'PRODUCTION_APPLICATION_ID',
     'PRODUCTION_DATABASE',
     'PRODUCTION_ENVIRONMENT',
+    'PRODUCTION_IMPORT_ACTOR',
     'PRODUCTION_ROLE',
     'REGISTRY_TABLE',
     'REVISION_TABLE',
@@ -1049,7 +1245,10 @@ __all__ = [
     'StorageTarget',
     'apply_storage',
     'build_import_bundle',
+    'bundle_from_mapping',
     'bundle_to_mapping',
+    'confirmation_for_target',
+    'import_actor_for_target',
     'inspect_schema_inventory',
     'validate_discord_snapshot',
     'validate_document_references',

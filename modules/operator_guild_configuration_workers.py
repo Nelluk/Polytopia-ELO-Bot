@@ -42,7 +42,7 @@ class OperatorGuildConfigurationPermissionError(OperatorGuildConfigurationError)
 
 
 class OperatorGuildConfigurationUnavailable(OperatorGuildConfigurationError):
-    """The exact development database read is unavailable."""
+    """The exact runtime database read is unavailable."""
 
 
 class OperatorGuildConfigurationValidationError(OperatorGuildConfigurationError):
@@ -200,7 +200,7 @@ def _validate_request(
             )
     ):
         raise OperatorGuildConfigurationValidationError(
-            'The current guild is outside the exact development allowlist.'
+            'The current guild is outside the exact runtime allowlist.'
         )
     runtime_values = (
         request.runtime_revision,
@@ -249,14 +249,17 @@ def request_from_profile(
     discord_snapshot: Mapping[str, Any] | None = None,
     runtime_guild_ids: Sequence[int] | None = None,
 ) -> GuildConfigurationReadRequest:
-    """Freeze exact development/runtime identity before entering the worker."""
+    """Freeze exact runtime identity before entering the worker."""
 
     if (
-            getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
+            getattr(profile, 'environment', None) not in {
+                storage.DEVELOPMENT_ENVIRONMENT,
+                storage.PRODUCTION_ENVIRONMENT,
+            }
             or getattr(profile, 'guild_configuration_source', None) != 'database'
     ):
         raise OperatorGuildConfigurationValidationError(
-            'Guild configuration inspection requires development database authority.'
+            'Guild configuration inspection requires database authority.'
         )
     if runtime_record is None and operation in {SETTINGS, VALIDATE}:
         raise OperatorGuildConfigurationValidationError(
@@ -654,7 +657,7 @@ def inspect_guild_configuration(
         connection = _connect(request)
     except psycopg2.Error as exc:
         raise OperatorGuildConfigurationUnavailable(
-            'The development guild-configuration database is unavailable.'
+            'The guild-configuration database is unavailable.'
         ) from exc
     try:
         connection.set_session(
@@ -735,11 +738,11 @@ def inspect_guild_configuration(
             )
     except psycopg2.OperationalError as exc:
         raise OperatorGuildConfigurationUnavailable(
-            'The development guild-configuration database read was interrupted.'
+            'The guild-configuration database read was interrupted.'
         ) from exc
     except psycopg2.Error as exc:
         raise OperatorGuildConfigurationValidationError(
-            'The development guild-configuration database read was invalid.'
+            'The guild-configuration database read was invalid.'
         ) from exc
     finally:
         try:

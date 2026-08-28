@@ -264,6 +264,11 @@ def apply_delegation_schema(
     plan: DelegationSchemaPlan,
     confirmation: str,
 ) -> DelegationSchemaResult:
+    if target.environment == storage.PRODUCTION_ENVIRONMENT:
+        raise GuildConfigurationDelegationStorageError(
+            'Production delegation schema must be applied atomically with '
+            'the complete guild-configuration import.'
+        )
     expected = delegation_schema_plan(target)
     if plan != expected or confirmation != expected.confirmation:
         raise GuildConfigurationDelegationStorageError(

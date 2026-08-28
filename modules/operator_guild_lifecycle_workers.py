@@ -59,7 +59,7 @@ class OperatorGuildLifecycleValidationError(OperatorGuildLifecycleError):
 
 
 class OperatorGuildLifecycleUnavailable(OperatorGuildLifecycleError):
-    """The exact development database operation was unavailable."""
+    """The exact runtime database operation was unavailable."""
 
 
 class OperatorGuildLifecycleCommitted(OperatorGuildLifecycleError):
@@ -246,7 +246,7 @@ def _validate_request(request: GuildLifecycleRequest) -> GuildLifecycleRequest:
         storage.validate_target(request.target)
     except storage.GuildConfigurationStorageError as exc:
         raise OperatorGuildLifecycleValidationError(
-            'The development lifecycle target is invalid.'
+            'The runtime lifecycle target is invalid.'
         ) from exc
     if not request.database_password or not request.discord_snapshot_json:
         raise OperatorGuildLifecycleValidationError(
@@ -302,11 +302,14 @@ def request_from_profile(
     confirmation_text: str | None = None,
 ) -> GuildLifecycleRequest:
     if (
-            getattr(profile, 'environment', None) != storage.DEVELOPMENT_ENVIRONMENT
+            getattr(profile, 'environment', None) not in {
+                storage.DEVELOPMENT_ENVIRONMENT,
+                storage.PRODUCTION_ENVIRONMENT,
+            }
             or getattr(profile, 'guild_configuration_source', None) != 'database'
     ):
         raise OperatorGuildLifecycleValidationError(
-            'Guild lifecycle controls require development database authority.'
+            'Guild lifecycle controls require database authority.'
         )
     try:
         target = shadow.target_from_profile(profile)
@@ -595,6 +598,7 @@ def _post_commit_snapshot(
         stored_configurations=active,
         discord_snapshot=filtered,
         allowed_guild_ids=active_ids,
+        target=request.target,
     )
 
 
@@ -604,7 +608,7 @@ def execute_lifecycle(request: GuildLifecycleRequest) -> GuildLifecycleResult:
         connection = _connect(request)
     except psycopg2.Error as exc:
         raise OperatorGuildLifecycleUnavailable(
-            'The development guild-lifecycle database is unavailable.'
+            'The guild-lifecycle database is unavailable.'
         ) from exc
     transition = None
     committed = False
@@ -665,13 +669,13 @@ def execute_lifecycle(request: GuildLifecycleRequest) -> GuildLifecycleResult:
         if committed and transition is not None:
             raise OperatorGuildLifecycleCommitted(transition) from exc
         raise OperatorGuildLifecycleUnavailable(
-            'The development guild-lifecycle operation was interrupted.'
+            'The guild-lifecycle operation was interrupted.'
         ) from exc
     except psycopg2.Error as exc:
         if committed and transition is not None:
             raise OperatorGuildLifecycleCommitted(transition) from exc
         raise OperatorGuildLifecycleValidationError(
-            'The development guild-lifecycle transaction was invalid.'
+            'The guild-lifecycle transaction was invalid.'
         ) from exc
     finally:
         if not committed:

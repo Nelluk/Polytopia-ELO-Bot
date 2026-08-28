@@ -374,21 +374,18 @@ class RuntimeProfileTests(unittest.TestCase):
                 ):
                     self.load_development()
 
-    def test_production_database_source_is_refused_and_missing_is_static(self):
+    def test_production_database_source_is_explicit_and_missing_is_static(self):
         self.write_server_settings('production', OTHER_GUILD_ID)
         self.write_config(
             'production',
             guild_configuration_source='database',
         )
-        with self.assertRaisesRegex(
-            RuntimeConfigurationError,
-            'development-only',
-        ):
-            load_runtime_profile(
-                project_root=self.root,
-                environ={'POLYBOT_ENV': 'production'},
-                create_directories=False,
-            )
+        profile = load_runtime_profile(
+            project_root=self.root,
+            environ={'POLYBOT_ENV': 'production'},
+            create_directories=False,
+        )
+        self.assertEqual(profile.guild_configuration_source, 'database')
 
         self.write_config(
             'production',

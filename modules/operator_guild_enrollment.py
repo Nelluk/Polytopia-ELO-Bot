@@ -17,14 +17,14 @@ def access_error(interaction: Any) -> str | None:
         return 'Only the configured bot owner can enroll or reconfigure a guild.'
     profile = settings.runtime_profile
     if (
-        profile.environment != 'development'
+        profile.environment not in {'development', 'production'}
         or profile.guild_configuration_source != 'database'
     ):
-        return 'Guild enrollment requires development database authority.'
+        return 'Guild enrollment requires database authority.'
     if not settings.guild_configuration_ready():
         return 'The running database guild configuration is not published.'
     if settings.database_guild_configuration(int(interaction.guild_id)) is None:
-        return 'Run guild enrollment from an already active development guild.'
+        return 'Run guild enrollment from an already active guild.'
     return None
 
 
