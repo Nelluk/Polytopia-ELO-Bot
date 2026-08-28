@@ -23,31 +23,6 @@ async def _private(interaction: Any, message: str) -> None:
         await interaction.response.send_message(message, ephemeral=True)
 
 
-class DelegationConfirmationModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildDelegationWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.confirmation
-        super().__init__(title='Apply guild delegation', timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text='Type DELEGATE, guild ID, and the full plan digest',
-            description='This replaces the complete manager policy.',
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value) != self.expected:
-            return await _private(interaction, f'Type `{self.expected}` exactly.')
-        if not await self.workspace.ready(interaction):
-            return
-        await self.workspace.apply(interaction, self.expected)
-
-
 class DelegationRoleModal(discord.ui.Modal):
     def __init__(
         self,
@@ -256,7 +231,7 @@ class GuildDelegationWorkspace(components_v2.RequesterLayoutView):
                 and self.allow_activation == current_activation
         ):
             return await _private(interaction, 'The staged policy is unchanged.')
-        await interaction.response.send_modal(DelegationConfirmationModal(self))
+        await self.apply(interaction, self.confirmation)
 
     async def apply(self, interaction: Any, confirmation: str) -> None:
         self.busy = True
@@ -391,6 +366,6 @@ async def publish_private(interaction: Any, view: GuildDelegationWorkspace):
 
 
 __all__ = [
-    'DelegationConfirmationModal', 'DelegationRoleModal',
+    'DelegationRoleModal',
     'GuildDelegationWorkspace', 'publish_private',
 ]

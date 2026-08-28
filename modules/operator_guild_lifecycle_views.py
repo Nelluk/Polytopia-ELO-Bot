@@ -39,39 +39,6 @@ def _escape(value: Any) -> str:
     )
 
 
-class GuildLifecycleConfirmationModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildLifecycleWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.confirmation
-        super().__init__(
-            title=(
-                'Suspend guild'
-                if workspace.preview.action == workers.SUSPEND
-                else 'Resume guild'
-            ),
-            timeout=180.0,
-        )
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text='Type the complete confirmation',
-            description=(
-                'The state transition commits first, then only this guild '
-                'command tree is synchronized. Global sync is impossible.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value) != self.expected:
-            return await _private(interaction, f'Type `{self.expected}` exactly.')
-        await self.workspace.commit(interaction, str(self.confirmation.value))
-
-
 class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This guild-lifecycle plan expired. Run the command again for fresh '
@@ -113,7 +80,7 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
             return await _private(interaction, self.expired_message)
         if self.busy:
             return await _private(interaction, 'This lifecycle plan is already running.')
-        await interaction.response.send_modal(GuildLifecycleConfirmationModal(self))
+        await self.commit(interaction, self.confirmation)
 
     async def _cancel(self, interaction: Any) -> None:
         if not await self.authorize(interaction):
@@ -261,10 +228,7 @@ class GuildLifecycleWorkspace(components_v2.RequesterLayoutView):
                 f'**Target:** {_escape(preview.guild_name)} '
                 f'(`{preview.guild_id}`)\n'
                 f'**Lifecycle:** {transition}\n'
-                f'**Active revision:** `{preview.revision}` · '
-                f'`{preview.document_digest}`\n'
-                f'**Command plan:** `{plan.plan_digest}`\n'
-                f'**Confirmation:** `{self.confirmation}`\n\n'
+                f'**Active revision:** `{preview.revision}`\n\n'
                 f'{warning}'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
@@ -290,7 +254,6 @@ async def publish_private(interaction: Any, view: GuildLifecycleWorkspace):
 
 
 __all__ = [
-    'GuildLifecycleConfirmationModal',
     'GuildLifecycleWorkspace',
     'publish_private',
 ]

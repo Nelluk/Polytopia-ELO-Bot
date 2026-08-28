@@ -466,7 +466,7 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(ticked)
 
-    async def test_workspace_binds_requester_and_full_confirmation(self):
+    async def test_workspace_binds_requester_and_confirmation_button(self):
         bot = command_bot(current=tuple(FakeCommand(name) for name in (
             'game', 'leaderboard', 'player',
         )))
@@ -485,9 +485,13 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             runner=runner,
             back_runner=back_runner,
         )
-        modal = views.GuildCommandCapabilityConfirmationModal(workspace)
-        self.assertEqual(modal.expected, plan.confirmation)
-        self.assertEqual(modal.confirmation.min_length, len(plan.confirmation))
+        workspace.authorize = mock.AsyncMock(return_value=True)
+        workspace.commit = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._confirm(interaction)
+        workspace.commit.assert_awaited_once_with(interaction, plan.confirmation)
+        self.assertNotIn(plan.plan_digest, str(workspace.to_components()))
+        del workspace.authorize
         denied = SimpleNamespace(
             user=SimpleNamespace(id=OWNER_ID + 1),
             response=SimpleNamespace(send_message=mock.AsyncMock()),

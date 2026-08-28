@@ -510,7 +510,7 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(operator.get_command('guild').get_command('rollback'))
 
-    async def test_full_digest_modal_and_requester_bound_workspace(self):
+    async def test_confirmation_button_keeps_digest_internal(self):
         result = preview_result()
 
         async def runner(*_args, **_kwargs):
@@ -525,10 +525,17 @@ class RollbackViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             runner=runner,
             back_runner=back_runner,
         )
-        modal = views.GuildConfigurationRollbackModal(workspace)
-        self.assertEqual(modal.expected, result.rollback_preview.confirmation)
-        self.assertEqual(modal.confirmation.max_length, len(modal.expected))
-        self.assertIn(result.rollback_preview.source_document_digest, str(workspace.to_components()))
+        workspace.ready = mock.AsyncMock(return_value=True)
+        workspace.commit = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._confirm(interaction)
+        workspace.commit.assert_awaited_once_with(
+            interaction, result.rollback_preview.confirmation,
+        )
+        self.assertNotIn(
+            result.rollback_preview.source_document_digest,
+            str(workspace.to_components()),
+        )
         self.assertTrue(any(
             item.label == 'Back to server list'
             for item in workspace.walk_children()

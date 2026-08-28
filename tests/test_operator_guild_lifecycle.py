@@ -572,7 +572,7 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(hasattr(getattr(preview, field.name), 'save'))
         self.assertNotIn('modules.models', inspect.getsource(views))
 
-    async def test_workspace_is_requester_bound_and_confirmation_is_complete(self):
+    async def test_workspace_is_requester_bound_and_confirmation_is_internal(self):
         request, state, generation, document = lifecycle_request()
         preview = workers.GuildLifecyclePreview(
             action=workers.SUSPEND, guild_id=TARGET_ID,
@@ -598,8 +598,17 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             requester_id=OWNER_ID, preview=preview,
             command_plan=plan, runner=runner, back_runner=back_runner,
         )
-        modal = views.GuildLifecycleConfirmationModal(workspace)
-        self.assertEqual(modal.expected, preview.confirmation('d' * 64))
+        workspace.authorize = mock.AsyncMock(return_value=True)
+        workspace.commit = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._confirm(interaction)
+        workspace.commit.assert_awaited_once_with(
+            interaction, preview.confirmation('d' * 64),
+        )
+        rendered = str(workspace.to_components())
+        self.assertNotIn('d' * 64, rendered)
+        self.assertNotIn(preview.document_digest, rendered)
+        del workspace.authorize
         denied = SimpleNamespace(
             user=SimpleNamespace(id=OWNER_ID + 1),
             response=SimpleNamespace(send_message=mock.AsyncMock()),

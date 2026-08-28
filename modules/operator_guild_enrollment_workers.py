@@ -733,9 +733,21 @@ def _update_enrollment(
             for_update=True,
         )
         if existing_draft is not None:
-            raise OperatorGuildEnrollmentConflict(
-                'This guild has an unfinished settings draft. Save or cancel it '
-                'before changing the guild type.'
+            if (
+                    existing_draft.base_revision != evidence.revision
+                    or existing_draft.base_generation != evidence.generation
+                    or existing_draft.document_digest != current_digest
+            ):
+                raise OperatorGuildEnrollmentConflict(
+                    'This guild has an unfinished settings draft with unsaved '
+                    'changes. Save or cancel it before changing the guild type.'
+                )
+            drafts.expire_draft(
+                cursor,
+                guild_id=preview.guild_id,
+                expected_version=existing_draft.draft_version,
+                expected_digest=existing_draft.document_digest,
+                actor=f'discord:{request.requester_id}',
             )
         actor = f'discord:{request.requester_id}'
         draft = drafts.put_draft(

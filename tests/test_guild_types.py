@@ -158,6 +158,78 @@ class ExistingGuildPreviewTests(unittest.TestCase):
         activate.assert_called_once()
         self.assertNotIn('command_plan_digest', activate.call_args.kwargs)
 
+    def test_existing_type_change_expires_unchanged_abandoned_draft(self):
+        request = self.request()
+        preview = enrollment._preview(request)
+        current = runtime_fixtures.snapshot().guilds[GUILD_ID]
+        existing_draft = SimpleNamespace(
+            base_revision=current.revision,
+            base_generation=current.generation,
+            document_digest=current.document_digest,
+            draft_version=13,
+        )
+        activation = SimpleNamespace(
+            revision=current.revision + 1,
+            generation=current.generation + 1,
+            event_number=9,
+            document_digest=preview.document_digest,
+            actor=f'discord:{OWNER_ID}',
+            document=preview.document,
+        )
+        with mock.patch.object(
+            enrollment.drafts, 'select_revision',
+            return_value=(current.document, current.document_digest),
+        ), mock.patch.object(
+            enrollment.drafts, 'select_draft', return_value=existing_draft,
+        ), mock.patch.object(
+            enrollment.drafts, 'expire_draft',
+        ) as expire, mock.patch.object(
+            enrollment.drafts, 'put_draft', return_value=mock.sentinel.draft,
+        ), mock.patch.object(
+            enrollment.drafts, 'activate_draft', return_value=activation,
+        ):
+            enrollment._update_enrollment(
+                mock.sentinel.cursor,
+                request,
+                preview,
+            )
+
+        expire.assert_called_once_with(
+            mock.sentinel.cursor,
+            guild_id=GUILD_ID,
+            expected_version=13,
+            expected_digest=current.document_digest,
+            actor=f'discord:{OWNER_ID}',
+        )
+
+    def test_existing_type_change_preserves_draft_with_unsaved_changes(self):
+        request = self.request()
+        preview = enrollment._preview(request)
+        current = runtime_fixtures.snapshot().guilds[GUILD_ID]
+        existing_draft = SimpleNamespace(
+            base_revision=current.revision,
+            base_generation=current.generation,
+            document_digest='f' * 64,
+            draft_version=13,
+        )
+        with mock.patch.object(
+            enrollment.drafts, 'select_revision',
+            return_value=(current.document, current.document_digest),
+        ), mock.patch.object(
+            enrollment.drafts, 'select_draft', return_value=existing_draft,
+        ), mock.patch.object(
+            enrollment.drafts, 'expire_draft',
+        ) as expire, self.assertRaisesRegex(
+            enrollment.OperatorGuildEnrollmentConflict, 'unsaved changes'
+        ):
+            enrollment._update_enrollment(
+                mock.sentinel.cursor,
+                request,
+                preview,
+            )
+
+        expire.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

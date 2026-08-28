@@ -28,37 +28,6 @@ async def _private(interaction: Any, message: str) -> None:
         await interaction.response.send_message(message, ephemeral=True)
 
 
-class GuildConfigurationRollbackModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildConfigurationRollbackWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.preview.confirmation
-        super().__init__(title='Rollback guild configuration', timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text='Type ROLLBACK, revision, and full digest',
-            description=(
-                'Creates a new immutable revision; history never moves backward.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        workspace = self.workspace
-        if str(self.confirmation.value) != self.expected:
-            return await _private(
-                interaction,
-                f'Type `{self.expected}` exactly.',
-            )
-        if not await workspace.ready(interaction):
-            return
-        await workspace.commit(interaction, str(self.confirmation.value))
-
-
 class GuildConfigurationRollbackWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This restore preview expired. Reopen **History** from '
@@ -104,9 +73,7 @@ class GuildConfigurationRollbackWorkspace(components_v2.RequesterLayoutView):
     async def _confirm(self, interaction: Any) -> None:
         if not await self.ready(interaction):
             return
-        await interaction.response.send_modal(
-            GuildConfigurationRollbackModal(self)
-        )
+        await self.commit(interaction, self.preview.confirmation)
 
     async def _cancel(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -234,7 +201,6 @@ class GuildConfigurationRollbackWorkspace(components_v2.RequesterLayoutView):
                 f'**Current:** `r{preview.active_revision}` / '
                 f'`g{preview.active_generation}`\n'
                 f'**Restore document from:** `r{preview.source_revision}`\n'
-                f'**Source digest:** `{preview.source_document_digest}`\n'
                 f'**Changed fields:** `{len(preview.changed_paths)}`\n'
                 f'{changed}\n\n'
                 '-# Rollback creates a new monotonic revision and audit event. '
@@ -281,7 +247,6 @@ async def publish_private(
 
 
 __all__ = [
-    'GuildConfigurationRollbackModal',
     'GuildConfigurationRollbackWorkspace',
     'publish_private',
 ]

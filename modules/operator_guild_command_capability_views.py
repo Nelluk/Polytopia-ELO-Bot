@@ -36,37 +36,6 @@ async def _private(interaction: Any, message: str) -> None:
         await interaction.response.send_message(message, ephemeral=True)
 
 
-class GuildCommandCapabilityConfirmationModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildCommandCapabilityWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.plan.confirmation
-        title = (
-            'Activate and synchronize commands'
-            if workspace.plan.mode == service.ACTIVATE
-            else 'Synchronize guild commands'
-        )
-        super().__init__(title=title[:45], timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text='Type the complete confirmation',
-            description=(
-                'This may commit one configuration revision, then synchronizes '
-                'only the displayed guild. It never synchronizes globally.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value) != self.expected:
-            return await _private(interaction, f'Type `{self.expected}` exactly.')
-        await self.workspace.commit(interaction, str(self.confirmation.value))
-
-
 class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This server-command plan expired. Reopen the server from '
@@ -107,9 +76,7 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
             return await _private(interaction, self.expired_message)
         if self.busy:
             return await _private(interaction, 'This plan is already running.')
-        await interaction.response.send_modal(
-            GuildCommandCapabilityConfirmationModal(self)
-        )
+        await self.commit(interaction, self.plan.confirmation)
 
     async def commit(self, interaction: Any, confirmation: str) -> None:
         if not await self.authorize(interaction):
@@ -215,15 +182,12 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
                 '# Server command-sync plan\n'
                 f'**Target:** {_escape(self.guild_name)} (`{plan.guild_id}`)\n'
                 f'**Mode:** {mode}\n'
-                f'**Active evidence:** `r{plan.active_revision}/g'
-                f'{plan.active_generation}` · `{plan.active_document_digest}`\n'
+                f'**Active configuration:** revision `{plan.active_revision}` / '
+                f'generation `{plan.active_generation}`\n'
                 + (
-                    f'**Draft:** version `{plan.draft_version}` · '
-                    f'`{plan.draft_document_digest}`\n'
+                    f'**Draft:** version `{plan.draft_version}`\n'
                     if plan.mode == service.ACTIVATE else ''
                 )
-                + f'**Plan digest:** `{plan.plan_digest}`\n'
-                + f'**Confirmation:** `{plan.confirmation}`'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
@@ -268,7 +232,6 @@ async def publish_private(interaction: Any, view: GuildCommandCapabilityWorkspac
 
 
 __all__ = [
-    'GuildCommandCapabilityConfirmationModal',
     'GuildCommandCapabilityWorkspace',
     'publish_private',
 ]

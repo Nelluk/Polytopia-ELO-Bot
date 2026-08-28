@@ -299,7 +299,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(ticked)
 
 
-class ServiceViewAndAdapterTests(unittest.TestCase):
+class ServiceViewAndAdapterTests(unittest.IsolatedAsyncioTestCase):
     def test_service_freezes_every_role_and_marks_everyone(self):
         everyone = SimpleNamespace(
             id=GUILD_ID, managed=False, is_default=lambda: True,
@@ -324,7 +324,7 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
         self.assertEqual(tuple(item.role_id for item in value.role_evidence), (200, GUILD_ID))
         self.assertTrue(value.role_evidence[-1].everyone)
 
-    def test_workspace_stages_without_write_and_uses_full_digest_confirmation(self):
+    async def test_workspace_stages_without_write_and_confirms_with_button(self):
         result = workers.GuildDelegationResult(
             workers.SHOW, GUILD_ID, policy(), 'a' * 64,
         )
@@ -341,9 +341,14 @@ class ServiceViewAndAdapterTests(unittest.TestCase):
             back_runner=back_runner,
         )
         self.assertRegex(workspace.confirmation, rf'^DELEGATE {GUILD_ID} [0-9a-f]{{64}}$')
-        modal = views.DelegationConfirmationModal(workspace)
-        self.assertEqual(modal.expected, workspace.confirmation)
-        self.assertEqual(modal.confirmation.min_length, len(modal.expected))
+        workspace.manager_role_ids = (201,)
+        workspace.ready = mock.AsyncMock(return_value=True)
+        workspace.apply = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._confirm(interaction)
+        workspace.apply.assert_awaited_once_with(
+            interaction, workspace.confirmation,
+        )
         self.assertTrue(any(
             isinstance(item, discord.ui.Button)
             and item.label == 'Back to server list'

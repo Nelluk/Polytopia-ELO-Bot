@@ -683,7 +683,7 @@ class AsyncOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(ticked)
 
 
-class EditServiceAndViewTests(unittest.TestCase):
+class EditServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
     def test_every_settings_field_has_bounded_explanatory_text(self):
         self.assertTrue(service.FIELDS)
         for field in service.FIELDS:
@@ -809,7 +809,7 @@ class EditServiceAndViewTests(unittest.TestCase):
         )
         self.assertEqual(views.identity_maps(guild), ({1: 'Helpers'}, {2: 'staff-help'}))
 
-    def test_activation_modal_binds_full_current_digest(self):
+    async def test_activation_button_keeps_digest_internal(self):
         active = fixtures.bundle().imports[0].document
         result = workers.GuildConfigurationDraftResult(
             operation=workers.VALIDATE, guild_id=GUILD_ID,
@@ -827,15 +827,19 @@ class EditServiceAndViewTests(unittest.TestCase):
             requester_id=OWNER_ID, active_document=active, result=result,
             runner=runner, role_names={}, channel_names={},
         )
-        modal = views.DraftActivationModal(workspace)
-        self.assertEqual(
-            modal.expected,
-            f'ACTIVATE {result.draft.document_digest}',
+        workspace.ready = mock.AsyncMock(return_value=True)
+        workspace.run_operation = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._activate(interaction)
+        workspace.run_operation.assert_awaited_once_with(
+            interaction, workers.ACTIVATE,
         )
-        self.assertEqual(modal.confirmation.min_length, len(modal.expected))
-        self.assertEqual(modal.confirmation.max_length, len(modal.expected))
+        self.assertNotIn(
+            result.draft.document_digest,
+            str(workspace.to_components()),
+        )
 
-    def test_simple_owner_workspace_uses_readable_save_and_cancel_flow(self):
+    async def test_simple_owner_workspace_uses_readable_save_and_cancel_flow(self):
         active = fixtures.bundle().imports[0].document
         edited = service.replace_field(
             active,
@@ -876,13 +880,11 @@ class EditServiceAndViewTests(unittest.TestCase):
         self.assertNotIn('Digest', rendered)
         self.assertNotIn('Validate', button_labels)
         self.assertNotIn('Activate', button_labels)
-        modal = views.SaveSettingsModal(workspace)
-        self.assertEqual(modal.expected, 'Development Test Guild')
-        self.assertTrue(any(
-            'server name' in item.text.lower()
-            for item in modal.children
-            if isinstance(item, discord.ui.Label)
-        ))
+        workspace.ready = mock.AsyncMock(return_value=True)
+        workspace.save = mock.AsyncMock()
+        interaction = mock.sentinel.interaction
+        await workspace._save(interaction)
+        workspace.save.assert_awaited_once_with(interaction)
 
     def test_delegated_workspace_exposes_only_ordinary_fields_and_disables_activation(self):
         active = fixtures.bundle().imports[0].document

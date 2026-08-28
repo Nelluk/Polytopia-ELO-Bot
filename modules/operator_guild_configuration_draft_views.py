@@ -91,101 +91,6 @@ class DraftValueModal(discord.ui.Modal):
         await workspace.apply_value(interaction, value)
 
 
-class DraftConfirmationModal(discord.ui.Modal):
-    def __init__(
-        self,
-        workspace: 'GuildConfigurationDraftWorkspace',
-        *,
-        operation: str,
-    ):
-        self.workspace = workspace
-        self.operation = operation
-        expected = 'RESET DRAFT' if operation == workers.RESET else 'DISCARD DRAFT'
-        super().__init__(title=expected.title(), timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=expected,
-            required=True,
-            min_length=len(expected),
-            max_length=len(expected),
-        )
-        self.add_item(discord.ui.Label(
-            text=f'Type {expected}',
-            description='This affects only the inactive draft.',
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        expected = 'RESET DRAFT' if self.operation == workers.RESET else 'DISCARD DRAFT'
-        if str(self.confirmation.value) != expected:
-            return await _private(interaction, f'Type `{expected}` exactly.')
-        if not await self.workspace.ready(interaction):
-            return
-        await self.workspace.run_operation(interaction, self.operation)
-
-
-class DraftActivationModal(discord.ui.Modal):
-    """Legacy confirmation used by delegated/advanced draft workspaces."""
-
-    def __init__(self, workspace: 'GuildConfigurationDraftWorkspace'):
-        self.workspace = workspace
-        draft = workspace.result.draft
-        assert draft is not None
-        self.expected = f'ACTIVATE {draft.document_digest}'
-        super().__init__(title='Activate guild configuration', timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text='Type ACTIVATE and the full draft digest',
-            description=(
-                'Commits one immutable revision and immediately replaces the '
-                'running settings snapshot.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value) != self.expected:
-            return await _private(interaction, f'Type `{self.expected}` exactly.')
-        if not await self.workspace.ready(interaction):
-            return
-        await self.workspace.run_operation(interaction, workers.ACTIVATE)
-
-
-class SaveSettingsModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildConfigurationDraftWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.target_guild_name
-        super().__init__(title='Save guild settings', timeout=180.0)
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=1,
-            max_length=100,
-        )
-        self.add_item(discord.ui.Label(
-            text='Type the server name to confirm',
-            description=(
-                'Save validates the current settings, then publishes them '
-                'immediately.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value).strip() != self.expected:
-            return await _private(
-                interaction,
-                f'Type the server name `{_escape(self.expected)}` exactly.',
-            )
-        if not await self.workspace.ready(interaction):
-            return
-        await self.workspace.save(interaction)
-
-
 class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
         'This guild-configuration draft workspace expired. Run '
@@ -535,10 +440,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         if self.result.draft is None:
             await self.run_operation(interaction, workers.RESET)
         else:
-            await interaction.response.send_modal(DraftConfirmationModal(
-                self,
-                operation=workers.RESET,
-            ))
+            await self.run_operation(interaction, workers.RESET)
 
     async def _validate(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -552,10 +454,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             return
         if self.result.draft is None:
             return await _private(interaction, 'There is no current draft to discard.')
-        await interaction.response.send_modal(DraftConfirmationModal(
-            self,
-            operation=workers.DISCARD,
-        ))
+        await self.run_operation(interaction, workers.DISCARD)
 
     async def _activate(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -567,7 +466,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 interaction,
                 'Validate the current draft immediately before activation.',
             )
-        await interaction.response.send_modal(DraftActivationModal(self))
+        await self.run_operation(interaction, workers.ACTIVATE)
 
     async def _save(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -582,7 +481,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 interaction,
                 'Only the bot owner can save these settings.',
             )
-        await interaction.response.send_modal(SaveSettingsModal(self))
+        await self.save(interaction)
 
     async def save(self, interaction: Any) -> None:
         result = await self._execute(interaction, workers.ACTIVATE)
@@ -742,7 +641,6 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             f'**Draft:** version `{draft.draft_version}` · base '
             f'`r{draft.base_revision}/g{draft.base_generation}` · expires '
             f'`{_escape(draft.expires_at)}`\n'
-            f'**Digest:** `{draft.document_digest}`\n'
             f'**Changed fields:** `{len(changes)}`\n'
             f'{lines or "*No changes from active configuration.*"}'
         )
@@ -1018,11 +916,8 @@ def identity_maps(guild: Any) -> tuple[dict[int, str], dict[int, str]]:
 
 
 __all__ = [
-    'DraftActivationModal',
-    'DraftConfirmationModal',
     'DraftValueModal',
     'GuildConfigurationDraftWorkspace',
-    'SaveSettingsModal',
     'identity_maps',
     'publish_private',
 ]
