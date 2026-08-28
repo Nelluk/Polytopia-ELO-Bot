@@ -453,6 +453,50 @@ class ImportBundleTests(unittest.TestCase):
             {'case_only_role', 'ambiguous_role_name', 'missing_channel'},
         )
 
+    def test_live_reference_cleanup_drops_everyone_from_staff_access_only(self):
+        configured = server_settings()
+        configured.server_list[GUILD_ID] = {
+            **configured.server_list[GUILD_ID],
+            'helper_roles': ['@everyone'],
+            'mod_roles': ['@everyone', 'Mod'],
+            'inactive_role': '@everyone',
+        }
+
+        report = storage.build_live_reference_cleanup_report(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+        )
+        value = storage.build_import_bundle(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+            normalize_live_references=True,
+        )
+
+        document = value.imports[0].document
+        self.assertEqual(document.permissions.helper_role_ids, ())
+        self.assertEqual(document.permissions.mod_role_ids, (203,))
+        self.assertEqual(document.permissions.user_role_ids_level_1, (GUILD_ID,))
+        self.assertIsNone(document.permissions.inactive_role_id)
+        guild = report['guilds'][0]
+        self.assertEqual(guild['severity'], 'review_before_cutover')
+        self.assertEqual(guild['remaining']['helper_role_count'], 0)
+        self.assertEqual(guild['remaining']['mod_role_count'], 1)
+        self.assertEqual(
+            [
+                (issue['field'], issue['kind'], issue['resolution'])
+                for issue in guild['issues']
+            ],
+            [
+                ('helper_roles', 'unsafe_default_role', 'dropped'),
+                ('mod_roles', 'unsafe_default_role', 'dropped'),
+                ('inactive_role', 'unsafe_default_role', 'dropped'),
+            ],
+        )
+
     def test_bundle_mapping_is_complete_and_returns_copies(self):
         value = bundle()
         mapping = storage.bundle_to_mapping(value)

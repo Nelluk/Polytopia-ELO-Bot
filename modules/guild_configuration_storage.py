@@ -395,6 +395,12 @@ _ROLE_LIST_FIELDS = (
     'user_roles_level_3',
     'user_roles_level_4',
 )
+_ORDINARY_USER_ROLE_FIELDS = frozenset({
+    'user_roles_level_1',
+    'user_roles_level_2',
+    'user_roles_level_3',
+    'user_roles_level_4',
+})
 _NULLABLE_CHANNEL_LIST_FIELDS = ('bot_channels', 'bot_channels_strict')
 _CHANNEL_LIST_FIELDS = (
     'bot_channels_private',
@@ -600,7 +606,15 @@ def _normalize_live_references(
 
     def normalize_role_name(field: str, name: Any) -> tuple[bool, list[int]]:
         if name == '@everyone':
-            return True, [int(snapshot['guild_id'])]
+            if field in _ORDINARY_USER_ROLE_FIELDS:
+                return True, [int(snapshot['guild_id'])]
+            issues.append(_issue(
+                field=field,
+                kind='unsafe_default_role',
+                configured_value=name,
+                resolution='dropped',
+            ))
+            return False, []
         if not isinstance(name, str) or not name:
             issues.append(_issue(
                 field=field,
