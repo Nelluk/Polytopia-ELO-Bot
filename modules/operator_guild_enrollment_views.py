@@ -1,4 +1,4 @@
-"""Private digest-bound confirmation for quarantined guild enrollment."""
+"""Private target-bound confirmation for guild enrollment and type updates."""
 
 from __future__ import annotations
 
@@ -22,45 +22,6 @@ async def _private(interaction: Any, message: str) -> None:
         await interaction.followup.send(message, ephemeral=True)
     else:
         await interaction.response.send_message(message, ephemeral=True)
-
-
-class GuildEnrollmentModal(discord.ui.Modal):
-    def __init__(self, workspace: 'GuildEnrollmentWorkspace'):
-        self.workspace = workspace
-        self.expected = workspace.preview.confirmation
-        super().__init__(
-            title=(
-                'Update guild'
-                if workspace.preview.existing else 'Enroll guild'
-            ),
-            timeout=180.0,
-        )
-        self.confirmation = discord.ui.TextInput(
-            placeholder=self.expected,
-            required=True,
-            min_length=len(self.expected),
-            max_length=len(self.expected),
-        )
-        self.add_item(discord.ui.Label(
-            text=(
-                'Type UPDATE GUILD, guild ID, and full digest'
-                if workspace.preview.existing
-                else 'Type ENROLL, guild ID, and full digest'
-            ),
-            description=(
-                'Creates a new immutable configuration revision.'
-                if workspace.preview.existing
-                else 'Creates the first immutable configuration revision.'
-            ),
-            component=self.confirmation,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if str(self.confirmation.value) != self.expected:
-            return await _private(interaction, f'Type `{self.expected}` exactly.')
-        if not await self.workspace.ready(interaction):
-            return
-        await self.workspace.commit(interaction, str(self.confirmation.value))
 
 
 class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
@@ -102,7 +63,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
 
     async def _confirm(self, interaction: Any) -> None:
         if await self.ready(interaction):
-            await interaction.response.send_modal(GuildEnrollmentModal(self))
+            await self.commit(interaction)
 
     async def _cancel(self, interaction: Any) -> None:
         if not await self.ready(interaction):
@@ -129,7 +90,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
                     'Could not send committed guild-enrollment reconciliation'
                 )
 
-    async def commit(self, interaction: Any, confirmation_text: str) -> None:
+    async def commit(self, interaction: Any) -> None:
         self.busy = True
         self.status = (
             'Revalidating and committing a new configuration revision…'
@@ -150,7 +111,9 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
                 ),
                 operation=workers.COMMIT,
                 expected_document_digest=self.preview.document_digest,
-                confirmation_text=confirmation_text,
+                # Keep the worker's exact digest binding without requiring the
+                # operator to transcribe an internal integrity token.
+                confirmation_text=self.preview.confirmation,
             )
         except workers.OperatorGuildEnrollmentCommitted as exc:
             self.busy = False
@@ -195,7 +158,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         preview = self.preview
         permissions = ', '.join(preview.bot_permissions)
         confirm = discord.ui.Button(
-            label='Update guild' if preview.existing else 'Enroll guild',
+            label='Apply update' if preview.existing else 'Enroll server',
             style=discord.ButtonStyle.danger,
             disabled=self.busy or self.terminal,
         )
@@ -213,8 +176,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
                 f'**Server type:** {guild_types.TYPE_LABELS[preview.guild_type]}\n'
                 '**Global leaderboard:** '
                 f'{"Enabled" if preview.document.visibility.include_in_global_leaderboard else "Disabled"}\n'
-                f'**Document digest:** `{preview.document_digest}`\n'
-                f'**Observed bot permissions:** `{permissions}`\n\n'
+                f'**Bot permissions:** Verified (`{permissions}`)\n\n'
                 + (
                     '- Existing side-size, role, channel, and destination settings '
                     'are preserved.\n'
@@ -244,7 +206,6 @@ async def publish_private(interaction: Any, view: GuildEnrollmentWorkspace):
 
 
 __all__ = [
-    'GuildEnrollmentModal',
     'GuildEnrollmentWorkspace',
     'publish_private',
 ]

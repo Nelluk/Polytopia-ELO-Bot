@@ -398,7 +398,7 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         interaction.response.send_message.assert_awaited_once()
         interaction.response.defer.assert_not_awaited()
 
-    async def test_workspace_is_requester_bound_and_uses_exact_modal_text(self):
+    async def test_workspace_is_requester_bound_and_confirms_with_button(self):
         result = workers.GuildEnrollmentResult(
             operation=workers.PREVIEW,
             preview=workers._preview(enrollment_request()),
@@ -410,14 +410,17 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         workspace = views.GuildEnrollmentWorkspace(
             requester_id=OWNER_ID, result=result, runner=runner
         )
-        modal = views.GuildEnrollmentModal(workspace)
-        self.assertEqual(modal.expected, result.preview.confirmation)
         denied = SimpleNamespace(
             user=SimpleNamespace(id=OWNER_ID + 1),
             response=SimpleNamespace(send_message=mock.AsyncMock()),
         )
         self.assertFalse(await workspace.authorize(denied))
         denied.response.send_message.assert_awaited_once()
+        interaction = mock.sentinel.interaction
+        workspace.ready = mock.AsyncMock(return_value=True)
+        workspace.commit = mock.AsyncMock()
+        await workspace._confirm(interaction)
+        workspace.commit.assert_awaited_once_with(interaction)
         self.assertNotIn('modules.models', inspect.getsource(views))
 
     async def test_committed_result_survives_failed_panel_and_followup_publication(self):
@@ -436,7 +439,10 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             initial, operation=workers.COMMIT, enrollment=enrollment,
         )
 
-        async def runner(*_args, **_kwargs):
+        runner_kwargs = {}
+
+        async def runner(*_args, **kwargs):
+            runner_kwargs.update(kwargs)
             return committed
 
         workspace = views.GuildEnrollmentWorkspace(
@@ -451,9 +457,12 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
                 send=mock.AsyncMock(side_effect=RuntimeError('followup gone'))
             ),
         )
-        await workspace.commit(interaction, initial.preview.confirmation)
+        await workspace.commit(interaction)
         self.assertTrue(workspace.terminal)
         self.assertIn('Enrolled and published', workspace.status)
+        self.assertEqual(
+            runner_kwargs['confirmation_text'], initial.preview.confirmation,
+        )
 
 
 class RuntimePublicationTests(unittest.TestCase):
