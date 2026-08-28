@@ -567,7 +567,7 @@ def _issue(
     *,
     field: str,
     kind: str,
-    configured_value: str | int,
+    configured_value: Any,
     resolution: str,
     **details: Any,
 ) -> dict[str, Any]:
@@ -704,6 +704,20 @@ def _normalize_live_references(
             and channel_id not in category_ids
         )
 
+    def invalid_channel_kind(channel_id: Any) -> tuple[str, str | None]:
+        is_id = (
+            isinstance(channel_id, int) and not isinstance(channel_id, bool)
+        )
+        observed = (
+            channel_types.get(channel_id)
+            if is_id else None
+        )
+        if observed is not None:
+            return 'wrong_channel_type', observed
+        if is_id:
+            return 'missing_channel', None
+        return 'invalid_channel_value', None
+
     for field in (*_NULLABLE_CHANNEL_LIST_FIELDS, *_CHANNEL_LIST_FIELDS):
         raw_ids = effective[field]
         if raw_ids is None and field in _NULLABLE_CHANNEL_LIST_FIELDS:
@@ -715,49 +729,61 @@ def _normalize_live_references(
             if valid_ordinary_channel(channel_id):
                 kept_ids.append(channel_id)
             else:
+                kind, observed = invalid_channel_kind(channel_id)
                 issues.append(_issue(
                     field=field,
-                    kind=(
-                        'wrong_channel_type'
-                        if channel_id in channel_types else 'missing_channel'
-                    ),
+                    kind=kind,
                     configured_value=channel_id,
                     resolution='dropped',
-                    observed_type=channel_types.get(channel_id),
+                    observed_type=observed,
                 ))
         normalized[field] = kept_ids
 
     for field in _CHANNEL_SCALAR_FIELDS:
         channel_id = effective[field]
+        if (
+                isinstance(channel_id, (list, tuple))
+                and len(channel_id) == 1
+                and valid_ordinary_channel(channel_id[0])
+        ):
+            normalized[field] = channel_id[0]
+            issues.append(_issue(
+                field=field,
+                kind='singleton_channel_list',
+                configured_value=list(channel_id),
+                resolution='singleton_unwrapped',
+                resolved_channel_id=channel_id[0],
+            ))
+            continue
         if channel_id is None or valid_ordinary_channel(channel_id):
             normalized[field] = channel_id
         else:
             normalized[field] = None
+            kind, observed = invalid_channel_kind(channel_id)
             issues.append(_issue(
                 field=field,
-                kind=(
-                    'wrong_channel_type'
-                    if channel_id in channel_types else 'missing_channel'
-                ),
+                kind=kind,
                 configured_value=channel_id,
                 resolution='cleared',
-                observed_type=channel_types.get(channel_id),
+                observed_type=observed,
             ))
 
     kept_categories = []
     for channel_id in list(effective['game_channel_categories'] or ()):
-        if channel_id in category_ids:
+        if (
+                isinstance(channel_id, int)
+                and not isinstance(channel_id, bool)
+                and channel_id in category_ids
+        ):
             kept_categories.append(channel_id)
         else:
+            kind, observed = invalid_channel_kind(channel_id)
             issues.append(_issue(
                 field='game_channel_categories',
-                kind=(
-                    'wrong_channel_type'
-                    if channel_id in channel_types else 'missing_channel'
-                ),
+                kind=kind,
                 configured_value=channel_id,
                 resolution='dropped',
-                observed_type=channel_types.get(channel_id),
+                observed_type=observed,
             ))
     normalized['game_channel_categories'] = kept_categories
 

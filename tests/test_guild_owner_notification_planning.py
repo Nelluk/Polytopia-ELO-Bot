@@ -102,6 +102,19 @@ class OwnerNotificationPlanningTests(unittest.TestCase):
         self.assertEqual(plan['recipient_count'], 0)
         self.assertEqual(plan['selected_guild_ids'], [])
 
+    def test_singleton_channel_cleanup_notice_says_destination_is_preserved(self):
+        text = notifications._issue_text({
+            'field': 'ranked_game_channel',
+            'kind': 'singleton_channel_list',
+            'configured_value': [300],
+            'resolution': 'singleton_unwrapped',
+            'resolved_channel_id': 300,
+        })
+
+        self.assertIn('300', text)
+        self.assertIn('preserved', text)
+        self.assertNotIn('cleared', text)
+
     def test_cleanup_owner_identity_must_match_digest_bound_guild_set(self):
         mapping = import_plan()
         mapping['production_cleanup_report']['guilds'][0]['owner']['owner_id'] = 0

@@ -497,6 +497,39 @@ class ImportBundleTests(unittest.TestCase):
             ],
         )
 
+    def test_live_reference_cleanup_unwraps_singleton_scalar_channel(self):
+        configured = server_settings()
+        configured.server_list[GUILD_ID] = {
+            **configured.server_list[GUILD_ID],
+            'ranked_game_channel': [300],
+        }
+
+        report = storage.build_live_reference_cleanup_report(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+        )
+        value = storage.build_import_bundle(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot(),
+            normalize_live_references=True,
+        )
+
+        self.assertEqual(
+            value.imports[0].document.channels.ranked_game_channel_id,
+            300,
+        )
+        issue = next(
+            issue for issue in report['guilds'][0]['issues']
+            if issue['field'] == 'ranked_game_channel'
+        )
+        self.assertEqual(issue['kind'], 'singleton_channel_list')
+        self.assertEqual(issue['resolution'], 'singleton_unwrapped')
+        self.assertEqual(issue['resolved_channel_id'], 300)
+
     def test_bundle_mapping_is_complete_and_returns_copies(self):
         value = bundle()
         mapping = storage.bundle_to_mapping(value)

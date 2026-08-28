@@ -167,6 +167,11 @@ def _issue_text(issue: Mapping[str, Any]) -> str:
         )
     if kind == 'managed_role':
         return f'{field}: managed role {configured!r} cannot grant bot access.'
+    if kind == 'singleton_channel_list':
+        return (
+            f'{field}: its sole configured channel ID '
+            f'{issue.get("resolved_channel_id")} will be preserved.'
+        )
     if 'channel' in str(kind):
         return f'{field}: channel ID {configured} no longer resolves and will be cleared.'
     return f'{field}: {configured!r} no longer resolves and will be cleared.'
