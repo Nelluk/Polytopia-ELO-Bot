@@ -28,6 +28,11 @@ and releases are kept in Git history instead of the current documentation tree.
 - [Development feedback](DEVELOPMENT_BETA_FEEDBACK.md) and
   [historical mirror](DEVELOPMENT_HISTORICAL_MIRROR.md) runbooks.
 
+## Maintainer backlog
+
+- [Project TODO](TODO.md) — proposed work retained for review; entries are not
+  implementation or operational authorization.
+
 ## Policy and data operations
 
 - [Privacy request runbook](PRIVACY_REQUEST_RUNBOOK.md).

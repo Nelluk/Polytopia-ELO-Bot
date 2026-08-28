@@ -98,6 +98,13 @@ window is normally sufficient. Require a soak period only when there is a
 specific runtime behavior to observe. Label optional hardening as optional and
 lead with the minimal recommended path.
 
+`docs/TODO.md` is the maintainer-owned backlog for proposed work. Consult it
+when planning related changes, but do not treat an entry as authorization to
+implement, deploy, mutate data, synchronize Discord commands, or expand the
+current task. Keep current operating guides limited to behavior that actually
+exists; remove completed TODO entries after their durable behavior is
+documented in the appropriate guide.
+
 ### Owner-authorized production hotfixes
 
 When Nelluk explicitly asks for a narrow fix directly in the production
