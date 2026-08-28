@@ -541,20 +541,12 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
             document=target_document,
             document_digest=document_digest(target_document),
         )
-        shown = workers.GuildConfigurationDraftResult(
-            operation=workers.SHOW,
-            guild_id=target,
-            active_revision=target_record.revision,
-            active_generation=target_record.generation,
-            active_document_digest=target_record.document_digest,
-            draft=None,
-        )
         cog = administration.administration.__new__(administration.administration)
         cog.bot = SimpleNamespace(get_guild=lambda guild_id: SimpleNamespace(
             id=guild_id,
             name='Enrolled target',
         ))
-        cog._operator_guild_draft_operation = mock.AsyncMock(return_value=shown)
+        cog._operator_guild_draft_operation = mock.AsyncMock()
         planned = mock.sentinel.planned
         with mock.patch.object(
             settings,
@@ -570,10 +562,7 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
                 target,
             )
         self.assertIs(result, planned)
-        self.assertEqual(
-            cog._operator_guild_draft_operation.await_args.kwargs['target_guild_id'],
-            target,
-        )
+        cog._operator_guild_draft_operation.assert_not_awaited()
         self.assertEqual(inspect_plan.await_args.kwargs['guild_id'], target)
 
     async def test_cross_guild_editor_exposes_only_capabilities(self):
@@ -603,7 +592,7 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(workspace.sections, (draft_service.CAPABILITIES,))
         self.assertEqual(workspace.field.key, 'command_capabilities')
 
-    async def test_operator_commands_registered_without_duplicate_editor(self):
+    async def test_only_type_derived_sync_workflow_is_registered(self):
         operator = next(
             command for command in administration.administration.__cog_app_commands__
             if command.name == 'operator'
@@ -611,14 +600,12 @@ class RuntimeAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         guild = operator.get_command('guild')
         commands = guild.get_command('commands')
         capabilities = guild.get_command('capabilities')
+        sync = guild.get_command('sync')
         edit = guild.get_command('edit')
-        self.assertIsNotNone(commands)
-        self.assertIsNotNone(capabilities)
-        self.assertEqual([value.name for value in commands.parameters], ['target_guild_id'])
-        self.assertEqual(
-            [value.name for value in capabilities.parameters],
-            ['target_guild_id'],
-        )
+        self.assertIsNone(commands)
+        self.assertIsNone(capabilities)
+        self.assertIsNotNone(sync)
+        self.assertEqual([value.name for value in sync.parameters], ['target_guild_id'])
         self.assertIsNone(edit)
 
 

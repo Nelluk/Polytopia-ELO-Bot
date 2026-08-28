@@ -28,7 +28,7 @@ BOOTSTRAP_PENDING_INTERACTION_PATHS = frozenset({
     ('operator', 'guild', 'validate'),
     ('operator', 'guild', 'history'),
     ('operator', 'guild', 'edit'),
-    ('operator', 'guild', 'commands'),
+    ('operator', 'guild', 'sync'),
     ('operator', 'bot', 'restart'),
 })
 

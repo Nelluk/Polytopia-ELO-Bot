@@ -105,6 +105,8 @@ class GuildEnrollmentDatabaseTests(unittest.TestCase):
                     target_guild_id=target_guild_id,
                     target_guild_name='P10.7 rolled-back enrollment',
                     template=workers.BASIC_PREFIX_TEMPLATE,
+                    guild_type='standard',
+                    include_in_global_leaderboard=None,
                     bot_permissions=tuple(sorted(workers.REQUIRED_BOT_PERMISSIONS)),
                     current_runtime_records=current_records,
                     forbidden_guild_ids=(),

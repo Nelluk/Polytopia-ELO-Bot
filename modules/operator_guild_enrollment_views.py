@@ -9,6 +9,7 @@ from typing import Any
 import discord
 
 from modules import components_v2
+from modules import guild_types
 from modules import operator_guild_enrollment_workers as workers
 
 
@@ -27,7 +28,13 @@ class GuildEnrollmentModal(discord.ui.Modal):
     def __init__(self, workspace: 'GuildEnrollmentWorkspace'):
         self.workspace = workspace
         self.expected = workspace.preview.confirmation
-        super().__init__(title='Enroll development guild', timeout=180.0)
+        super().__init__(
+            title=(
+                'Update development guild'
+                if workspace.preview.existing else 'Enroll development guild'
+            ),
+            timeout=180.0,
+        )
         self.confirmation = discord.ui.TextInput(
             placeholder=self.expected,
             required=True,
@@ -35,8 +42,16 @@ class GuildEnrollmentModal(discord.ui.Modal):
             max_length=len(self.expected),
         )
         self.add_item(discord.ui.Label(
-            text='Type ENROLL, guild ID, and full digest',
-            description='Creates the first immutable configuration revision.',
+            text=(
+                'Type UPDATE GUILD, guild ID, and full digest'
+                if workspace.preview.existing
+                else 'Type ENROLL, guild ID, and full digest'
+            ),
+            description=(
+                'Creates a new immutable configuration revision.'
+                if workspace.preview.existing
+                else 'Creates the first immutable configuration revision.'
+            ),
             component=self.confirmation,
         ))
 
@@ -67,7 +82,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         self.runner = runner
         self.busy = False
         self.terminal = False
-        self.status = 'Review the exact target and least-authority template.'
+        self.status = 'Review the exact target, server type, and ranking policy.'
         self.rebuild()
 
     @property
@@ -93,7 +108,11 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         if not await self.ready(interaction):
             return
         self.terminal = True
-        self.status = 'Cancelled. The target remains quarantined and unconfigured.'
+        self.status = (
+            'Cancelled. Active configuration remains unchanged.'
+            if self.preview.existing else
+            'Cancelled. The target remains quarantined and unconfigured.'
+        )
         self.rebuild()
         await interaction.response.edit_message(view=self)
         self.stop()
@@ -112,7 +131,11 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
 
     async def commit(self, interaction: Any, confirmation_text: str) -> None:
         self.busy = True
-        self.status = 'Revalidating and committing first configuration revision…'
+        self.status = (
+            'Revalidating and committing a new configuration revision…'
+            if self.preview.existing else
+            'Revalidating and committing first configuration revision…'
+        )
         self.rebuild()
         await interaction.response.defer()
         await interaction.edit_original_response(view=self)
@@ -121,6 +144,10 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
                 interaction,
                 target_guild_id=self.preview.guild_id,
                 template=self.preview.template,
+                guild_type=self.preview.guild_type,
+                include_in_global_leaderboard=(
+                    self.preview.document.visibility.include_in_global_leaderboard
+                ),
                 operation=workers.COMMIT,
                 expected_document_digest=self.preview.document_digest,
                 confirmation_text=confirmation_text,
@@ -151,10 +178,13 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         self.result = result
         self.busy = False
         self.terminal = True
+        mutation = result.enrollment
+        assert mutation is not None
         self.status = (
-            'Enrolled and published at revision 1 / generation 1. Prefix `$` '
-            'commands are available; no staff authority or application-command '
-            'capabilities were granted, and no command synchronization ran.'
+            f'{"Enrolled" if mutation.created else "Updated"} and published at '
+            f'revision {mutation.revision} / generation {mutation.generation}. '
+            'Discord commands were not synchronized; apply the separately '
+            'reviewed guild-only command plan when ready.'
         )
         self.rebuild()
         await self._publish_terminal(interaction)
@@ -165,7 +195,7 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         preview = self.preview
         permissions = ', '.join(preview.bot_permissions)
         confirm = discord.ui.Button(
-            label='Enroll guild',
+            label='Update guild' if preview.existing else 'Enroll guild',
             style=discord.ButtonStyle.danger,
             disabled=self.busy or self.terminal,
         )
@@ -177,17 +207,24 @@ class GuildEnrollmentWorkspace(components_v2.RequesterLayoutView):
         cancel.callback = self._cancel
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(
-                '# Enroll quarantined guild\n'
+                f'# {"Update enrolled guild" if preview.existing else "Enroll quarantined guild"}\n'
                 f'**Target:** {discord.utils.escape_markdown(preview.guild_name)} '
                 f'(`{preview.guild_id}`)\n'
-                '**Template:** Basic prefix server (`$`)\n'
+                f'**Server type:** {guild_types.TYPE_LABELS[preview.guild_type]}\n'
+                '**Global leaderboard:** '
+                f'{"Enabled" if preview.document.visibility.include_in_global_leaderboard else "Disabled"}\n'
                 f'**Document digest:** `{preview.document_digest}`\n'
                 f'**Observed bot permissions:** `{permissions}`\n\n'
-                '- Everyone starts at ordinary user levels 1–3.\n'
-                '- Teams, global ranking, staff roles, destinations, and channel '
-                'restrictions are disabled.\n'
-                '- Application-command capabilities remain empty; this does not '
-                'synchronize commands.\n\n'
+                + (
+                    '- Existing side-size, role, channel, and destination settings '
+                    'are preserved.\n'
+                    if preview.existing else
+                    '- Everyone starts at ordinary user level 2; staff roles, '
+                    'destinations, and channel restrictions are disabled.\n'
+                )
+                + '- Command groups are derived from the selected type. Squads '
+                'remain available without persistent Teams.\n'
+                '- This operation does not synchronize Discord commands.\n\n'
                 f'-# {self.status}'
             ),
             discord.ui.ActionRow(confirm, cancel),

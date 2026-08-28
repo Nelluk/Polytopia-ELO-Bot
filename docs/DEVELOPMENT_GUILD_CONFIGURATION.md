@@ -48,6 +48,17 @@ The stored keys `allow_uneven_teams` and `max_team_size` are retained for
 compatibility, but the user-facing policy names are **Allow unequal side
 sizes** and **Maximum players per side**.
 
+The owner-facing server type is derived from the protected Team keys rather
+than stored as a second setting:
+
+- **Standard** — Squads and ordinary game commands; persistent Teams off.
+- **Team** — Standard behavior plus optional persistent named Teams.
+- **League** — persistent Teams required, with House and league commands.
+
+The environment's control guild is a separate operational designation, not a
+fourth gameplay type. Global leaderboard participation is also independent of
+type and remains owner-only.
+
 Ordinary reads use the published snapshot, not live database queries. A
 committed configuration change must reload and publish the complete active
 graph before it is reported as reconciled. If a commit succeeds but publication
@@ -62,7 +73,7 @@ The ordinary same-server entry point is:
   the command is invoked. The configured bot owner sees the complete editor;
   an explicitly delegated guild manager sees ordinary fields only. Protected
   settings such as persistent Teams, global leaderboard participation, roles,
-  private destinations, and command capabilities remain hidden and rejected
+  and private destinations remain hidden and rejected
   by the worker if submitted.
 
 The specialized `/operator guild ...` workflows require development database
@@ -72,14 +83,13 @@ authority and the configured bot owner:
 - `/operator guild validate` — validate the invoking guild read-only against
   the database, typed schema, live Discord objects, and bot permissions.
 - `/operator guild history` — inspect bounded revision and audit history.
-- `/operator guild enroll` — preview and enroll a quarantined visible guild
-  using the basic prefix-server template.
-- `/operator guild capabilities` — prepare a capability-only draft selecting
-  which top-level Discord command groups one server should receive.
+- `/operator guild enroll` — preview and enroll a quarantined visible guild,
+  or update an enrolled guild's Standard/Team/League type and optional global
+  leaderboard participation without resetting its other settings.
 - `/operator guild rollback` — clone an earlier compatible document into a new
   active revision; history remains immutable.
-- `/operator guild commands` — deploy a prepared capability draft or repair
-  one active guild's registered Discord command tree.
+- `/operator guild sync` — preview and synchronize the command roots derived
+  from one active guild's type and configured destinations.
 - `/operator guild suspend` and `/operator guild resume` — change lifecycle
   state while preserving configuration history.
 - `/operator guild delegation` — grant or revoke the invoking guild's manager
@@ -99,26 +109,27 @@ by the configured bot-owner check.
 An unknown but allowed development guild is quarantined: the bot may observe
 enough identity to offer enrollment, but it does not treat that guild as active
 configuration authority. Enrollment creates the first immutable revision from
-the basic prefix-server template. Ordinary users begin at access level 2,
+the basic prefix-server template. Standard is the default type. Ordinary users
+begin at access level 2,
 persistent Teams and league behavior are disabled, unequal side sizes are
 disabled, sides are limited to two players, and global leaderboard
-participation is disabled. The owner then reviews ordinary settings and
-separately deploys any desired application-command capabilities.
+participation is disabled. The owner then reviews ordinary settings and uses
+the separate guild-only command synchronization step when ready.
 
 Suspension and resumption must be run from a different active operator guild.
 Suspension preserves revisions, drafts, delegation, and audit history while
 removing the guild from the running active snapshot. Resumption performs full
 stored and live Discord validation before republishing it. A database lifecycle
 commit and its Discord command-tree reconciliation are distinct effects; when
-the latter fails, use `/operator guild commands` to reconcile without repeating
+the latter fails, use `/operator guild sync` to reconcile without repeating
 the lifecycle write.
 
 ## Drafts, rollback, and delegation
 
 A draft never changes runtime behavior until activation commits a new revision
-and publishes the refreshed graph. Ordinary-setting activation cannot change
-command capabilities. Capability changes use `/operator guild commands` so the
-database revision and exact guild-scoped Discord tree remain coordinated.
+and publishes the refreshed graph. Command policy is derived from server type
+and configured destinations; it is not directly editable. Discord registration
+remains a separate explicit guild-only synchronization.
 The owner editor does not need a separate validation step: Save revalidates the
 draft against current database, runtime, role, and channel state immediately
 before the transaction commits.
@@ -148,15 +159,16 @@ PCPLUS while the Team records continue to be owned by PolyChampions.
 Normal startup never synchronizes application commands. Source-level command
 changes use [APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md](APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md).
 Once the database-authority development bot already exposes the operator
-workflow, `/operator guild commands` owns capability activation and
-reconciliation for one exact active guild.
+workflow, `/operator guild sync` reconciles the active type-derived policy for
+one exact guild.
 
 The capability split follows the same concepts. `core_user` includes
 `/leaderboard squads`; the separate `squad` capability exposes `/squad`.
 Neither requires `allow_teams`. The `team` capability exposes `/team`, whose
 runtime checks still require the protected `allow_teams` setting. Changing a
-capability assignment therefore remains a Discord command-tree operation even
-when the underlying runtime policy is already enabled.
+server type or a destination that controls command availability therefore
+still requires a Discord command-tree operation after the underlying runtime
+policy is published.
 
 Both paths are guild-only, inspect the global tree, and refuse apply while any
 global commands exist. A nonempty global tree is evidence for separate review,

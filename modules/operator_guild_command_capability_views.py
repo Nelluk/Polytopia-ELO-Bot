@@ -1,4 +1,4 @@
-"""Private confirmation panel for coordinated command-capability activation."""
+"""Private confirmation panel for one type-derived guild command sync."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class GuildCommandCapabilityConfirmationModal(discord.ui.Modal):
 
 class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
     expired_message = (
-        'This command-capability plan expired. Run `/operator guild commands` '
+        'This server-command plan expired. Run `/operator guild sync` '
         'again for fresh database and Discord evidence.'
     )
 
@@ -156,8 +156,8 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
             self.terminal = True
             self.status = (
                 'The operation stopped without a trustworthy terminal result. '
-                'Do not repeat a database activation; reopen `/operator guild '
-                'commands` to inspect current truth.'
+                'Do not repeat a database change; reopen `/operator guild sync` '
+                'to inspect current truth.'
             )
             self.rebuild()
             try:
@@ -208,7 +208,7 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
         )
         children: list[Any] = [
             discord.ui.TextDisplay(
-                '# Guild command-capability plan\n'
+                '# Server command-sync plan\n'
                 f'**Target:** {_escape(self.guild_name)} (`{plan.guild_id}`)\n'
                 f'**Mode:** {mode}\n'
                 f'**Active evidence:** `r{plan.active_revision}/g'
@@ -223,12 +223,7 @@ class GuildCommandCapabilityWorkspace(components_v2.RequesterLayoutView):
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
-                '## Capability policy\n'
-                f'**Current:** {_items(plan.current_capabilities)}\n'
-                f'**Desired:** {_items(plan.desired_capabilities)}'
-            ),
-            discord.ui.TextDisplay(
-                '## Exact guild-tree diff\n'
+                '## Command changes\n'
                 f'**Create:** {_items(plan.creates)}\n'
                 f'**Update:** {_items(plan.updates)}\n'
                 f'**Remove:** {_items(plan.removals)}\n'

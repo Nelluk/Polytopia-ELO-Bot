@@ -14,7 +14,7 @@ def access_error(interaction: Any) -> str | None:
     if getattr(interaction, 'guild_id', None) is None:
         return 'This command can only be used in a server.'
     if int(interaction.user.id) != int(settings.owner_id):
-        return 'Only the configured bot owner can enroll a guild.'
+        return 'Only the configured bot owner can enroll or reconfigure a guild.'
     profile = settings.runtime_profile
     if (
         profile.environment != 'development'
@@ -55,16 +55,14 @@ def build_request(
     interaction: Any,
     target_guild_id: int,
     template: str,
+    guild_type: str,
+    include_in_global_leaderboard: bool | None,
     operation: str = workers.PREVIEW,
     expected_document_digest: str | None = None,
     confirmation_text: str | None = None,
 ) -> workers.GuildEnrollmentRequest:
     target_guild_id = int(target_guild_id)
     current_ids = settings.database_guild_ids()
-    if target_guild_id in current_ids:
-        raise workers.OperatorGuildEnrollmentValidationError(
-            'The target guild is already active in the running configuration.'
-        )
     records = tuple(
         settings.database_guild_configuration(guild_id)
         for guild_id in current_ids
@@ -86,6 +84,8 @@ def build_request(
         target_guild_id=target_guild_id,
         target_guild_name=str(target.name),
         template=template,
+        guild_type=guild_type,
+        include_in_global_leaderboard=include_in_global_leaderboard,
         bot_permissions=_bot_permissions(target),
         current_runtime_records=records,
         forbidden_guild_ids=runtime_config.KNOWN_PRODUCTION_GUILD_IDS,

@@ -55,6 +55,7 @@ from modules import operator_guild_configuration_rollback_views
 from modules import operator_guild_enrollment as operator_guild_enrollment_service
 from modules import operator_guild_enrollment_views
 from modules import operator_guild_enrollment_workers
+from modules import guild_types
 from modules import operator_guild_command_capabilities
 from modules import operator_guild_command_capability_views
 from modules import operator_guild_lifecycle as operator_guild_lifecycle_service
@@ -404,11 +405,6 @@ class administration(commands.Cog):
         target_guild_id: int,
     ):
         self._operator_visible_target_guild(target_guild_id)
-        shown = await self._operator_guild_draft_operation(
-            interaction,
-            operator_guild_configuration_draft_workers.SHOW,
-            target_guild_id=target_guild_id,
-        )
         runtime_record = settings.database_guild_configuration(target_guild_id)
         if runtime_record is None:
             raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
@@ -417,42 +413,13 @@ class administration(commands.Cog):
         active_capabilities = tuple(
             runtime_record.document.command_capabilities
         )
-        draft = shown.draft
-        if (
-                draft is not None
-                and tuple(draft.document.command_capabilities)
-                != active_capabilities
-        ):
-            validated = await self._operator_guild_draft_operation(
-                interaction,
-                operator_guild_configuration_draft_workers.VALIDATE,
-                target_guild_id=target_guild_id,
-            )
-            if validated.validation is None or validated.draft is None:
-                raise operator_guild_command_capabilities.OperatorGuildCommandCapabilityError(
-                    'The capability-changing draft did not pass current validation.'
-                )
-            draft = validated.draft
-            return await operator_guild_command_capabilities.inspect_command_plan(
-                bot=self.bot,
-                policy=settings.application_command_policy,
-                guild_id=target_guild_id,
-                active_revision=validated.active_revision,
-                active_generation=validated.active_generation,
-                active_document_digest=validated.active_document_digest,
-                current_capabilities=active_capabilities,
-                desired_capabilities=draft.document.command_capabilities,
-                mode=operator_guild_command_capabilities.ACTIVATE,
-                draft_version=draft.draft_version,
-                draft_document_digest=draft.document_digest,
-            )
         return await operator_guild_command_capabilities.inspect_command_plan(
             bot=self.bot,
             policy=settings.application_command_policy,
             guild_id=target_guild_id,
-            active_revision=shown.active_revision,
-            active_generation=shown.active_generation,
-            active_document_digest=shown.active_document_digest,
+            active_revision=runtime_record.revision,
+            active_generation=runtime_record.generation,
+            active_document_digest=runtime_record.document_digest,
             current_capabilities=active_capabilities,
             desired_capabilities=active_capabilities,
             mode=operator_guild_command_capabilities.RECONCILE,
@@ -1892,6 +1859,8 @@ class administration(commands.Cog):
         *,
         target_guild_id: int,
         template: str,
+        guild_type: str,
+        include_in_global_leaderboard: bool | None,
         operation: str,
         expected_document_digest: str | None = None,
         confirmation_text: str | None = None,
@@ -1900,6 +1869,8 @@ class administration(commands.Cog):
             interaction,
             target_guild_id=target_guild_id,
             template=template,
+            guild_type=guild_type,
+            include_in_global_leaderboard=include_in_global_leaderboard,
             operation=operation,
             expected_document_digest=expected_document_digest,
             confirmation_text=confirmation_text,
@@ -1926,6 +1897,8 @@ class administration(commands.Cog):
         *,
         target_guild_id: int,
         template: str,
+        guild_type: str,
+        include_in_global_leaderboard: bool | None,
         operation: str,
         expected_document_digest: str | None = None,
         confirmation_text: str | None = None,
@@ -1945,6 +1918,8 @@ class administration(commands.Cog):
             interaction=interaction,
             target_guild_id=target_guild_id,
             template=template,
+            guild_type=guild_type,
+            include_in_global_leaderboard=include_in_global_leaderboard,
             operation=operation,
             expected_document_digest=expected_document_digest,
             confirmation_text=confirmation_text,
@@ -1953,16 +1928,43 @@ class administration(commands.Cog):
         if result.enrollment is not None:
             enrollment = result.enrollment
             try:
-                settings.reconcile_database_guild_enrollment(
-                    result.runtime_snapshot,
-                    expected_current=current_snapshot,
-                    enrolled_guild_id=enrollment.guild_id,
-                    expected_enrollment=(
-                        enrollment.revision,
-                        enrollment.generation,
-                        enrollment.document_digest,
-                    ),
-                )
+                if enrollment.created:
+                    settings.reconcile_database_guild_enrollment(
+                        result.runtime_snapshot,
+                        expected_current=current_snapshot,
+                        enrolled_guild_id=enrollment.guild_id,
+                        expected_enrollment=(
+                            enrollment.revision,
+                            enrollment.generation,
+                            enrollment.document_digest,
+                        ),
+                    )
+                else:
+                    previous = settings.database_guild_configuration(
+                        enrollment.guild_id
+                    )
+                    previous_capabilities = (
+                        () if previous is None else
+                        previous.document.command_capabilities
+                    )
+                    desired_capabilities = (
+                        enrollment.document.command_capabilities
+                    )
+                    settings.reconcile_database_guild_configuration(
+                        result.runtime_snapshot,
+                        expected_current=current_snapshot,
+                        activated_guild_id=enrollment.guild_id,
+                        expected_activation=(
+                            enrollment.revision,
+                            enrollment.generation,
+                            enrollment.document_digest,
+                        ),
+                        expected_command_capabilities=(
+                            desired_capabilities
+                            if desired_capabilities != previous_capabilities
+                            else None
+                        ),
+                    )
             except Exception as exc:
                 raise operator_guild_enrollment_workers.OperatorGuildEnrollmentCommitted(
                     enrollment
@@ -1971,23 +1973,26 @@ class administration(commands.Cog):
 
     @operator_guild_group.command(
         name='enroll',
-        description='Privately preview and enroll a quarantined development guild.',
+        description='Enroll a server or update its owner-managed server type.',
     )
-    @discord.app_commands.choices(template=[
-        discord.app_commands.Choice(
-            name='Basic prefix server',
-            value=operator_guild_enrollment_workers.BASIC_PREFIX_TEMPLATE,
-        ),
+    @discord.app_commands.choices(guild_type=[
+        discord.app_commands.Choice(name='Standard', value=guild_types.STANDARD),
+        discord.app_commands.Choice(name='Team', value=guild_types.TEAM),
+        discord.app_commands.Choice(name='League', value=guild_types.LEAGUE),
     ])
     @discord.app_commands.describe(
         target_guild_id='Exact server ID currently visible to the development bot.',
-        template='Reviewed least-authority first configuration.',
+        guild_type='Server profile that determines Team, league, and command access.',
+        global_leaderboard=(
+            'Owner-only global ranking participation; omit to preserve an existing server.'
+        ),
     )
     async def operator_guild_enroll_slash(
         self,
         interaction: discord.Interaction,
         target_guild_id: str,
-        template: discord.app_commands.Choice[str],
+        guild_type: discord.app_commands.Choice[str],
+        global_leaderboard: bool | None = None,
     ):
         access_error = operator_guild_enrollment_service.access_error(interaction)
         if access_error is not None:
@@ -2009,7 +2014,9 @@ class administration(commands.Cog):
             result = await self._operator_guild_enrollment_operation(
                 interaction,
                 target_guild_id=normalized_target,
-                template=str(template.value),
+                template=operator_guild_enrollment_workers.BASIC_PREFIX_TEMPLATE,
+                guild_type=str(guild_type.value),
+                include_in_global_leaderboard=global_leaderboard,
                 operation=operator_guild_enrollment_workers.PREVIEW,
             )
             view = operator_guild_enrollment_views.GuildEnrollmentWorkspace(
@@ -2128,46 +2135,15 @@ class administration(commands.Cog):
         )
 
     @operator_guild_group.command(
-        name='capabilities',
-        description='Prepare which Discord command groups one server receives.',
+        name='sync',
+        description='Preview or synchronize one server’s type-derived commands.',
     )
     @discord.app_commands.describe(
         target_guild_id=(
-            'Active target server ID; omit to use the server where this command runs.'
+            'Active server ID; omit to use the server where this command runs.'
         ),
     )
-    async def operator_guild_capabilities_slash(
-        self,
-        interaction: discord.Interaction,
-        target_guild_id: str | None = None,
-    ):
-        access_error = operator_guild_draft_service.access_error(interaction)
-        if access_error is not None:
-            return await interaction.response.send_message(
-                access_error,
-                ephemeral=True,
-            )
-        try:
-            target = self._operator_target_guild_id(interaction, target_guild_id)
-        except ValueError as exc:
-            return await interaction.response.send_message(str(exc), ephemeral=True)
-        return await self._open_guild_draft_workspace(
-            interaction,
-            target=target,
-            ordinary_only=False,
-            capabilities_only=True,
-        )
-
-    @operator_guild_group.command(
-        name='commands',
-        description='Deploy prepared capabilities or repair one server command tree.',
-    )
-    @discord.app_commands.describe(
-        target_guild_id=(
-            'Active target server ID; omit to use the server where this command runs.'
-        ),
-    )
-    async def operator_guild_commands_slash(
+    async def operator_guild_sync_slash(
         self,
         interaction: discord.Interaction,
         target_guild_id: str | None = None,
@@ -2186,15 +2162,12 @@ class administration(commands.Cog):
         try:
             plan = await self._operator_guild_command_plan(interaction, target)
             guild = self._operator_visible_target_guild(target)
-            if (
-                    plan.mode == operator_guild_command_capabilities.RECONCILE
-                    and not (plan.creates or plan.updates or plan.removals)
-            ):
+            if not (plan.creates or plan.updates or plan.removals):
                 return await interaction.edit_original_response(
                     content=(
-                        f'`{guild.name}` (`{target}`) already matches its active '
-                        'command capabilities. The remote global tree is empty; '
-                        'no database or Discord write was needed.'
+                        f'`{guild.name}` (`{target}`) already has the commands '
+                        'derived from its active server type. No Discord write '
+                        'was needed.'
                     )
                 )
             view = operator_guild_command_capability_views.GuildCommandCapabilityWorkspace(
@@ -2208,16 +2181,13 @@ class administration(commands.Cog):
                 view,
             )
             return view
-        except (
-            operator_guild_command_capabilities.OperatorGuildCommandCapabilityError,
-            operator_guild_configuration_draft_workers.OperatorGuildConfigurationDraftError,
-        ) as exc:
+        except operator_guild_command_capabilities.OperatorGuildCommandCapabilityError as exc:
             return await interaction.edit_original_response(content=str(exc))
         except Exception:
-            logger.exception('Unexpected operator guild-command planning failure')
+            logger.exception('Unexpected operator guild-command sync failure')
             return await interaction.edit_original_response(
                 content=(
-                    'Could not build a trustworthy command-capability plan. '
+                    'Could not build a trustworthy server-command plan. '
                     'No configuration or Discord command tree was changed.'
                 )
             )

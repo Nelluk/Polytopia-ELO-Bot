@@ -132,7 +132,7 @@ class RepositoryConsistencyTests(unittest.TestCase):
         guild_configuration = _read('docs/DEVELOPMENT_GUILD_CONFIGURATION.md')
         self.assertIn('Status: **development-only**', guild_configuration)
         self.assertIn('Production continues to', guild_configuration)
-        self.assertIn('/operator guild commands', guild_configuration)
+        self.assertIn('/operator guild sync', guild_configuration)
         self.assertNotIn('P10.', guild_configuration)
 
         readme = _read('README.md')

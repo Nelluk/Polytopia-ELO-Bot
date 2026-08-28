@@ -18,6 +18,7 @@ from modules import guild_configuration_storage as storage
 from modules import operator_guild_enrollment as service
 from modules import operator_guild_enrollment_views as views
 from modules import operator_guild_enrollment_workers as workers
+from modules import guild_types
 from modules.guild_configuration_schema import document_digest
 from tests import test_guild_configuration_runtime as runtime_fixtures
 from tests import test_guild_configuration_storage as fixtures
@@ -71,6 +72,8 @@ def enrollment_request(operation=workers.PREVIEW, **kwargs):
         invoking_guild_id=GUILD_ID, target_guild_id=TARGET_ID,
         target_guild_name='Fresh Guild',
         template=workers.BASIC_PREFIX_TEMPLATE,
+        guild_type=guild_types.STANDARD,
+        include_in_global_leaderboard=None,
         bot_permissions=tuple(sorted(workers.REQUIRED_BOT_PERMISSIONS)),
         current_runtime_records=(current,), forbidden_guild_ids=(),
         discord_snapshot=enrollment_snapshot(), operation=operation,
@@ -173,7 +176,10 @@ class TemplateAndValidationTests(unittest.TestCase):
         self.assertFalse(document.teams.allow_uneven_teams)
         self.assertEqual(document.teams.max_team_size, 2)
         self.assertFalse(document.visibility.include_in_global_leaderboard)
-        self.assertEqual(document.command_capabilities, ())
+        self.assertEqual(
+            document.command_capabilities,
+            ('core_user', 'guild_admin', 'squad'),
+        )
         self.assertIsNone(document.channels.bot_channel_ids)
         self.assertIsNone(document.channels.strict_bot_channel_ids)
 
@@ -311,15 +317,19 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         )
         self.command = operator.get_command('guild').get_command('enroll')
 
-    def test_registration_uses_string_snowflake_and_one_reviewed_template(self):
+    def test_registration_uses_string_snowflake_type_and_optional_global_flag(self):
         self.assertIsNotNone(self.command)
         self.assertEqual(
             [(value.name, value.required) for value in self.command.parameters],
-            [('target_guild_id', True), ('template', True)],
+            [
+                ('target_guild_id', True),
+                ('guild_type', True),
+                ('global_leaderboard', False),
+            ],
         )
         self.assertEqual(
             [value.value for value in self.command.parameters[1].choices],
-            [workers.BASIC_PREFIX_TEMPLATE],
+            list(guild_types.GUILD_TYPES),
         )
 
     async def test_non_owner_is_denied_before_defer(self):
@@ -332,7 +342,7 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(service.settings, 'owner_id', OWNER_ID):
             await self.command.callback(
                 self.cog, interaction, str(TARGET_ID),
-                SimpleNamespace(value=workers.BASIC_PREFIX_TEMPLATE),
+                SimpleNamespace(value=guild_types.STANDARD),
             )
         interaction.response.send_message.assert_awaited_once()
         interaction.response.defer.assert_not_awaited()
@@ -368,7 +378,8 @@ class AdapterAndViewTests(unittest.IsolatedAsyncioTestCase):
             guild_id=TARGET_ID, guild_name='Fresh Guild',
             template=workers.BASIC_PREFIX_TEMPLATE, revision=1, generation=1,
             event_number=1, document_digest=initial.preview.document_digest,
-            actor=f'discord:{OWNER_ID}', document=initial.preview.document,
+            actor=f'discord:{OWNER_ID}', created=True,
+            document=initial.preview.document,
         )
         committed = replace(
             initial, operation=workers.COMMIT, enrollment=enrollment,

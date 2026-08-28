@@ -9,6 +9,7 @@ import discord
 
 import settings
 from modules import guild_configuration_shadow as shadow
+from modules import guild_types
 from modules import operator_guild_configuration_workers as workers
 
 
@@ -17,14 +18,12 @@ PERMISSIONS = 'permissions'
 TEAMS = 'teams'
 CHANNELS = 'channels'
 DESTINATIONS = 'destinations'
-CAPABILITIES = 'capabilities'
 SETTINGS_SECTIONS = frozenset({
     OVERVIEW,
     PERMISSIONS,
     TEAMS,
     CHANNELS,
     DESTINATIONS,
-    CAPABILITIES,
 })
 SECTION_TITLES = {
     TEAMS: 'Sides & persistent Teams',
@@ -156,6 +155,8 @@ def _registry_embed(
             f'{state_labels[record.enrollment_state]} • revision `{revision}` • '
             f'generation `{record.generation}`'
         )
+        if record.document is not None:
+            line += f' • **{guild_types.label_for_document(record.document)}**'
         if record.last_lifecycle_event is not None:
             line += (
                 f'\n-# Last lifecycle: `{record.last_lifecycle_event}` by '
@@ -213,6 +214,7 @@ def _settings_embed(
                 f'Guild ID: {_inline(record.guild_id)}\n'
                 f'Display name: **{_safe(document.identity.display_name)}**\n'
                 f'Command prefix: {_inline(document.identity.command_prefix)}\n'
+                f'Server type: **{guild_types.label_for_document(document)}**\n'
                 f'Global leaderboard: '
                 f'**{_bool(document.visibility.include_in_global_leaderboard)}**'
             ),
@@ -286,23 +288,6 @@ def _settings_embed(
                 value='None' if value is None else _channel(value),
                 inline=True,
             )
-    else:
-        embed.add_field(
-            name='Command capabilities',
-            value=_trim(
-                '\n'.join(f'• `{_safe(value)}`' for value in document.command_capabilities)
-                or 'None'
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name='Deployment boundary',
-            value=(
-                'Capability changes do not synchronize Discord commands. '
-                'Registration remains a separate guild-scoped operation.'
-            ),
-            inline=False,
-        )
     return embed
 
 
@@ -412,7 +397,6 @@ async def publish_private(
 
 
 __all__ = [
-    'CAPABILITIES',
     'CHANNELS',
     'DESTINATIONS',
     'OVERVIEW',

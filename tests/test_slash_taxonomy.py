@@ -224,7 +224,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             },
             {
                 'list', 'validate', 'history', 'rollback', 'enroll',
-                'capabilities', 'commands', 'suspend', 'resume', 'delegation',
+                'sync', 'suspend', 'resume', 'delegation',
             },
         )
         self.assertEqual(

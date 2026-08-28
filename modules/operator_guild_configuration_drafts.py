@@ -258,7 +258,14 @@ def replace_field(
         normalized = value
     target[field.path[-1]] = normalized
     try:
-        return validate_document(mapping)
+        validated = validate_document(mapping)
+        if field.key == 'staff_help_channel':
+            from modules import guild_types
+            return guild_types.apply_guild_type(
+                validated,
+                guild_types.guild_type_for_document(validated),
+            )
+        return validated
     except GuildConfigurationError as exc:
         raise GuildConfigurationDraftEditError(str(exc)) from exc
 

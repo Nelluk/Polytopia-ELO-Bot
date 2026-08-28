@@ -23,6 +23,7 @@ from modules import guild_configuration_draft_storage as drafts
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
+from modules import guild_types
 from modules.guild_configuration_schema import (
     GuildConfigurationDocument,
     document_digest,
@@ -70,11 +71,12 @@ class OperatorGuildEnrollmentCommitted(OperatorGuildEnrollmentError):
 
     def __init__(self, enrollment: 'GuildEnrollment'):
         self.enrollment = enrollment
+        action = 'enrollment' if enrollment.created else 'configuration update'
         super().__init__(
-            f'Guild {enrollment.guild_id} enrollment committed as revision '
+            f'Guild {enrollment.guild_id} {action} committed as revision '
             f'{enrollment.revision}, generation {enrollment.generation}, but '
             'the running snapshot could not be reconciled. Restart the bot; '
-            'do not enroll it again.'
+            'do not repeat the operation.'
         )
 
 
@@ -94,6 +96,8 @@ class GuildEnrollmentRequest:
     target_guild_id: int
     target_guild_name: str
     template: str
+    guild_type: str
+    include_in_global_leaderboard: bool | None
     bot_permissions: tuple[str, ...]
     current_runtime: tuple[RuntimeGuildEvidence, ...]
     forbidden_guild_ids: tuple[int, ...]
@@ -102,6 +106,7 @@ class GuildEnrollmentRequest:
     database_host: str | None = None
     database_port: int | None = None
     discord_snapshot_json: str = field(default='', repr=False)
+    target_current_document_json: str | None = field(default=None, repr=False)
     expected_document_digest: str | None = None
     confirmation_text: str | None = field(default=None, repr=False)
 
@@ -111,13 +116,17 @@ class GuildEnrollmentPreview:
     guild_id: int
     guild_name: str
     template: str
+    guild_type: str
+    existing: bool
     document_digest: str
     bot_permissions: tuple[str, ...]
     document: GuildConfigurationDocument = field(repr=False)
+    previous_document_digest: str | None = None
 
     @property
     def confirmation(self) -> str:
-        return f'ENROLL {self.guild_id} {self.document_digest}'
+        action = 'UPDATE GUILD' if self.existing else 'ENROLL'
+        return f'{action} {self.guild_id} {self.document_digest}'
 
 
 @dataclass(frozen=True)
@@ -130,6 +139,7 @@ class GuildEnrollment:
     event_number: int
     document_digest: str
     actor: str
+    created: bool
     document: GuildConfigurationDocument = field(repr=False)
 
 
@@ -162,10 +172,12 @@ def basic_prefix_document(
     *,
     guild_id: int,
     guild_name: str,
+    guild_type: str = guild_types.STANDARD,
+    include_in_global_leaderboard: bool = False,
 ) -> GuildConfigurationDocument:
     """Build the one reviewed, usable, least-authority onboarding template."""
 
-    return validate_document({
+    document = validate_document({
         'schema_version': 1,
         'guild_id': _positive(guild_id, 'Target guild ID'),
         'identity': {
@@ -188,7 +200,7 @@ def basic_prefix_document(
             'max_team_size': 2,
         },
         'visibility': {
-            'include_in_global_leaderboard': False,
+            'include_in_global_leaderboard': include_in_global_leaderboard,
         },
         'channels': {
             'bot_channel_ids': None,
@@ -204,9 +216,13 @@ def basic_prefix_document(
             'staff_help_channel_id': None,
             'game_category_ids': [],
         },
-        # P10.6c owns desired-capability activation and guild-only apply.
         'command_capabilities': [],
     })
+    return guild_types.apply_guild_type(
+        document,
+        guild_type,
+        include_in_global_leaderboard=include_in_global_leaderboard,
+    )
 
 
 def _source_digest(template: str, document: GuildConfigurationDocument) -> str:
@@ -223,17 +239,44 @@ def _source_digest(template: str, document: GuildConfigurationDocument) -> str:
 
 
 def _preview(request: GuildEnrollmentRequest) -> GuildEnrollmentPreview:
-    document = basic_prefix_document(
-        guild_id=request.target_guild_id,
-        guild_name=request.target_guild_name,
-    )
+    existing = request.target_current_document_json is not None
+    if existing:
+        try:
+            current_document = validate_document(json.loads(
+                request.target_current_document_json
+            ))
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise OperatorGuildEnrollmentValidationError(
+                'The current target configuration is invalid.'
+            ) from exc
+        document = guild_types.apply_guild_type(
+            current_document,
+            request.guild_type,
+            include_in_global_leaderboard=(
+                request.include_in_global_leaderboard
+            ),
+        )
+        previous_digest = document_digest(current_document)
+    else:
+        document = basic_prefix_document(
+            guild_id=request.target_guild_id,
+            guild_name=request.target_guild_name,
+            guild_type=request.guild_type,
+            include_in_global_leaderboard=bool(
+                request.include_in_global_leaderboard
+            ),
+        )
+        previous_digest = None
     return GuildEnrollmentPreview(
         guild_id=request.target_guild_id,
         guild_name=request.target_guild_name,
         template=request.template,
+        guild_type=request.guild_type,
+        existing=existing,
         document_digest=document_digest(document),
         bot_permissions=request.bot_permissions,
         document=document,
+        previous_document_digest=previous_digest,
     )
 
 
@@ -244,18 +287,29 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
         )
     if int(request.requester_id) != int(settings.owner_id):
         raise OperatorGuildEnrollmentPermissionError(
-            'Only the configured bot owner can enroll a guild.'
+            'Only the configured bot owner can enroll or reconfigure a guild.'
         )
     if request.operation not in OPERATIONS or request.template not in TEMPLATES:
         raise OperatorGuildEnrollmentValidationError(
             'The guild-enrollment operation or template is invalid.'
         )
+    try:
+        guild_type = guild_types.normalize_guild_type(request.guild_type)
+    except guild_types.GuildTypeError as exc:
+        raise OperatorGuildEnrollmentValidationError(str(exc)) from exc
+    if guild_type != request.guild_type:
+        raise OperatorGuildEnrollmentValidationError(
+            'The guild type is not normalized.'
+        )
+    if (
+        request.include_in_global_leaderboard is not None
+        and not isinstance(request.include_in_global_leaderboard, bool)
+    ):
+        raise OperatorGuildEnrollmentValidationError(
+            'Global leaderboard participation must be enabled or disabled.'
+        )
     _positive(request.invoking_guild_id, 'Invoking guild ID')
     _positive(request.target_guild_id, 'Target guild ID')
-    if request.target_guild_id == request.invoking_guild_id:
-        raise OperatorGuildEnrollmentValidationError(
-            'The current active guild cannot be enrolled again.'
-        )
     if (
         not request.target_guild_name
         or request.target_guild_name != request.target_guild_name.strip()
@@ -264,24 +318,29 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
         raise OperatorGuildEnrollmentValidationError(
             'The target guild name is invalid.'
         )
-    if request.target_guild_id in request.forbidden_guild_ids:
-        raise OperatorGuildEnrollmentValidationError(
-            'A known production guild cannot be enrolled by development.'
-        )
     current = request.current_runtime
     if not all(isinstance(value, RuntimeGuildEvidence) for value in current):
         raise OperatorGuildEnrollmentValidationError(
             'The running guild evidence is invalid.'
         )
     ids = tuple(value.guild_id for value in current)
+    existing = request.target_current_document_json is not None
     if (
         not current
         or ids != tuple(sorted(set(ids)))
         or request.invoking_guild_id not in ids
-        or request.target_guild_id in ids
+        or (request.target_guild_id in ids) != existing
     ):
         raise OperatorGuildEnrollmentValidationError(
-            'The running guild inventory is invalid for enrollment.'
+            'The running guild inventory is invalid for this guild operation.'
+        )
+    if not existing and request.target_guild_id == request.invoking_guild_id:
+        raise OperatorGuildEnrollmentValidationError(
+            'The current active guild cannot be enrolled again.'
+        )
+    if not existing and request.target_guild_id in request.forbidden_guild_ids:
+        raise OperatorGuildEnrollmentValidationError(
+            'A known production guild cannot be enrolled by development.'
         )
     for value in current:
         _positive(value.guild_id, 'Running guild ID')
@@ -326,7 +385,24 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
             'Enrollment database or Discord identity is unavailable.'
         )
     preview = _preview(request)
-    expected_ids = (*ids, request.target_guild_id)
+    if preview.document.guild_id != request.target_guild_id:
+        raise OperatorGuildEnrollmentValidationError(
+            'The target configuration belongs to a different guild.'
+        )
+    if existing:
+        target_evidence = next(
+            value for value in current
+            if value.guild_id == request.target_guild_id
+        )
+        if preview.previous_document_digest != target_evidence.document_digest:
+            raise OperatorGuildEnrollmentConflict(
+                'The target configuration differs from the running snapshot.'
+            )
+        if preview.document_digest == preview.previous_document_digest:
+            raise OperatorGuildEnrollmentValidationError(
+                'This guild already has the selected type and leaderboard setting.'
+            )
+    expected_ids = ids if existing else (*ids, request.target_guild_id)
     try:
         snapshot_value = json.loads(request.discord_snapshot_json)
         snapshots = storage.validate_discord_snapshot(
@@ -416,6 +492,8 @@ def request_from_profile(
     target_guild_id: int,
     target_guild_name: str,
     template: str,
+    guild_type: str,
+    include_in_global_leaderboard: bool | None,
     bot_permissions: Sequence[str],
     current_runtime_records: Sequence[Any],
     forbidden_guild_ids: Sequence[int],
@@ -439,6 +517,7 @@ def request_from_profile(
             sort_keys=True,
             separators=(',', ':'),
         )
+        records = tuple(current_runtime_records)
         current = tuple(sorted((
             RuntimeGuildEvidence(
                 guild_id=int(record.guild_id),
@@ -446,9 +525,31 @@ def request_from_profile(
                 generation=int(record.generation),
                 document_digest=str(record.document_digest),
             )
-            for record in current_runtime_records
+            for record in records
         ), key=lambda value: value.guild_id))
-    except (TypeError, ValueError, shadow.GuildConfigurationShadowError) as exc:
+        target_record = next(
+            (
+                record for record in records
+                if int(record.guild_id) == int(target_guild_id)
+            ),
+            None,
+        )
+        target_current_document_json = (
+            None
+            if target_record is None
+            else json.dumps(
+                document_to_mapping(target_record.document),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(',', ':'),
+            )
+        )
+    except (
+        AttributeError,
+        TypeError,
+        ValueError,
+        shadow.GuildConfigurationShadowError,
+    ) as exc:
         raise OperatorGuildEnrollmentValidationError(
             'The running guild-enrollment evidence could not be frozen.'
         ) from exc
@@ -459,6 +560,8 @@ def request_from_profile(
         target_guild_id=int(target_guild_id),
         target_guild_name=str(target_guild_name),
         template=str(template),
+        guild_type=guild_types.normalize_guild_type(guild_type),
+        include_in_global_leaderboard=include_in_global_leaderboard,
         bot_permissions=tuple(sorted(str(value) for value in bot_permissions)),
         current_runtime=current,
         forbidden_guild_ids=tuple(sorted(
@@ -469,6 +572,7 @@ def request_from_profile(
         database_host=profile.database_host,
         database_port=profile.database_port,
         discord_snapshot_json=snapshot_json,
+        target_current_document_json=target_current_document_json,
         expected_document_digest=expected_document_digest,
         confirmation_text=confirmation_text,
     ))
@@ -484,6 +588,28 @@ def _target_absent(cursor: Any, guild_id: int) -> None:
         raise OperatorGuildEnrollmentConflict(
             'The target guild already has an enrollment record.'
         )
+
+
+def _changed_paths(
+    current: GuildConfigurationDocument,
+    desired: GuildConfigurationDocument,
+) -> tuple[str, ...]:
+    def difference(expected: Any, candidate: Any, prefix: str = '') -> list[str]:
+        if isinstance(expected, Mapping) and isinstance(candidate, Mapping):
+            paths: list[str] = []
+            for key in sorted(set(expected) | set(candidate), key=str):
+                path = f'{prefix}.{key}' if prefix else str(key)
+                if key not in expected or key not in candidate:
+                    paths.append(path)
+                else:
+                    paths.extend(difference(expected[key], candidate[key], path))
+            return paths
+        return [] if expected == candidate else [prefix]
+
+    return tuple(difference(
+        document_to_mapping(current),
+        document_to_mapping(desired),
+    ))
 
 
 def _insert_enrollment(
@@ -564,7 +690,72 @@ def _insert_enrollment(
         event_number=1,
         document_digest=preview.document_digest,
         actor=actor,
+        created=True,
         document=preview.document,
+    )
+
+
+def _update_enrollment(
+    cursor: Any,
+    request: GuildEnrollmentRequest,
+    preview: GuildEnrollmentPreview,
+) -> GuildEnrollment:
+    evidence = next(
+        value for value in request.current_runtime
+        if value.guild_id == preview.guild_id
+    )
+    try:
+        current_document, current_digest = drafts.select_revision(
+            cursor,
+            preview.guild_id,
+            evidence.revision,
+        )
+        if current_digest != evidence.document_digest:
+            raise OperatorGuildEnrollmentConflict(
+                'The active target revision changed before the update.'
+            )
+        existing_draft = drafts.select_draft(
+            cursor,
+            preview.guild_id,
+            active_only=True,
+            for_update=True,
+        )
+        if existing_draft is not None:
+            raise OperatorGuildEnrollmentConflict(
+                'This guild has an unfinished settings draft. Save or cancel it '
+                'before changing the guild type.'
+            )
+        actor = f'discord:{request.requester_id}'
+        draft = drafts.put_draft(
+            cursor,
+            guild_id=preview.guild_id,
+            base_revision=evidence.revision,
+            base_generation=evidence.generation,
+            document=preview.document,
+            actor=actor,
+        )
+        activation = drafts.activate_draft(
+            cursor,
+            draft=draft,
+            active_revision=evidence.revision,
+            active_generation=evidence.generation,
+            active_document_digest=evidence.document_digest,
+            actor=actor,
+            changed_paths=_changed_paths(current_document, preview.document),
+        )
+    except drafts.GuildConfigurationDraftStorageError as exc:
+        raise OperatorGuildEnrollmentConflict(str(exc)) from exc
+    return GuildEnrollment(
+        guild_id=preview.guild_id,
+        guild_name=preview.guild_name,
+        template=preview.template,
+        revision=activation.revision,
+        generation=activation.generation,
+        event_number=activation.event_number,
+        document_digest=activation.document_digest,
+        actor=activation.actor,
+        created=False,
+        document=activation.document,
     )
 
 
@@ -641,9 +832,14 @@ def execute_enrollment(
                     (drafts.DRAFT_ADVISORY_LOCK_KEY,),
                 )
             _validate_current_runtime(cursor, request)
-            _target_absent(cursor, request.target_guild_id)
+            if not preview.existing:
+                _target_absent(cursor, request.target_guild_id)
             if request.operation == COMMIT:
-                enrollment = _insert_enrollment(cursor, request, preview)
+                enrollment = (
+                    _update_enrollment(cursor, request, preview)
+                    if preview.existing
+                    else _insert_enrollment(cursor, request, preview)
+                )
                 connection.commit()
                 committed = True
         runtime_snapshot = None

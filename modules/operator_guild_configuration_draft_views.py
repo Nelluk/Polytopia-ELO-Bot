@@ -577,12 +577,6 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
             return await _private(interaction, 'There are no settings to save.')
         if not service.changed_paths(self.active_document, draft.document):
             return await _private(interaction, 'Make at least one change before saving.')
-        if self._capabilities_changed():
-            return await _private(
-                interaction,
-                'This editing session includes command-capability changes. '
-                'Use `/operator guild commands` to review and apply them.',
-            )
         if not self.result.activation_allowed:
             return await _private(
                 interaction,
@@ -597,7 +591,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         self.terminal = True
         self.status = (
             f'Saved and published settings for {self.target_guild_name}. '
-            'The running bot is using the new configuration.'
+            'The running bot is using the new configuration. Discord command '
+            'registration remains a separate deployment operation.'
         )
         self.stop()
         self.rebuild()
@@ -726,11 +721,6 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 f'**Server:** {_escape(self.target_guild_name)}\n'
                 f'**Unsaved changes:** {len(changes)}\n'
                 f'{self._readable_changes(changes)}'
-                + (
-                    '\n\n⚠️ This session also changes command capabilities. '
-                    'Finish it with `/operator guild commands`.'
-                    if self._capabilities_changed() else ''
-                )
             )
         if draft is None:
             return (
@@ -815,13 +805,12 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 f'**Status:** {_escape(self.status)}\n'
                 + (
                     '-# Save validates the complete configuration and publishes '
-                    'ordinary settings immediately. Cancel discards only the '
-                    'private editing session. Command capabilities remain under '
-                    '`/operator guild commands`.'
+                    'settings immediately. Cancel discards only the private '
+                    'editing session. Discord command registration is deployed '
+                    'separately.'
                     if self.simple_owner else
-                    '-# Activation publishes ordinary settings immediately. Command '
-                'capability changes use `/operator guild commands`, which plans '
-                'and synchronizes only one explicitly confirmed guild.'
+                    '-# Activation publishes settings immediately. Discord '
+                    'command registration is deployed separately.'
                 )
                 + (
                     '\n-# Cross-guild editing is capability-only because Discord '
@@ -856,7 +845,6 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                     or self.terminal
                     or draft is None
                     or not changes
-                    or self._capabilities_changed()
                     or not self.result.activation_allowed
                 ),
             )

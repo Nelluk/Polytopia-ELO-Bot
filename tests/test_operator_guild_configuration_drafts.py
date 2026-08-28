@@ -354,7 +354,7 @@ class RequestAndWorkerTests(unittest.TestCase):
         self.assertIs(raised.exception.activation, committed)
         self.assertEqual(connection.commits, 1)
 
-    def test_activation_blocks_command_capability_changes_before_write(self):
+    def test_activation_can_publish_derived_capabilities_without_discord_sync(self):
         active = fixtures.bundle().imports[0].document
         edited = service.replace_field(
             active,
@@ -369,14 +369,28 @@ class RequestAndWorkerTests(unittest.TestCase):
             discord_snapshot=fixtures.snapshot(),
         )
         connection = Connection()
-        with mock.patch.object(workers.drafts, 'activate_draft') as write:
-            with self.assertRaisesRegex(
-                workers.OperatorGuildConfigurationDraftValidationError,
-                'cannot be activated yet',
-            ):
-                run_with(connection, value, selected=old)
-        write.assert_not_called()
-        self.assertEqual(connection.commits, 0)
+        committed = SimpleNamespace(
+            revision=2,
+            generation=2,
+            document_digest=old.document_digest,
+            document=edited,
+        )
+        published = SimpleNamespace(
+            guilds={GUILD_ID: SimpleNamespace(
+                revision=2,
+                generation=2,
+                document_digest=old.document_digest,
+            )},
+        )
+        with mock.patch.object(
+            workers.drafts, 'activate_draft', return_value=committed,
+        ) as write, mock.patch.object(
+            workers, '_post_commit_runtime_snapshot', return_value=published,
+        ):
+            result = run_with(connection, value, selected=old)
+        write.assert_called_once()
+        self.assertIs(result.activation, committed)
+        self.assertEqual(connection.commits, 1)
 
     def test_activation_blocks_unchanged_draft_before_write(self):
         old = stored()
@@ -869,7 +883,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             'guild'
         ).get_command('capabilities')
         self.assertIsNotNone(self.command)
-        self.assertIsNotNone(self.capabilities_command)
+        self.assertIsNone(self.capabilities_command)
         self.assertIsNone(self.guild.get_command('edit'))
 
     async def test_preflight_denial_is_private_and_does_not_defer(self):
@@ -915,33 +929,6 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             interaction,
             target=GUILD_ID,
             ordinary_only=False,
-        )
-
-    async def test_capabilities_routes_owner_to_capability_only_editor(self):
-        interaction = SimpleNamespace(
-            guild_id=GUILD_ID,
-            user=SimpleNamespace(id=OWNER_ID),
-            response=SimpleNamespace(send_message=mock.AsyncMock()),
-        )
-        with mock.patch.object(
-            service,
-            'access_error',
-            return_value=None,
-        ), mock.patch.object(
-            self.cog,
-            '_operator_target_guild_id',
-            return_value=GUILD_ID,
-        ), mock.patch.object(
-            self.cog,
-            '_open_guild_draft_workspace',
-            new=mock.AsyncMock(),
-        ) as open_workspace:
-            await self.capabilities_command.callback(self.cog, interaction)
-        open_workspace.assert_awaited_once_with(
-            interaction,
-            target=GUILD_ID,
-            ordinary_only=False,
-            capabilities_only=True,
         )
 
     async def test_owner_editor_creates_private_draft_on_open(self):

@@ -17,6 +17,7 @@ from modules import guild_configuration_delegation_storage as delegation
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
+from modules import guild_types
 from modules.guild_configuration_schema import (
     GuildConfigurationDocument,
     GuildConfigurationError,
@@ -688,10 +689,20 @@ def _require_ordinary(
     active: GuildConfigurationDocument,
     candidate: GuildConfigurationDocument,
 ) -> None:
-    forbidden = tuple(
+    forbidden = [
         path for path in _changed_paths(active, candidate)
         if path not in ORDINARY_CHANGED_PATHS
-    )
+    ]
+    if 'command_capabilities' in forbidden:
+        expected = guild_types.capabilities_for_type(
+            guild_types.guild_type_for_document(active),
+            staff_help_enabled=(
+                candidate.channels.staff_help_channel_id is not None
+            ),
+            existing_capabilities=active.command_capabilities,
+        )
+        if candidate.command_capabilities == expected:
+            forbidden.remove('command_capabilities')
     if forbidden:
         raise OperatorGuildConfigurationDraftPermissionError(
             'This draft includes owner-only configuration. Ask the bot owner '
@@ -945,11 +956,6 @@ def execute_draft_operation(
                         draft.document.command_capabilities
                         != active_document.command_capabilities
                     )
-                    if request.operation == ACTIVATE and capabilities_changed:
-                        raise OperatorGuildConfigurationDraftValidationError(
-                            'Command-capability changes cannot be activated yet; '
-                            'use `/operator guild commands` for coordinated activation.'
-                        )
                     if request.operation == ACTIVATE_COMMANDS and not capabilities_changed:
                         raise OperatorGuildConfigurationDraftValidationError(
                             'The draft does not change command capabilities; use '

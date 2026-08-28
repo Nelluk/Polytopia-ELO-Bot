@@ -165,6 +165,8 @@ class CoordinatorOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     interaction(GUILD_B),
                     target_guild_id=GUILD_B,
                     template=enrollment_workers.BASIC_PREFIX_TEMPLATE,
+                    guild_type='standard',
+                    include_in_global_leaderboard=None,
                     operation=enrollment_workers.COMMIT,
                 )
             enrollment.assert_not_awaited()
