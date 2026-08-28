@@ -62,10 +62,11 @@ The import must prove these invariants before any write:
    `guild_configuration_source = static`, and do not recreate the bot or sync
    commands.
 2. Through one-off containers using the reviewed image, capture one bounded
-   live Discord role/channel snapshot and produce the offline import bundle.
+   live Discord role/channel snapshot plus a private guild-owner inventory,
+   then produce the offline import bundle and categorized cleanup report.
    Record its digest and the invariant summary above. Because the static list
-   is stable, recapture only if the static file or a referenced Discord
-   role/channel changes.
+   is stable, recapture only if the static file, guild ownership, or a
+   referenced Discord role/channel changes.
 3. Inspect the exact per-guild Discord command diff from the digest-bound
    import plan.
    Expected policy effects are `/squad` and `/guild` on all active guilds,
@@ -85,6 +86,27 @@ The import must prove these invariants before any write:
 
 No generalized federation, duplicate PCPLUS Team records, dual-write service,
 or soak period is required by the demonstrated risk.
+
+## Effective-reference cleanup
+
+The legacy file contains role names and channel IDs that no longer resolve in
+Discord. The import preserves effective static behavior rather than granting
+new access by guessing replacements:
+
+- missing and case-only role names are dropped;
+- exact duplicate role names preserve every unmanaged matching role ID;
+- managed integration roles cannot become permission roles;
+- missing channels and categories are dropped;
+- a non-null bot-channel restriction remains non-null even if cleanup leaves
+  it empty; and
+- `/staffhelp` is omitted when its configured destination no longer exists.
+
+The private cleanup report groups findings by guild administration access,
+ordinary-user access, bot-channel routing, operational destinations, inactive
+status, and game categories. Each guild includes its live owner name/ID,
+remaining valid mapping counts, and a severity of `review_before_cutover`,
+`partial_cleanup`, `informational`, or `none`. Owner identity is migration
+contact data only and is not stored in guild-configuration tables.
 
 ## Prepared command shape
 
@@ -112,6 +134,25 @@ docker compose run --rm --no-deps --entrypoint python bot \
 The snapshot and command inspection cross the live-Discord inspection boundary
 and require that approval, but none of these commands writes PostgreSQL or
 Discord.
+
+An optional private notification plan can be generated from the reviewed
+import plan. The tool has no send operation, does not import Discord, and
+groups multiple guilds owned by the same account into one bounded proposed DM
+sequence:
+
+```bash
+docker compose run --rm --no-deps --entrypoint python bot \
+  scripts/plan_guild_owner_notifications.py plan \
+  --scope review \
+  --guild-ids all \
+  --output \
+  logs/production/guild-configuration/owner-notification-plan.json
+```
+
+Scopes are `review`, `access`, `routing`, and `all`. Review the exact recipient
+IDs and rendered messages before separately authorizing any future message
+sender. This repository currently provides planning only; it cannot send,
+ping, or DM an owner through this tool.
 
 The following online staging command is deliberately only a command shape. It
 must not be run until the backup and database-write approvals have been given
@@ -178,6 +219,7 @@ source approval:
 
 - deploying/recreating the production container while it remains static;
 - capturing or inspecting live Discord state;
+- sending any guild-owner notification;
 - staging the five tables and 49 imported configurations while static;
 - editing `config.ini` to select database authority;
 - applying guild-scoped Discord commands; and

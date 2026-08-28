@@ -695,17 +695,33 @@ def _resolve_legacy_roles(
     guild_id: int,
     role_ids_by_name: Mapping[str, Any],
     field: str,
+    allow_multiple_matches: bool = False,
 ) -> list[int]:
     names = _legacy_role_names(value, field)
-    resolved = [
-        _resolve_legacy_role(
-            name,
-            guild_id=guild_id,
-            role_ids_by_name=role_ids_by_name,
-            field=field,
+    resolved = []
+    for name in names:
+        if not allow_multiple_matches or name == '@everyone':
+            resolved.append(_resolve_legacy_role(
+                name,
+                guild_id=guild_id,
+                role_ids_by_name=role_ids_by_name,
+                field=field,
+            ))
+            continue
+        raw = role_ids_by_name.get(name)
+        candidates = (
+            tuple(raw)
+            if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes))
+            else ()
         )
-        for name in names
-    ]
+        if not candidates:
+            raise GuildConfigurationError(
+                f'{field} role {name!r} does not resolve in guild {guild_id}.'
+            )
+        resolved.extend(
+            _positive_int(candidate, f'{field} role {name!r}')
+            for candidate in candidates
+        )
     if len(resolved) != len(set(resolved)):
         raise GuildConfigurationError(
             f'{field} resolves multiple names to the same role ID.'
@@ -726,6 +742,7 @@ def materialize_legacy_document(
     overrides: Mapping[str, Any],
     role_ids_by_name: Mapping[str, Any],
     command_capabilities: Sequence[str] = (),
+    allow_multiple_role_matches: bool = False,
 ) -> GuildConfigurationDocument:
     """Convert one complete legacy default+override snapshot without I/O.
 
@@ -751,6 +768,10 @@ def materialize_legacy_document(
     ):
         raise GuildConfigurationError(
             'command_capabilities must be a sequence of capability names.'
+        )
+    if not isinstance(allow_multiple_role_matches, bool):
+        raise GuildConfigurationError(
+            'allow_multiple_role_matches must be enabled or disabled.'
         )
     effective = dict(default_values)
     effective.update(overrides)
@@ -789,36 +810,42 @@ def materialize_legacy_document(
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='helper_roles',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'mod_role_ids': _resolve_legacy_roles(
                 effective['mod_roles'],
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='mod_roles',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'user_role_ids_level_1': _resolve_legacy_roles(
                 effective['user_roles_level_1'],
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='user_roles_level_1',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'user_role_ids_level_2': _resolve_legacy_roles(
                 effective['user_roles_level_2'],
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='user_roles_level_2',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'user_role_ids_level_3': _resolve_legacy_roles(
                 effective['user_roles_level_3'],
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='user_roles_level_3',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'user_role_ids_level_4': _resolve_legacy_roles(
                 effective['user_roles_level_4'],
                 guild_id=normalized_guild_id,
                 role_ids_by_name=role_ids_by_name,
                 field='user_roles_level_4',
+                allow_multiple_matches=allow_multiple_role_matches,
             ),
             'inactive_role_id': inactive_role_id,
         },

@@ -387,6 +387,52 @@ _GUILD_SNAPSHOT_FIELDS = frozenset({
 _ROLE_FIELDS = frozenset({'id', 'name', 'managed', 'is_default'})
 _CHANNEL_FIELDS = frozenset({'id', 'name', 'type', 'category_id'})
 
+_ROLE_LIST_FIELDS = (
+    'helper_roles',
+    'mod_roles',
+    'user_roles_level_1',
+    'user_roles_level_2',
+    'user_roles_level_3',
+    'user_roles_level_4',
+)
+_NULLABLE_CHANNEL_LIST_FIELDS = ('bot_channels', 'bot_channels_strict')
+_CHANNEL_LIST_FIELDS = (
+    'bot_channels_private',
+    'newbie_message_channels',
+    'match_challenge_channels',
+)
+_CHANNEL_SCALAR_FIELDS = (
+    'ranked_game_channel',
+    'unranked_game_channel',
+    'steam_game_channel',
+    'log_channel',
+    'game_announce_channel',
+    'staff_help_channel',
+)
+
+_ISSUE_CATEGORIES = {
+    'helper_roles': 'guild_administration_access',
+    'mod_roles': 'guild_administration_access',
+    'user_roles_level_1': 'ordinary_user_access',
+    'user_roles_level_2': 'ordinary_user_access',
+    'user_roles_level_3': 'ordinary_user_access',
+    'user_roles_level_4': 'ordinary_user_access',
+    'inactive_role': 'inactive_status',
+    'bot_channels': 'bot_channel_routing',
+    'bot_channels_strict': 'bot_channel_routing',
+    'bot_channels_private': 'bot_channel_routing',
+    'newbie_message_channels': 'operational_destination',
+    'match_challenge_channels': 'operational_destination',
+    'ranked_game_channel': 'operational_destination',
+    'unranked_game_channel': 'operational_destination',
+    'steam_game_channel': 'operational_destination',
+    'log_channel': 'operational_destination',
+    'game_announce_channel': 'operational_destination',
+    'staff_help_channel': 'operational_destination',
+    'game_channel_categories': 'game_channel_categories',
+    'match_challenge_channel': 'obsolete_setting',
+}
+
 
 def validate_discord_snapshot(
     value: Mapping[str, Any],
@@ -472,6 +518,7 @@ def validate_discord_snapshot(
             channel_ids.add(channel_id)
             channel_rows.append(dict(channel))
         by_guild[guild_id] = {
+            'guild_id': guild_id,
             'guild_name': guild['guild_name'],
             'roles': tuple(role_rows),
             'channels': tuple(channel_rows),
@@ -508,6 +555,343 @@ def _channel_maps(snapshot: Mapping[str, Any]) -> tuple[dict[int, str], set[int]
         if kind == 'category'
     }
     return channel_types, category_ids
+
+
+def _issue(
+    *,
+    field: str,
+    kind: str,
+    configured_value: str | int,
+    resolution: str,
+    **details: Any,
+) -> dict[str, Any]:
+    value = {
+        'category': _ISSUE_CATEGORIES[field],
+        'field': field,
+        'kind': kind,
+        'configured_value': configured_value,
+        'resolution': resolution,
+    }
+    value.update(details)
+    return value
+
+
+def _normalize_live_references(
+    effective: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[dict[str, Any], ...], dict[str, list[int]]]:
+    """Drop dead live references while preserving effective static behavior."""
+
+    normalized = dict(effective)
+    issues: list[dict[str, Any]] = []
+    roles_by_name: dict[str, list[dict[str, Any]]] = {}
+    folded_names: dict[str, set[str]] = {}
+    for role in snapshot['roles']:
+        if role['is_default']:
+            continue
+        roles_by_name.setdefault(role['name'], []).append(role)
+        folded_names.setdefault(role['name'].casefold(), set()).add(role['name'])
+
+    safe_role_ids: dict[str, list[int]] = {}
+    for name, roles in roles_by_name.items():
+        safe_role_ids[name] = sorted(
+            role['id'] for role in roles if not role['managed']
+        )
+
+    def normalize_role_name(field: str, name: Any) -> tuple[bool, list[int]]:
+        if name == '@everyone':
+            return True, [int(snapshot['guild_id'])]
+        if not isinstance(name, str) or not name:
+            issues.append(_issue(
+                field=field,
+                kind='missing_role',
+                configured_value='' if name is None else str(name),
+                resolution='dropped',
+            ))
+            return False, []
+        exact = roles_by_name.get(name, [])
+        safe = safe_role_ids.get(name, [])
+        if not exact:
+            case_candidates = sorted(folded_names.get(name.casefold(), set()))
+            issues.append(_issue(
+                field=field,
+                kind=('case_only_role' if case_candidates else 'missing_role'),
+                configured_value=name,
+                resolution='dropped',
+                **(
+                    {'case_only_candidates': case_candidates}
+                    if case_candidates else {}
+                ),
+            ))
+            return False, []
+        managed_ids = sorted(
+            role['id'] for role in exact if role['managed']
+        )
+        if managed_ids:
+            issues.append(_issue(
+                field=field,
+                kind='managed_role',
+                configured_value=name,
+                resolution=('dropped' if not safe else 'managed_matches_dropped'),
+                managed_role_ids=managed_ids,
+            ))
+        if not safe:
+            return False, []
+        if len(safe) > 1:
+            issues.append(_issue(
+                field=field,
+                kind='ambiguous_role_name',
+                configured_value=name,
+                resolution='all_exact_matches_preserved',
+                resolved_role_ids=safe,
+            ))
+        return True, safe
+
+    remaining_role_ids: dict[str, list[int]] = {}
+    for field in _ROLE_LIST_FIELDS:
+        raw_names = effective[field]
+        names = (
+            [] if raw_names is None else list(raw_names)
+            if not isinstance(raw_names, (str, bytes)) else [raw_names]
+        )
+        kept_names = []
+        resolved_ids = []
+        for name in names:
+            keep, ids = normalize_role_name(field, name)
+            if keep:
+                kept_names.append(name)
+                resolved_ids.extend(ids)
+        normalized[field] = kept_names
+        remaining_role_ids[field] = sorted(set(resolved_ids))
+
+    inactive = effective['inactive_role']
+    if inactive is not None:
+        keep, ids = normalize_role_name('inactive_role', inactive)
+        if keep and len(ids) == 1 and ids[0] != int(snapshot['guild_id']):
+            normalized['inactive_role'] = inactive
+        else:
+            if keep:
+                issues.append(_issue(
+                    field='inactive_role',
+                    kind='ambiguous_role_name',
+                    configured_value=str(inactive),
+                    resolution='dropped',
+                    resolved_role_ids=ids,
+                ))
+            normalized['inactive_role'] = None
+
+    channel_types, category_ids = _channel_maps(snapshot)
+
+    def valid_ordinary_channel(channel_id: Any) -> bool:
+        return (
+            isinstance(channel_id, int)
+            and not isinstance(channel_id, bool)
+            and channel_id in channel_types
+            and channel_id not in category_ids
+        )
+
+    for field in (*_NULLABLE_CHANNEL_LIST_FIELDS, *_CHANNEL_LIST_FIELDS):
+        raw_ids = effective[field]
+        if raw_ids is None and field in _NULLABLE_CHANNEL_LIST_FIELDS:
+            normalized[field] = None
+            continue
+        channel_ids = [] if raw_ids is None else list(raw_ids)
+        kept_ids = []
+        for channel_id in channel_ids:
+            if valid_ordinary_channel(channel_id):
+                kept_ids.append(channel_id)
+            else:
+                issues.append(_issue(
+                    field=field,
+                    kind=(
+                        'wrong_channel_type'
+                        if channel_id in channel_types else 'missing_channel'
+                    ),
+                    configured_value=channel_id,
+                    resolution='dropped',
+                    observed_type=channel_types.get(channel_id),
+                ))
+        normalized[field] = kept_ids
+
+    for field in _CHANNEL_SCALAR_FIELDS:
+        channel_id = effective[field]
+        if channel_id is None or valid_ordinary_channel(channel_id):
+            normalized[field] = channel_id
+        else:
+            normalized[field] = None
+            issues.append(_issue(
+                field=field,
+                kind=(
+                    'wrong_channel_type'
+                    if channel_id in channel_types else 'missing_channel'
+                ),
+                configured_value=channel_id,
+                resolution='cleared',
+                observed_type=channel_types.get(channel_id),
+            ))
+
+    kept_categories = []
+    for channel_id in list(effective['game_channel_categories'] or ()):
+        if channel_id in category_ids:
+            kept_categories.append(channel_id)
+        else:
+            issues.append(_issue(
+                field='game_channel_categories',
+                kind=(
+                    'wrong_channel_type'
+                    if channel_id in channel_types else 'missing_channel'
+                ),
+                configured_value=channel_id,
+                resolution='dropped',
+                observed_type=channel_types.get(channel_id),
+            ))
+    normalized['game_channel_categories'] = kept_categories
+
+    if effective['match_challenge_channel'] is not None:
+        issues.append(_issue(
+            field='match_challenge_channel',
+            kind='obsolete_setting',
+            configured_value=str(effective['match_challenge_channel']),
+            resolution='cleared',
+        ))
+        normalized['match_challenge_channel'] = None
+
+    return normalized, tuple(issues), safe_role_ids
+
+
+def build_live_reference_cleanup_report(
+    *,
+    target: StorageTarget,
+    server_settings: Any,
+    allowed_guild_ids: Sequence[int],
+    discord_snapshot: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Describe deterministic migration cleanup without database I/O."""
+
+    validate_target(target)
+    allowed = tuple(sorted({
+        _strict_int(value, 'allowed guild ID')
+        for value in allowed_guild_ids
+    }))
+    snapshots = validate_discord_snapshot(
+        discord_snapshot,
+        target=target,
+        allowed_guild_ids=allowed,
+    )
+    server_list = getattr(server_settings, 'server_list', None)
+    if not isinstance(server_list, Mapping) or 'default' not in server_list:
+        raise GuildConfigurationStorageError('Server settings have no default mapping.')
+    explicit_ids = tuple(sorted(
+        value for value in server_list if isinstance(value, int)
+    ))
+    if explicit_ids != allowed or set(server_list) != {'default', *allowed}:
+        raise GuildConfigurationStorageError(
+            'Server-settings guild inventory does not match the allowlist exactly.'
+        )
+
+    guild_rows = []
+    category_counts: dict[str, int] = {}
+    kind_counts: dict[str, int] = {}
+    field_counts: dict[str, int] = {}
+    review_count = 0
+    affected_count = 0
+    for guild_id in allowed:
+        effective = _effective_legacy_values(
+            server_list['default'],
+            server_list[guild_id],
+        )
+        normalized, issues, safe_roles = _normalize_live_references(
+            effective,
+            snapshots[guild_id],
+        )
+
+        def role_count(field: str) -> int:
+            values = set()
+            for name in normalized[field]:
+                if name == '@everyone':
+                    values.add(guild_id)
+                else:
+                    values.update(safe_roles.get(name, ()))
+            return len(values)
+
+        remaining = {
+            'helper_role_count': role_count('helper_roles'),
+            'mod_role_count': role_count('mod_roles'),
+            'bot_channel_count': (
+                None
+                if normalized['bot_channels'] is None
+                else len(normalized['bot_channels'])
+            ),
+            'strict_bot_channel_count': (
+                None
+                if normalized['bot_channels_strict'] is None
+                else len(normalized['bot_channels_strict'])
+            ),
+            'private_bot_channel_count': len(
+                normalized['bot_channels_private']
+            ),
+        }
+        issue_fields = {issue['field'] for issue in issues}
+        review = (
+            ('helper_roles' in issue_fields and not remaining['helper_role_count'])
+            or ('mod_roles' in issue_fields and not remaining['mod_role_count'])
+            or (
+                'bot_channels' in issue_fields
+                and remaining['bot_channel_count'] == 0
+            )
+            or (
+                'bot_channels_strict' in issue_fields
+                and remaining['strict_bot_channel_count'] == 0
+            )
+        )
+        categories = {issue['category'] for issue in issues}
+        severity = (
+            'review_before_cutover'
+            if review else 'partial_cleanup'
+            if categories.intersection({
+                'guild_administration_access',
+                'bot_channel_routing',
+                'operational_destination',
+            }) else 'informational'
+            if issues else 'none'
+        )
+        if issues:
+            affected_count += 1
+        if review:
+            review_count += 1
+        for issue in issues:
+            category_counts[issue['category']] = (
+                category_counts.get(issue['category'], 0) + 1
+            )
+            kind_counts[issue['kind']] = kind_counts.get(issue['kind'], 0) + 1
+            field_counts[issue['field']] = field_counts.get(issue['field'], 0) + 1
+        guild_rows.append({
+            'guild_id': guild_id,
+            'guild_name': snapshots[guild_id]['guild_name'],
+            'severity': severity,
+            'remaining': remaining,
+            'issues': list(issues),
+        })
+
+    return {
+        'schema_version': 1,
+        'policy': 'preserve_effective_static_references',
+        'policy_notes': [
+            'Missing and case-only role names are dropped, not broadened.',
+            'All unmanaged roles with one exact duplicate name are preserved.',
+            'Missing channel IDs are dropped; nullable restrictions stay nullable.',
+            'Empty non-null bot-channel restrictions remain restrictive.',
+        ],
+        'summary': {
+            'guild_count': len(guild_rows),
+            'affected_guild_count': affected_count,
+            'review_before_cutover_count': review_count,
+            'issues_by_category': dict(sorted(category_counts.items())),
+            'issues_by_kind': dict(sorted(kind_counts.items())),
+            'issues_by_field': dict(sorted(field_counts.items())),
+        },
+        'guilds': guild_rows,
+    }
 
 
 def _validate_document_references(
@@ -605,10 +989,15 @@ def build_import_bundle(
     allowed_guild_ids: Sequence[int],
     discord_snapshot: Mapping[str, Any],
     guild_type_overrides: Mapping[int, str] | None = None,
+    normalize_live_references: bool = False,
 ) -> ImportBundle:
     """Materialize every explicit static guild without database I/O."""
 
     validate_target(target)
+    if not isinstance(normalize_live_references, bool):
+        raise GuildConfigurationStorageError(
+            'Live-reference normalization must be enabled or disabled.'
+        )
     allowed = tuple(sorted({
         _strict_int(value, 'allowed guild ID')
         for value in allowed_guild_ids
@@ -653,11 +1042,12 @@ def build_import_bundle(
     defaults = server_list['default']
     imports = []
     for guild_id in allowed:
-        overrides = server_list[guild_id]
-        if not isinstance(defaults, Mapping) or not isinstance(overrides, Mapping):
+        source_overrides = server_list[guild_id]
+        if not isinstance(defaults, Mapping) or not isinstance(
+                source_overrides, Mapping):
             raise GuildConfigurationStorageError('Legacy guild settings must be mappings.')
         capabilities = policy.capabilities_for_guild(guild_id)
-        effective = _effective_legacy_values(defaults, overrides)
+        effective = _effective_legacy_values(defaults, source_overrides)
         route_override = None
         if (
             guild_id == DEVELOPMENT_BETA_GUILD_ID
@@ -665,15 +1055,26 @@ def build_import_bundle(
             and effective.get('staff_help_channel') is None
         ):
             route_override = DEVELOPMENT_STAFF_HELP_CHANNEL_ID
-            overrides = dict(overrides)
-            overrides['staff_help_channel'] = route_override
+            effective['staff_help_channel'] = route_override
+        cleanup_issues: tuple[dict[str, Any], ...] = ()
+        role_resolution = _role_resolution(snapshots[guild_id])
+        if normalize_live_references:
+            effective, cleanup_issues, role_resolution = (
+                _normalize_live_references(effective, snapshots[guild_id])
+            )
+            if effective['staff_help_channel'] is None:
+                capabilities = tuple(
+                    value for value in capabilities
+                    if value != 'tools_support'
+                )
         try:
             document = materialize_legacy_document(
                 guild_id=guild_id,
                 defaults=defaults,
-                overrides=overrides,
-                role_ids_by_name=_role_resolution(snapshots[guild_id]),
+                overrides=effective,
+                role_ids_by_name=role_resolution,
                 command_capabilities=capabilities,
+                allow_multiple_role_matches=normalize_live_references,
             )
         except GuildConfigurationError as exc:
             raise GuildConfigurationStorageError(str(exc)) from exc
@@ -689,10 +1090,10 @@ def build_import_bundle(
         source_payload = {
             'guild_id': guild_id,
             'defaults': defaults,
-            'overrides': server_list[guild_id],
+            'overrides': source_overrides,
             'command_capabilities': list(capabilities),
             'resolved_role_ids_by_name': {
-                name: _role_resolution(snapshots[guild_id])[name]
+                name: role_resolution[name]
                 for name in sorted({
                     *effective['helper_roles'],
                     *effective['mod_roles'],
@@ -707,6 +1108,9 @@ def build_import_bundle(
             },
             'effective_staff_help_channel_override': route_override,
         }
+        if normalize_live_references:
+            source_payload['normalized_effective'] = effective
+            source_payload['live_reference_cleanup'] = list(cleanup_issues)
         if normalized_types is not None:
             source_payload['migration_guild_type'] = normalized_types[guild_id]
         imports.append(GuildImport(
@@ -790,6 +1194,7 @@ def bundle_from_mapping(
     # The production planner adds a human-readable derivative summary. It is
     # not part of the digest-bound import contract.
     root.pop('production_migration_summary', None)
+    root.pop('production_cleanup_report', None)
     expected_fields = {
         'schema_version', 'storage_schema_version', 'bundle_digest',
         'confirmation', 'guilds', 'planned_schema_statements',
@@ -1290,6 +1695,7 @@ __all__ = [
     'StorageTarget',
     'apply_storage',
     'build_import_bundle',
+    'build_live_reference_cleanup_report',
     'bundle_from_mapping',
     'bundle_to_mapping',
     'confirmation_for_target',

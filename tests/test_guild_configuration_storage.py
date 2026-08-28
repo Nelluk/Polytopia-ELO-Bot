@@ -128,6 +128,21 @@ def snapshot() -> dict:
     }
 
 
+def owner_inventory() -> dict:
+    return {
+        'schema_version': 1,
+        'kind': 'guild_configuration_owner_inventory',
+        'environment': 'development',
+        'application_id': storage.DEVELOPMENT_BETA_APPLICATION_ID,
+        'owners': [{
+            'guild_id': GUILD_ID,
+            'guild_name': 'Nelluk Test Server',
+            'owner_id': 900000000000000123,
+            'owner_name': 'guild-owner',
+        }],
+    }
+
+
 def bundle() -> storage.ImportBundle:
     return storage.build_import_bundle(
         target=target(),
@@ -383,6 +398,60 @@ class ImportBundleTests(unittest.TestCase):
                 target=target(), server_settings=server_settings(),
                 allowed_guild_ids=(GUILD_ID,), discord_snapshot=wrong,
             )
+
+    def test_live_reference_cleanup_preserves_only_effective_safe_matches(self):
+        live = snapshot()
+        live['guilds'][0]['roles'] = [
+            role for role in live['guilds'][0]['roles']
+            if role['name'] != 'Helper'
+        ]
+        live['guilds'][0]['roles'].extend((
+            {
+                'id': 205, 'name': 'helper', 'managed': False,
+                'is_default': False,
+            },
+            {
+                'id': 206, 'name': 'Mod', 'managed': False,
+                'is_default': False,
+            },
+        ))
+        configured = server_settings()
+        configured.application_command_capabilities = {
+            GUILD_ID: ('core_user',),
+        }
+        configured.server_list[GUILD_ID] = {
+            **configured.server_list[GUILD_ID],
+            'bot_channels': [999],
+        }
+
+        report = storage.build_live_reference_cleanup_report(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=live,
+        )
+        value = storage.build_import_bundle(
+            target=target(),
+            server_settings=configured,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=live,
+            normalize_live_references=True,
+        )
+
+        document = value.imports[0].document
+        self.assertEqual(document.permissions.helper_role_ids, (202,))
+        self.assertEqual(document.permissions.mod_role_ids, (203, 206))
+        self.assertEqual(document.channels.bot_channel_ids, ())
+        self.assertNotIn('tools_support', document.command_capabilities)
+        guild = report['guilds'][0]
+        self.assertEqual(guild['severity'], 'review_before_cutover')
+        self.assertEqual(guild['remaining']['helper_role_count'], 1)
+        self.assertEqual(guild['remaining']['mod_role_count'], 2)
+        self.assertEqual(guild['remaining']['bot_channel_count'], 0)
+        self.assertEqual(
+            {issue['kind'] for issue in guild['issues']},
+            {'case_only_role', 'ambiguous_role_name', 'missing_channel'},
+        )
 
     def test_bundle_mapping_is_complete_and_returns_copies(self):
         value = bundle()
@@ -774,6 +843,24 @@ class ScriptTests(unittest.TestCase):
         connection.assert_not_called()
         capture.assert_not_called()
         self.assertEqual(emitted[0]['bundle_digest'], value.bundle_digest)
+
+    def test_owner_inventory_is_exact_and_bound_to_allowed_guilds(self):
+        value = script._validate_owner_inventory(
+            owner_inventory(),
+            profile=self.profile(),
+        )
+        self.assertEqual(value[GUILD_ID]['owner_name'], 'guild-owner')
+
+        invalid = owner_inventory()
+        invalid['owners'][0]['owner_id'] = 0
+        with self.assertRaisesRegex(
+            storage.GuildConfigurationStorageError,
+            'row is invalid',
+        ):
+            script._validate_owner_inventory(
+                invalid,
+                profile=self.profile(),
+            )
 
     def test_apply_requires_exact_environment_before_profile_or_connection(self):
         with mock.patch.dict(os.environ, {}, clear=True), \

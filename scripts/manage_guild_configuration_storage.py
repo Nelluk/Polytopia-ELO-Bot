@@ -40,6 +40,12 @@ DEFAULT_SNAPSHOT = (
 PRODUCTION_DEFAULT_SNAPSHOT = (
     'logs/production/guild-configuration/discord-snapshot.json'
 )
+PRODUCTION_DEFAULT_OWNER_INVENTORY = (
+    'logs/production/guild-configuration/owner-inventory.json'
+)
+DEFAULT_OWNER_INVENTORY = (
+    'logs/development/guild-configuration/owner-inventory.json'
+)
 PRODUCTION_GUILD_COUNT = 49
 POLYCHAMPIONS_GUILD_ID = 447883341463814144
 PCPLUS_GUILD_ID = 1289762588346814495
@@ -60,6 +66,7 @@ def _parser() -> argparse.ArgumentParser:
         'snapshot', help='capture bounded role/channel identity through Discord HTTP'
     )
     snapshot.add_argument('--output')
+    snapshot.add_argument('--owner-output')
     for name, help_text in (
         ('plan', 'build an offline import plan from a captured snapshot'),
         (
@@ -72,6 +79,10 @@ def _parser() -> argparse.ArgumentParser:
         operation = operations.add_parser(name, help=help_text)
         operation.add_argument('--snapshot')
         if name == 'plan':
+            operation.add_argument(
+                '--owners',
+                help='read the private owner inventory captured with the snapshot',
+            )
             operation.add_argument(
                 '--output',
                 help='write the exact plan as a private JSON file',
@@ -134,6 +145,14 @@ def _default_snapshot(environment: str) -> str:
         PRODUCTION_DEFAULT_SNAPSHOT
         if environment == storage.PRODUCTION_ENVIRONMENT
         else DEFAULT_SNAPSHOT
+    )
+
+
+def _default_owner_inventory(environment: str) -> str:
+    return (
+        PRODUCTION_DEFAULT_OWNER_INVENTORY
+        if environment == storage.PRODUCTION_ENVIRONMENT
+        else DEFAULT_OWNER_INVENTORY
     )
 
 
@@ -287,7 +306,7 @@ def _channel_type(channel: Any) -> str:
     return str(name if name else raw)
 
 
-async def _capture_snapshot(profile: Any) -> dict[str, Any]:
+async def _capture_snapshot(profile: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     import discord
 
     client = discord.Client(intents=discord.Intents.none())
@@ -298,8 +317,15 @@ async def _capture_snapshot(profile: Any) -> dict[str, Any]:
                 'Discord authenticated a different application identity.'
             )
         guild_values = []
+        owner_values = []
+        owners_by_id = {}
         for guild_id in profile.allowed_guild_ids:
             guild = await client.fetch_guild(guild_id)
+            owner_id = int(guild.owner_id)
+            owner = owners_by_id.get(owner_id)
+            if owner is None:
+                owner = await client.fetch_user(owner_id)
+                owners_by_id[owner_id] = owner
             roles = sorted(await guild.fetch_roles(), key=_object_id)
             channels = sorted(await guild.fetch_channels(), key=_object_id)
             guild_values.append({
@@ -328,15 +354,80 @@ async def _capture_snapshot(profile: Any) -> dict[str, Any]:
                     for channel in channels
                 ],
             })
-        return {
-            'schema_version': storage.SNAPSHOT_SCHEMA_VERSION,
-            'kind': 'guild_configuration_discord_snapshot',
-            'environment': profile.environment,
-            'application_id': profile.expected_bot_id,
-            'guilds': guild_values,
-        }
+            owner_values.append({
+                'guild_id': guild_id,
+                'guild_name': _object_name(guild),
+                'owner_id': owner_id,
+                'owner_name': _object_name(owner),
+            })
+        return (
+            {
+                'schema_version': storage.SNAPSHOT_SCHEMA_VERSION,
+                'kind': 'guild_configuration_discord_snapshot',
+                'environment': profile.environment,
+                'application_id': profile.expected_bot_id,
+                'guilds': guild_values,
+            },
+            {
+                'schema_version': 1,
+                'kind': 'guild_configuration_owner_inventory',
+                'environment': profile.environment,
+                'application_id': profile.expected_bot_id,
+                'owners': owner_values,
+            },
+        )
     finally:
         await client.close()
+
+
+def _validate_owner_inventory(
+    value: Any,
+    *,
+    profile: Any,
+) -> dict[int, dict[str, Any]]:
+    if not isinstance(value, dict) or set(value) != {
+            'schema_version', 'kind', 'environment', 'application_id', 'owners'}:
+        raise storage.GuildConfigurationStorageError(
+            'Owner inventory shape is invalid.'
+        )
+    if (
+            value['schema_version'] != 1
+            or value['kind'] != 'guild_configuration_owner_inventory'
+            or value['environment'] != profile.environment
+            or value['application_id'] != profile.expected_bot_id
+            or not isinstance(value['owners'], list)
+    ):
+        raise storage.GuildConfigurationStorageError(
+            'Owner inventory identity is invalid.'
+        )
+    by_guild = {}
+    for raw in value['owners']:
+        if not isinstance(raw, dict) or set(raw) != {
+                'guild_id', 'guild_name', 'owner_id', 'owner_name'}:
+            raise storage.GuildConfigurationStorageError(
+                'Owner inventory row shape is invalid.'
+            )
+        guild_id = raw['guild_id']
+        owner_id = raw['owner_id']
+        if (
+                isinstance(guild_id, bool) or not isinstance(guild_id, int)
+                or guild_id <= 0 or guild_id in by_guild
+                or isinstance(owner_id, bool) or not isinstance(owner_id, int)
+                or owner_id <= 0
+                or not isinstance(raw['guild_name'], str)
+                or not raw['guild_name']
+                or not isinstance(raw['owner_name'], str)
+                or not raw['owner_name']
+        ):
+            raise storage.GuildConfigurationStorageError(
+                'Owner inventory row is invalid.'
+            )
+        by_guild[guild_id] = dict(raw)
+    if tuple(sorted(by_guild)) != tuple(sorted(profile.allowed_guild_ids)):
+        raise storage.GuildConfigurationStorageError(
+            'Owner inventory guild set does not match the runtime allowlist.'
+        )
+    return by_guild
 
 
 def _production_guild_types(profile: Any) -> dict[int, str] | None:
@@ -369,10 +460,50 @@ def _bundle(profile: Any, target: storage.StorageTarget, snapshot_path: str):
         allowed_guild_ids=profile.allowed_guild_ids,
         discord_snapshot=snapshot,
         guild_type_overrides=_production_guild_types(profile),
+        normalize_live_references=(
+            profile.environment == storage.PRODUCTION_ENVIRONMENT
+        ),
     )
     if profile.environment == storage.PRODUCTION_ENVIRONMENT:
         _validate_production_bundle(bundle)
     return bundle
+
+
+def _production_cleanup_report(
+    profile: Any,
+    target: storage.StorageTarget,
+    snapshot_path: str,
+    owner_inventory_path: str,
+) -> dict[str, Any]:
+    snapshot = _load_snapshot(
+        snapshot_path,
+        environment=profile.environment,
+    )
+    owners = _validate_owner_inventory(
+        _load_snapshot(
+            owner_inventory_path,
+            environment=profile.environment,
+        ),
+        profile=profile,
+    )
+    report = storage.build_live_reference_cleanup_report(
+        target=target,
+        server_settings=profile.server_settings,
+        allowed_guild_ids=profile.allowed_guild_ids,
+        discord_snapshot=snapshot,
+    )
+    for guild in report['guilds']:
+        owner = owners[guild['guild_id']]
+        if owner['guild_name'] != guild['guild_name']:
+            raise storage.GuildConfigurationStorageError(
+                f'Owner inventory guild {guild["guild_id"]} name differs '
+                'from the Discord snapshot.'
+            )
+        guild['owner'] = {
+            'owner_id': owner['owner_id'],
+            'owner_name': owner['owner_name'],
+        }
+    return report
 
 
 def _validate_production_bundle(
@@ -497,7 +628,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.operation == 'snapshot':
             snapshot_path = args.output or _default_snapshot(profile.environment)
-            snapshot = asyncio.run(_capture_snapshot(profile))
+            owner_inventory_path = (
+                args.owner_output or _default_owner_inventory(profile.environment)
+            )
+            snapshot, owner_inventory = asyncio.run(_capture_snapshot(profile))
             storage.validate_discord_snapshot(
                 snapshot,
                 target=target,
@@ -508,9 +642,18 @@ def main(argv: list[str] | None = None) -> int:
                 snapshot,
                 environment=profile.environment,
             )
+            _validate_owner_inventory(owner_inventory, profile=profile)
+            owner_path = _write_snapshot(
+                owner_inventory_path,
+                owner_inventory,
+                environment=profile.environment,
+            )
             _emit({
                 'status': 'captured',
                 'path': str(path.relative_to(PROJECT_ROOT)),
+                'owner_inventory_path': str(
+                    owner_path.relative_to(PROJECT_ROOT)
+                ),
                 'guild_ids': list(profile.allowed_guild_ids),
                 'database_connected': False,
                 'discord_mutated': False,
@@ -523,6 +666,16 @@ def main(argv: list[str] | None = None) -> int:
             if profile.environment == storage.PRODUCTION_ENVIRONMENT:
                 value['production_migration_summary'] = (
                     _validate_production_bundle(bundle)
+                )
+                value['production_cleanup_report'] = (
+                    _production_cleanup_report(
+                        profile,
+                        target,
+                        snapshot_path,
+                        args.owners or _default_owner_inventory(
+                            profile.environment
+                        ),
+                    )
                 )
             if args.output:
                 path = _write_snapshot(
@@ -540,6 +693,9 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     'production_migration_summary': value.get(
                         'production_migration_summary'
+                    ),
+                    'production_cleanup_summary': (
+                        value.get('production_cleanup_report', {}).get('summary')
                     ),
                     'database_connected': False,
                     'discord_connected': False,
