@@ -186,7 +186,7 @@ FIELDS = (
     DraftField(
         'staff_help_channel', 'Staff-help channel', DESTINATIONS,
         ('channels', 'staff_help_channel_id'), OPTIONAL_CHANNEL,
-        'Destination that receives requests submitted through /staffhelp. Bot-owner managed.',
+        'Destination that receives requests submitted through /staffhelp.',
     ),
     DraftField(
         'command_capabilities', 'Command capabilities', CAPABILITIES,
@@ -201,6 +201,7 @@ ORDINARY_FIELD_KEYS = frozenset({
     'bot_channels', 'strict_bot_channels', 'newbie_channels',
     'challenge_channels', 'game_categories', 'ranked_game_channel',
     'unranked_game_channel', 'steam_game_channel', 'game_announce_channel',
+    'staff_help_channel',
 })
 ORDINARY_FIELDS = tuple(value for value in FIELDS if value.key in ORDINARY_FIELD_KEYS)
 ORDINARY_SECTIONS = tuple(

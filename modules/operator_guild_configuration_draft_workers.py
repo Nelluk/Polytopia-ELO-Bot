@@ -57,6 +57,7 @@ ORDINARY_CHANGED_PATHS = frozenset({
     'channels.unranked_game_channel_id',
     'channels.steam_game_channel_id',
     'channels.game_announce_channel_id',
+    'channels.staff_help_channel_id',
 })
 
 

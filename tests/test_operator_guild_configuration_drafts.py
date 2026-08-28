@@ -418,6 +418,9 @@ class RequestAndWorkerTests(unittest.TestCase):
         edited = service.replace_field(
             edited, service.FIELD_BY_KEY['max_team_size'], 2,
         )
+        edited = service.replace_field(
+            edited, service.FIELD_BY_KEY['staff_help_channel'], 301,
+        )
         old = stored()
         updated = stored(edited, version=2)
         value = manager_request(
@@ -841,6 +844,7 @@ class EditServiceAndViewTests(unittest.TestCase):
         }
         self.assertIn('Allow unequal side sizes', ordinary_labels)
         self.assertIn('Maximum players per side', ordinary_labels)
+        self.assertIn('Staff-help channel', ordinary_labels)
         self.assertNotIn('Allow persistent Teams', ordinary_labels)
         self.assertNotIn('Require persistent Teams', ordinary_labels)
         self.assertNotIn('Include in global leaderboard', ordinary_labels)
