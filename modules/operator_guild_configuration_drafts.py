@@ -16,18 +16,22 @@ from modules.guild_configuration_schema import (
 )
 
 
-IDENTITY = 'identity'
-PERMISSIONS = 'permissions'
-TEAMS = 'teams'
-CHANNELS = 'channels'
-DESTINATIONS = 'destinations'
+SERVER_BASICS = 'server_basics'
+ROLES = 'roles'
+CHANNELS_AND_MESSAGES = 'channels_and_messages'
 CAPABILITIES = 'capabilities'
+
+# These aliases preserve the field definitions' domain-oriented names while
+# presenting fewer, clearer sections in the editor.
+IDENTITY = SERVER_BASICS
+PERMISSIONS = ROLES
+TEAMS = SERVER_BASICS
+CHANNELS = CHANNELS_AND_MESSAGES
+DESTINATIONS = CHANNELS_AND_MESSAGES
 SECTIONS = (
-    IDENTITY,
-    PERMISSIONS,
-    TEAMS,
-    CHANNELS,
-    DESTINATIONS,
+    SERVER_BASICS,
+    ROLES,
+    CHANNELS_AND_MESSAGES,
     CAPABILITIES,
 )
 
@@ -488,6 +492,7 @@ __all__ = [
     'CAPABILITY_LIST',
     'CATEGORY_LIST',
     'CHANNELS',
+    'CHANNELS_AND_MESSAGES',
     'CHANNEL_LIST',
     'DESTINATIONS',
     'DraftField',
@@ -504,7 +509,9 @@ __all__ = [
     'ORDINARY_SECTIONS',
     'PERMISSIONS',
     'ROLE_LIST',
+    'ROLES',
     'SECTIONS',
+    'SERVER_BASICS',
     'TEAMS',
     'TEXT',
     'access_error',

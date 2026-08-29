@@ -17,12 +17,35 @@ from modules.application_command_policy import DEFAULT_CAPABILITY_FAMILIES
 Runner = Callable[..., Awaitable[workers.GuildConfigurationDraftResult]]
 logger = logging.getLogger('polybot.' + __name__)
 SECTION_LABELS = {
-    service.IDENTITY: 'Identity',
-    service.PERMISSIONS: 'Permissions',
-    service.TEAMS: 'Sides & persistent Teams',
-    service.CHANNELS: 'Channel policy',
-    service.DESTINATIONS: 'Destinations',
+    service.SERVER_BASICS: 'Server Basics',
+    service.ROLES: 'Roles',
+    service.CHANNELS_AND_MESSAGES: 'Channels and Messages',
     service.CAPABILITIES: 'Command capabilities',
+}
+SECTION_DESCRIPTIONS = {
+    service.SERVER_BASICS: (
+        'Basic server identity and game structure. Set the displayed server '
+        'name and legacy command prefix, control players per side, and review '
+        'whether this server uses persistent named Teams or the global '
+        'leaderboard. Squads are tracked automatically and do not require '
+        'persistent Teams.'
+    ),
+    service.ROLES: (
+        'Discord roles that determine PolyElo access. Ordinary user levels '
+        'control game hosting and joining limits; helper and moderator roles '
+        'grant staff access. Protected staff-role assignments are managed by '
+        'the bot owner.'
+    ),
+    service.CHANNELS_AND_MESSAGES: (
+        'Where commands may be used, where game channels may be created, and '
+        'where PolyElo sends listings, announcements, staff help, logs, and '
+        'other scheduled messages.'
+    ),
+    service.CAPABILITIES: (
+        'The top-level Discord command groups registered for this server. '
+        'Normal server settings derive these from server type and configured '
+        'destinations; command registration remains a separate operation.'
+    ),
 }
 LIST_KINDS = {
     service.ROLE_LIST,
@@ -149,9 +172,10 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 if section != service.CAPABILITIES
             )
         self.section = self.sections[0]
-        self.field_key = service.fields_for_section(
-            self.section, ordinary_only=self.ordinary_only,
-        )[0].key
+        self.field_key: str | None = (
+            service.fields_for_section(self.section)[0].key
+            if self.capabilities_only else None
+        )
         self.list_mode = 'add'
         self.busy = False
         self.terminal = False
@@ -170,6 +194,8 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
 
     @property
     def field(self) -> service.DraftField:
+        if self.field_key is None:
+            raise RuntimeError('No guild-configuration field is selected.')
         return service.FIELD_BY_KEY[self.field_key]
 
     async def ready(self, interaction: Any) -> bool:
@@ -316,9 +342,7 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
         if not await self.ready(interaction):
             return
         self.section = str(select.values[0])
-        self.field_key = service.fields_for_section(
-            self.section, ordinary_only=self.ordinary_only,
-        )[0].key
+        self.field_key = None
         self.list_mode = 'add'
         self.rebuild()
         await interaction.response.edit_message(view=self)
@@ -686,17 +710,30 @@ class GuildConfigurationDraftWorkspace(components_v2.RequesterLayoutView):
                 interaction,
                 field_select,
             )
-            current = service.field_value(draft.document, self.field)
-            children.extend((
-                discord.ui.TextDisplay(
-                    f'## {SECTION_LABELS[self.section]} · {_escape(self.field.label)}\n'
-                    f'{_escape(self.field.help_text)}\n\n'
-                    f'**Current value**\n{self._format_value(current)}'
-                ),
-                discord.ui.ActionRow(section),
-                discord.ui.ActionRow(field_select),
-            ))
-            self._add_value_controls(children, current)
+            if self.field_key is None:
+                children.extend((
+                    discord.ui.TextDisplay(
+                        f'## {SECTION_LABELS[self.section]}\n'
+                        f'{_escape(SECTION_DESCRIPTIONS[self.section])}\n\n'
+                        'Choose a setting below to see its current value and '
+                        'editing controls.'
+                    ),
+                    discord.ui.ActionRow(section),
+                    discord.ui.ActionRow(field_select),
+                ))
+            else:
+                current = service.field_value(draft.document, self.field)
+                children.extend((
+                    discord.ui.TextDisplay(
+                        f'## {SECTION_LABELS[self.section]} · '
+                        f'{_escape(self.field.label)}\n'
+                        f'{_escape(self.field.help_text)}\n\n'
+                        f'**Current value**\n{self._format_value(current)}'
+                    ),
+                    discord.ui.ActionRow(section),
+                    discord.ui.ActionRow(field_select),
+                ))
+                self._add_value_controls(children, current)
         children.extend((
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(

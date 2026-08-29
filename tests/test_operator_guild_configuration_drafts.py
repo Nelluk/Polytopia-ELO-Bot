@@ -704,6 +704,90 @@ class AsyncOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
 
 class EditServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
+    def test_editor_groups_fields_into_three_clear_sections(self):
+        self.assertEqual(service.SECTIONS, (
+            service.SERVER_BASICS,
+            service.ROLES,
+            service.CHANNELS_AND_MESSAGES,
+            service.CAPABILITIES,
+        ))
+        self.assertEqual(
+            views.SECTION_LABELS[service.SERVER_BASICS],
+            'Server Basics',
+        )
+        self.assertEqual(views.SECTION_LABELS[service.ROLES], 'Roles')
+        self.assertEqual(
+            views.SECTION_LABELS[service.CHANNELS_AND_MESSAGES],
+            'Channels and Messages',
+        )
+        basics = {
+            field.key for field in service.fields_for_section(
+                service.SERVER_BASICS,
+            )
+        }
+        self.assertIn('display_name', basics)
+        self.assertIn('allow_teams', basics)
+        channels = {
+            field.key for field in service.fields_for_section(
+                service.CHANNELS_AND_MESSAGES,
+            )
+        }
+        self.assertIn('bot_channels', channels)
+        self.assertIn('game_announce_channel', channels)
+
+    async def test_section_landing_has_info_and_no_preselected_field(self):
+        active = fixtures.bundle().imports[0].document
+        result = workers.GuildConfigurationDraftResult(
+            operation=workers.SHOW, guild_id=GUILD_ID,
+            active_revision=1, active_generation=1,
+            active_document_digest=document_digest(active), draft=stored(),
+        )
+
+        async def runner(*_args, **_kwargs):
+            return result
+
+        workspace = views.GuildConfigurationDraftWorkspace(
+            requester_id=OWNER_ID, active_document=active, result=result,
+            runner=runner, role_names={}, channel_names={}, simple_owner=True,
+        )
+        self.assertIsNone(workspace.field_key)
+        self.assertEqual(workspace.sections, (
+            service.SERVER_BASICS,
+            service.ROLES,
+            service.CHANNELS_AND_MESSAGES,
+        ))
+
+        def assert_landing(section):
+            items = tuple(workspace.walk_children())
+            rendered = '\n'.join(
+                item.content
+                for item in items
+                if isinstance(item, discord.ui.TextDisplay)
+            )
+            self.assertIn(views.SECTION_DESCRIPTIONS[section], rendered)
+            self.assertIn('Choose a setting below', rendered)
+            field_select = next(
+                item
+                for item in items
+                if isinstance(item, discord.ui.Select)
+                and item.placeholder == 'Choose one field to edit'
+            )
+            self.assertFalse(any(option.default for option in field_select.options))
+
+        assert_landing(service.SERVER_BASICS)
+        workspace.field_key = 'display_name'
+        workspace.ready = mock.AsyncMock(return_value=True)
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        await workspace._select_section(
+            interaction,
+            SimpleNamespace(values=[service.ROLES]),
+        )
+        self.assertEqual(workspace.section, service.ROLES)
+        self.assertIsNone(workspace.field_key)
+        assert_landing(service.ROLES)
+
     def test_every_settings_field_has_bounded_explanatory_text(self):
         self.assertTrue(service.FIELDS)
         for field in service.FIELDS:

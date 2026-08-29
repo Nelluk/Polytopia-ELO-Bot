@@ -90,16 +90,18 @@ the configured bot owner. It intentionally has only two subcommands:
   or update an enrolled guild's Standard/Team/League type and optional global
   leaderboard participation without resetting its other settings.
 
-The normal settings flow is **`/guild settings` → choose a field → Save
-changes**. It shows
-human-readable field changes, asks for the displayed server name, and performs
-fresh complete validation as part of Save. Cancel discards only the inactive
-editing session. Internal version, generation, and digest checks still reject
-stale writes without exposing that machinery in the normal UI. Discord guild
-ownership does not grant `/operator` access; those workflows remain protected
-by the configured bot-owner check. The Discord guild owner always has the same
-ordinary-setting edit and activation access as a delegated manager, but cannot
-edit protected settings.
+The normal settings flow is **`/guild settings` → choose a section → choose
+a setting → Save changes**. The editor groups settings under **Server
+Basics**, **Roles**, and **Channels and Messages**. Opening a section selects no
+setting automatically; it first explains the section in plain language. The
+editor shows human-readable field changes, asks for the displayed server name,
+and performs fresh complete validation as part of Save. Cancel discards only
+the inactive editing session. Internal version, generation, and digest checks
+still reject stale writes without exposing that machinery in the normal UI.
+Discord guild ownership does not grant `/operator` access; those workflows
+remain protected by the configured bot-owner check. The Discord guild owner
+always has the same ordinary-setting edit and activation access as a delegated
+manager, but cannot edit protected settings.
 
 ## Onboarding and lifecycle
 
