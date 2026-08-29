@@ -66,6 +66,11 @@ def _read(relative_path: str) -> str:
 
 
 class RepositoryConsistencyTests(unittest.TestCase):
+    def test_presence_advertises_actual_slash_command_discovery(self):
+        source = _read('bot.py')
+        self.assertIn("name='Use / to browse commands'", source)
+        self.assertNotIn("name='$guide'", source)
+
     def test_background_tasks_wait_for_published_guild_configuration(self):
         for relative_path in (
             'modules/administration.py',

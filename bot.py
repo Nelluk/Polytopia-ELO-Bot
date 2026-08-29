@@ -290,7 +290,10 @@ class MyBot(commands.Bot):
                          allowed_mentions=discord.AllowedMentions(everyone=False),
                          intents=self.intents,
                          tree_cls=PolyBotCommandTree,
-                         activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
+                         activity=discord.Activity(
+                             name='Use / to browse commands',
+                             type=discord.ActivityType.playing,
+                         ))
         settings.bot = self
         # Auto-deleting task messages cleaned up before a planned restart.
         # Each item is a (guild_id, channel_id, message_id) tuple.
