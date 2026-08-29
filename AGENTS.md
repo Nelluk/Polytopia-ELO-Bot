@@ -230,7 +230,13 @@ policy acknowledgement before this command can run.
 - `Lineup` - Player assignments within a GameSide
 
 ### Multi-Server Architecture
-The bot runs on multiple Discord servers with per-guild settings. `settings.config` (loaded from `server_settings.py`) contains server-specific configuration. Use `settings.guild_setting(guild_id, 'setting_name')` to retrieve guild-specific values.
+The bot runs on multiple Discord servers with per-guild settings. Runtime
+profiles explicitly select either static settings or a validated, published
+database snapshot as the active per-guild authority. The ignored
+`server_settings.py` / `server_settings_dev.py` module still defines the
+allowed guild inventory and historical shortcut IDs in both modes. Use
+`settings.guild_setting(guild_id, 'setting_name')` to read the active value
+without depending on its storage source.
 
 ## Command Prefix
 

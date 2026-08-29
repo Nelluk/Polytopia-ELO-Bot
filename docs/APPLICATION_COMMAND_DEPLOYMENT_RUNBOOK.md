@@ -125,13 +125,15 @@ guild-configuration delegation policy.
 ## Database-authority policy
 
 The profile-backed tool above remains authoritative for deploying changed
-command source. For the production static-to-database cutover, pass the exact
-private import-plan JSON with `--guild-configuration-plan`; apply additionally
-requires its bundle digest through `--confirm-guild-configuration-plan`. This
-keeps the command policy bound to the same documents imported into PostgreSQL
-instead of the legacy static capability assignments. `--guild-ids all` and
-`--confirm-guild-ids all` mean the exact runtime allowlist, not an unbounded or
-global Discord scope.
+command source. During the completed production static-to-database cutover,
+the initial bulk release passed the exact private import-plan JSON with
+`--guild-configuration-plan`; apply additionally required its bundle digest
+through `--confirm-guild-configuration-plan`. That bound the initial command
+policy to the same documents imported into PostgreSQL instead of the legacy
+static capability assignments. `--guild-ids all` and
+`--confirm-guild-ids all` meant the exact runtime allowlist, not an unbounded
+or global Discord scope. The retained import plan is migration evidence, not a
+general editor for later active revisions.
 
 Once that surface is running, command policy comes from its immutable active
 guild documents rather than ignored static settings. Server type and configured

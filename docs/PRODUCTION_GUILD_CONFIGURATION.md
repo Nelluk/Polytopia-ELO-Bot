@@ -3,9 +3,8 @@
 ## Status and boundary
 
 This document records the completed replacement of production's stable static
-guild settings with the database-backed authority already exercised by beta.
-Discord command synchronization remains a separate, explicitly authorized
-operation.
+guild settings with the database-backed authority already exercised by beta,
+including the separately authorized guild-only Discord command release.
 
 The source retains the exact production Discord snapshot, offline import plan,
 digest-bound command planning, and explicitly acknowledged atomic production
@@ -27,7 +26,10 @@ Verified on 2026-08-28:
 The final cutover started the reviewed image with zero unexpected restarts and
 one production writer. All 25 documents published before recurring tasks or
 League cache initialization. Two earlier attempts were rolled back cleanly
-after their startup-order gaps were detected; no Discord command apply began.
+after their startup-order gaps were detected; no Discord command apply began
+during either attempt. The later guild-only command release reconciled all 25
+guilds, left the global tree empty, and verified with no remaining command
+diffs.
 
 ## Exact migration policy
 
@@ -57,7 +59,7 @@ The import proved these invariants before its write:
 - all remaining guilds have Squad capability and no Team capability; and
 - every configured role and channel resolves uniquely in the live guild.
 
-## Completed runtime cutover and remaining command release
+## Completed runtime cutover and command release
 
 1. Update the clean production checkout and build the reviewed image while the
    existing bot continues running from its current immutable image. Retain the
@@ -86,9 +88,11 @@ The import proved these invariants before its write:
 6. Verify the authenticated identity, all 25 published runtime documents,
    stable restart count, and one writer. Smoke-test PolyChampions, PCPLUS,
    Polytopia Main, and one former legacy-Team house guild.
-Steps 1–6 completed on 2026-08-28. Step 7 remains: as a separately authorized
-action after runtime verification, apply and verify the digest-bound guild-only
-command plans.
+Steps 1–7 completed on 2026-08-28. The command release applied the
+digest-bound guild-only plans to all 25 active guilds and an independent
+read-back reported zero creates, updates, or removals. The global command tree
+remained empty. No PostgreSQL write, bot restart, or downtime occurred during
+that command release.
 
 No generalized federation, duplicate PCPLUS established-Team records,
 dual-write service, or soak period is required by the demonstrated risk.
@@ -194,8 +198,8 @@ docker compose run --rm --no-deps --entrypoint python bot \
 docker compose up -d bot
 ```
 
-The remaining Discord-write boundary is intentionally separate from runtime
-cutover:
+The completed Discord-write boundary was intentionally separate from runtime
+cutover. This is the exact command shape that was reviewed and applied:
 
 ```bash
 docker compose run --rm --no-deps --entrypoint python bot \

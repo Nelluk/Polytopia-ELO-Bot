@@ -2,11 +2,11 @@
 
 Status: **beta operations guide**
 
-The development beta loads guild configuration from PostgreSQL and manages
-that configuration through private Discord workflows. Production continues to
-use the reviewed static `server_settings.py` profile until the separately
-approved cutover in `PRODUCTION_GUILD_CONFIGURATION.md`. This document is not
-authorization to change a database or synchronize Discord commands.
+The development beta and upstream production bot load active guild
+configuration from PostgreSQL and manage it through private Discord workflows.
+Production's completed cutover and guild-only command release are recorded in
+`PRODUCTION_GUILD_CONFIGURATION.md`. This document is not authorization to
+change a database or synchronize Discord commands.
 
 ## Authority model
 
@@ -26,7 +26,10 @@ guild_configuration_source = database
 one exact reviewed application/database topology; validates the complete
 stored graph before publishing it; and exposes one immutable in-memory snapshot
 to the running process. Startup fails closed on an absent, partial, mismatched,
-or invalid graph. Production remains static until its explicit cutover.
+or invalid graph. Both upstream environments currently select `database`;
+their ignored settings modules still define the allowed guild inventory and
+historical shortcut names, and production retains its static values as a
+reviewed rollback source.
 
 The stored envelope consists of:
 

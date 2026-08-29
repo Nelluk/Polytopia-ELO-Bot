@@ -150,9 +150,19 @@ class RepositoryConsistencyTests(unittest.TestCase):
 
         guild_configuration = _read('docs/DEVELOPMENT_GUILD_CONFIGURATION.md')
         self.assertIn('Status: **beta operations guide**', guild_configuration)
-        self.assertIn('Production continues to', guild_configuration)
+        self.assertIn(
+            'Both upstream environments currently select `database`',
+            guild_configuration,
+        )
         self.assertIn('**Repair commands**', guild_configuration)
         self.assertNotIn('P10.', guild_configuration)
+
+        production_configuration = _read(
+            'docs/PRODUCTION_GUILD_CONFIGURATION.md'
+        )
+        self.assertIn('Steps 1–7 completed', production_configuration)
+        self.assertIn('The global command tree', production_configuration)
+        self.assertIn('remained empty', production_configuration)
 
         readme = _read('README.md')
         self.assertIn('[documentation map](docs/README.md)', readme)

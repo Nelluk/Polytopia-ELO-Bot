@@ -37,9 +37,10 @@ server_list = {
         'inactive_role': None,
         'display_name': 'Development Server',
         'require_teams': False,
-        'allow_teams': True,
-        'allow_uneven_teams': True,
-        'max_team_size': 1,
+        'allow_teams': False,
+        'allow_uneven_teams': False,
+        # Historical internal key; user-facing name is "Maximum players per side".
+        'max_team_size': 2,
         'command_prefix': '$',
         'include_in_global_lb': False,
         'match_challenge_channel': None,
