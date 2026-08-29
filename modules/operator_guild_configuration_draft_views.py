@@ -28,7 +28,8 @@ SECTION_DESCRIPTIONS = {
         'name and legacy command prefix, control players per side, and review '
         'whether this server uses persistent named Teams or the global '
         'leaderboard. Squads are tracked automatically and do not require '
-        'persistent Teams.'
+        'persistent Teams. You should not normally need to change these after '
+        'initial server setup.'
     ),
     service.ROLES: (
         'Discord roles that determine PolyElo access. Ordinary user levels '
