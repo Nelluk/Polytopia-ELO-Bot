@@ -156,6 +156,12 @@ def nonpending_rows():
             source_kind=storage.IMPORT_SOURCE_KIND,
             actor=storage.IMPORT_ACTOR, total_count=1, max_event_number=1,
         ),
+        'enrollment_with_later_nonbootstrap_audit': row(
+            state='active', revision=1, generation=1,
+            document=imported.document, parent=None,
+            source_kind=storage.IMPORT_SOURCE_KIND,
+            actor=storage.IMPORT_ACTOR, total_count=2, max_event_number=2,
+        ),
         'existing_activation': row(
             state='active', revision=2, generation=2,
             document=changed, parent=1, source_kind='owner_activation',

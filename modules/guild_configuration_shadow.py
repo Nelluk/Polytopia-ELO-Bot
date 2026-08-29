@@ -716,15 +716,6 @@ def _derive_bootstrap_pending(
     total_count, max_event_number, events = _bootstrap_audit_summary(
         audit_evidence
     )
-    if (
-        state == 'active'
-        and active_revision == 1
-        and generation == 1
-        and total_count != 1
-    ):
-        raise GuildConfigurationShadowMalformed(
-            'bootstrap_audit_current_revision_evidence_invalid'
-        )
     bootstrap_events = tuple(
         event for event in events
         if event[1] == storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE
@@ -741,6 +732,15 @@ def _derive_bootstrap_pending(
                 'bootstrap_audit_evidence_missing'
             )
         return False
+    if (
+        state == 'active'
+        and active_revision == 1
+        and generation == 1
+        and total_count != 1
+    ):
+        raise GuildConfigurationShadowMalformed(
+            'bootstrap_audit_current_revision_evidence_invalid'
+        )
     if len(bootstrap_events) != 1:
         raise GuildConfigurationShadowMalformed(
             'bootstrap_audit_evidence_conflicting'
