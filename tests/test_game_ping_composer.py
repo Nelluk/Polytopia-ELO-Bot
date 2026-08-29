@@ -194,8 +194,13 @@ class GamePingRegistrationTests(unittest.TestCase):
         self.assertEqual(
             [(parameter.name, parameter.type, parameter.required)
              for parameter in command.parameters],
-            [('game_id', discord.AppCommandOptionType.integer, False)],
+            [
+                ('message', discord.AppCommandOptionType.string, False),
+                ('game_id', discord.AppCommandOptionType.integer, False),
+                ('attachment', discord.AppCommandOptionType.attachment, False),
+            ],
         )
+        self.assertEqual(command._params['message'].to_dict()['max_length'], 6000)
         prefix_commands = {
             command.name: command for command in misc.misc.__cog_commands__
         }
@@ -945,6 +950,112 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured['commit'].text, 'hello world')
         self.assertEqual(captured['commit'].attachments[0].filename, 'note.txt')
         self.assertFalse(captured['confirm_kwargs']['completion_on_success'])
+
+    async def test_native_quick_ping_infers_one_game_and_delivers_immediately(self):
+        author = SimpleNamespace(
+            id=10,
+            display_name='Author',
+            name='author',
+            roles=(),
+        )
+        channel = SimpleNamespace(id=100)
+        interaction = SimpleNamespace(
+            user=author,
+            guild=SimpleNamespace(id=1),
+            channel=channel,
+            channel_id=100,
+        )
+        requester = snapshot(level=5, is_staff=True)
+        loaded = load_result(inferred_game_id=42)
+        facts = channel_facts()
+        captured = {}
+
+        async def candidates(request):
+            captured['candidate'] = request
+            return loaded
+
+        async def confirm(request, **kwargs):
+            captured['commit'] = request
+            captured['confirm_kwargs'] = kwargs
+            return 'delivered'
+
+        with mock.patch.object(service, 'capture_member', return_value=requester), \
+                mock.patch.object(service, 'capture_channel_facts', return_value=facts), \
+                mock.patch.object(workers, 'run_ping_candidates', side_effect=candidates), \
+                mock.patch.object(service, 'confirm_and_deliver', side_effect=confirm):
+            outcome = await service.run_native_single(
+                interaction,
+                message='extension',
+                game_id=None,
+                guilds=('guild-cache',),
+            )
+
+        self.assertEqual(outcome, 'delivered')
+        self.assertIsNone(captured['candidate'].explicit_game_id)
+        self.assertFalse(captured['candidate'].discover_all)
+        self.assertEqual(captured['commit'].game_ids, (42,))
+        self.assertEqual(captured['commit'].text, 'extension')
+        self.assertEqual(captured['commit'].invoked_with, '/game ping')
+        self.assertEqual(captured['confirm_kwargs']['guilds'], ('guild-cache',))
+        self.assertIs(captured['confirm_kwargs']['completion_destination'], channel)
+        self.assertFalse(captured['confirm_kwargs']['completion_on_success'])
+
+    async def test_native_command_uses_quick_path_when_message_is_supplied(self):
+        from modules import games
+
+        game_group = next(
+            command
+            for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        )
+        command = game_group.get_command('ping')
+        committed = workers.GamePingCommitResult(
+            guild_id=1,
+            requester_id=10,
+            target_id=10,
+            scope='single',
+            game_ids=(42,),
+            total_games=1,
+            truncated=False,
+            recipient_ids=(10, 20),
+            recipient_names=('Author', 'Other'),
+            destinations=(),
+            text='extension',
+            attachments=(),
+            requester_description='**Author** (`10`)',
+            target_description='**Author** (`10`)',
+        )
+        delivered = service.DeliveryResult(committed, (), ())
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        cog = SimpleNamespace(bot=SimpleNamespace(guilds=('guild-cache',)))
+
+        with mock.patch.object(
+            games.game_ping,
+            'run_native_single',
+            return_value=delivered,
+        ) as quick_ping:
+            await command.callback(
+                cog,
+                interaction,
+                message='extension',
+                game_id=None,
+                attachment=None,
+            )
+
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        quick_ping.assert_awaited_once_with(
+            interaction,
+            message='extension',
+            game_id=None,
+            attachment=None,
+            guilds=('guild-cache',),
+        )
+        interaction.edit_original_response.assert_awaited_once_with(
+            content='Ping sent for game `42`.',
+        )
 
     async def test_prefix_single_keeps_leading_number_when_channel_inference_wins(self):
         author = SimpleNamespace(id=10, display_name='Author', name='author', roles=(), guild=SimpleNamespace(id=1))

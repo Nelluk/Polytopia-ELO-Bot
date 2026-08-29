@@ -953,6 +953,56 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
     return result
 
 
+async def run_native_single(
+    interaction,
+    *,
+    message: str | None,
+    game_id: int | None,
+    attachment=None,
+    guilds=(),
+) -> DeliveryResult:
+    """Immediate ``/game ping`` path for the ordinary one-game case."""
+
+    requester = capture_member(interaction.user, interaction.guild.id)
+    frozen_attachments = capture_attachments(
+        (attachment,) if attachment is not None else (),
+    )
+    draft = build_draft((str(message or ''),), frozen_attachments)
+    load = await asyncio.wait_for(
+        workers.run_ping_candidates(workers.GamePingLoadRequest(
+            guild_id=int(interaction.guild.id),
+            requester=requester,
+            target_id=requester.discord_id,
+            explicit_game_id=game_id,
+            channel_id=int(interaction.channel_id or 0),
+            discover_all=False,
+        )),
+        timeout=20.0,
+    )
+    selected_game_id = (
+        load.inferred_game_id
+        if load.inferred_game_id is not None
+        else game_id
+    )
+    facts = capture_channel_facts(interaction, load)
+    request = build_commit_request(
+        result=load,
+        requester=requester,
+        target=requester,
+        scope='single',
+        selected_game_id=selected_game_id,
+        channel_facts=facts,
+        draft=draft,
+        invoked_with='/game ping',
+    )
+    return await confirm_and_deliver(
+        request,
+        guilds=guilds,
+        completion_destination=interaction.channel,
+        completion_on_success=False,
+    )
+
+
 async def run_prefix_all(ctx, message: str | None, *, attachments=()):
     """Immediate legacy ``$pingall`` adapter with no platform filter."""
 

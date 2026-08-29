@@ -3198,7 +3198,7 @@ class polygames(commands.Cog):
 
     @game_group.command(
         name='ping',
-        description='Compose a private game notification for one or more games.',
+        description='Ping one game quickly or open the advanced composer.',
     )
     @discord.app_commands.checks.cooldown(
         1,
@@ -3206,16 +3206,61 @@ class polygames(commands.Cog):
         key=lambda interaction: interaction.user.id,
     )
     @discord.app_commands.describe(
-        game_id='Optional incomplete game ID; omit it to infer or choose a game.',
+        message='Message to send; omit it to open the advanced composer.',
+        game_id='Game ID; omit it in an unambiguous game channel.',
+        attachment='Optional single attachment for the quick ping.',
     )
     async def game_ping_slash(
         self,
         interaction: discord.Interaction,
+        message: discord.app_commands.Range[str, 1, 6000] | None = None,
         game_id: int | None = None,
+        attachment: discord.Attachment | None = None,
     ):
-        """Open the requester-bound Components v2 game-ping composer."""
+        """Send a quick ping or open the requester-bound advanced composer."""
 
         await interaction.response.defer(ephemeral=True)
+        if message is not None or attachment is not None:
+            try:
+                delivered = await game_ping.run_native_single(
+                    interaction,
+                    message=message,
+                    game_id=game_id,
+                    attachment=attachment,
+                    guilds=self.bot.guilds,
+                )
+            except (
+                game_ping_workers.GamePingValidationError,
+                game_ping_workers.GamePingLookupError,
+                game_ping_workers.GamePingPermissionError,
+                game_ping_workers.GamePingConflictError,
+                peewee.PeeweeException,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as exc:
+                logger.warning('Native quick game ping failed: %s', exc)
+                return await interaction.edit_original_response(content=str(exc))
+            except Exception:
+                logger.exception('Unexpected native quick game-ping failure')
+                return await interaction.edit_original_response(
+                    content=(
+                        'The game ping could not be completed. Please try again '
+                        'later.'
+                    ),
+                )
+
+            game_label = ', '.join(
+                str(value) for value in delivered.committed.game_ids
+            )
+            if delivered.failures:
+                content = (
+                    f'The ping for game `{game_label}` committed, but some '
+                    'delivery failed. See the public warning and do not retry it.'
+                )
+            else:
+                content = f'Ping sent for game `{game_label}`.'
+            return await interaction.edit_original_response(content=content)
+
         requester = game_ping.capture_member(
             interaction.user,
             interaction.guild.id,
