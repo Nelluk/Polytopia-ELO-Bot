@@ -2,20 +2,15 @@
 
 ## Status and boundary
 
-This document is the review packet for replacing production's stable static
+This document records the completed replacement of production's stable static
 guild settings with the database-backed authority already exercised by beta.
-It does not authorize or perform a production database write, Discord command
-sync, configuration edit, deploy, stop, or restart.
+Discord command synchronization remains a separate, explicitly authorized
+operation.
 
-The source permits an exact production Discord snapshot, an offline import
-plan, digest-bound command planning, and an explicitly acknowledged atomic
-production import. The import can be staged while the running bot remains on
-`static` authority: all five tables are new, the transaction touches no
-existing application table, and the running bot does not read or write the new
-storage. Runtime database authority and the operator workers accept only the
-exact reviewed production application/database topology. None of those source
-paths runs at startup or from an ordinary deployment while the selector
-remains `static`.
+The source retains the exact production Discord snapshot, offline import plan,
+digest-bound command planning, and explicitly acknowledged atomic production
+import. Runtime database authority and the operator workers accept only the
+exact reviewed production application/database topology.
 
 Verified on 2026-08-28:
 
@@ -23,15 +18,21 @@ Verified on 2026-08-28:
   `polyelo-production`;
 - the authenticated application ID is `484067640302764042`;
 - the database identity is `polytopia2` / `polyelo` over the local socket;
-- guild configuration authority is `static` with 25 allowed guilds; and
-- all five dormant guild-configuration tables contain the independently
+- guild configuration authority is `database` with 25 published generation-one
+  guilds on reviewed commit `b692bb1b`; and
+- all five active guild-configuration tables contain the independently
   verified 25-guild bundle
   `2c3659b76702f327e3b679c0b3da2b59a21deb3fb8f19ecd5024581b00584d37`.
 
+The final cutover started the reviewed image with zero unexpected restarts and
+one production writer. All 25 documents published before recurring tasks or
+League cache initialization. Two earlier attempts were rolled back cleanly
+after their startup-order gaps were detected; no Discord command apply began.
+
 ## Exact migration policy
 
-The static list is stable, so the migration is a one-time deterministic import,
-not a dual-write system.
+The static list was stable during migration, so this was a one-time
+deterministic import, not a dual-write system.
 
 | Imported type | Guilds | Result |
 | --- | ---: | --- |
@@ -45,7 +46,7 @@ and global-leaderboard participation. It derives command capabilities from the
 type above, preserves explicit operator/ELO-maintenance overlays, and enables
 `/staffhelp` wherever a staff-help destination is configured.
 
-The import must prove these invariants before any write:
+The import proved these invariants before its write:
 
 - exactly 25 static guilds, 25 allowed guilds, and 25 Discord snapshots;
 - exactly one League guild and one Team guild;
@@ -56,7 +57,7 @@ The import must prove these invariants before any write:
 - all remaining guilds have Squad capability and no Team capability; and
 - every configured role and channel resolves uniquely in the live guild.
 
-## Minimal release and cutover
+## Completed runtime cutover and remaining command release
 
 1. Update the clean production checkout and build the reviewed image while the
    existing bot continues running from its current immutable image. Retain the
@@ -85,8 +86,9 @@ The import must prove these invariants before any write:
 6. Verify the authenticated identity, all 25 published runtime documents,
    stable restart count, and one writer. Smoke-test PolyChampions, PCPLUS,
    Polytopia Main, and one former legacy-Team house guild.
-7. As a separately authorized action after runtime verification, apply and
-   verify the digest-bound guild-only command plans.
+Steps 1–6 completed on 2026-08-28. Step 7 remains: as a separately authorized
+action after runtime verification, apply and verify the digest-bound guild-only
+command plans.
 
 No generalized federation, duplicate PCPLUS established-Team records,
 dual-write service, or soak period is required by the demonstrated risk.
@@ -177,8 +179,8 @@ docker compose run --rm --no-deps --entrypoint python bot \
   --snapshot logs/production/guild-configuration/discord-snapshot.json
 ```
 
-After staging has verified, the following remains the separately approved
-downtime, configuration-edit, and Discord-write boundary:
+The completed runtime cutover used this separately approved downtime and
+configuration-edit boundary:
 
 ```bash
 docker compose stop bot
@@ -189,6 +191,13 @@ docker compose run --rm --no-deps --entrypoint python bot \
 
 # Edit the bound config.ini selector to guild_configuration_source = database.
 
+docker compose up -d bot
+```
+
+The remaining Discord-write boundary is intentionally separate from runtime
+cutover:
+
+```bash
 docker compose run --rm --no-deps --entrypoint python bot \
   scripts/manage_application_commands.py \
   --environment production \
@@ -201,8 +210,6 @@ docker compose run --rm --no-deps --entrypoint python bot \
   --confirm-guild-ids all \
   --confirm-scope guild \
   --confirm-no-global-sync
-
-docker compose up -d bot
 ```
 
 ## Rollback
