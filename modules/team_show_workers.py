@@ -12,7 +12,7 @@ import logging
 
 from peewee import fn
 
-from modules import exceptions, image_storage, models, utilities
+from modules import exceptions, image_storage, models, team_record_scope, utilities
 import settings
 
 
@@ -287,13 +287,15 @@ def _resolve_team(request: TeamShowRequest):
         try:
             matches = models.Team.get_by_name(
                 team_name=lookup,
-                guild_id=int(request.guild_id),
+                guild_id=team_record_scope.persistent_team_guild_id(
+                    request.guild_id
+                ),
                 include_hidden=False,
             )
         except TypeError:
             matches = models.Team.get_by_name(
                 lookup,
-                int(request.guild_id),
+                team_record_scope.persistent_team_guild_id(request.guild_id),
                 False,
                 False,
             )
@@ -319,6 +321,12 @@ def _resolve_team(request: TeamShowRequest):
         .join(models.DiscordMember)
         .where(
             (player_model.guild_id == int(request.guild_id))
+            & (
+                models.Team.guild_id
+                == team_record_scope.persistent_team_guild_id(
+                    request.guild_id
+                )
+            )
             & (models.DiscordMember.discord_id == int(request.requester_id))
             & player_model.team.is_null(False)
         )

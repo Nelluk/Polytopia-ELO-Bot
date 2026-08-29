@@ -56,7 +56,8 @@ def enrollment_snapshot():
     return value
 
 
-def enrollment_request(operation=workers.PREVIEW, **kwargs):
+def enrollment_request(operation=workers.PREVIEW, *, selected_profile=None, **kwargs):
+    selected_profile = selected_profile or profile()
     current = runtime_fixtures.snapshot().guilds[GUILD_ID]
     preview_document = workers.basic_prefix_document(
         guild_id=TARGET_ID, guild_name='Fresh Guild'
@@ -69,8 +70,11 @@ def enrollment_request(operation=workers.PREVIEW, **kwargs):
             'confirmation_text': f'ENROLL {TARGET_ID} {digest}',
         }
     defaults.update(kwargs)
+    snapshot = enrollment_snapshot()
+    snapshot['environment'] = selected_profile.environment
+    snapshot['application_id'] = selected_profile.expected_bot_id
     return workers.request_from_profile(
-        profile=profile(), requester_id=OWNER_ID,
+        profile=selected_profile, requester_id=OWNER_ID,
         invoking_guild_id=GUILD_ID, target_guild_id=TARGET_ID,
         target_guild_name='Fresh Guild',
         template=workers.BASIC_PREFIX_TEMPLATE,
@@ -78,7 +82,7 @@ def enrollment_request(operation=workers.PREVIEW, **kwargs):
         include_in_global_leaderboard=None,
         bot_permissions=tuple(sorted(workers.REQUIRED_BOT_PERMISSIONS)),
         current_runtime_records=(current,), forbidden_guild_ids=(),
-        discord_snapshot=enrollment_snapshot(), operation=operation,
+        discord_snapshot=snapshot, operation=operation,
         **defaults,
     )
 
@@ -163,6 +167,23 @@ def published_snapshot(request):
 
 
 class TemplateAndValidationTests(unittest.TestCase):
+    def test_request_accepts_production_local_peer_authentication(self):
+        selected = profile()
+        selected.environment = storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.PRODUCTION_DATABASE
+        selected.database_user = storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
+        selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+
+        value = enrollment_request(selected_profile=selected)
+
+        self.assertEqual(value.database_password, '')
+        self.assertIsNone(value.database_host)
+
     def test_basic_template_is_complete_usable_and_least_authority(self):
         document = workers.basic_prefix_document(
             guild_id=TARGET_ID, guild_name='Fresh Guild'

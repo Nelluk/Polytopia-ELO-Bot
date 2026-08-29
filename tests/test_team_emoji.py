@@ -208,6 +208,20 @@ class TeamEmojiWorkerTests(unittest.TestCase):
         self.assertEqual(self.database.connection_closed, 3)
         self.assertEqual(len(self.database.state['logs']), 2)
 
+    def test_pcplus_lookup_uses_polychampions_team_records(self):
+        pcplus = team_emoji_workers.team_record_scope.PCPLUS_GUILD_ID
+        polychampions = (
+            team_emoji_workers.team_record_scope.POLYCHAMPIONS_GUILD_ID
+        )
+        self.team.guild_id = polychampions
+
+        result = team_emoji_workers.read_team_emoji(
+            read_request(guild_id=pcplus)
+        )
+
+        self.assertEqual(result.team_id, self.team.id)
+        self.assertEqual(FakeTeamModel.calls[-1][1], polychampions)
+
     def test_unicode_and_custom_emoji_syntax_are_accepted_without_cache(self):
         for value in (
             '😀',

@@ -11,6 +11,7 @@ from typing import Any
 import psycopg2
 
 import settings
+from runtime_config import database_authentication_is_supported
 from modules import guild_configuration_delegation_storage as delegation
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
@@ -123,9 +124,13 @@ def _validate_request(request: GuildDelegationRequest) -> GuildDelegationRequest
         raise OperatorGuildDelegationValidationError(
             'The current Discord role snapshot is invalid.'
         )
-    if not request.database_password:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ):
         raise OperatorGuildDelegationValidationError(
-            'Development database authentication is unavailable.'
+            'Database authentication is unavailable.'
         )
     if request.operation == SHOW:
         if any(value is not None for value in (

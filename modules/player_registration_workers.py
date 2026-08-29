@@ -13,7 +13,7 @@ import unicodedata
 import discord
 import peewee
 
-from modules import models
+from modules import models, team_record_scope
 import settings
 
 
@@ -189,9 +189,10 @@ def _ensure_request_is_allowed(request: PlayerRegistrationRequest) -> None:
 def _matching_team(guild_id: int, role_names: tuple[str, ...]):
     if not role_names:
         return ()
+    team_guild_id = team_record_scope.persistent_team_guild_id(guild_id)
     return tuple(
         models.Team.select().where(
-            (models.Team.guild_id == guild_id)
+            (models.Team.guild_id == team_guild_id)
             & models.Team.name.in_(tuple(role_names))
         )
     )

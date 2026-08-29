@@ -222,6 +222,18 @@ class TeamCreationWorkerTests(unittest.TestCase):
             ],
         )
 
+    def test_pcplus_creation_owns_the_team_in_polychampions(self):
+        pcplus = team_creation_workers.team_record_scope.PCPLUS_GUILD_ID
+        polychampions = (
+            team_creation_workers.team_record_scope.POLYCHAMPIONS_GUILD_ID
+        )
+
+        result = team_creation_workers.create_team(request(guild_id=pcplus))
+
+        self.assertEqual(result.guild_id, pcplus)
+        self.assertEqual(FakeTeamModel.create_calls[0]['guild_id'], polychampions)
+        self.assertEqual(self.database.state['logs'][0]['guild_id'], pcplus)
+
     def test_worker_authoritatively_rechecks_mod_and_allow_teams_snapshots(self):
         for overrides in (
             {'requester_is_mod': False},

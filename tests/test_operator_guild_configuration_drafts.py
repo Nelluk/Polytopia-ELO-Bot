@@ -158,6 +158,26 @@ def run_with(connection, value, *, selected=None):
 
 
 class RequestAndWorkerTests(unittest.TestCase):
+    def test_request_accepts_production_local_peer_authentication(self):
+        selected = profile()
+        selected.environment = drafts.storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = drafts.storage.PRODUCTION_DATABASE
+        selected.database_user = drafts.storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
+        selected.expected_bot_id = drafts.storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+
+        value = workers.request_from_profile(
+            profile=selected, requester_id=OWNER_ID, guild_id=GUILD_ID,
+            operation=workers.SHOW, runtime_record=runtime_record(),
+        )
+
+        self.assertEqual(value.database_password, '')
+        self.assertIsNone(value.database_host)
+
     def test_request_is_frozen_and_owner_is_checked_before_connection(self):
         value = request()
         with self.assertRaises(FrozenInstanceError):

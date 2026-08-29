@@ -7,7 +7,7 @@ import unicodedata
 
 import peewee
 
-from modules import models, team_emoji_workers
+from modules import models, team_emoji_workers, team_record_scope
 
 
 MAX_TEAM_ROLE_NAME_LENGTH = 100
@@ -137,7 +137,9 @@ def create_team(request: TeamCreationRequest) -> TeamCreationResult:
                 # houses, players, or any other related state.
                 team = models.Team.create(
                     name=team_name,
-                    guild_id=int(request.guild_id),
+                    guild_id=team_record_scope.persistent_team_guild_id(
+                        request.guild_id
+                    ),
                     is_hidden=False,
                 )
             except peewee.IntegrityError as exc:

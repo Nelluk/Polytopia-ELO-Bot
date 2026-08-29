@@ -14,7 +14,13 @@ from peewee import *
 from playhouse.postgres_ext import *
 
 import settings
-from modules import channels, exceptions, image_storage, player_timezone_values
+from modules import (
+    channels,
+    exceptions,
+    image_storage,
+    player_timezone_values,
+    team_record_scope,
+)
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -187,6 +193,7 @@ class Team(BaseModel):
 
     @staticmethod
     def get_by_name(team_name: str, guild_id: int, require_exact: bool = False, include_hidden: bool = False):
+        guild_id = team_record_scope.persistent_team_guild_id(guild_id)
         logger.debug(f'Team.get_by_name {team_name}')
         hidden_filter = (Team.is_hidden == 0) if not include_hidden else True
         if require_exact:
@@ -794,7 +801,8 @@ class Player(BaseModel):
             member_roles = [x.name for x in discord_member.roles]
             return set(member_roles).intersection(list_of_role_names)
 
-        query = Team.select(Team.name).where(Team.guild_id == guild_id)
+        team_guild_id = team_record_scope.persistent_team_guild_id(guild_id)
+        query = Team.select(Team.name).where(Team.guild_id == team_guild_id)
         list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
         list_of_matching_teams = []
         for player in list_of_players:
@@ -808,7 +816,8 @@ class Player(BaseModel):
                     name = next(iter(matching_roles))
                     list_of_matching_teams.append(
                         Team.select().where(
-                            (Team.name == name) & (Team.guild_id == guild_id)
+                            (Team.name == name)
+                            & (Team.guild_id == team_guild_id)
                         ).get()
                     )
                 else:

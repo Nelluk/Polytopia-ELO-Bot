@@ -11,7 +11,7 @@ from pathlib import Path
 
 import peewee
 
-from modules import image_storage, models, team_emoji_workers
+from modules import image_storage, models, team_emoji_workers, team_record_scope
 
 
 TEAM_IMAGE_LOCAL = 'local'
@@ -163,7 +163,9 @@ def _reload_team(request: TeamImageMutationRequest):
         team = models.Team.get_by_id(int(request.team_id))
     except peewee.DoesNotExist as exc:
         raise TeamImageLookupError('The requested team no longer exists.') from exc
-    if int(getattr(team, 'guild_id')) != int(request.guild_id):
+    if int(getattr(team, 'guild_id')) != (
+        team_record_scope.persistent_team_guild_id(request.guild_id)
+    ):
         raise TeamImageLookupError(
             'The requested team does not belong to this server.'
         )

@@ -107,6 +107,7 @@ def lifecycle_request(
     operation=workers.PREVIEW,
     state=None,
     generation=None,
+    selected_profile=None,
     **changes,
 ):
     state = (
@@ -135,7 +136,7 @@ def lifecycle_request(
         }
     kwargs.update(changes)
     request = workers.request_from_profile(
-        profile=profile(), requester_id=OWNER_ID,
+        profile=selected_profile or profile(), requester_id=OWNER_ID,
         invoking_guild_id=CONTROL_ID, target_guild_id=TARGET_ID,
         target_guild_name='Lifecycle Target', current_runtime_records=current,
         discord_snapshot=discord_snapshot(), action=action,
@@ -242,6 +243,23 @@ class WorkerContractTests(unittest.TestCase):
         post_patch.start()
         self.addCleanup(post_patch.stop)
         return workers.execute_lifecycle(request), connection
+
+    def test_request_accepts_production_local_peer_authentication(self):
+        selected = profile()
+        selected.environment = storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.PRODUCTION_DATABASE
+        selected.database_user = storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
+        selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+
+        request, *_ = lifecycle_request(selected_profile=selected)
+
+        self.assertEqual(request.database_password, '')
+        self.assertIsNone(request.database_host)
 
     def test_request_is_frozen_owner_only_and_exact_confirmation_precedes_io(self):
         request, _state, _generation, _document = lifecycle_request()

@@ -3,8 +3,12 @@
 .worktrees
 .venv
 __pycache__
+**/__pycache__/
+**/*.py[cod]
 .pytest_cache
 .ruff_cache
+.operator-backup-release.json
+**/.operator-backup-release.json
 
 config.ini
 config.development.ini

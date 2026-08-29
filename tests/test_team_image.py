@@ -273,6 +273,21 @@ class TeamImageWorkerTests(unittest.TestCase):
             team_id,
         )
 
+    def test_pcplus_image_mutation_reloads_polychampions_team(self):
+        pcplus = workers.team_record_scope.PCPLUS_GUILD_ID
+        polychampions = workers.team_record_scope.POLYCHAMPIONS_GUILD_ID
+        self.team.guild_id = polychampions
+
+        loaded = workers._reload_team(mutation_request(guild_id=pcplus))
+
+        self.assertIs(loaded, self.team)
+        self.team.guild_id = pcplus
+        with self.assertRaisesRegex(
+            workers.TeamImageLookupError,
+            'does not belong',
+        ):
+            workers._reload_team(mutation_request(guild_id=pcplus))
+
     def test_immutable_requests_worker_connection_and_effective_precedence(self):
         original = image_bytes('PNG', size=(21, 21))
         image_storage._normalise_image(

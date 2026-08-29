@@ -146,6 +146,21 @@ class RepositoryConsistencyTests(unittest.TestCase):
         self.assertNotIn('484067640302764042', example_config)
         self.assertNotIn('polytopia2', example_config)
 
+    def test_production_image_excludes_nested_runtime_artifacts(self):
+        dockerignore = set(_read('.dockerignore').splitlines())
+        self.assertIn('**/__pycache__/', dockerignore)
+        self.assertIn('**/*.py[cod]', dockerignore)
+        self.assertIn('.operator-backup-release.json', dockerignore)
+        self.assertIn('**/.operator-backup-release.json', dockerignore)
+
+    def test_production_guild_runbook_matches_retained_inventory(self):
+        runbook = _read('docs/PRODUCTION_GUILD_CONFIGURATION.md')
+        self.assertIn('25 allowed guilds', runbook)
+        self.assertIn('| Standard | 23 |', runbook)
+        self.assertIn('exactly three existing global-leaderboard', runbook)
+        self.assertNotIn('49 allowed guilds', runbook)
+        self.assertNotIn('49 imported configurations', runbook)
+
 
 if __name__ == '__main__':
     unittest.main()

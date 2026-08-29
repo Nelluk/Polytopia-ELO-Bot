@@ -19,6 +19,7 @@ from typing import Any, Mapping, Sequence
 import psycopg2
 
 import settings
+from runtime_config import database_authentication_is_supported
 from modules import guild_configuration_draft_storage as drafts
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
@@ -389,7 +390,11 @@ def _validate_request(request: GuildEnrollmentRequest) -> GuildEnrollmentRequest
         raise OperatorGuildEnrollmentValidationError(
             'The guild-enrollment target is invalid.'
         ) from exc
-    if not request.database_password or not request.discord_snapshot_json:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ) or not request.discord_snapshot_json:
         raise OperatorGuildEnrollmentValidationError(
             'Enrollment database or Discord identity is unavailable.'
         )

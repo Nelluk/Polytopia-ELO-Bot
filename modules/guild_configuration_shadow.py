@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 
 import psycopg2
 
+from runtime_config import database_authentication_is_supported
 from modules import guild_configuration_storage as storage
 from modules.guild_configuration_schema import (
     GuildConfigurationDocument,
@@ -390,7 +391,11 @@ def _validate_active_request(
         raise GuildConfigurationShadowMalformed(
             'allowed_guild_inventory_invalid'
         )
-    if not request.database_password:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ):
         raise GuildConfigurationShadowMalformed(
             'database_authentication_missing'
         )
@@ -406,7 +411,11 @@ def _validate_request(request: ShadowReadRequest) -> ShadowReadRequest:
         storage.validate_target(request.target)
     except storage.GuildConfigurationStorageError as exc:
         raise GuildConfigurationShadowMalformed('runtime_target_invalid') from exc
-    if not request.database_password:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ):
         raise GuildConfigurationShadowMalformed('database_authentication_missing')
     if not request.expected_imports or len(request.expected_imports) > MAX_SHADOW_GUILDS:
         raise GuildConfigurationShadowMalformed('expected_guild_inventory_invalid')

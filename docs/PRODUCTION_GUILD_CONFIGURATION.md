@@ -23,8 +23,10 @@ Verified on 2026-08-28:
   `polyelo-production`;
 - the authenticated application ID is `484067640302764042`;
 - the database identity is `polytopia2` / `polyelo` over the local socket;
-- guild configuration authority is `static` with 49 allowed guilds; and
-- none of the five guild-configuration tables exists.
+- guild configuration authority is `static` with 25 allowed guilds; and
+- all five dormant guild-configuration tables contain the independently
+  verified 25-guild bundle
+  `2c3659b76702f327e3b679c0b3da2b59a21deb3fb8f19ecd5024581b00584d37`.
 
 ## Exact migration policy
 
@@ -33,7 +35,7 @@ not a dual-write system.
 
 | Imported type | Guilds | Result |
 | --- | ---: | --- |
-| Standard | 47 | Core user, Squad, and same-guild administration commands; no persistent Team, league, or house commands. |
+| Standard | 23 | Core user, Squad, and same-guild administration commands; no persistent Team, league, or house commands. |
 | Team | PolyChampions Plus (`1289762588346814495`) | Persistent Team commands using the existing PolyChampions-owned Team records and the retained PCPLUS routing override. |
 | League | PolyChampions (`447883341463814144`) | Persistent Team, league, and house commands. |
 
@@ -45,9 +47,9 @@ type above, preserves explicit operator/ELO-maintenance overlays, and enables
 
 The import must prove these invariants before any write:
 
-- exactly 49 static guilds, 49 allowed guilds, and 49 Discord snapshots;
+- exactly 25 static guilds, 25 allowed guilds, and 25 Discord snapshots;
 - exactly one League guild and one Team guild;
-- exactly four existing global-leaderboard participants;
+- exactly three existing global-leaderboard participants;
 - `allow_teams=true` only for PolyChampions and PCPLUS;
 - `require_teams=true` only for PolyChampions;
 - PCPLUS has Team capability but no league/house capability;
@@ -72,20 +74,24 @@ The import must prove these invariants before any write:
    Expected policy effects are `/squad` and `/guild` on all active guilds,
    `/team` only on PolyChampions and PCPLUS, `/league` and `/house` only on
    PolyChampions, and staff help only where a destination exists.
-4. After a normal production backup and separate database-write approval,
-   atomically stage all five additive tables and the 49 revision-one documents
-   while the existing bot continues running on static authority. Verify every
-   row and digest. An exact repeat is a verified no-op.
-5. In one short approved maintenance action, stop the production bot, verify
-   the staged bundle again, change the bound `config.ini` selector to
-   `database`, apply the reviewed guild command plans, and start the reviewed
-   image.
-6. Verify the authenticated identity, all 49 published runtime documents,
+4. The separately approved online-static stage created all five additive
+   tables and imported the 25 revision-one documents while the existing bot
+   remained on static authority. Independent verification matched every row
+   and digest; an exact repeat is a verified no-op.
+5. Immediately before cutover, take and verify a fresh production backup. In
+   one short approved maintenance action, stop the production bot, prove zero
+   production writers, verify the staged bundle again, change the bound
+   `config.ini` selector to `database`, and start the reviewed image.
+6. Verify the authenticated identity, all 25 published runtime documents,
    stable restart count, and one writer. Smoke-test PolyChampions, PCPLUS,
    Polytopia Main, and one former legacy-Team house guild.
+7. As a separately authorized action after runtime verification, apply and
+   verify the digest-bound guild-only command plans.
 
-No generalized federation, duplicate PCPLUS Team records, dual-write service,
-or soak period is required by the demonstrated risk.
+No generalized federation, duplicate PCPLUS established-Team records,
+dual-write service, or soak period is required by the demonstrated risk.
+PCPLUS's hidden generic game-side rows (for example Home and Away) are not
+persistent named organizations and remain historical application data.
 
 ## Effective-reference cleanup
 
@@ -220,7 +226,8 @@ source approval:
 - deploying/recreating the production container while it remains static;
 - capturing or inspecting live Discord state;
 - sending any guild-owner notification;
-- staging the five tables and 49 imported configurations while static;
+- staging or changing the five tables and 25 imported configurations while
+  static;
 - editing `config.ini` to select database authority;
 - applying guild-scoped Discord commands; and
 - stopping or starting the production bot.

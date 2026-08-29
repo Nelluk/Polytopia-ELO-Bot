@@ -194,6 +194,29 @@ class ShadowWorkerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(connection.closed)
 
+    async def test_production_local_peer_authentication_reaches_both_loaders(self):
+        selected = profile()
+        selected.environment = storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.PRODUCTION_DATABASE
+        selected.database_user = storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
+        selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+
+        active = shadow.active_request_from_profile(selected)
+        comparison = shadow.request_from_profile(
+            profile=selected,
+            expected_bundle=fixtures.bundle(),
+        )
+
+        self.assertEqual(active.database_password, '')
+        self.assertIsNone(active.database_host)
+        self.assertEqual(comparison.database_password, '')
+        self.assertIsNone(comparison.database_host)
+
     async def test_direct_active_loader_can_discover_additional_active_guilds(self):
         selected = profile()
         selected.guild_configuration_source = 'database'
@@ -562,6 +585,9 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
         selected.environment = storage.PRODUCTION_ENVIRONMENT
         selected.database_name = storage.PRODUCTION_DATABASE
         selected.database_user = storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
         selected.expected_bot_id = storage.PRODUCTION_APPLICATION_ID
         selected.background_tasks_enabled = True
         selected.bullet_enabled = True

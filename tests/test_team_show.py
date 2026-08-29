@@ -393,6 +393,27 @@ class TeamShowWorkerTests(unittest.TestCase):
             with self.assertRaisesRegex(workers.TeamShowLookupError, 'ambiguous'):
                 workers._resolve_team(request(team_lookup=None))
 
+    def test_pcplus_explicit_show_uses_polychampions_team_records(self):
+        pcplus = workers.team_record_scope.PCPLUS_GUILD_ID
+        polychampions = workers.team_record_scope.POLYCHAMPIONS_GUILD_ID
+        with mock.patch.object(
+            workers.models.Team,
+            'get_by_name',
+            return_value=(self.team,),
+        ) as lookup:
+            value = request(team_lookup='Ronin')
+            value = replace(
+                value,
+                guild_id=pcplus,
+                guild_snapshot=replace(value.guild_snapshot, guild_id=pcplus),
+            )
+            resolved = workers._resolve_team(
+                value
+            )
+
+        self.assertIs(resolved, self.team)
+        self.assertEqual(lookup.call_args.kwargs['guild_id'], polychampions)
+
     async def _run_slow_worker(self):
         original = workers.load_team_show
 

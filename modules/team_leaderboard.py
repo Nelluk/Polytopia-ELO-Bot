@@ -10,7 +10,7 @@ import uuid
 import discord
 
 import settings
-from modules import exceptions, team_leaderboard_workers
+from modules import exceptions, team_leaderboard_workers, team_record_scope
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -148,6 +148,9 @@ def configured_tier_choices() -> tuple[tuple[int, str], ...]:
 
 
 def _database_guild_id(guild_id: int) -> int:
+    record_guild_id = team_record_scope.persistent_team_guild_id(guild_id)
+    if record_guild_id != int(guild_id):
+        return record_guild_id
     try:
         if int(guild_id) == int(settings.server_ids['test']):
             return int(settings.server_ids['polychampions'])

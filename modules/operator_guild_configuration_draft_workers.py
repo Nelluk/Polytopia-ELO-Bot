@@ -12,6 +12,7 @@ from typing import Any, Mapping
 import psycopg2
 
 import settings
+from runtime_config import database_authentication_is_supported
 from modules import guild_configuration_draft_storage as drafts
 from modules import guild_configuration_delegation_storage as delegation
 from modules import guild_configuration_runtime as runtime
@@ -274,9 +275,13 @@ def _validate_request(
         raise OperatorGuildConfigurationDraftValidationError(
             'The running document digest is invalid.'
         )
-    if not request.database_password:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ):
         raise OperatorGuildConfigurationDraftValidationError(
-            'Development database authentication is unavailable.'
+            'Database authentication is unavailable.'
         )
     if request.operation not in {ROLLBACK_PREVIEW, ROLLBACK_COMMIT} and any(
             value is not None for value in (

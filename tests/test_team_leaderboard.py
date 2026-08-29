@@ -126,6 +126,14 @@ def interaction(user_id=777):
 
 
 class PrefixMatrixTests(unittest.IsolatedAsyncioTestCase):
+    def test_pcplus_uses_polychampions_team_leaderboard_records(self):
+        self.assertEqual(
+            service._database_guild_id(
+                service.team_record_scope.PCPLUS_GUILD_ID
+            ),
+            service.team_record_scope.POLYCHAMPIONS_GUILD_ID,
+        )
+
     def test_prefix_filter_matrix_and_invalid_tier(self):
         self.assertEqual(
             service.parse_prefix_filters(None),

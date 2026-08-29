@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
-from modules import models
+from modules import models, team_record_scope
 
 
 # Discord custom emoji are rendered from their serialized form.  Resolving a
@@ -231,6 +231,7 @@ def _team_matches(
     *,
     include_hidden: bool = True,
 ):
+    guild_id = team_record_scope.persistent_team_guild_id(guild_id)
     try:
         matches = models.Team.get_by_name(
             team_name=team_lookup,
@@ -262,6 +263,12 @@ def _inferred_team_matches(request: TeamEmojiReadRequest | TeamEmojiMutationRequ
         .join(models.DiscordMember)
         .where(
             (player_model.guild_id == int(request.guild_id))
+            & (
+                models.Team.guild_id
+                == team_record_scope.persistent_team_guild_id(
+                    request.guild_id
+                )
+            )
             & (models.DiscordMember.discord_id == int(request.requester_id))
             & player_model.team.is_null(False)
         )
@@ -313,8 +320,11 @@ def list_team_autocomplete(
     with models.db.connection_context():
         limit = min(max(int(request.limit), 1), 25)
         current = str(request.current or '').strip()
+        team_guild_id = team_record_scope.persistent_team_guild_id(
+            request.guild_id
+        )
         query = models.Team.select(models.Team.id, models.Team.name).where(
-            (models.Team.guild_id == int(request.guild_id))
+            (models.Team.guild_id == team_guild_id)
             & (models.Team.is_hidden == 0)
             & (models.Team.is_archived == 0)
         )

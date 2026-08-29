@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import logging
 
 import settings
-from modules import exceptions, models, team_emoji_workers
+from modules import exceptions, models, team_emoji_workers, team_record_scope
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -452,7 +452,10 @@ def _validate_tier(value: str | None) -> tuple[int, str]:
 def _duplicate_team_name(team, *, guild_id: int, name: str) -> bool:
     try:
         query = models.Team.select().where(
-            (models.Team.guild_id == int(guild_id))
+            (
+                models.Team.guild_id
+                == team_record_scope.persistent_team_guild_id(guild_id)
+            )
             & (models.Team.name == name)
             & (models.Team.id != int(team.id))
         )

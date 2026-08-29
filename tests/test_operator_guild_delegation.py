@@ -106,6 +106,27 @@ class Connection:
 
 
 class RequestAndWorkerTests(unittest.TestCase):
+    def test_request_accepts_production_local_peer_authentication(self):
+        selected = profile()
+        selected.environment = storage.storage.PRODUCTION_ENVIRONMENT
+        selected.database_name = storage.storage.PRODUCTION_DATABASE
+        selected.database_user = storage.storage.PRODUCTION_ROLE
+        selected.database_password = ''
+        selected.database_host = None
+        selected.database_port = None
+        selected.expected_bot_id = storage.storage.PRODUCTION_APPLICATION_ID
+        selected.background_tasks_enabled = True
+        selected.bullet_enabled = True
+
+        value = workers.request_from_profile(
+            profile=selected, requester_id=OWNER_ID, guild_id=GUILD_ID,
+            operation=workers.SHOW, role_evidence=evidence(),
+            runtime_guild_ids=(GUILD_ID,),
+        )
+
+        self.assertEqual(value.database_password, '')
+        self.assertIsNone(value.database_host)
+
     def test_owner_and_live_role_evidence_are_checked_before_connection(self):
         value = request()
         with mock.patch.object(workers.settings, 'owner_id', OWNER_ID), \

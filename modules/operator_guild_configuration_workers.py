@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 import psycopg2
 
 import settings
+from runtime_config import database_authentication_is_supported
 from modules import guild_configuration_shadow as shadow
 from modules import guild_configuration_storage as storage
 from modules.guild_configuration_schema import (
@@ -223,9 +224,13 @@ def _validate_request(
             raise OperatorGuildConfigurationValidationError(
                 'The running document digest is invalid.'
             )
-    if not request.database_password:
+    if not database_authentication_is_supported(
+            environment=request.target.environment,
+            database_password=request.database_password,
+            database_host=request.database_host,
+    ):
         raise OperatorGuildConfigurationValidationError(
-            'Development database authentication is unavailable.'
+            'Database authentication is unavailable.'
         )
     if request.operation == VALIDATE:
         if not request.discord_snapshot_json:
