@@ -178,7 +178,12 @@ class CacheAndCallerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_ready_loads_draft_then_channel_cache(self):
         events = []
-        bot = SimpleNamespace(user=SimpleNamespace(id=479029527553638401))
+        readiness_event = asyncio.Event()
+        bot = SimpleNamespace(
+            user=SimpleNamespace(id=479029527553638401),
+            wait_until_ready=mock.AsyncMock(),
+            _guild_configuration_ready_event=readiness_event,
+        )
         cog = league.league(bot)
 
         async def draft(guild_id):
@@ -206,12 +211,18 @@ class CacheAndCallerTests(unittest.IsolatedAsyncioTestCase):
             'refresh_league_team_channels',
             side_effect=refresh,
         ):
-            await cog.on_ready()
+            listener = asyncio.create_task(cog.on_ready())
+            await asyncio.sleep(0)
+            self.assertEqual(events, [])
+            readiness_event.set()
+            await listener
+        bot.wait_until_ready.assert_awaited_once()
         self.assertEqual(events, [('draft', 301), ('channels', 300)])
         self.assertEqual(cog.announcement_message, 123)
 
     def test_every_cache_caller_awaits_new_helper(self):
         league_source = inspect.getsource(league.league.on_ready)
+        self.assertIn('wait_until_guild_configuration_ready', league_source)
         start_source = inspect.getsource(game_start.publish_start_result)
         legacy_source = inspect.getsource(games.post_newgame_messaging)
         for source in (league_source, start_source, legacy_source):

@@ -352,6 +352,7 @@ class league(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        await settings.wait_until_guild_configuration_ready(self.bot)
         guild_id = settings.server_ids['polychampions']
         if self.bot.user.id == 479029527553638401:
             guild_id = settings.server_ids['test']
