@@ -85,7 +85,9 @@ the configured bot owner. It intentionally has only two subcommands:
 - `/operator guild list` — open the paginated server-management console.
   Select any enrolled server visible to the bot, then use target-bound actions
   for validation, history and restore, suspension/resumption, manager policy,
-  or command-tree repair.
+  or command-tree repair. The temporary **Owner notices** action opens the
+  rollout-message preview across all active servers without requiring one
+  server to be selected.
 - `/operator guild enroll` — preview and enroll a quarantined visible guild,
   or update an enrolled guild's Standard/Team/League type and optional global
   leaderboard participation without resetting its other settings.
@@ -150,6 +152,30 @@ leaderboard participation are protected owner settings; delegated managers can
 still manage the unequal-side and maximum-players-per-side controls. Runtime
 permission checks remain authoritative even when Discord hides or exposes a
 command root.
+
+## One-time guild-owner update
+
+The bot-owner-only **Owner notices** action under `/operator guild list`
+prepares the one-time database-settings rollout message from the current
+published guild graph and a fresh, member-free Discord role/channel snapshot.
+It groups multiple active servers owned by the same Discord account into one
+bounded DM sequence. Deleted roles or channels are described under either
+`/guild settings` actions or protected settings that require Nelluk.
+
+Opening the workspace is read-only and sends nothing. It shows every exact
+recipient, server, and message part; **DM this preview to me** contacts only
+the invoking bot owner. Actual owner delivery requires a second, red-button
+confirmation and rebuilds the complete plan immediately before sending. A
+changed owner, revision, digest, or validation finding refuses the send and
+requires a fresh review. Failed DMs never fall back to a public server
+message.
+
+Successful message IDs and hashes are recorded under the configured log root
+in `guild-owner-notices/database-guild-settings-rollout-v1.json`. Completed
+owners are skipped on later attempts; partial older plans require manual
+review. This is a single named rollout campaign, not a generalized broadcast
+system. Production deployment and the later external-message send remain
+separate approvals.
 
 Persistent `/team` behavior remains gated by `allow_teams`. In a deliberately
 Team-enabled guild, configured moderators may manage that guild's Team records,

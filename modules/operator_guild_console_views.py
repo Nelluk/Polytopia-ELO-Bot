@@ -24,6 +24,7 @@ COMMANDS = 'commands'
 ActionRunner = Callable[[Any, str, int], Awaitable[None]]
 RollbackRunner = Callable[[Any, int, int], Awaitable[None]]
 BackRunner = Callable[[Any], Awaitable[None]]
+NoticeRunner = Callable[[Any], Awaitable[None]]
 
 
 def _escape(value: Any) -> str:
@@ -76,6 +77,7 @@ class GuildRegistryConsole(components_v2.RequesterLayoutView):
         requester_id: int,
         result: workers.GuildConfigurationReadResult,
         runner: ActionRunner,
+        notice_runner: NoticeRunner | None = None,
         timeout: float = 600.0,
     ):
         super().__init__(requester_id=int(requester_id), timeout=timeout)
@@ -84,6 +86,7 @@ class GuildRegistryConsole(components_v2.RequesterLayoutView):
         self.result = result
         self.records = tuple(result.records)
         self.runner = runner
+        self.notice_runner = notice_runner
         self.selected_guild_id: int | None = None
         self.busy = False
         self.status = 'Select a server to inspect or manage.'
@@ -149,6 +152,23 @@ class GuildRegistryConsole(components_v2.RequesterLayoutView):
         self.busy = True
         try:
             await self.runner(interaction, action, selected.guild_id)
+        finally:
+            self.busy = False
+
+    async def _owner_notices(self, interaction: Any) -> None:
+        if not await self.authorize(interaction):
+            return
+        if self.notice_runner is None:
+            return await interaction.response.send_message(
+                'The owner-update workflow is unavailable.', ephemeral=True,
+            )
+        if self.busy:
+            return await interaction.response.send_message(
+                'Another server action is already opening.', ephemeral=True,
+            )
+        self.busy = True
+        try:
+            await self.notice_runner(interaction)
         finally:
             self.busy = False
 
@@ -253,7 +273,14 @@ class GuildRegistryConsole(components_v2.RequesterLayoutView):
             disabled=self.busy or self.page_index >= self.page_count - 1,
         )
         next_page.callback = self._next
-        children.append(discord.ui.ActionRow(previous, page, next_page))
+        owner_notices = discord.ui.Button(
+            label='Owner notices',
+            disabled=self.busy or self.notice_runner is None,
+        )
+        owner_notices.callback = self._owner_notices
+        children.append(discord.ui.ActionRow(
+            previous, page, next_page, owner_notices,
+        ))
 
         active = selected is not None and selected.enrollment_state == 'active'
         suspended = (

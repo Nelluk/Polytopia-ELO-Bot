@@ -49,6 +49,9 @@ from modules import operator_restart_views
 from modules import operator_guild_configuration as operator_guild_configuration_service
 from modules import operator_guild_console_views
 from modules import operator_guild_configuration_workers
+from modules import guild_configuration_shadow
+from modules import operator_guild_owner_notices
+from modules import operator_guild_owner_notice_views
 from modules import operator_guild_configuration_drafts as operator_guild_draft_service
 from modules import operator_guild_configuration_draft_views
 from modules import operator_guild_configuration_draft_workers
@@ -1633,6 +1636,145 @@ class administration(commands.Cog):
             requester_id=int(interaction.user.id),
             result=result,
             runner=self._operator_guild_console_action,
+            notice_runner=self._operator_guild_owner_notices_open,
+        )
+
+    async def _operator_guild_owner_notice_plan(
+        self,
+        interaction: discord.Interaction,
+    ):
+        guild_ids = settings.database_guild_ids()
+        records = tuple(
+            settings.database_guild_configuration(guild_id)
+            for guild_id in guild_ids
+        )
+        if not guild_ids or any(value is None for value in records):
+            raise operator_guild_owner_notices.GuildOwnerNoticeError(
+                'The running database guild configuration is incomplete.'
+            )
+        request = operator_guild_configuration_service.build_request(
+            bot=self.bot,
+            interaction=interaction,
+            operation=operator_guild_configuration_workers.LIST,
+        )
+        registry = await operator_guild_configuration_workers.run_read(request)
+        active = {
+            value.guild_id: value
+            for value in registry.records
+            if value.enrollment_state == 'active'
+        }
+        if tuple(sorted(active)) != tuple(guild_ids):
+            raise operator_guild_owner_notices.GuildOwnerNoticeError(
+                'The database registry differs from the running active guilds.'
+            )
+        for record in records:
+            stored = active[record.guild_id]
+            if (
+                    stored.active_revision != record.revision
+                    or stored.generation != record.generation
+                    or stored.document_digest != record.document_digest
+            ):
+                raise operator_guild_owner_notices.GuildOwnerNoticeError(
+                    'The database registry differs from the running immutable '
+                    'configuration; restart reconciliation is required.'
+                )
+        snapshot = guild_configuration_shadow.capture_discord_snapshot(
+            profile=settings.runtime_profile,
+            guilds=tuple(self.bot.guilds),
+            guild_ids=guild_ids,
+        )
+        owners = operator_guild_owner_notices.capture_owner_identities(
+            tuple(self.bot.guilds), guild_ids,
+        )
+        return operator_guild_owner_notices.build_plan(
+            profile=settings.runtime_profile,
+            runtime_records=records,
+            discord_snapshot=snapshot,
+            owners=owners,
+        )
+
+    async def _operator_guild_owner_notices_open(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        if int(interaction.user.id) != int(settings.owner_id):
+            return await interaction.response.send_message(
+                'Only the configured bot owner can prepare guild-owner notices.',
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            plan = await self._operator_guild_owner_notice_plan(interaction)
+            path = operator_guild_owner_notices.receipt_path(
+                settings.runtime_profile.log_root,
+            )
+            receipts = await operator_guild_owner_notices.run_receipt_io(
+                operator_guild_owner_notices.load_receipts, path,
+            )
+            view = operator_guild_owner_notice_views.GuildOwnerNoticeWorkspace(
+                requester_id=int(interaction.user.id),
+                plan=plan,
+                completed_owner_ids=(
+                    operator_guild_owner_notices.completed_owner_ids(receipts)
+                ),
+                test_runner=self._operator_guild_owner_notice_test,
+                delivery_runner=self._operator_guild_owner_notice_deliver,
+                back_runner=self._operator_guild_console_back,
+            )
+            await operator_guild_console_views.replace_private(
+                interaction, view,
+            )
+        except operator_guild_owner_notices.GuildOwnerNoticeError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected guild-owner notice preview failure')
+            await interaction.followup.send(
+                'Could not prepare the owner-notice preview. No message was sent.',
+                ephemeral=True,
+            )
+
+    async def _operator_guild_owner_notice_test(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+    ) -> None:
+        await interaction.user.send(
+            '**TEST — guild owners have not been contacted.**',
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        await interaction.user.send(
+            message,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    async def _operator_guild_owner_notice_deliver(
+        self,
+        interaction: discord.Interaction,
+        expected_plan: operator_guild_owner_notices.OwnerNoticePlan,
+    ) -> operator_guild_owner_notices.OwnerNoticeDeliveryResult:
+        if int(interaction.user.id) != int(settings.owner_id):
+            raise operator_guild_owner_notices.GuildOwnerNoticeError(
+                'Only the configured bot owner can send guild-owner notices.'
+            )
+        current_plan = await self._operator_guild_owner_notice_plan(interaction)
+        if current_plan.plan_digest != expected_plan.plan_digest:
+            raise operator_guild_owner_notices.GuildOwnerNoticeError(
+                'Guild ownership, configuration, or validation findings changed. '
+                'Reopen Owner notices and review the fresh plan.'
+            )
+
+        async def resolve_user(owner_id: int):
+            user = self.bot.get_user(int(owner_id))
+            if user is None:
+                user = await self.bot.fetch_user(int(owner_id))
+            return user
+
+        return await operator_guild_owner_notices.deliver_plan(
+            current_plan,
+            resolve_user=resolve_user,
+            receipts_path=operator_guild_owner_notices.receipt_path(
+                settings.runtime_profile.log_root,
+            ),
         )
 
     async def _operator_guild_console_back(

@@ -42,6 +42,32 @@ def registry(records):
 
 
 class GuildRegistryConsoleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_owner_notices_open_globally_without_selecting_a_guild(self):
+        notice_runner = mock.AsyncMock()
+
+        async def runner(*_args):
+            return None
+
+        workspace = views.GuildRegistryConsole(
+            requester_id=OWNER_ID,
+            result=registry((record(1),)),
+            runner=runner,
+            notice_runner=notice_runner,
+        )
+        button = next(
+            item for item in workspace.walk_children()
+            if isinstance(item, discord.ui.Button)
+            and item.label == 'Owner notices'
+        )
+        self.assertFalse(button.disabled)
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=OWNER_ID),
+            guild_id=GUILD_ID,
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        await button.callback(interaction)
+        notice_runner.assert_awaited_once_with(interaction)
+
     async def test_42_guilds_are_paginated_below_component_limits(self):
         async def runner(*_args):
             return None

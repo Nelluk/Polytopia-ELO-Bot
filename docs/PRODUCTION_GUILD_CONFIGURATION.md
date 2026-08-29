@@ -147,10 +147,10 @@ The snapshot and command inspection cross the live-Discord inspection boundary
 and require that approval, but none of these commands writes PostgreSQL or
 Discord.
 
-An optional private notification plan can be generated from the reviewed
-import plan. The tool has no send operation, does not import Discord, and
-groups multiple guilds owned by the same account into one bounded proposed DM
-sequence:
+The migration-era cleanup evidence can still generate its historical private
+notification plan. This offline tool has no send operation, does not import
+Discord, and groups multiple guilds owned by the same account into one bounded
+proposed DM sequence:
 
 ```bash
 docker compose run --rm --no-deps --entrypoint python bot \
@@ -161,10 +161,13 @@ docker compose run --rm --no-deps --entrypoint python bot \
   logs/production/guild-configuration/owner-notification-plan.json
 ```
 
-Scopes are `review`, `access`, `routing`, and `all`. Review the exact recipient
-IDs and rendered messages before separately authorizing any future message
-sender. This repository currently provides planning only; it cannot send,
-ping, or DM an owner through this tool.
+Scopes are `review`, `access`, `routing`, and `all`. This artifact remains
+review evidence only; it cannot ping or DM an owner. The current one-time
+rollout notice is instead previewed from **Owner notices** in
+`/operator guild list`; that runtime workflow uses the published database
+graph and a fresh Discord snapshot rather than this pre-cutover import plan.
+Its test DM, production deployment, and final owner delivery remain separately
+authorized external effects.
 
 The following online staging command is deliberately only a command shape. It
 must not be run until the backup and database-write approvals have been given
