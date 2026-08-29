@@ -446,7 +446,15 @@ class ApplicationCommandManagementTests(unittest.TestCase):
             pass
 
         copied = manager._copy_command(ranged)
-        payload = copied._params['message'].to_dict()
+        descriptor = SimpleNamespace(name='ranged', command=copied)
+        client = commands.Bot(command_prefix='!', intents=discord.Intents.none())
+        guild = discord.Object(id=10)
+        try:
+            manager._prepare_guild_commands(client, (descriptor,), guild)
+            installed = client.tree.get_commands(guild=guild)[0]
+            payload = installed._params['message'].to_dict()
+        finally:
+            asyncio.run(client.close())
 
         self.assertEqual(payload['min_length'], 1)
         self.assertEqual(payload['max_length'], 4000)

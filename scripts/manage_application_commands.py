@@ -386,7 +386,7 @@ def _prepare_guild_commands(
                 f'No loaded command template is available for root '
                 f'{descriptor.name!r}.'
             )
-        tree.add_command(copy.deepcopy(descriptor.command), guild=guild)
+        tree.add_command(_copy_command(descriptor.command), guild=guild)
     return tree
 
 
