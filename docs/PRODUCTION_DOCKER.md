@@ -11,17 +11,18 @@ change PostgreSQL, or synchronize Discord commands.
 The deployment is deliberately conventional:
 
 - one normal clone at `/srv/polyelo/PolyBot39`;
-- root `Dockerfile`, `compose.production.yaml`, and ignored `.env`;
+- root `Dockerfile` with ignored, operator-owned `compose.yaml` and `.env`;
 - ignored root `config.ini`, `server_settings.py`, and
   `spreadsheet_creds.json` mounted read-only;
 - existing `data/images` and `logs` bind-mounted read-write;
 - host PostgreSQL reached only through the read-only Unix-socket mount; and
 - no published ports and no Compose-owned production database storage.
 
-The public bundled-PostgreSQL deployment remains `compose.yaml`. The generic
-host-PostgreSQL example remains `compose.host-postgres.yaml`. This file records
-the upstream PolyElo deployment because it also requires the existing Bullet
-credential file.
+The public bundled-PostgreSQL starting point is `compose.example.yaml`; the
+TCP-managed-database alternative is `compose.external-postgres.example.yaml`.
+GreenCloud's private `compose.yaml` is adapted for its Unix socket, persistent
+bind mounts, and existing Bullet credential without publishing those
+host-specific choices as another release topology.
 
 ## Offline preparation
 
@@ -30,7 +31,9 @@ environment file once:
 
 ```bash
 id polyelo
-cp .env.production.example .env
+# Reconstruct only when the private files are absent:
+cp compose.external-postgres.example.yaml compose.yaml
+cp .env.example .env
 chmod 600 .env
 docker compose config --quiet
 docker compose build bot

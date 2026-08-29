@@ -197,6 +197,80 @@ class RuntimeProfileTests(unittest.TestCase):
             profile.superuser_ids,
             (profile.owner_id,),
         )
+        self.assertEqual(profile.database_configuration_source, 'config')
+
+    def test_environment_is_one_complete_database_authority(self):
+        self.write_config(
+            'development',
+            psql_db='ignored_dev',
+            psql_user='ignored_user',
+            psql_password='ignored-password',
+            psql_host='ignored-host',
+        )
+        self.write_server_settings('development')
+        environ = {
+            'POLYBOT_ENV': 'development',
+            'POLYBOT_DATABASE_CONFIGURATION': 'environment',
+            'POLYBOT_DATABASE_NAME': 'independent_dev',
+            'POLYBOT_DATABASE_USER': 'independent_bot',
+            'POLYBOT_DATABASE_PASSWORD': 'environment-password',
+            'POLYBOT_DATABASE_HOST': 'database',
+            'POLYBOT_DATABASE_PORT': '5544',
+        }
+
+        profile = load_runtime_profile(
+            project_root=self.root,
+            environ=environ,
+            create_directories=False,
+        )
+
+        self.assertEqual(profile.database_name, 'independent_dev')
+        self.assertEqual(profile.database_user, 'independent_bot')
+        self.assertEqual(profile.database_password, 'environment-password')
+        self.assertEqual(profile.database_host, 'database')
+        self.assertEqual(profile.database_port, 5544)
+        self.assertEqual(profile.database_configuration_source, 'environment')
+        self.assertIn(
+            'database configuration source: environment',
+            format_runtime_profile(profile),
+        )
+
+    def test_environment_database_authority_rejects_missing_values(self):
+        self.write_config('development')
+        self.write_server_settings('development')
+        with self.assertRaisesRegex(
+                RuntimeConfigurationError, 'POLYBOT_DATABASE_USER'):
+            load_runtime_profile(
+                project_root=self.root,
+                environ={
+                    'POLYBOT_ENV': 'development',
+                    'POLYBOT_DATABASE_CONFIGURATION': 'environment',
+                    'POLYBOT_DATABASE_NAME': 'independent_dev',
+                },
+                create_directories=False,
+            )
+
+    def test_compose_style_private_file_paths_are_supported(self):
+        self.write_config('development')
+        self.write_server_settings('development')
+        private_config = self.root / 'private-config.ini'
+        private_settings = self.root / 'private-settings.py'
+        (self.root / 'config.development.ini').rename(private_config)
+        (self.root / 'server_settings_dev.py').rename(private_settings)
+
+        profile = load_runtime_profile(
+            project_root=self.root,
+            environ={
+                'POLYBOT_ENV': 'development',
+                'POLYBOT_RUNTIME_CONFIG_PATH': str(private_config),
+                'POLYBOT_SERVER_SETTINGS_PATH': str(private_settings),
+            },
+            create_directories=False,
+        )
+
+        self.assertEqual(profile.config_path, private_config)
+        self.assertEqual(profile.server_settings_path, private_settings)
+        self.assertEqual(profile.server_settings_module, 'server_settings')
 
     def test_superusers_are_configured_sorted_and_include_owner(self):
         self.write_config(

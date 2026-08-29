@@ -14,11 +14,11 @@ Docker Compose](docs/DOCKER.md)**.
 A new installation needs more than the Discord token. Gather:
 
 - the bot token and bot user ID from the Discord developer portal;
-- your Discord user ID, server ID, and one bot-command channel ID;
+- your Discord user ID and server ID;
 - two new database passwords; and
 - the numeric host UID/GID that will own persistent files on Linux.
 
-The guide walks through the remaining schema, seed-data, slash-command,
+The guide walks through the remaining schema, first-guild, seed-data, slash-command,
 permission, startup, and backup steps. Normal startup does not silently change
 the database schema or synchronize Discord commands.
 
@@ -60,13 +60,13 @@ not as current procedures.
 ## Runtime image data
 
 Team and house images uploaded as Discord attachments are normalised and stored
-under `data/images/`. This directory is intentionally excluded from Git and must
-be included in server backups. Direct HTTP(S) image URLs remain stored in
+under the configured image root. This data is intentionally excluded from Git
+and must be included in deployment backups. Direct HTTP(S) image URLs remain stored in
 PostgreSQL and are used whenever no local image exists.
 
 Independent Docker installations use the backup and restore workflow in
-[`docs/DOCKER.md`](docs/DOCKER.md). Operators must also back up the host
-`data/images/` directory.
+[`docs/DOCKER.md`](docs/DOCKER.md). Operators must also preserve the configured
+image volume.
 
 GreenCloud-specific documents describe upstream operations, not independent
 installation requirements. Completed modernization and release records live at

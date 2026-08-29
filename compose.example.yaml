@@ -1,5 +1,5 @@
-# Default self-hosted stack: PolyBot plus bundled PostgreSQL. Run this file
-# directly with `docker compose`; no repository wrapper is required.
+# Recommended PolyBot deployment example. Copy this file to the ignored
+# operator-owned compose.yaml, then adapt that private copy as needed.
 
 x-bot-runtime: &bot-runtime
   build:
@@ -10,15 +10,21 @@ x-bot-runtime: &bot-runtime
       POLYBOT_GID: ${POLYBOT_GID:-1000}
   image: ${POLYBOT_IMAGE:-polybot:local}
   environment:
-    POLYBOT_ENV: production
+    POLYBOT_ENV: ${POLYBOT_ENV:?Set development or production in .env}
     POLYBOT_RESTART_SUPERVISOR: compose
+    POLYBOT_RUNTIME_CONFIG_PATH: /app/runtime-config.ini
+    POLYBOT_SERVER_SETTINGS_PATH: /app/runtime-server-settings.py
+    POLYBOT_DATABASE_CONFIGURATION: environment
+    POLYBOT_DATABASE_HOST: database
+    POLYBOT_DATABASE_PORT: "5432"
+    POLYBOT_DATABASE_NAME: ${POLYBOT_DATABASE_NAME:?Set POLYBOT_DATABASE_NAME in .env}
+    POLYBOT_DATABASE_USER: ${POLYBOT_DATABASE_USER:?Set POLYBOT_DATABASE_USER in .env}
+    POLYBOT_DATABASE_PASSWORD: ${POLYBOT_DATABASE_PASSWORD:?Set POLYBOT_DATABASE_PASSWORD in .env}
   init: true
   user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
   read_only: true
-  cap_drop:
-    - ALL
-  security_opt:
-    - no-new-privileges:true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
   logging:
     driver: json-file
     options:
@@ -28,23 +34,19 @@ x-bot-runtime: &bot-runtime
     - /tmp:size=256m,mode=1777
   volumes:
     - type: bind
-      source: ./config.ini
-      target: /app/config.ini
+      source: ${POLYBOT_CONFIG_FILE:-./config.ini}
+      target: /app/runtime-config.ini
       read_only: true
       bind:
         create_host_path: false
     - type: bind
-      source: ./server_settings.py
-      target: /app/server_settings.py
+      source: ${POLYBOT_SERVER_SETTINGS_FILE:-./server_settings.py}
+      target: /app/runtime-server-settings.py
       read_only: true
       bind:
         create_host_path: false
-    - type: bind
-      source: ./data/images
-      target: /app/data/images
-    - type: bind
-      source: ./logs
-      target: /app/logs
+    - polybot_images:/app/data
+    - polybot_logs:/app/logs
   stop_signal: SIGINT
   stop_grace_period: 45s
 
@@ -63,7 +65,7 @@ services:
       - postgres_data:/var/lib/postgresql
       - ./deploy/docker/init-postgres.sh:/docker-entrypoint-initdb.d/10-polybot.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: [CMD-SHELL, pg_isready -U postgres -d postgres]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -85,23 +87,21 @@ services:
 
   schema:
     <<: *bot-runtime
-    profiles: ["tools"]
+    profiles: [tools]
     depends_on:
       database:
         condition: service_healthy
-    entrypoint: ["python", "scripts/manage_schema.py"]
+    entrypoint: [python, scripts/manage_schema.py]
     command: []
     restart: "no"
 
   backup:
     image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
-    profiles: ["tools"]
+    profiles: [tools]
     user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
     read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     tmpfs:
       - /tmp:size=64m,mode=1777
     environment:
@@ -117,18 +117,16 @@ services:
     volumes:
       - ./backups:/backups
       - ./deploy/docker/backup-postgres.sh:/usr/local/bin/backup-postgres:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/backup-postgres"]
+    entrypoint: [/bin/sh, /usr/local/bin/backup-postgres]
     restart: "no"
 
   restore:
     image: ${POSTGRES_IMAGE:-postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382}
-    profiles: ["tools"]
+    profiles: [tools]
     user: "${POLYBOT_UID:-1000}:${POLYBOT_GID:-1000}"
     read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     tmpfs:
       - /tmp:size=64m,mode=1777
     environment:
@@ -143,10 +141,10 @@ services:
     volumes:
       - ./backups:/backups:ro
       - ./deploy/docker/restore-postgres.sh:/usr/local/bin/restore-postgres:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/restore-postgres"]
+    entrypoint: [/bin/sh, /usr/local/bin/restore-postgres]
     restart: "no"
 
 volumes:
   postgres_data:
-    external: true
-    name: ${POSTGRES_VOLUME_NAME:?Set POSTGRES_VOLUME_NAME in .env}
+  polybot_images:
+  polybot_logs:

@@ -1,7 +1,7 @@
 # Upstream development beta with Docker Compose
 
 This is the maintainer deployment for the upstream PolyBot beta. Independent
-self-hosters should use the default [Docker Compose guide](DOCKER.md).
+self-hosters should use the adaptable [Docker Compose guide](DOCKER.md).
 
 The beta is one ordinary Compose project in one checkout. It uses the host's
 existing PostgreSQL server through a read-only Unix-socket mount and never
@@ -9,10 +9,18 @@ owns database storage.
 
 ## Configure the checkout
 
-Run from the beta checkout:
+The active `compose.yaml`, `.env`, and private configuration are ignored,
+operator-owned files. The beta Compose file was initially adapted from
+`compose.external-postgres.example.yaml` with the existing host socket,
+upstream beta launcher, exact identity guards, resource limits, and named
+image/log volumes.
+
+For a new reconstruction, start from the tracked examples rather than copying
+another deployment's private files:
 
 ```bash
-cp .env.beta.example .env
+cp compose.external-postgres.example.yaml compose.yaml
+cp .env.example .env
 cp config.development.ini-EXAMPLE config.development.ini
 cp server_settings_dev-EXAMPLE.py server_settings_dev.py
 chmod 600 .env config.development.ini server_settings_dev.py
@@ -28,8 +36,10 @@ guild, and database. Set these `.env` values explicitly:
   `polybot-beta:local`; it does not change for each source update;
 - `POSTGRES_SOCKET_DIR`: the host PostgreSQL socket directory.
 
-`COMPOSE_FILE=compose.beta.yaml` is a standard Compose environment setting, so
-the ordinary commands below need no file or project-name flags.
+Set `POLYBOT_ENV=development` and the documented upstream identities. Adapt
+the private Compose file for the read-only PostgreSQL socket and guarded
+`scripts/run_development_beta.py --skip_tasks` command. Ordinary commands then
+need no file or project-name flags.
 
 ## Build and operate
 

@@ -9,6 +9,8 @@ and releases are kept in Git history instead of the current documentation tree.
 - [Docker Compose](DOCKER.md) — supported installation, configuration,
   PostgreSQL access, updates, backups,
   restore drills, and unattended-production baseline.
+- [Release notes](../RELEASE_NOTES.md) — operator-visible schema, command, and
+  tracked-example changes for the current release.
 - [Privacy policy](../PRIVACY.md), [security policy](../SECURITY.md), and
   [retention schedule](DATA_RETENTION.md) — upstream policies that independent
   operators must review and adapt.

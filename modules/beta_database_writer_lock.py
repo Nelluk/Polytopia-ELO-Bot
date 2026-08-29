@@ -1,4 +1,4 @@
-"""Database-scoped exclusion for every supported development beta writer."""
+"""Database-scoped exclusion for supported PolyBot writer processes."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import psycopg2
 
 # ASCII ``PolyBeta`` as one positive signed 64-bit PostgreSQL advisory key.
 DATABASE_WRITER_ADVISORY_LOCK_KEY = 0x506F6C7942657461
-LOCK_APPLICATION_NAME = 'polybot-development-beta-writer-lock'
+LOCK_APPLICATION_NAME = 'polybot-database-writer-lock'
 # The supervisor polls keeper process/pipe state every 100 ms. A successor
 # retains the advisory lock without touching application data for this longer
 # interval, then revalidates its session and fence before returning.
@@ -52,13 +52,17 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
         sleep: Callable[[float], None] = time.sleep,
     ):
         if (
-            getattr(profile, 'environment', None) != 'development'
-            or profile.database_name != 'polytopia_dev'
-            or profile.database_user != 'polybot_dev'
+            getattr(profile, 'environment', None) not in {
+                'development', 'production'
+            }
+            or not isinstance(getattr(profile, 'database_name', None), str)
+            or not profile.database_name.strip()
+            or not isinstance(getattr(profile, 'database_user', None), str)
+            or not profile.database_user.strip()
         ):
             raise BetaDatabaseWriterLockError(
-                'The database writer lock is fixed to the exact development '
-                'database identity.'
+                'The database writer lock requires an explicit supported '
+                'runtime and database identity.'
             )
         if takeover_grace_seconds < 0:
             raise BetaDatabaseWriterLockError(
@@ -92,7 +96,7 @@ class BetaDatabaseWriterLock(AbstractContextManager['BetaDatabaseWriterLock']):
                 True,
             ):
                 raise BetaDatabaseWriterLockError(
-                    'Another process holds the development database writer lock '
+                    'Another process holds the database writer lock '
                     'or the connected database identity is wrong.'
                 )
             self._connection = connection

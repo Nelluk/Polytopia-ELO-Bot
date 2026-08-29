@@ -22,8 +22,8 @@ or:
 guild_configuration_source = database
 ```
 
-`static` uses the selected environment's settings module. `database` requires
-one exact reviewed application/database topology; validates the complete
+`static` uses the selected environment's settings module. `database` binds to
+the explicit runtime application/database identity; validates the complete
 stored graph before publishing it; and exposes one immutable in-memory snapshot
 to the running process. Startup fails closed on an absent, partial, mismatched,
 or invalid graph. Both upstream environments currently select `database`;

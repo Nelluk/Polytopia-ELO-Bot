@@ -126,7 +126,7 @@ _executor = ThreadPoolExecutor(
 
 
 def target_from_profile(profile: Any) -> storage.StorageTarget:
-    """Freeze and validate one exact reviewed runtime target."""
+    """Freeze and validate one explicit runtime-bound storage target."""
 
     target = storage.StorageTarget(
         environment=profile.environment,
@@ -682,7 +682,10 @@ def _validate_bootstrap_event(
             'source_digest',
             'application_commands_synchronized',
         }
-        or details.get('template') != storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE
+        or details.get('template') not in {
+            storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE,
+            storage.NEW_INSTALL_BOOTSTRAP_TEMPLATE,
+        }
         or not isinstance(details.get('guild_name'), str)
         or not details.get('guild_name')
         or not isinstance(details.get('source_digest'), str)
@@ -774,7 +777,7 @@ def _derive_bootstrap_pending(
             'bootstrap_audit_current_revision_mismatch'
         )
     expected_details = {
-        'template': storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE,
+        'template': event[6]['template'],
         'guild_name': document.identity.display_name,
         'source_digest': source_digest,
         'application_commands_synchronized': False,

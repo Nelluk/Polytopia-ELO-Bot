@@ -1,9 +1,9 @@
-"""First trusted-guild bootstrap for a fresh development database.
+"""First trusted-guild bootstrap for a fresh PolyBot database.
 
 The ordinary Discord enrollment flow requires an already-active guild.  This
 module owns the one day-zero exception for the container operator interface:
 one exact, Discord-observed guild may be activated in an otherwise empty
-development schema.  It never synchronizes Discord application commands.
+application schema.  It never synchronizes Discord application commands.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from modules.guild_configuration_schema import (
 BOOTSTRAP_SCHEMA_VERSION = 1
 BOOTSTRAP_ACTOR = storage.FIRST_GUILD_BOOTSTRAP_ACTOR
 BOOTSTRAP_EVENT_TYPE = storage.FIRST_GUILD_BOOTSTRAP_EVENT_TYPE
-BOOTSTRAP_TEMPLATE = storage.FIRST_GUILD_BOOTSTRAP_TEMPLATE
+BOOTSTRAP_TEMPLATE = storage.NEW_INSTALL_BOOTSTRAP_TEMPLATE
 BOOTSTRAP_ADVISORY_LOCK_KEY = 0x50313135
 _HEX_DIGEST = re.compile(r'^[0-9a-f]{64}$')
 
@@ -55,7 +55,7 @@ class FirstGuildBootstrapPlan:
 
     @property
     def confirmation(self) -> str:
-        return f'P11.5B APPLY {self.guild_id} {self.plan_digest}'
+        return f'BOOTSTRAP FIRST GUILD {self.guild_id} {self.plan_digest}'
 
 
 @dataclass(frozen=True)
@@ -80,7 +80,7 @@ def _canonical_digest(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _operator_only_document(
+def _initial_document(
     *, guild_id: int, guild_name: str,
 ) -> GuildConfigurationDocument:
     """Return the reviewed least-authority day-zero configuration."""
@@ -124,9 +124,12 @@ def _operator_only_document(
             'staff_help_channel_id': None,
             'game_category_ids': [],
         },
-        # The owner receives only the roots needed to finish configuration.
-        # Guild-only command registration remains a separate explicit apply.
-        'command_capabilities': ['guild_admin', 'operator'],
+        # A new installation starts with the ordinary safe command surface,
+        # plus the owner-only operator root needed to finish setup. Guild-only
+        # command registration remains a separate explicit apply.
+        'command_capabilities': [
+            'core_user', 'guild_admin', 'operator', 'squad'
+        ],
     })
 
 
@@ -139,11 +142,6 @@ def build_first_guild_plan(
     """Build one deterministic, database-free bootstrap plan."""
 
     storage.validate_target(target)
-    if target.environment != storage.DEVELOPMENT_ENVIRONMENT:
-        raise FirstGuildBootstrapError(
-            'First-guild bootstrap is development-only; production uses the '
-            'reviewed complete static import.'
-        )
     allowed = tuple(allowed_guild_ids)
     if (
         len(allowed) != 1
@@ -162,7 +160,7 @@ def build_first_guild_plan(
             allowed_guild_ids=allowed,
         )
         guild_name = snapshots[guild_id]['guild_name']
-        document = _operator_only_document(
+        document = _initial_document(
             guild_id=guild_id,
             guild_name=guild_name,
         )
@@ -252,7 +250,7 @@ def _validate_plan(plan: FirstGuildBootstrapPlan) -> None:
     if document_digest(plan.document) != plan.document_digest:
         raise FirstGuildBootstrapError('First-guild document changed after planning.')
     try:
-        expected_document = _operator_only_document(
+        expected_document = _initial_document(
             guild_id=plan.guild_id,
             guild_name=plan.guild_name,
         )
@@ -470,11 +468,6 @@ def apply_first_guild_bootstrap(
     """Atomically create configuration storage and activate the first guild."""
 
     storage.validate_target(target)
-    if target.environment != storage.DEVELOPMENT_ENVIRONMENT:
-        raise FirstGuildBootstrapError(
-            'First-guild bootstrap is development-only; production uses the '
-            'reviewed complete static import.'
-        )
     _validate_plan(plan)
     expected_source_digest = _canonical_digest({
         'schema_version': BOOTSTRAP_SCHEMA_VERSION,

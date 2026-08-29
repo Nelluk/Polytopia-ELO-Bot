@@ -15,39 +15,38 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
     docker_assets = root / 'deploy/docker'
 
-    def test_root_assets_expose_standard_compose_entrypoints(self):
+    def test_root_assets_expose_examples_not_operator_owned_files(self):
         for relative_path in (
             'Dockerfile',
-            'compose.yaml',
-            'compose.host-postgres.yaml',
-            'compose.production.yaml',
-            'compose.beta.yaml',
+            'compose.example.yaml',
+            'compose.external-postgres.example.yaml',
             '.env.example',
-            '.env.host-postgres.example',
-            '.env.production.example',
-            '.env.beta.example',
             'docs/DOCKER.md',
-            'docs/DEVELOPMENT_DOCKER.md',
-            'docs/PRODUCTION_DOCKER.md',
             '.github/workflows/self-hosting-smoke.yml',
         ):
             self.assertTrue((self.root / relative_path).is_file(), relative_path)
+        self.assertFalse((self.root / 'compose.yaml').exists())
+        self.assertIn(
+            'compose.yaml',
+            (self.root / '.gitignore').read_text(encoding='utf-8').splitlines(),
+        )
 
-        compose = (self.root / 'compose.yaml').read_text(encoding='utf-8')
+        compose = (self.root / 'compose.example.yaml').read_text(encoding='utf-8')
         self.assertIn('  database:', compose)
         self.assertIn('  bot:', compose)
         self.assertIn('  schema:', compose)
         self.assertIn('dockerfile: Dockerfile', compose)
         self.assertIn('  backup:', compose)
         self.assertIn('  restore:', compose)
-        self.assertIn('external: true', compose)
-        self.assertIn('name: ${POSTGRES_VOLUME_NAME:', compose)
+        self.assertIn('postgres_data:', compose)
         self.assertIn('create_host_path: false', compose)
         self.assertNotIn('\nname:', compose)
         self.assertNotIn('polybot-mac-beta', compose)
         self.assertNotIn('479029527553638401', compose)
         self.assertNotIn('478571892832206869', compose)
         self.assertNotIn('ports:', compose)
+        self.assertIn('POLYBOT_DATABASE_CONFIGURATION: environment', compose)
+        self.assertIn('${POLYBOT_CONFIG_FILE:-./config.ini}', compose)
 
     def test_public_workflow_exercises_bundled_compose_installation(self):
         workflow = (
@@ -55,13 +54,14 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         ).read_text(encoding='utf-8')
 
         self.assertIn('  compose-install:', workflow)
+        self.assertIn('cp compose.example.yaml compose.yaml', workflow)
         self.assertIn('docker compose build bot', workflow)
         self.assertIn('docker compose up -d database', workflow)
         self.assertIn('docker compose run --rm schema --apply', workflow)
         self.assertIn('python bot.py --add_default_data --skip_tasks', workflow)
         self.assertIn('docker compose run --rm schema --verify', workflow)
         self.assertIn('docker compose run --rm backup', workflow)
-        self.assertIn('docker compose down --remove-orphans', workflow)
+        self.assertIn('docker compose down -v --remove-orphans', workflow)
         self.assertNotIn('docker compose up -d bot', workflow)
 
     def test_public_workflow_runs_full_offline_regression_suite(self):
@@ -81,7 +81,7 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
             workflow,
         )
 
-    def test_installation_neutral_examples_enable_only_configured_features(self):
+    def test_installation_neutral_examples_default_to_database_authority(self):
         production = (self.root / 'server_settings-EXAMPLE.py').read_text(
             encoding='utf-8'
         )
@@ -90,82 +90,34 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
         ).read_text(encoding='utf-8')
         guide = (self.root / 'docs/DOCKER.md').read_text(encoding='utf-8')
 
-        self.assertIn("SERVER_GUILD_ID: ('core_user',)", production)
-        self.assertNotIn("('core_user', 'tools_support')", production)
-        self.assertIn("'staff_help_channel': None", production)
+        config = (self.root / 'config.ini-EXAMPLE').read_text(encoding='utf-8')
+
+        self.assertIn('guild_configuration_source = database', config)
+        self.assertIn('application_command_capabilities = {}', production)
         self.assertIn('polyelo_feedback_route = {}', production)
-        self.assertIn('The example leaves `/staffhelp` disabled', guide)
+        self.assertIn('database-backed', production)
         self.assertIn('Discord application and permissions', guide)
         self.assertNotIn('Beta Lab Staff', development)
 
-    def test_beta_compose_uses_direct_standard_lifecycle(self):
-        compose = (self.root / 'compose.beta.yaml').read_text(encoding='utf-8')
-        environment = (self.root / '.env.beta.example').read_text(encoding='utf-8')
-        guide = (
-            self.root / 'docs/DEVELOPMENT_DOCKER.md'
-        ).read_text(encoding='utf-8')
-
-        self.assertIn('  bot:', compose)
-        self.assertIn('  schema:', compose)
-        self.assertIn('scripts/run_development_beta.py', compose)
-        self.assertIn('scripts/bootstrap_development_database.py', compose)
-        self.assertIn('POLYBOT_BETA_STARTUP_SYNC: disabled', compose)
-        self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
-        self.assertIn('polybot_images:/app/data/development/images', compose)
-        self.assertIn('polybot_logs:/app/logs/development', compose)
-        self.assertIn('source: ./config.development.ini', compose)
-        self.assertIn('source: ./server_settings_dev.py', compose)
-        self.assertNotIn('\nname:', compose)
-        self.assertNotIn('ports:', compose)
-        self.assertNotIn('./polybot', compose)
+    def test_external_postgres_example_owns_no_database_storage(self):
+        compose = (self.root / 'compose.external-postgres.example.yaml').read_text(
+            encoding='utf-8'
+        )
+        self.assertIn('${POLYBOT_DATABASE_HOST:', compose)
         self.assertNotIn('  database:', compose)
-        self.assertIn('COMPOSE_FILE=compose.beta.yaml', environment)
-        self.assertIn('docker compose up -d --build', guide)
-        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)
-        self.assertNotIn('POLYBOT_BETA_CHECKPOINT', compose + environment + guide)
-        self.assertNotIn('./polybot', guide)
-        self.assertNotIn('./polybot', compose)
-
-    def test_host_postgres_compose_owns_no_database_storage(self):
-        compose = (
-            self.root / 'compose.host-postgres.yaml'
-        ).read_text(encoding='utf-8')
-        self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
-        self.assertIn('target: /var/run/postgresql', compose)
-        self.assertIn('read_only: true', compose)
-        self.assertNotIn('  database:', compose)
-        self.assertNotIn('\nvolumes:', compose)
-        self.assertNotIn('POSTGRES_VOLUME_NAME', compose)
+        self.assertIn('polybot_images:', compose)
         self.assertNotIn('restore:', compose)
         self.assertNotIn('ports:', compose)
 
-    def test_upstream_production_compose_is_explicit(self):
-        compose = (self.root / 'compose.production.yaml').read_text(
-            encoding='utf-8'
-        )
-        environment = (self.root / '.env.production.example').read_text(
-            encoding='utf-8'
-        )
-        guide = (self.root / 'docs/PRODUCTION_DOCKER.md').read_text(
-            encoding='utf-8'
-        )
+    def test_database_password_has_one_new_install_authority(self):
+        compose = (self.root / 'compose.example.yaml').read_text(encoding='utf-8')
+        config = (self.root / 'config.ini-EXAMPLE').read_text(encoding='utf-8')
+        environment = (self.root / '.env.example').read_text(encoding='utf-8')
 
-        self.assertIn('image: ${POLYBOT_IMAGE:-polyelo-production:local}', compose)
-        self.assertIn('POLYBOT_RESTART_SUPERVISOR: compose', compose)
-        self.assertIn('source: ./spreadsheet_creds.json', compose)
-        self.assertIn('${POSTGRES_SOCKET_DIR:-/var/run/postgresql}', compose)
-        self.assertIn('source: ./data/images', compose)
-        self.assertIn('source: ./logs', compose)
-        self.assertIn('create_host_path: false', compose)
-        self.assertIn('COMPOSE_FILE=compose.production.yaml', environment)
-        self.assertIn('COMPOSE_PROJECT_NAME=polyelo-production', environment)
-        self.assertIn('Status: **active on GreenCloud**', guide)
-        self.assertIn('docker compose config --images | sort -u', guide)
-        self.assertNotIn('docker compose images -q', guide)
-        self.assertNotIn('POLYBOT_SOURCE_CHECKPOINT', compose + environment + guide)
-        self.assertNotIn('  database:', compose)
-        self.assertNotIn('ports:', compose)
-        self.assertNotIn('./polybot', compose)
+        self.assertIn('POLYBOT_DATABASE_PASSWORD', compose)
+        self.assertIn('POLYBOT_DATABASE_PASSWORD', environment)
+        self.assertNotIn('psql_password =', config)
+        self.assertIn('only database-credential authority', environment)
 
     def test_image_is_environment_neutral_and_nonroot(self):
         dockerfile = (self.root / 'Dockerfile').read_text(encoding='utf-8')
@@ -192,10 +144,8 @@ class SimpleComposeDeploymentTests(unittest.TestCase):
 
     def test_all_compose_bot_runtimes_declare_compose_supervision(self):
         for name in (
-            'compose.yaml',
-            'compose.host-postgres.yaml',
-            'compose.production.yaml',
-            'compose.beta.yaml',
+            'compose.example.yaml',
+            'compose.external-postgres.example.yaml',
         ):
             with self.subTest(name=name):
                 compose = (self.root / name).read_text(encoding='utf-8')

@@ -15,6 +15,7 @@ from typing import Mapping, Optional, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parent
 SUPPORTED_ENVIRONMENTS = ('production', 'development')
 SUPPORTED_GUILD_CONFIGURATION_SOURCES = ('static', 'database')
+SUPPORTED_DATABASE_CONFIGURATION_SOURCES = ('config', 'environment')
 LEGACY_PRODUCTION_BOT_ID = 484067640302764042
 DEVELOPMENT_PLACEHOLDER_ID = 123456789012345678
 KNOWN_PRODUCTION_GUILD_IDS = frozenset({
@@ -47,8 +48,10 @@ class RuntimeProfile:
     database_password: str = field(repr=False)
     database_host: Optional[str]
     database_port: Optional[int]
+    database_configuration_source: str
     pastebin_key: Optional[str] = field(repr=False)
     server_settings_module: str
+    server_settings_path: Path
     server_settings: ModuleType
     guild_configuration_source: str
     allowed_guild_ids: Tuple[int, ...]
@@ -145,19 +148,68 @@ def _positive_id_list(
     return tuple(sorted(parsed))
 
 
-def _optional_port(
-        parser: configparser.ConfigParser,
-        config_path: Path) -> Optional[int]:
-    value = parser['DEFAULT'].get('psql_port', '').strip()
+def _optional_port_value(value: str, key: str, source: Path | str) -> Optional[int]:
+    value = value.strip()
     if not value:
         return None
-    port = _positive_int(value, 'psql_port', config_path)
+    port = _positive_int(value, key, Path(source))
     if port > 65535:
         raise RuntimeConfigurationError(
-            f'Setting {"psql_port"!r} in {config_path} must be at most '
+            f'Setting {key!r} in {source} must be at most '
             '65535.'
         )
     return port
+
+
+def _database_settings(
+        *,
+        parser: configparser.ConfigParser,
+        config_path: Path,
+        environ: Mapping[str, str],
+) -> tuple[str, str, str, Optional[str], Optional[int], str]:
+    """Load one explicit database authority without reconciling duplicates."""
+
+    source = str(
+        environ.get('POLYBOT_DATABASE_CONFIGURATION', 'config')
+    ).strip()
+    if source not in SUPPORTED_DATABASE_CONFIGURATION_SOURCES:
+        raise RuntimeConfigurationError(
+            'POLYBOT_DATABASE_CONFIGURATION must be exactly "config" or '
+            f'"environment"; received {source!r}.'
+        )
+    if source == 'config':
+        defaults = parser['DEFAULT']
+        return (
+            _required_value(parser, 'psql_db', config_path),
+            _required_value(parser, 'psql_user', config_path),
+            defaults.get('psql_password', '').strip(),
+            defaults.get('psql_host', '').strip() or None,
+            _optional_port_value(
+                defaults.get('psql_port', ''), 'psql_port', config_path
+            ),
+            source,
+        )
+
+    def required(key: str) -> str:
+        value = str(environ.get(key, '')).strip()
+        if not value:
+            raise RuntimeConfigurationError(
+                f'Missing required environment setting {key!r}.'
+            )
+        return value
+
+    return (
+        required('POLYBOT_DATABASE_NAME'),
+        required('POLYBOT_DATABASE_USER'),
+        str(environ.get('POLYBOT_DATABASE_PASSWORD', '')).strip(),
+        str(environ.get('POLYBOT_DATABASE_HOST', '')).strip() or None,
+        _optional_port_value(
+            str(environ.get('POLYBOT_DATABASE_PORT', '')),
+            'POLYBOT_DATABASE_PORT',
+            'the process environment',
+        ),
+        source,
+    )
 
 
 def _boolean_setting(
@@ -224,8 +276,7 @@ def _read_config(config_path: Path) -> configparser.ConfigParser:
     return parser
 
 
-def _load_server_settings(project_root: Path, module_name: str) -> ModuleType:
-    module_path = project_root / f'{module_name}.py'
+def _load_server_settings_path(module_path: Path, module_name: str) -> ModuleType:
     if not module_path.is_file():
         raise RuntimeConfigurationError(
             f'Server-settings file does not exist: {module_path}'
@@ -244,6 +295,12 @@ def _load_server_settings(project_root: Path, module_name: str) -> ModuleType:
             f'Unable to load server-settings file {module_path}: {exc}'
         ) from exc
     return module
+
+
+def _load_server_settings(project_root: Path, module_name: str) -> ModuleType:
+    return _load_server_settings_path(
+        project_root / f'{module_name}.py', module_name
+    )
 
 
 def _allowed_guild_ids(
@@ -289,15 +346,21 @@ def _resolve_runtime_path(
 
 
 def _production_comparison_values(
-        project_root: Path) -> Tuple[Optional[str], Optional[str],
-                                    Optional[int], frozenset]:
+        project_root: Path,
+        *,
+        active_config_path: Path,
+        active_server_settings_path: Path,
+) -> Tuple[Optional[str], Optional[str], Optional[int], frozenset]:
     database_name = None
     discord_token = None
     expected_bot_id = None
     guild_ids = set(KNOWN_PRODUCTION_GUILD_IDS)
 
     production_config_path = project_root / 'config.ini'
-    if production_config_path.is_file():
+    if (
+            production_config_path.is_file()
+            and production_config_path.resolve() != active_config_path.resolve()
+    ):
         production_config = _read_config(production_config_path)
         defaults = production_config['DEFAULT']
         database_name = defaults.get('psql_db', '').strip() or None
@@ -309,7 +372,11 @@ def _production_comparison_values(
             )
 
     production_settings_path = project_root / 'server_settings.py'
-    if production_settings_path.is_file():
+    if (
+            production_settings_path.is_file()
+            and production_settings_path.resolve()
+            != active_server_settings_path.resolve()
+    ):
         production_settings = _load_server_settings(
             project_root, 'server_settings'
         )
@@ -333,13 +400,6 @@ def _production_comparison_values(
 def _validate_development_profile(
         profile: RuntimeProfile,
         parser: configparser.ConfigParser) -> None:
-    if (
-            profile.discord_token.upper().startswith('YOUR_')
-            or profile.database_password.upper().startswith('YOUR_')):
-        raise RuntimeConfigurationError(
-            'Development token and database password placeholders must be '
-            'replaced with separate development credentials.'
-        )
     if (
             profile.expected_bot_id == DEVELOPMENT_PLACEHOLDER_ID
             or DEVELOPMENT_PLACEHOLDER_ID in profile.allowed_guild_ids):
@@ -415,7 +475,9 @@ def _validate_development_profile(
 
     (production_database, production_token, production_bot_id,
      production_guild_ids) = _production_comparison_values(
-         profile.project_root
+         profile.project_root,
+         active_config_path=profile.config_path,
+         active_server_settings_path=profile.server_settings_path,
      )
     production_database_names = {
         value for value in (
@@ -527,7 +589,15 @@ def load_runtime_profile(
         )
 
     layout = _PROFILE_LAYOUT[environment]
-    config_path = root / layout['config_file']
+    configured_path = str(
+        environment_values.get('POLYBOT_RUNTIME_CONFIG_PATH', '')
+    ).strip()
+    config_path = Path(configured_path) if configured_path else (
+        root / layout['config_file']
+    )
+    if not config_path.is_absolute():
+        config_path = root / config_path
+    config_path = config_path.resolve()
     parser = _read_config(config_path)
     expected_bot_id_value = parser['DEFAULT'].get(
         'expected_bot_id', ''
@@ -538,25 +608,51 @@ def load_runtime_profile(
             f'{config_path}.'
         )
 
-    database_password = parser['DEFAULT'].get('psql_password', '').strip()
-    database_host = parser['DEFAULT'].get('psql_host', '').strip() or None
+    (
+        database_name,
+        database_user,
+        database_password,
+        database_host,
+        database_port,
+        database_configuration_source,
+    ) = _database_settings(
+        parser=parser,
+        config_path=config_path,
+        environ=environment_values,
+    )
     if not database_authentication_is_supported(
             environment=environment,
             database_password=database_password,
             database_host=database_host):
         raise RuntimeConfigurationError(
-            f'Missing required setting {"psql_password"!r} in {config_path}; '
+            'Missing required database password '
+            f'({"psql_password" if database_configuration_source == "config" else "POLYBOT_DATABASE_PASSWORD"}); '
             'passwordless authentication is permitted only for production '
             'over the default local PostgreSQL socket.'
         )
 
     if environment == 'development' and database_host is None:
         raise RuntimeConfigurationError(
-            f'Missing required setting {"psql_host"!r} in {config_path}.'
+            'Development database host must be configured.'
         )
 
+    configured_settings_path = str(
+        environment_values.get('POLYBOT_SERVER_SETTINGS_PATH', '')
+    ).strip()
     module_name = layout['server_settings_module']
-    server_settings = _load_server_settings(root, module_name)
+    server_settings_path = (
+        Path(configured_settings_path)
+        if configured_settings_path
+        else root / f'{module_name}.py'
+    )
+    if not server_settings_path.is_absolute():
+        server_settings_path = root / server_settings_path
+    server_settings_path = server_settings_path.resolve()
+    if configured_settings_path:
+        module_name = 'server_settings'
+    server_settings = _load_server_settings_path(
+        server_settings_path, module_name
+    )
     allowed_guild_ids = _allowed_guild_ids(server_settings, module_name)
     defaults = parser['DEFAULT']
     shared_guild_values = defaults.get(
@@ -600,13 +696,15 @@ def load_runtime_profile(
         ),
         owner_id=owner_id,
         superuser_ids=tuple(sorted({owner_id, *configured_superuser_ids})),
-        database_name=_required_value(parser, 'psql_db', config_path),
-        database_user=_required_value(parser, 'psql_user', config_path),
+        database_name=database_name,
+        database_user=database_user,
         database_password=database_password,
         database_host=database_host,
-        database_port=_optional_port(parser, config_path),
+        database_port=database_port,
+        database_configuration_source=database_configuration_source,
         pastebin_key=defaults.get('pastebin_key', '').strip() or None,
         server_settings_module=module_name,
+        server_settings_path=server_settings_path,
         server_settings=server_settings,
         guild_configuration_source=_guild_configuration_source(
             parser,
@@ -634,6 +732,17 @@ def load_runtime_profile(
             root, defaults.get('log_root', ''), layout['log_root']
         ),
     )
+
+    placeholder_prefixes = ('YOUR_', 'REPLACE_')
+    if (
+            profile.discord_token.upper().startswith(placeholder_prefixes)
+            or profile.database_password.upper().startswith(
+                placeholder_prefixes
+            )):
+        raise RuntimeConfigurationError(
+            'Discord token and database password placeholders must be '
+            'replaced before startup.'
+        )
 
     if environment == 'development':
         _validate_development_profile(profile, parser)
@@ -681,6 +790,7 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
         f'database host: {host}',
         f'database port: {port}',
         f'database authentication: {database_authentication}',
+        f'database configuration source: {profile.database_configuration_source}',
         f'server-settings module: {profile.server_settings_module}',
         f'guild configuration source: {profile.guild_configuration_source}',
         f'allowed guild IDs: {guilds}',

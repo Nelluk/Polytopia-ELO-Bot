@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture, plan, or apply the first development guild configuration."""
+"""Capture, plan, or apply the first guild configuration."""
 
 from __future__ import annotations
 
@@ -23,12 +23,9 @@ from modules import beta_database_writer_lock  # noqa: E402
 from scripts import manage_guild_configuration_storage as snapshots  # noqa: E402
 
 
-DEFAULT_SNAPSHOT = snapshots.DEFAULT_SNAPSHOT
-
-
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='P11.5B first trusted-guild bootstrap for a fresh database.'
+        description='First trusted-guild bootstrap for a fresh database.'
     )
     operations = parser.add_subparsers(dest='operation', required=True)
     for name, help_text in (
@@ -38,16 +35,22 @@ def _parser() -> argparse.ArgumentParser:
     ):
         operation = operations.add_parser(name, help=help_text)
         operation.add_argument('--guild-id', required=True, type=int)
-        operation.add_argument('--snapshot', default=DEFAULT_SNAPSHOT)
+        operation.add_argument(
+            '--snapshot',
+            help='private snapshot path (defaults under logs/<environment>)',
+        )
         if name == 'apply':
             operation.add_argument('--confirm', required=True)
     return parser
 
 
 def _profile():
-    if os.environ.get('POLYBOT_ENV') != storage.DEVELOPMENT_ENVIRONMENT:
+    if os.environ.get('POLYBOT_ENV') not in {
+            storage.DEVELOPMENT_ENVIRONMENT,
+            storage.PRODUCTION_ENVIRONMENT,
+    }:
         raise bootstrap.FirstGuildBootstrapError(
-            'Set exact POLYBOT_ENV=development; P11.5B never uses production.'
+            'Set exact POLYBOT_ENV=development or POLYBOT_ENV=production.'
         )
     return load_runtime_profile(
         project_root=PROJECT_ROOT,
@@ -71,12 +74,15 @@ def _target(profile: Any) -> storage.StorageTarget:
 def _require_single_guild(profile: Any, guild_id: int) -> None:
     if tuple(profile.allowed_guild_ids) != (guild_id,):
         raise bootstrap.FirstGuildBootstrapError(
-            'The supplied guild ID must be the sole configured development guild.'
+            'The supplied guild ID must be the sole configured guild.'
         )
 
 
 def _plan(profile: Any, target: storage.StorageTarget, path: str):
-    value = snapshots._load_snapshot(path)
+    value = snapshots._load_snapshot(
+        path,
+        environment=profile.environment,
+    )
     return bootstrap.build_first_guild_plan(
         target=target,
         allowed_guild_ids=profile.allowed_guild_ids,
@@ -104,15 +110,18 @@ def _connection(profile: Any):
     return connection
 
 
-def _print_plan(plan: bootstrap.FirstGuildBootstrapPlan) -> None:
+def _print_plan(
+        plan: bootstrap.FirstGuildBootstrapPlan,
+        target: storage.StorageTarget,
+) -> None:
     value = bootstrap.plan_to_mapping(plan)
-    print('P11.5B first trusted-guild bootstrap plan')
+    print('First trusted-guild bootstrap plan')
     print(f'guild: {value["guild_id"]} ({value["guild_name"]})')
-    print('database: polytopia_dev')
-    print('role: polybot_dev')
+    print(f'database: {target.database_name}')
+    print(f'role: {target.database_user}')
     print('requires: complete relation-empty application schema')
     print('creates: base, draft, and delegation guild-configuration storage')
-    print('activates: revision 1, generation 1, operator-only capability')
+    print('activates: revision 1, generation 1, safe Standard capabilities')
     print('Discord writes: none')
     print('application-command synchronization: disabled')
     print(f'document_sha256: {value["document_digest"]}')
@@ -129,14 +138,21 @@ def main(argv: list[str] | None = None) -> int:
         _require_single_guild(profile, args.guild_id)
         target = _target(profile)
         storage.validate_target(target)
+        snapshot_path = args.snapshot or snapshots._default_snapshot(
+            profile.environment
+        )
         if args.operation == 'snapshot':
-            value = asyncio.run(snapshots._capture_snapshot(profile))
+            value, _owners = asyncio.run(snapshots._capture_snapshot(profile))
             storage.validate_discord_snapshot(
                 value,
                 target=target,
                 allowed_guild_ids=profile.allowed_guild_ids,
             )
-            path = snapshots._write_snapshot(args.snapshot, value)
+            path = snapshots._write_snapshot(
+                snapshot_path,
+                value,
+                environment=profile.environment,
+            )
             print(
                 'Captured one read-only Discord guild snapshot: '
                 f'{path.relative_to(PROJECT_ROOT)}'
@@ -144,8 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             print('Discord writes: none')
             return 0
 
-        plan = _plan(profile, target, args.snapshot)
-        _print_plan(plan)
+        plan = _plan(profile, target, snapshot_path)
+        _print_plan(plan, target)
         if args.operation == 'plan':
             print('Plan only; no database connection or write was attempted.')
             return 0
@@ -172,10 +188,10 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap.FirstGuildBootstrapError,
         beta_database_writer_lock.BetaDatabaseWriterLockError,
     ) as exc:
-        print(f'P11.5B refused: {exc}', file=sys.stderr)
+        print(f'First-guild bootstrap refused: {exc}', file=sys.stderr)
         return 2
     except Exception as exc:
-        print(f'P11.5B operation failed: {exc}', file=sys.stderr)
+        print(f'First-guild bootstrap failed: {exc}', file=sys.stderr)
         return 2
     finally:
         if connection is not None:

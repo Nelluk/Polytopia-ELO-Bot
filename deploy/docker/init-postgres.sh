@@ -11,6 +11,13 @@ set -eu
 : "${POLYBOT_DATABASE_USER:?POLYBOT_DATABASE_USER is required}"
 : "${POLYBOT_DATABASE_PASSWORD:?POLYBOT_DATABASE_PASSWORD is required}"
 
+case "$POSTGRES_PASSWORD:$POLYBOT_DATABASE_PASSWORD" in
+  *REPLACE_*|*YOUR_*)
+    echo 'Bundled database initialization refused: replace password placeholders.' >&2
+    exit 2
+    ;;
+esac
+
 if [ "$POLYBOT_DATABASE_USER" = "$POSTGRES_USER" ]; then
   echo 'Bundled database initialization refused: application and admin roles must differ.' >&2
   exit 2

@@ -18,8 +18,7 @@ spreadsheet_creds.json
 .env
 .env.*
 !.env.example
-!.env.host-postgres.example
-!.env.beta.example
+compose.yaml
 
 data/images
 backups

@@ -1,11 +1,10 @@
-"""Minimal one-guild production settings.
+"""Minimal one-guild inventory for database-backed configuration.
 
-Copy this file to ``server_settings.py`` and replace the two placeholder IDs.
-Add optional channels and roles only after the bot starts successfully.
+Copy this file to ``server_settings.py`` and replace the placeholder guild ID.
+Ordinary guild settings and command capabilities are stored in PostgreSQL.
 """
 
 SERVER_GUILD_ID = 123456789012345678
-BOT_CHANNEL_ID = 123456789012345679
 
 # A few compatibility paths still use these historical shortcut names. For a
 # standalone installation they can all safely refer to the same guild.
@@ -15,38 +14,36 @@ server_shortcut_ids = {
     'test': SERVER_GUILD_ID,
 }
 
-# Slash commands are default-deny. The self-hosting guide explains how to
-# select capabilities and deploy them to this exact guild.
-application_command_capabilities = {
-    SERVER_GUILD_ID: ('core_user',),
-}
+# Database authority supplies the active command policy. These static values
+# remain empty so a missing database configuration fails closed.
+application_command_capabilities = {}
 application_command_all_guild_capabilities = ()
-# ``tools_support`` exposes /staffhelp. Enable it only after configuring the
-# private staff-help channel, Helper role, and operator-owned feedback route
-# described in docs/DOCKER.md.
 polyelo_feedback_route = {}
 
+# Database authority still uses this inventory to bind the process to its
+# intended Discord guild before loading the active configuration graph. The
+# complete conservative defaults also keep legacy static import available as
+# an explicit migration/recovery path.
 server_list = {
     'default': {
-        'helper_roles': ['Helper'],
-        'mod_roles': ['Mod'],
+        'helper_roles': [],
+        'mod_roles': [],
         'user_roles_level_4': [],
-        'user_roles_level_3': ['@everyone'],
+        'user_roles_level_3': [],
         'user_roles_level_2': ['@everyone'],
-        'user_roles_level_1': ['@everyone'],
+        'user_roles_level_1': [],
         'inactive_role': None,
         'display_name': 'PolyBot Server',
         'require_teams': False,
         'allow_teams': False,
         'allow_uneven_teams': False,
-        # Historical internal key; user-facing name is "Maximum players per side".
         'max_team_size': 2,
         'command_prefix': '$',
         'include_in_global_lb': False,
         'match_challenge_channel': None,
         'bot_channels_private': [],
-        'bot_channels_strict': [],
-        'bot_channels': [BOT_CHANNEL_ID],
+        'bot_channels_strict': None,
+        'bot_channels': None,
         'newbie_message_channels': [],
         'match_challenge_channels': [],
         'ranked_game_channel': None,
@@ -59,6 +56,5 @@ server_list = {
     },
     SERVER_GUILD_ID: {
         'display_name': 'My PolyBot Server',
-        'bot_channels': [BOT_CHANNEL_ID],
     },
 }

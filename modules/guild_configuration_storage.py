@@ -49,6 +49,7 @@ PRODUCTION_MODE_ONLINE_STATIC_STAGE = 'online_static_stage'
 FIRST_GUILD_BOOTSTRAP_EVENT_TYPE = 'first_guild_bootstrap'
 FIRST_GUILD_BOOTSTRAP_ACTOR = 'container:p11.5b-first-guild-bootstrap'
 FIRST_GUILD_BOOTSTRAP_TEMPLATE = 'operator-only'
+NEW_INSTALL_BOOTSTRAP_TEMPLATE = 'new-install-standard'
 FIRST_GUILD_BOOTSTRAP_MAX_RELEVANT_AUDITS = 4
 ADVISORY_LOCK_KEY = 0x50313033
 MAX_SNAPSHOT_ROLES = 250
@@ -304,28 +305,39 @@ CREATE_SCHEMA_STATEMENTS = (
 def validate_target(target: StorageTarget) -> StorageTarget:
     if not isinstance(target, StorageTarget):
         raise GuildConfigurationStorageError('A frozen storage target is required.')
-    development = StorageTarget(
-        environment=DEVELOPMENT_ENVIRONMENT,
-        database_name=DEVELOPMENT_DATABASE,
-        database_user=DEVELOPMENT_ROLE,
-        expected_application_id=DEVELOPMENT_BETA_APPLICATION_ID,
-        background_tasks_enabled=False,
-        api_enabled=False,
-        bullet_enabled=False,
-    )
-    production = StorageTarget(
-        environment=PRODUCTION_ENVIRONMENT,
-        database_name=PRODUCTION_DATABASE,
-        database_user=PRODUCTION_ROLE,
-        expected_application_id=PRODUCTION_APPLICATION_ID,
-        background_tasks_enabled=True,
-        api_enabled=False,
-        bullet_enabled=True,
-    )
-    if target not in {development, production}:
+    if target.environment not in {
+            DEVELOPMENT_ENVIRONMENT, PRODUCTION_ENVIRONMENT}:
         raise GuildConfigurationStorageError(
-            'Guild-configuration storage requires an exact reviewed '
-            'development or production runtime target.'
+            'Guild-configuration storage requires an explicit development '
+            'or production environment.'
+        )
+    for label, value in (
+            ('database name', target.database_name),
+            ('database user', target.database_user)):
+        if (
+                not isinstance(value, str)
+                or not value.strip()
+                or len(value) > 63
+                or any(ord(character) < 32 for character in value)):
+            raise GuildConfigurationStorageError(
+                f'Guild-configuration {label} is invalid.'
+            )
+    if (
+            isinstance(target.expected_application_id, bool)
+            or not isinstance(target.expected_application_id, int)
+            or target.expected_application_id <= 0):
+        raise GuildConfigurationStorageError(
+            'Guild-configuration application identity is invalid.'
+        )
+    if any(
+            not isinstance(value, bool)
+            for value in (
+                target.background_tasks_enabled,
+                target.api_enabled,
+                target.bullet_enabled,
+            )):
+        raise GuildConfigurationStorageError(
+            'Guild-configuration runtime effect flags must be booleans.'
         )
     return target
 
@@ -1745,6 +1757,7 @@ __all__ = [
     'PRODUCTION_MODE_MAINTENANCE',
     'PRODUCTION_MODE_ONLINE_STATIC_STAGE',
     'PRODUCTION_ROLE',
+    'NEW_INSTALL_BOOTSTRAP_TEMPLATE',
     'REGISTRY_TABLE',
     'REVISION_TABLE',
     'SNAPSHOT_SCHEMA_VERSION',

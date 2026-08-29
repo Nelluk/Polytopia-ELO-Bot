@@ -1,6 +1,6 @@
 [DEFAULT]
-guild_configuration_source = static
-discord_key = YOUR_PRODUCTION_BOT_TOKEN
+guild_configuration_source = database
+discord_key = YOUR_BOT_TOKEN
 # Private token from the Discord developer portal.
 expected_bot_id = REPLACE_WITH_YOUR_BOT_USER_ID
 # Discord user ID of the bot authenticated by discord_key.
@@ -10,14 +10,9 @@ superuser_ids =
 # Optional comma-separated Discord user IDs with cross-guild superuser access.
 # The owner_id is always included automatically and need not be repeated.
 
-psql_db = polybot
-psql_user = polybot
-psql_password = REPLACE_WITH_A_STRONG_DATABASE_PASSWORD
-# Use `database` for the bundled compose.yaml service, `localhost` for a
-# native host process, or leave blank for reviewed production Unix-socket peer
-# authentication such as compose.host-postgres.yaml on Linux.
-psql_host = localhost
-psql_port = 5432
+# The recommended Compose deployment reads its database connection from .env.
+# Legacy/native deployments may instead select config authority and provide
+# the former psql_* keys here.
 
 # Start conservatively. Enable these only after configuring their dependencies
 # and understanding their write/network behavior.
@@ -25,5 +20,6 @@ background_tasks_enabled = false
 api_enabled = false
 bullet_enabled = false
 
-image_root = data/images
-log_root = logs
+# Blank paths select environment-safe defaults under data/ and logs/.
+image_root =
+log_root =

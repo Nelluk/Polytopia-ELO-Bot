@@ -153,19 +153,27 @@ def bundle() -> storage.ImportBundle:
 
 
 class TargetAndSnapshotTests(unittest.TestCase):
-    def test_target_is_one_of_the_two_exact_reviewed_profiles(self):
+    def test_target_accepts_explicit_installation_identities(self):
         storage.validate_target(target())
         storage.validate_target(production_target())
+        storage.validate_target(target(
+            database_name='independent_dev',
+            database_user='independent_bot',
+            expected_application_id=900000000000000999,
+        ))
+
+    def test_target_rejects_malformed_runtime_identity(self):
         for value in (
-            target(database_name='polytopia2'),
-            target(background_tasks_enabled=True),
-            production_target(database_user='unexpected'),
-            production_target(expected_application_id=1),
-            production_target(api_enabled=True),
+            target(environment='staging'),
+            target(database_name=''),
+            target(database_user=''),
+            target(expected_application_id=0),
+            target(expected_application_id=True),
+            target(api_enabled='yes'),
         ):
             with self.subTest(target=value), self.assertRaisesRegex(
                 storage.GuildConfigurationStorageError,
-                'exact reviewed',
+                'Guild-configuration',
             ):
                 storage.validate_target(value)
 
@@ -189,7 +197,7 @@ class TargetAndSnapshotTests(unittest.TestCase):
                 allowed_guild_ids=(GUILD_ID,),
             )
 
-    def test_production_rejects_partial_schema_and_first_guild_paths(self):
+    def test_production_rejects_partial_schema_but_allows_atomic_first_guild(self):
         with self.assertRaisesRegex(
             drafts.GuildConfigurationDraftStorageError,
             'atomically',
@@ -213,15 +221,12 @@ class TargetAndSnapshotTests(unittest.TestCase):
         production_snapshot = snapshot()
         production_snapshot['environment'] = storage.PRODUCTION_ENVIRONMENT
         production_snapshot['application_id'] = storage.PRODUCTION_APPLICATION_ID
-        with self.assertRaisesRegex(
-            bootstrap.FirstGuildBootstrapError,
-            'development-only',
-        ):
-            bootstrap.build_first_guild_plan(
-                target=production_target(),
-                allowed_guild_ids=(GUILD_ID,),
-                discord_snapshot=production_snapshot,
-            )
+        plan = bootstrap.build_first_guild_plan(
+            target=production_target(),
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=production_snapshot,
+        )
+        self.assertEqual(plan.guild_id, GUILD_ID)
 
     def test_live_identity_must_match_configured_development_target(self):
         storage.validate_live_identity(

@@ -169,7 +169,11 @@ class RepositoryConsistencyTests(unittest.TestCase):
 
     def test_public_example_remains_installation_neutral(self):
         example_config = _read('config.ini-EXAMPLE')
-        self.assertRegex(example_config, r'(?m)^psql_db\s*=\s*polybot$')
+        self.assertRegex(
+            example_config,
+            r'(?m)^guild_configuration_source\s*=\s*database$',
+        )
+        self.assertNotIn('psql_password =', example_config)
         self.assertIn('REPLACE_WITH_YOUR_BOT_USER_ID', example_config)
         self.assertRegex(example_config, r'(?m)^bullet_enabled\s*=\s*false$')
         self.assertNotIn('484067640302764042', example_config)

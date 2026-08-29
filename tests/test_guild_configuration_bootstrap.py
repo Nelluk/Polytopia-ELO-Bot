@@ -1,4 +1,4 @@
-"""Focused offline coverage for P11.5B first-guild bootstrap."""
+"""Focused offline coverage for first-guild bootstrap."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def plan():
 
 
 class FirstGuildPlanTests(unittest.TestCase):
-    def test_plan_is_deterministic_operator_only_and_model_free(self):
+    def test_plan_is_deterministic_safe_standard_and_model_free(self):
         first = plan()
         second = plan()
 
@@ -35,7 +35,7 @@ class FirstGuildPlanTests(unittest.TestCase):
         self.assertEqual(first.guild_name, 'Fresh Development Guild')
         self.assertEqual(
             first.document.command_capabilities,
-            ('guild_admin', 'operator'),
+            ('core_user', 'guild_admin', 'operator', 'squad'),
         )
         self.assertEqual(first.document.identity.command_prefix, '$')
         self.assertEqual(
@@ -54,13 +54,13 @@ class FirstGuildPlanTests(unittest.TestCase):
         self.assertRegex(first.plan_digest, r'^[0-9a-f]{64}$')
         self.assertEqual(
             first.confirmation,
-            f'P11.5B APPLY {GUILD_ID} {first.plan_digest}',
+            f'BOOTSTRAP FIRST GUILD {GUILD_ID} {first.plan_digest}',
         )
         rendered = bootstrap.plan_to_mapping(first)
         self.assertFalse(rendered['application_commands_synchronized'])
         self.assertEqual(
             rendered['command_capabilities'],
-            ['guild_admin', 'operator'],
+            ['core_user', 'guild_admin', 'operator', 'squad'],
         )
 
     def test_plan_requires_one_exact_discord_observed_guild(self):
@@ -82,13 +82,20 @@ class FirstGuildPlanTests(unittest.TestCase):
                     discord_snapshot=value,
                 )
 
-    def test_plan_refuses_nondevelopment_target(self):
-        with self.assertRaises(storage.GuildConfigurationStorageError):
-            bootstrap.build_first_guild_plan(
-                target=fixtures.target(database_name='polytopia2'),
-                allowed_guild_ids=(GUILD_ID,),
-                discord_snapshot=fixtures.snapshot(),
-            )
+    def test_plan_accepts_independent_development_target(self):
+        target = fixtures.target(
+            database_name='independent_dev',
+            database_user='independent_bot',
+            expected_application_id=900000000000000999,
+        )
+        snapshot = fixtures.snapshot()
+        snapshot['application_id'] = target.expected_application_id
+        value = bootstrap.build_first_guild_plan(
+            target=target,
+            allowed_guild_ids=(GUILD_ID,),
+            discord_snapshot=snapshot,
+        )
+        self.assertEqual(value.guild_id, GUILD_ID)
 
 
 class _Connection:

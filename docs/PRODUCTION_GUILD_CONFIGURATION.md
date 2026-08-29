@@ -8,8 +8,9 @@ including the separately authorized guild-only Discord command release.
 
 The source retains the exact production Discord snapshot, offline import plan,
 digest-bound command planning, and explicitly acknowledged atomic production
-import. Runtime database authority and the operator workers accept only the
-exact reviewed production application/database topology.
+import. That migration was bound to the reviewed production topology; current
+runtime storage validates each installation's explicit environment,
+application, database, role, guild inventory, and live Discord snapshot.
 
 Verified on 2026-08-28:
 

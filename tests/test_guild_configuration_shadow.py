@@ -408,14 +408,14 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(bundle, fixtures.bundle())
 
-    def test_missing_guild_or_production_target_is_rejected_before_database(self):
+    def test_missing_guild_or_invalid_target_is_rejected_before_database(self):
         with self.assertRaisesRegex(
             shadow.GuildConfigurationShadowMalformed,
             'incomplete',
         ):
             shadow.capture_discord_snapshot(profile=profile(), guilds=())
         unsafe = profile()
-        unsafe.environment = 'production'
+        unsafe.environment = 'staging'
         with self.assertRaisesRegex(
             shadow.GuildConfigurationShadowMalformed,
             'runtime_target_invalid',

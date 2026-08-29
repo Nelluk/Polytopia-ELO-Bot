@@ -26,6 +26,7 @@ config.development.ini
 server_settings.py
 server_settings_dev.py
 .env
+compose.yaml
 backups/
 *.sublime*
 pyvenv.cfg

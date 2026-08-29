@@ -15,8 +15,8 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## GreenCloud production Compose deployment
 
-- GreenCloud production is the direct `compose.production.yaml` project in
-  `/srv/polyelo/PolyBot39`. Its ignored root `.env` selects that file and the
+- GreenCloud production uses the ignored, operator-owned `compose.yaml` in
+  `/srv/polyelo/PolyBot39` with the ignored root `.env` and the
   `polyelo-production` project. Read `docs/PRODUCTION_DOCKER.md` and the
   production section of `/home/nelluk/SERVER_INFO.md` before operating it.
 - A disabled legacy `polyelo.service` may still exist on the host, but current
@@ -38,9 +38,9 @@ This file provides guidance to coding agents when working with code in this repo
 
 - Before every beta setup, deploy, start, stop, restart, status, or log
   operation, read the Development section of `/home/nelluk/SERVER_INFO.md`.
-- GreenCloud's canonical beta is the direct `compose.beta.yaml` project in
-  `/home/nelluk/PolyBot39-beta`. Its ignored root `.env` selects that file
-  and the `polybot-mac-beta` project. It uses host PostgreSQL through the
+- GreenCloud's canonical beta uses the ignored, operator-owned `compose.yaml`
+  in `/home/nelluk/PolyBot39-beta` with the ignored root `.env` and the
+  `polybot-mac-beta` project. It uses host PostgreSQL through the
   read-only `/var/run/postgresql` mount; Compose must not own a beta database.
 - Before mutation, run `docker compose config --quiet`, `docker compose ps`,
   and, while the bot is running, the runtime configuration check documented

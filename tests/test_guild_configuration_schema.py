@@ -326,6 +326,26 @@ class GuildConfigurationSchemaTests(unittest.TestCase):
         self.assertEqual(len(MIGRATED_LEGACY_KEYS), 26)
         self.assertEqual(OBSOLETE_LEGACY_KEYS, {'match_challenge_channel'})
 
+        example_guild_ids = [key for key in server_list if key != 'default']
+        self.assertEqual(len(example_guild_ids), 1)
+        example_guild_id = example_guild_ids[0]
+        document = materialize_legacy_document(
+            guild_id=example_guild_id,
+            defaults=server_list['default'],
+            overrides=server_list[example_guild_id],
+            role_ids_by_name={},
+            command_capabilities=(
+                'core_user',
+                'guild_admin',
+                'operator',
+                'squad',
+            ),
+        )
+        self.assertEqual(document.guild_id, example_guild_id)
+        self.assertEqual(document.permissions.user_role_ids_level_2, (example_guild_id,))
+        self.assertFalse(document.teams.allow_teams)
+        self.assertFalse(document.visibility.include_in_global_leaderboard)
+
     def test_legacy_materialization_is_complete_and_does_not_mutate_inputs(self):
         defaults = legacy_defaults()
         overrides = {
