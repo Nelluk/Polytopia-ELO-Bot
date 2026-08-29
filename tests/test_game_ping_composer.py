@@ -200,7 +200,7 @@ class GamePingRegistrationTests(unittest.TestCase):
                 ('attachment', discord.AppCommandOptionType.attachment, False),
             ],
         )
-        self.assertEqual(command._params['message'].to_dict()['max_length'], 6000)
+        self.assertNotIn('max_length', command._params['message'].to_dict())
         prefix_commands = {
             command.name: command for command in misc.misc.__cog_commands__
         }

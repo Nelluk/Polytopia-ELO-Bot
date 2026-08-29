@@ -3213,7 +3213,7 @@ class polygames(commands.Cog):
     async def game_ping_slash(
         self,
         interaction: discord.Interaction,
-        message: discord.app_commands.Range[str, 1, 6000] | None = None,
+        message: str | None = None,
         game_id: int | None = None,
         attachment: discord.Attachment | None = None,
     ):
