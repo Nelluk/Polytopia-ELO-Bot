@@ -303,6 +303,7 @@ class MyBot(commands.Bot):
         self._startup_ban_lock = asyncio.Lock()
         self._guild_configuration_shadow_complete = False
         self._guild_configuration_shadow_lock = asyncio.Lock()
+        self._guild_configuration_ready_event = asyncio.Event()
         self.guild_configuration_shadow_result = None
         self._restart_exit_status = None
         self._database_watchdog = None
@@ -896,6 +897,7 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
             )
             await bot.close()
             raise
+        bot._guild_configuration_ready_event.set()
 
         pending_guild_ids = tuple(
             getattr(

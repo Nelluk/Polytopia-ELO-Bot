@@ -6132,7 +6132,7 @@ class polygames(commands.Cog):
         )
 
     async def task_purge_game_channels(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
             await asyncio.sleep(900)
             logger.debug('Task running: task_purge_game_channels')
@@ -6171,7 +6171,7 @@ class polygames(commands.Cog):
             return None
 
     async def task_set_champion_role(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
 
             await asyncio.sleep(97)

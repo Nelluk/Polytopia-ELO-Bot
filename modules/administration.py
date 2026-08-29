@@ -1334,7 +1334,7 @@ class administration(commands.Cog):
                 )
 
     async def task_confirm_auto(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         sleep_cycle = (60 * 60 * 0.5)  # half hour cycle
 
         while not self.bot.is_closed():
@@ -1346,7 +1346,7 @@ class administration(commands.Cog):
             await asyncio.sleep(sleep_cycle)
 
     async def task_purge_incomplete(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         sleep_cycle = (60 * 60 * 5)  # 5 hour cycle
 
         while not self.bot.is_closed():

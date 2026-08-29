@@ -578,6 +578,10 @@ class SnapshotAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
             'await bot._run_guild_configuration_authority()',
             source,
         )
+        self.assertLess(
+            source.index('await bot._run_guild_configuration_authority()'),
+            source.index('bot._guild_configuration_ready_event.set()'),
+        )
 
     async def test_production_database_source_loads_exact_runtime_target(self):
         instance = self.make_bot()

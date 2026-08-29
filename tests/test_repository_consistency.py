@@ -66,6 +66,25 @@ def _read(relative_path: str) -> str:
 
 
 class RepositoryConsistencyTests(unittest.TestCase):
+    def test_background_tasks_wait_for_published_guild_configuration(self):
+        for relative_path in (
+            'modules/administration.py',
+            'modules/games.py',
+            'modules/league.py',
+            'modules/matchmaking.py',
+            'modules/misc.py',
+        ):
+            with self.subTest(relative_path=relative_path):
+                active_lines = (
+                    line for line in _read(relative_path).splitlines()
+                    if not line.lstrip().startswith('#')
+                )
+                source = '\n'.join(active_lines)
+                self.assertNotIn(
+                    'await self.bot.wait_until_ready()',
+                    source,
+                )
+
     def test_current_command_source_has_expected_roots_and_operator_groups(self):
         command_probe = subprocess.run(
             (

@@ -2406,7 +2406,7 @@ class league(commands.Cog):
 
     @tasks.loop(hours=1)  # Check every hour
     async def task_draft_reminders(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         now = datetime.datetime.now()
         channel_id = 447883341463814146  # mod-talk
         channel = self.bot.get_channel(channel_id)
@@ -2436,7 +2436,7 @@ class league(commands.Cog):
 
     @tasks.loop(minutes=120.0)
     async def task_send_polychamps_invite(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         logger.info('Running task task_send_polychamps_invite')
         try:
             result = await league_invitation.run_invitation_cycle(

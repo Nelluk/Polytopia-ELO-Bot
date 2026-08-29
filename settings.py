@@ -238,6 +238,20 @@ def guild_configuration_ready() -> bool:
     )
 
 
+async def wait_until_guild_configuration_ready(bot_instance) -> None:
+    """Wait until Discord is ready and the selected guild policy is published."""
+
+    await bot_instance.wait_until_ready()
+    readiness_event = getattr(
+        bot_instance,
+        '_guild_configuration_ready_event',
+        None,
+    )
+    if readiness_event is None:
+        return
+    await readiness_event.wait()
+
+
 def database_guild_configuration_quarantined(guild_id: int) -> bool:
     """Return whether committed publication uncertainty blocks this guild."""
 

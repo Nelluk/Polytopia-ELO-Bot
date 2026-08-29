@@ -399,6 +399,7 @@ class ExpiredGameServiceTests(unittest.IsolatedAsyncioTestCase):
         source = inspect.getsource(
             matchmaking.matchmaking.task_purge_expired_games.coro
         )
+        self.assertIn('wait_until_guild_configuration_ready', source)
         self.assertIn('purge_expired_games_for_guild', source)
         self.assertNotIn('models.Game.select', source)
         self.assertNotIn('delete_game()', source)

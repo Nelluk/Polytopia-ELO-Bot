@@ -470,7 +470,7 @@ class misc(commands.Cog):
 
 
     async def task_broadcast_newbie_message(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
             sleep_cycle = (60 * 60 * 3)
             await asyncio.sleep(10)
@@ -498,7 +498,7 @@ class misc(commands.Cog):
             await asyncio.sleep(sleep_cycle)
 
     async def task_broadcast_newbie_steam_message(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
             sleep_cycle = (60 * 60 * 6)
             await asyncio.sleep(10)

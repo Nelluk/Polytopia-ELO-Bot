@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 import re
 from types import MappingProxyType, SimpleNamespace
 import unittest
+from unittest import mock
 
 from modules import guild_configuration_runtime as runtime
 from modules import guild_configuration_shadow as shadow
@@ -291,6 +293,26 @@ class SettingsAuthorityTests(unittest.TestCase):
                 activated_guild_id=GUILD_ID,
                 expected_activation=(2, 3, old.document_digest),
             )
+
+
+class GuildConfigurationReadinessTests(unittest.IsolatedAsyncioTestCase):
+    async def test_background_gate_waits_for_runtime_publication(self):
+        readiness_event = asyncio.Event()
+        bot_instance = SimpleNamespace(
+            wait_until_ready=mock.AsyncMock(),
+            _guild_configuration_ready_event=readiness_event,
+        )
+
+        waiter = asyncio.create_task(
+            settings.wait_until_guild_configuration_ready(bot_instance)
+        )
+        await asyncio.sleep(0)
+
+        bot_instance.wait_until_ready.assert_awaited_once()
+        self.assertFalse(waiter.done())
+
+        readiness_event.set()
+        await waiter
 
 
 if __name__ == '__main__':

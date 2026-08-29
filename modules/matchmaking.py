@@ -1589,7 +1589,7 @@ class matchmaking(commands.Cog):
         )
 
     async def task_dm_game_creators(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 12)
             logger.debug('Task running: task_dm_game_creators')
@@ -1604,7 +1604,7 @@ class matchmaking(commands.Cog):
     async def task_create_empty_matchmaking_lobbies(self):
         # Keep open games list populated with vacant lobbies as specified in settings.lobbies
 
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         while not self.bot.is_closed():
             await asyncio.sleep(60)
             logger.debug('Task running: task_create_empty_matchmaking_lobbies')
@@ -1618,7 +1618,7 @@ class matchmaking(commands.Cog):
                 logger.exception('Configured vacant lobby cycle failed.')
 
     async def task_print_matchlist(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         sleep_cycle = (60 * 60 * 1)
 
         while not self.bot.is_closed():
@@ -1637,7 +1637,7 @@ class matchmaking(commands.Cog):
 
     @tasks.loop(minutes=10)
     async def task_purge_expired_games(self):
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         for guild in self.bot.guilds:
             logger.debug(f'Running task_purge_expired_games for guild {guild.name}')
             await game_expiration.purge_expired_games_for_guild(
@@ -1650,7 +1650,7 @@ class matchmaking(commands.Cog):
     async def task_reconcile_started_broadcasts(self):
         """Retry retained external messages after a committed game start."""
 
-        await self.bot.wait_until_ready()
+        await settings.wait_until_guild_configuration_ready(self.bot)
         for guild in self.bot.guilds:
             try:
                 await game_broadcasts.reconcile_started_broadcasts_for_guild(
