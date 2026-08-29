@@ -195,12 +195,11 @@ class GamePingRegistrationTests(unittest.TestCase):
             [(parameter.name, parameter.type, parameter.required)
              for parameter in command.parameters],
             [
-                ('message', discord.AppCommandOptionType.string, False),
-                ('game_id', discord.AppCommandOptionType.integer, False),
+                ('message', discord.AppCommandOptionType.string, True),
                 ('attachment', discord.AppCommandOptionType.attachment, False),
             ],
         )
-        self.assertNotIn('max_length', command._params['message'].to_dict())
+        self.assertEqual(command._params['message'].to_dict()['max_length'], 4000)
         prefix_commands = {
             command.name: command for command in misc.misc.__cog_commands__
         }
@@ -211,51 +210,71 @@ class GamePingRegistrationTests(unittest.TestCase):
 
 
 class GamePingDraftTests(unittest.TestCase):
-    def test_modal_has_three_sections_and_one_bounded_upload_field(self):
-        modal = views.GamePingComposeModal
-        self.assertEqual(
-            [
-                modal.section_one.component.max_length,
-                modal.section_two.component.max_length,
-                modal.section_three.component.max_length,
-            ],
-            [workers.MAX_TEXT_SECTION_LENGTH] * 3,
-        )
-        self.assertEqual(
-            modal.attachments.component.max_values,
-            workers.MAX_ATTACHMENTS,
-        )
+    def test_modals_have_one_bounded_message_and_upload_field(self):
+        for modal in (views.GamePingStartModal, views.GamePingComposeModal):
+            self.assertEqual(
+                modal.message_input.component.max_length,
+                workers.MAX_TEXT_SECTION_LENGTH,
+            )
+            self.assertEqual(
+                modal.attachments.component.max_values,
+                workers.MAX_ATTACHMENTS,
+            )
 
-    def test_text_ceiling_omits_blank_sections_and_preserves_newlines(self):
-        sections = ('a\nline', '', 'last')
-        self.assertEqual(service.combine_sections(sections), 'a\nline\n\nlast')
-        full = service.build_draft(('a' * 4000, 'b' * 4000, 'c' * 4000))
+    def test_text_ceiling_preserves_newlines_and_rejects_extra_sections(self):
+        sections = ('a\nline',)
+        self.assertEqual(service.combine_sections(sections), 'a\nline')
+        full = service.build_draft(('a' * 4000,))
         self.assertEqual(sum(map(len, full.sections)), workers.MAX_TEXT_LENGTH)
-        self.assertEqual(len(full.text), 12_004)
+        self.assertEqual(len(full.text), 4_000)
         self.assertLessEqual(len(full.text), workers.MAX_FORMATTED_TEXT_LENGTH)
 
         with self.assertRaises(workers.GamePingValidationError):
-            service.combine_sections(('a' * 4000, 'b' * 4000, 'c' * 4000, 'd'))
+            service.combine_sections(('a', 'b'))
 
     def test_empty_text_is_rejected_but_attachments_only_is_valid(self):
         with self.assertRaises(workers.GamePingValidationError):
-            service.build_draft(('', '', ''), ())
+            service.build_draft(('',), ())
         attachment = workers.AttachmentMetadata(
             filename='map.png',
             url='https://cdn.discordapp.com/attachments/1/2/map.png',
             content_type='image/png',
             size=10,
         )
-        draft = service.build_draft(('', '', ''), (attachment,))
+        draft = service.build_draft(('',), (attachment,))
         self.assertEqual(draft.text, '')
         self.assertEqual(draft.attachments, (attachment,))
         with self.assertRaises(workers.GamePingValidationError):
             service.build_draft(('text',), (SimpleNamespace(url='bad'),))
 
+    def test_native_input_uses_compose_sentinel_and_leading_game_id(self):
+        self.assertEqual(
+            service.parse_native_input('extension'),
+            service.NativePingInput(False, None, 'extension'),
+        )
+        self.assertEqual(
+            service.parse_native_input('144386 extension'),
+            service.NativePingInput(False, 144386, 'extension'),
+        )
+        self.assertEqual(
+            service.parse_native_input('compose'),
+            service.NativePingInput(True, None, ''),
+        )
+        self.assertEqual(
+            service.parse_native_input('compose 144386'),
+            service.NativePingInput(True, 144386, ''),
+        )
+        with self.assertRaisesRegex(
+            workers.GamePingValidationError,
+            'must be a game ID',
+        ):
+            service.parse_native_input('compose later')
+
     def test_all_scope_excludes_a_cross_guild_channel_selection(self):
         result = load_result(games=(
             game_snapshot(42, guild_id=2),
             game_snapshot(50, guild_id=1),
+            game_snapshot(51, guild_id=1, is_confirmed=True),
         ))
         self.assertEqual(
             service._game_ids_for_scope(
@@ -347,6 +366,33 @@ class GamePingWorkerTests(unittest.TestCase):
             incomplete_only=False,
         )
         write.assert_called_once()
+
+    def test_native_explicit_game_can_override_channel_inference(self):
+        requester = snapshot()
+        explicit_game = game_snapshot(99)
+        request = workers.GamePingLoadRequest(
+            guild_id=1,
+            requester=requester,
+            target_id=10,
+            explicit_game_id=99,
+            channel_id=100,
+            discover_all=False,
+            prefer_explicit_game_id=True,
+        )
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=object()), \
+                mock.patch.object(workers, '_game_ids_for_channel', return_value=(42,)), \
+                mock.patch.object(
+                    workers,
+                    '_load_games_by_ids',
+                    return_value=(explicit_game,),
+                ) as load:
+            result = workers.prepare_candidates(request)
+
+        self.assertEqual(result.games, (explicit_game,))
+        self.assertEqual(result.inferred_game_id, 42)
+        load.assert_called_once_with((99,), incomplete_only=False)
 
     def test_all_scope_still_rejects_completed_games(self):
         completed_game = game_snapshot(
@@ -707,6 +753,103 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.facts = channel_facts()
         self.draft = service.build_draft(('hello',), ())
 
+    def test_ordinary_single_game_hides_irrelevant_controls_and_jargon(self):
+        requester = snapshot(level=2, is_staff=False)
+        result = load_result(all_scope_allowed=False)
+        view = views.GamePingComposerView(
+            requester=requester,
+            target=requester,
+            result=result,
+            channel_facts=self.facts,
+            selected_game_id=42,
+            target_loader=None,
+            confirmer=mock.AsyncMock(),
+        )
+        view.draft = self.draft
+        view.rebuild()
+
+        self.assertIsNone(view.scope_select)
+        self.assertIsNone(view.game_select)
+        self.assertIsNone(view.target_select)
+        preview = service.preview_message(
+            result,
+            requester=requester,
+            target=requester,
+            scope='single',
+            selected_game_id=42,
+            draft=self.draft,
+            channel_facts=self.facts,
+        )
+        self.assertIn('Game: `42`', preview)
+        self.assertNotIn('Target:', preview)
+        self.assertNotIn('Resolved', preview)
+        self.assertNotIn('(guild ', preview)
+
+    def test_ambiguous_games_require_a_choice_instead_of_defaulting(self):
+        requester = snapshot(level=2, is_staff=False)
+        result = load_result(
+            games=(game_snapshot(42), game_snapshot(50)),
+            inferred_game_id=None,
+            all_scope_allowed=False,
+        )
+        view = views.GamePingComposerView(
+            requester=requester,
+            target=requester,
+            result=result,
+            channel_facts=self.facts,
+            selected_game_id=None,
+            target_loader=None,
+            confirmer=mock.AsyncMock(),
+        )
+        view.draft = self.draft
+        view.rebuild()
+
+        self.assertIsNotNone(view.game_select)
+        self.assertFalse(any(option.default for option in view.game_select.options))
+        self.assertTrue(view.confirm_button.disabled)
+
+    def test_unusable_all_scope_is_hidden(self):
+        requester = snapshot(level=3, is_staff=False, is_mod=False)
+        result = load_result(
+            games=(game_snapshot(42), game_snapshot(50)),
+            inferred_game_id=None,
+            all_scope_allowed=True,
+        )
+        blocked_facts = channel_facts(
+            channel_id=999,
+            bot_channels=(),
+            readable=(),
+        )
+        view = views.GamePingComposerView(
+            requester=requester,
+            target=requester,
+            result=result,
+            channel_facts=blocked_facts,
+            selected_game_id=42,
+            target_loader=None,
+            confirmer=mock.AsyncMock(),
+        )
+        self.assertIsNone(view.scope_select)
+        self.assertEqual(view.scope, 'single')
+
+    async def test_remove_files_clears_existing_attachments(self):
+        attachment = workers.AttachmentMetadata(
+            'map.png',
+            'https://cdn.discordapp.com/attachments/1/2/map.png',
+            'image/png',
+            10,
+        )
+        view = self._view()
+        view.draft = service.build_draft(('hello',), (attachment,))
+        view.rebuild()
+        interaction = self._component_interaction()
+
+        await view._remove_files_clicked(interaction)
+
+        self.assertEqual(view.draft.attachments, ())
+        self.assertIsNone(view.remove_files_button)
+        interaction.response.edit_message.assert_awaited_once_with(view=view)
+
     async def test_precommit_failure_restores_exact_draft_and_confirm_is_retryable(self):
         async def fail(_interaction, _view):
             raise workers.GamePingConflictError('stale game')
@@ -788,7 +931,7 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         await view._confirm_clicked(interaction)
         self.assertTrue(view.committed)
         self.assertTrue(view.is_finished())
-        self.assertIn('terminal', view.status)
+        self.assertIn('Do not send it again', view.status)
         self.assertEqual(view._confirmations, 1)
 
     def _component_interaction(self, *, send_modal=None):
@@ -796,6 +939,7 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
             send_modal=send_modal or mock.AsyncMock(),
             send_message=mock.AsyncMock(),
             defer=mock.AsyncMock(),
+            edit_message=mock.AsyncMock(),
             is_done=mock.Mock(return_value=False),
         )
         return SimpleNamespace(
@@ -839,7 +983,7 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         interaction = self._component_interaction()
         await view._compose_clicked(interaction)
         modal = interaction.response.send_modal.call_args.args[0]
-        modal.section_one.component._value = 'newest draft'
+        modal.message_input.component._value = 'newest draft'
 
         await modal.on_submit(self._component_interaction())
         self.assertIsNotNone(view.draft)
@@ -855,11 +999,11 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         older_modal = first_interaction.response.send_modal.call_args.args[0]
         newest_modal = second_interaction.response.send_modal.call_args.args[0]
 
-        newest_modal.section_one.component._value = 'newest draft'
+        newest_modal.message_input.component._value = 'newest draft'
         await newest_modal.on_submit(self._component_interaction())
         original_draft = view.draft
 
-        older_modal.section_one.component._value = 'stale overwrite'
+        older_modal.message_input.component._value = 'stale overwrite'
         stale_submit = self._component_interaction()
         await older_modal.on_submit(stale_submit)
         self.assertIs(view.draft, original_draft)
@@ -1026,22 +1170,37 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
             target_description='**Author** (`10`)',
         )
         delivered = service.DeliveryResult(committed, (), ())
+        requester = snapshot(level=5, is_staff=True)
         interaction = SimpleNamespace(
-            response=SimpleNamespace(defer=mock.AsyncMock()),
+            user=SimpleNamespace(id=10),
+            guild=SimpleNamespace(id=1),
+            channel=SimpleNamespace(id=100),
+            channel_id=100,
+            response=SimpleNamespace(
+                defer=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
             edit_original_response=mock.AsyncMock(),
         )
-        cog = SimpleNamespace(bot=SimpleNamespace(guilds=('guild-cache',)))
+        cog = SimpleNamespace(
+            bot=SimpleNamespace(guilds=('guild-cache',)),
+            _claim_game_ping_send=mock.Mock(return_value=123.0),
+            _release_game_ping_send=mock.Mock(),
+        )
 
         with mock.patch.object(
-            games.game_ping,
-            'run_native_single',
-            return_value=delivered,
+                games.game_ping,
+                'capture_member',
+                return_value=requester,
+        ), mock.patch.object(
+                games.game_ping,
+                'run_native_single',
+                return_value=delivered,
         ) as quick_ping:
             await command.callback(
                 cog,
                 interaction,
-                message='extension',
-                game_id=None,
+                message='42 extension',
                 attachment=None,
             )
 
@@ -1049,13 +1208,113 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
         quick_ping.assert_awaited_once_with(
             interaction,
             message='extension',
-            game_id=None,
+            game_id=42,
             attachment=None,
             guilds=('guild-cache',),
         )
+        cog._claim_game_ping_send.assert_called_once_with(10)
+        cog._release_game_ping_send.assert_not_called()
         interaction.edit_original_response.assert_awaited_once_with(
             content='Ping sent for game `42`.',
         )
+
+    async def test_native_compose_opens_modal_and_does_not_choose_ambiguous_game(self):
+        from modules import games
+
+        game_group = next(
+            command
+            for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        )
+        command = game_group.get_command('ping')
+        requester = snapshot(level=2, is_staff=False)
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=10),
+            guild=SimpleNamespace(id=1),
+            guild_id=1,
+            channel=SimpleNamespace(id=100),
+            channel_id=100,
+            response=SimpleNamespace(
+                send_modal=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
+        )
+        cog = SimpleNamespace(
+            bot=SimpleNamespace(guilds=('guild-cache',)),
+            _claim_game_ping_send=mock.Mock(return_value=123.0),
+            _release_game_ping_send=mock.Mock(),
+        )
+
+        with mock.patch.object(
+            games.game_ping,
+            'capture_member',
+            return_value=requester,
+        ):
+            await command.callback(
+                cog,
+                interaction,
+                message='compose',
+                attachment=None,
+            )
+
+        interaction.response.send_modal.assert_awaited_once()
+        modal = interaction.response.send_modal.call_args.args[0]
+        self.assertIsInstance(modal, views.GamePingStartModal)
+        modal.message_input.component._value = 'longer update'
+        loaded = load_result(
+            games=(game_snapshot(50), game_snapshot(42)),
+            inferred_game_id=None,
+            all_scope_allowed=False,
+        )
+        submit_interaction = SimpleNamespace(
+            user=SimpleNamespace(id=10),
+            guild=SimpleNamespace(id=1),
+            guild_id=1,
+            channel=SimpleNamespace(id=100),
+            channel_id=100,
+            response=SimpleNamespace(
+                defer=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+                is_done=mock.Mock(return_value=False),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(
+                return_value=SimpleNamespace(edit=mock.AsyncMock()),
+            ),
+        )
+        with mock.patch.object(
+                workers,
+                'run_ping_candidates',
+                return_value=loaded,
+        ), mock.patch.object(
+                games.game_ping,
+                'capture_channel_facts',
+                return_value=channel_facts(),
+        ):
+            await modal.on_submit(submit_interaction)
+
+        submit_interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        workspace = submit_interaction.edit_original_response.call_args.kwargs['view']
+        self.assertIsNone(workspace.selected_game_id)
+        self.assertIsNotNone(workspace.game_select)
+        self.assertTrue(workspace.confirm_button.disabled)
+        self.assertEqual(workspace.draft.text, 'longer update')
+
+        workspace.selected_game_id = 50
+        workspace.rebuild()
+        with mock.patch.object(
+            games.game_ping,
+            'confirm_and_deliver',
+            return_value='sent',
+        ) as confirm:
+            outcome = await workspace.confirmer(submit_interaction, workspace)
+
+        self.assertEqual(outcome, 'sent')
+        commit = confirm.call_args.args[0]
+        self.assertEqual(commit.game_ids, (50,))
+        self.assertEqual(commit.invoked_with, '/game ping compose')
+        self.assertFalse(confirm.call_args.kwargs['completion_on_success'])
+        cog._claim_game_ping_send.assert_called_once_with(10)
 
     async def test_prefix_single_keeps_leading_number_when_channel_inference_wins(self):
         author = SimpleNamespace(id=10, display_name='Author', name='author', roles=(), guild=SimpleNamespace(id=1))

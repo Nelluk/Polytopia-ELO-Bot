@@ -45,6 +45,15 @@ class GamePingDraft:
 
 
 @dataclass(frozen=True, slots=True)
+class NativePingInput:
+    """Parsed positional-style input for the native game-ping command."""
+
+    compose: bool
+    explicit_game_id: int | None
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
 class DeliveryFailure:
     game_id: int | None
     guild_id: int
@@ -372,6 +381,44 @@ def build_draft(
     )
 
 
+def parse_native_input(value: str) -> NativePingInput:
+    """Parse ``compose [game-id]`` or ``[game-id] message`` slash input."""
+
+    raw = str(value or '').strip()
+    if not raw:
+        raise workers.GamePingValidationError(
+            'Enter a message, or enter `compose` to open the composer.'
+        )
+    parts = raw.split(maxsplit=1)
+    first = parts[0]
+    remainder = parts[1] if len(parts) == 2 else ''
+    if first.casefold() == 'compose':
+        compose_tail = remainder.strip()
+        if not compose_tail:
+            return NativePingInput(True, None, '')
+        if len(compose_tail.split()) != 1:
+            raise workers.GamePingValidationError(
+                'Use `compose` or `compose GAME_ID` to open the composer.'
+            )
+        try:
+            game_id = int(compose_tail)
+        except ValueError as exc:
+            raise workers.GamePingValidationError(
+                'The value after `compose` must be a game ID.'
+            ) from exc
+        if game_id <= 0:
+            raise workers.GamePingValidationError('Game IDs must be positive integers.')
+        return NativePingInput(True, game_id, '')
+
+    try:
+        game_id = int(first)
+    except ValueError:
+        return NativePingInput(False, None, raw)
+    if game_id <= 0:
+        raise workers.GamePingValidationError('Game IDs must be positive integers.')
+    return NativePingInput(False, game_id, remainder.strip())
+
+
 def _game_ids_for_scope(
     result: workers.GamePingLoadResult,
     *,
@@ -398,6 +445,7 @@ def _game_ids_for_scope(
         game.game_id
         for game in result.games
         if game.guild_id == result.guild_id
+        and not game.is_confirmed
         and result.target_id in {
             participant.discord_id for participant in game.participants
         }
@@ -439,21 +487,40 @@ def build_commit_request(
     )
 
 
-def _destination_label(destination: workers.GamePingDestination) -> str:
+def _destination_label(
+    destination: workers.GamePingDestination,
+    *,
+    invoking_guild_id: int,
+) -> str:
     if destination.kind.startswith('blocked:'):
-        return (
-            f'Blocked for game {destination.game_id}: '
-            f'{destination.kind.removeprefix("blocked:").strip()}'
+        return destination.kind.removeprefix('blocked:').strip()
+    label = f'<#{destination.channel_id}>'
+    if int(destination.guild_id) != int(invoking_guild_id):
+        label += f' (server `{destination.guild_id}`)'
+    return label
+
+
+def _preview_games(
+    result: workers.GamePingLoadResult,
+    *,
+    scope: str,
+    selected_game_id: int | None,
+) -> tuple[workers.GamePingGame, ...]:
+    if scope == 'single':
+        return tuple(
+            game for game in result.games if game.game_id == selected_game_id
         )
-    game = (
-        f'game {destination.game_id}'
-        if destination.game_id is not None
-        else 'all selected games'
+    return tuple(
+        game for game in result.games
+        if game.guild_id == result.guild_id
+        and not game.is_confirmed
+        and result.target_id in {
+            participant.discord_id for participant in game.participants
+        }
     )
-    return f'{game} → <#{destination.channel_id}> (guild {destination.guild_id})'
 
 
-def preview_message(
+def preview_destinations(
     result: workers.GamePingLoadResult,
     *,
     requester: workers.MemberSnapshot,
@@ -462,93 +529,24 @@ def preview_message(
     selected_game_id: int | None,
     draft: GamePingDraft | None,
     channel_facts: workers.ChannelFacts,
-) -> str:
-    """Render the complete private review state, including destinations."""
+) -> tuple[tuple[workers.GamePingDestination, ...], str | None]:
+    """Resolve the current private preview or explain why it cannot send."""
 
-    if scope == 'single':
-        selected = selected_game_id if selected_game_id is not None else 'not selected'
-        scope_line = f'Single game: `{selected}`'
-        games = tuple(
-            game for game in result.games if game.game_id == selected_game_id
+    games = _preview_games(
+        result,
+        scope=scope,
+        selected_game_id=selected_game_id,
+    )
+    if not games:
+        return (), (
+            'Choose a game before sending.'
+            if scope == 'single'
+            else 'No incomplete games are available for this player.'
         )
-    else:
-        scope_line = 'All incomplete games for the selected target'
-        games = tuple(
-            game for game in result.games
-            if game.guild_id == result.guild_id
-            and result.target_id in {
-                participant.discord_id for participant in game.participants
-            }
-        )
-    ids = ', '.join(str(game.game_id) for game in games) or 'none'
-    if result.truncated:
-        game_summary = (
-            f'{ids} (showing at most {MAX_GAMES} of more than '
-            f'{MAX_GAMES}; narrow the scope to choose another game)'
-        )
-    else:
-        game_summary = ids
-    choice_note = ''
-    if len(result.games) > MAX_GAME_CHOICES:
-        choice_note = (
-            f' Only the first {MAX_GAME_CHOICES} loaded games are offered in '
-            'the native single-game select; use an explicit game ID or narrow '
-            'the draft if the desired game is not listed.'
-        )
-    recipient_map = {}
-    for game in games:
-        for participant in game.participants:
-            recipient_map.setdefault(participant.discord_id, participant.display_name)
-    recipient_items = [
-        f'{_safe_name(name, fallback=f"user-{discord_id}")} (`{discord_id}`)'
-        for discord_id, name in list(recipient_map.items())[:MAX_PREVIEW_RECIPIENTS]
-    ]
-    if len(recipient_map) > MAX_PREVIEW_RECIPIENTS:
-        recipient_items.append(
-            f'… and {len(recipient_map) - MAX_PREVIEW_RECIPIENTS} more'
-        )
-    recipients = ', '.join(recipient_items) or 'none loaded'
-
-    lines = [
-        '**Game ping draft — private preview**',
-        f'Target: {target.description}',
-        f'Scope: {scope_line}',
-        f'Resolved game count: {len(games)}',
-        f'Resolved game IDs: {game_summary}.{choice_note}',
-        f'Recipients ({len(recipient_map)} resolved): {recipients}',
-    ]
-    if draft is None:
-        lines.append('Message: *(not composed yet)*')
-        lines.append('Attachments: none')
-    else:
-        lines.append('Message:')
-        if draft.text:
-            preview_text = utilities.escape_role_mentions(draft.text)
-            if len(preview_text) > MAX_PREVIEW_MESSAGE_LENGTH:
-                preview_text = (
-                    preview_text[:MAX_PREVIEW_MESSAGE_LENGTH]
-                    + f'\n… ({len(preview_text) - MAX_PREVIEW_MESSAGE_LENGTH:,} '
-                    'characters omitted from this preview; delivery preserves '
-                    'the full draft)'
-                )
-            lines.append(preview_text)
-        else:
-            lines.append('*(attachments only)*')
-        if draft.attachments:
-            lines.append(
-                'Attachments: '
-                + ', '.join(
-                    f'{attachment.filename} ({attachment.content_type}, {attachment.size} bytes)'
-                    for attachment in draft.attachments
-                )
-            )
-        else:
-            lines.append('Attachments: none')
-
-    destination_rows = []
+    destinations = []
     for game in games:
         try:
-            destination_rows.extend(
+            destinations.extend(
                 workers._destinations_for_game(
                     game,
                     workers.GamePingCommitRequest(
@@ -565,37 +563,122 @@ def preview_message(
                 )
             )
         except workers.GamePingValidationError as exc:
-            destination_rows.append(
-                workers.GamePingDestination(
-                    game_id=game.game_id,
-                    guild_id=game.guild_id,
-                    channel_id=channel_facts.channel_id,
-                    mention_ids=(),
-                    kind=f'blocked: {exc}',
+            return (), str(exc)
+    resolved = workers._dedupe_destinations(tuple(destinations))
+    if not resolved:
+        return (), 'No destination channels are available for this ping.'
+    return resolved, None
+
+
+def preview_message(
+    result: workers.GamePingLoadResult,
+    *,
+    requester: workers.MemberSnapshot,
+    target: workers.MemberSnapshot,
+    scope: str,
+    selected_game_id: int | None,
+    draft: GamePingDraft | None,
+    channel_facts: workers.ChannelFacts,
+) -> str:
+    """Render a compact private review focused on the pending notification."""
+
+    games = _preview_games(
+        result,
+        scope=scope,
+        selected_game_id=selected_game_id,
+    )
+    recipient_map = {}
+    for game in games:
+        for participant in game.participants:
+            recipient_map.setdefault(participant.discord_id, participant.display_name)
+    recipient_items = [
+        _safe_name(name, fallback=f'user-{discord_id}')
+        for discord_id, name in list(recipient_map.items())[:MAX_PREVIEW_RECIPIENTS]
+    ]
+    if len(recipient_map) > MAX_PREVIEW_RECIPIENTS:
+        recipient_items.append(
+            f'… and {len(recipient_map) - MAX_PREVIEW_RECIPIENTS} more'
+        )
+    recipients = ', '.join(recipient_items) or 'none'
+
+    lines = ['**Review game ping — private**']
+    if requester.discord_id != target.discord_id:
+        lines.append(
+            'On behalf of: '
+            + _safe_name(
+                target.display_name,
+                fallback=f'user-{target.discord_id}',
+            )
+        )
+    if scope == 'single':
+        if games:
+            game = games[0]
+            game_label = f'`{game.game_id}`'
+            if game.name:
+                game_label += f' · {_safe_name(game.name, fallback="game")}'
+            lines.append(f'Game: {game_label}')
+        else:
+            lines.append('Game: **choose one below**')
+    else:
+        ids = ', '.join(str(game.game_id) for game in games)
+        lines.append(f'Games: all {len(games)} loaded incomplete games (`{ids}`)')
+        if result.truncated:
+            lines.append(
+                f'⚠️ More than {MAX_GAMES} games are available; this draft '
+                f'is limited to the newest {MAX_GAMES}.'
+            )
+    lines.append(f'To: {recipients}')
+    if draft is None:
+        lines.append('Message: *(not written yet)*')
+    else:
+        if draft.text:
+            lines.append('Message:')
+            preview_text = utilities.escape_role_mentions(draft.text)
+            if len(preview_text) > MAX_PREVIEW_MESSAGE_LENGTH:
+                preview_text = (
+                    preview_text[:MAX_PREVIEW_MESSAGE_LENGTH]
+                    + f'\n… ({len(preview_text) - MAX_PREVIEW_MESSAGE_LENGTH:,} '
+                    'characters omitted from this preview; delivery preserves '
+                    'the full draft)'
+                )
+            lines.append(preview_text)
+        else:
+            lines.append('Message: *(files only)*')
+        if draft.attachments:
+            lines.append(
+                'Files: '
+                + ', '.join(
+                    attachment.filename
+                    for attachment in draft.attachments
                 )
             )
-    destination_rows = workers._dedupe_destinations(tuple(destination_rows))
-    if destination_rows:
-        visible_destinations = destination_rows[:MAX_PREVIEW_DESTINATIONS]
-        destination_lines = [
-            f'- {_destination_label(destination)}'
-            for destination in visible_destinations
-        ]
-        if len(destination_rows) > MAX_PREVIEW_DESTINATIONS:
-            destination_lines.append(
-                f'- … and {len(destination_rows) - MAX_PREVIEW_DESTINATIONS} '
-                'more bounded destinations'
-            )
-        lines.append(
-            'Destinations:\n' + '\n'.join(destination_lines)
-        )
-    else:
-        lines.append('Destinations: none loaded')
-    lines.append(
-        'Use Compose/Edit to enter up to three 4,000-character sections and '
-        f'{MAX_ATTACHMENTS} attachment URLs. Confirm sends once; Cancel '
-        'discards this draft.'
+
+    destination_rows, delivery_error = preview_destinations(
+        result,
+        requester=requester,
+        target=target,
+        scope=scope,
+        selected_game_id=selected_game_id,
+        draft=draft,
+        channel_facts=channel_facts,
     )
+    if delivery_error is not None:
+        lines.append(f'⚠️ Cannot send: {delivery_error}')
+    else:
+        visible_destinations = destination_rows[:MAX_PREVIEW_DESTINATIONS]
+        destination_labels = tuple(dict.fromkeys(
+            _destination_label(
+                destination,
+                invoking_guild_id=result.guild_id,
+            )
+            for destination in visible_destinations
+        ))
+        destinations = ', '.join(destination_labels)
+        if len(destination_rows) > MAX_PREVIEW_DESTINATIONS:
+            destinations += (
+                f', and {len(destination_rows) - MAX_PREVIEW_DESTINATIONS} more'
+            )
+        lines.append(f'Destination{("s" if len(destination_labels) != 1 else "")}: {destinations}')
     return '\n'.join(lines)
 
 
@@ -976,13 +1059,14 @@ async def run_native_single(
             explicit_game_id=game_id,
             channel_id=int(interaction.channel_id or 0),
             discover_all=False,
+            prefer_explicit_game_id=True,
         )),
         timeout=20.0,
     )
     selected_game_id = (
-        load.inferred_game_id
-        if load.inferred_game_id is not None
-        else game_id
+        game_id
+        if game_id is not None
+        else load.inferred_game_id
     )
     facts = capture_channel_facts(interaction, load)
     request = build_commit_request(

@@ -29,10 +29,10 @@ MAX_GAME_CHOICES = 25
 MAX_PARTICIPANTS_PER_GAME = 16
 MAX_DESTINATIONS = 256
 MAX_TEXT_SECTION_LENGTH = 4_000
-MAX_TEXT_SECTIONS = 3
+MAX_TEXT_SECTIONS = 1
 MAX_TEXT_LENGTH = MAX_TEXT_SECTION_LENGTH * MAX_TEXT_SECTIONS
 # Role/everyone escaping can add a bounded zero-width character to authored
-# text after the raw 12,000-character input ceiling.  Delivery still splits
+# text after the raw 4,000-character input ceiling.  Delivery still splits
 # this formatted value into ordinary Discord-sized chunks.
 MAX_FORMATTED_TEXT_LENGTH = MAX_TEXT_LENGTH * 2
 MAX_ATTACHMENTS = 10
@@ -118,6 +118,7 @@ class GamePingLoadRequest:
     explicit_game_id: int | None = None
     channel_id: int | None = None
     discover_all: bool = True
+    prefer_explicit_game_id: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,7 +456,7 @@ def _validate_target_permission(
                 'games. Ask a server staff member for help.'
             )
         return
-    if requester.level <= 3:
+    if requester.level <= 3 and not requester.is_staff:
         raise GamePingPermissionError(
             'You do not have permission to use this command on another '
             "player's games."
@@ -488,7 +489,10 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
                 )
 
         selected_game_id = (
-            inferred_game_id
+            request.explicit_game_id
+            if request.prefer_explicit_game_id
+            and request.explicit_game_id is not None
+            else inferred_game_id
             if inferred_game_id is not None
             else request.explicit_game_id
         )
@@ -761,7 +765,7 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
             if tuple(current_ids) != expected_ids:
                 raise GamePingConflictError(
                     'The target player’s incomplete games changed while the '
-                    'draft was open. Reopen `/game ping` to refresh it.'
+                    'draft was open. Start a new composer to refresh it.'
                 )
             truncated = bool(current_truncated or request.truncated)
         else:
@@ -776,8 +780,8 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
         by_id = {game.game_id: game for game in games}
         if tuple(sorted(by_id)) != tuple(sorted(expected_ids)):
             raise GamePingConflictError(
-                'One or more selected games changed or disappeared. Reopen '
-                '`/game ping` to refresh the private draft.'
+                'One or more selected games changed or disappeared. Start a '
+                'new composer to refresh the private draft.'
             )
 
         destinations: list[GamePingDestination] = []

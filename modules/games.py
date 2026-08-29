@@ -259,10 +259,37 @@ class polygames(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self._game_ping_send_cooldowns: dict[int, float] = {}
         game_keep_active_views.register_dynamic_item(bot)
         if settings.run_tasks:
             self.bg_task = asyncio.create_task(self.task_purge_game_channels())
             self.bg_task2 = asyncio.create_task(self.task_set_champion_role())
+
+    def _claim_game_ping_send(self, requester_id: int) -> float:
+        """Reserve one send slot; callers release it after pre-commit failure."""
+
+        now = asyncio.get_running_loop().time()
+        requester_id = int(requester_id)
+        if len(self._game_ping_send_cooldowns) >= 256:
+            self._game_ping_send_cooldowns = {
+                member_id: expiry
+                for member_id, expiry in self._game_ping_send_cooldowns.items()
+                if expiry > now
+            }
+        expires_at = self._game_ping_send_cooldowns.get(requester_id, 0.0)
+        if expires_at > now:
+            wait_seconds = max(1, int(expires_at - now) + 1)
+            raise game_ping_workers.GamePingValidationError(
+                f'Wait {wait_seconds} second(s) before sending another game ping.'
+            )
+        token = now + 30.0
+        self._game_ping_send_cooldowns[requester_id] = token
+        return token
+
+    def _release_game_ping_send(self, requester_id: int, token: float) -> None:
+        requester_id = int(requester_id)
+        if self._game_ping_send_cooldowns.get(requester_id) == token:
+            self._game_ping_send_cooldowns.pop(requester_id, None)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -3198,163 +3225,219 @@ class polygames(commands.Cog):
 
     @game_group.command(
         name='ping',
-        description='Ping one game quickly or open the advanced composer.',
-    )
-    @discord.app_commands.checks.cooldown(
-        1,
-        30.0,
-        key=lambda interaction: interaction.user.id,
+        description='Send a game ping, or enter compose to open the composer.',
     )
     @discord.app_commands.describe(
-        message='Message to send; omit it to open the advanced composer.',
-        game_id='Game ID; omit it in an unambiguous game channel.',
-        attachment='Optional single attachment for the quick ping.',
+        message='[game ID] message, or compose [game ID] for the composer.',
+        attachment='Optional file for an immediate ping.',
     )
     async def game_ping_slash(
         self,
         interaction: discord.Interaction,
-        message: str | None = None,
-        game_id: int | None = None,
+        message: discord.app_commands.Range[str, 1, 4_000],
         attachment: discord.Attachment | None = None,
     ):
-        """Send a quick ping or open the requester-bound advanced composer."""
+        """Send a positional-style ping or open the requester-bound composer."""
 
-        await interaction.response.defer(ephemeral=True)
-        if message is not None or attachment is not None:
-            try:
-                delivered = await game_ping.run_native_single(
-                    interaction,
-                    message=message,
-                    game_id=game_id,
-                    attachment=attachment,
-                    guilds=self.bot.guilds,
-                )
-            except (
-                game_ping_workers.GamePingValidationError,
-                game_ping_workers.GamePingLookupError,
-                game_ping_workers.GamePingPermissionError,
-                game_ping_workers.GamePingConflictError,
-                peewee.PeeweeException,
-                asyncio.TimeoutError,
-                ValueError,
-            ) as exc:
-                logger.warning('Native quick game ping failed: %s', exc)
-                return await interaction.edit_original_response(content=str(exc))
-            except Exception:
-                logger.exception('Unexpected native quick game-ping failure')
-                return await interaction.edit_original_response(
-                    content=(
-                        'The game ping could not be completed. Please try again '
-                        'later.'
-                    ),
-                )
-
-            game_label = ', '.join(
-                str(value) for value in delivered.committed.game_ids
-            )
-            if delivered.failures:
-                content = (
-                    f'The ping for game `{game_label}` committed, but some '
-                    'delivery failed. See the public warning and do not retry it.'
-                )
-            else:
-                content = f'Ping sent for game `{game_label}`.'
-            return await interaction.edit_original_response(content=content)
+        try:
+            parsed = game_ping.parse_native_input(message)
+        except game_ping_workers.GamePingValidationError as exc:
+            return await interaction.response.send_message(str(exc), ephemeral=True)
 
         requester = game_ping.capture_member(
             interaction.user,
             interaction.guild.id,
         )
-        channel_id = int(interaction.channel_id or 0)
+        if parsed.compose:
+            try:
+                initial_attachments = game_ping.capture_attachments(
+                    (attachment,) if attachment is not None else (),
+                )
+            except game_ping_workers.GamePingValidationError as exc:
+                return await interaction.response.send_message(
+                    str(exc),
+                    ephemeral=True,
+                )
 
-        async def load_target(target: game_ping_workers.MemberSnapshot):
-            request = game_ping_workers.GamePingLoadRequest(
+            async def submit_draft(
+                submit_interaction: discord.Interaction,
+                draft: game_ping.GamePingDraft,
+            ) -> None:
+                async def load_target(
+                    source_interaction: discord.Interaction,
+                    target: game_ping_workers.MemberSnapshot,
+                ):
+                    request = game_ping_workers.GamePingLoadRequest(
+                        guild_id=int(source_interaction.guild.id),
+                        requester=requester,
+                        target_id=int(target.discord_id),
+                        explicit_game_id=parsed.explicit_game_id,
+                        channel_id=int(source_interaction.channel_id or 0),
+                        discover_all=True,
+                        prefer_explicit_game_id=True,
+                    )
+                    loaded = await asyncio.wait_for(
+                        game_ping_workers.run_ping_candidates(request),
+                        timeout=20.0,
+                    )
+                    facts = game_ping.capture_channel_facts(
+                        source_interaction,
+                        loaded,
+                    )
+                    return loaded, facts
+
+                try:
+                    loaded, facts = await load_target(
+                        submit_interaction,
+                        requester,
+                    )
+                    selectable = tuple(
+                        game for game in loaded.games
+                        if requester.is_staff
+                        or requester.discord_id in {
+                            participant.discord_id
+                            for participant in game.participants
+                        }
+                    )
+                    if not selectable:
+                        raise game_ping_workers.GamePingLookupError(
+                            'No eligible games are available for this composer.'
+                        )
+                    selectable_ids = {game.game_id for game in selectable}
+                    if (
+                        parsed.explicit_game_id is not None
+                        and parsed.explicit_game_id not in selectable_ids
+                    ):
+                        raise game_ping_workers.GamePingPermissionError(
+                            f'You are not a participant in game '
+                            f'{parsed.explicit_game_id}.'
+                        )
+                    if parsed.explicit_game_id in selectable_ids:
+                        selected_game_id = parsed.explicit_game_id
+                    elif loaded.inferred_game_id in selectable_ids:
+                        selected_game_id = loaded.inferred_game_id
+                    elif len(selectable) == 1:
+                        selected_game_id = selectable[0].game_id
+                    else:
+                        selected_game_id = None
+                except (
+                    game_ping_workers.GamePingValidationError,
+                    game_ping_workers.GamePingLookupError,
+                    game_ping_workers.GamePingPermissionError,
+                    peewee.PeeweeException,
+                    asyncio.TimeoutError,
+                    ValueError,
+                ) as exc:
+                    logger.warning('Native game-ping composer load failed: %s', exc)
+                    await submit_interaction.edit_original_response(content=str(exc))
+                    return
+
+                async def reload_target(
+                    target_interaction: discord.Interaction,
+                    target: game_ping_workers.MemberSnapshot,
+                ):
+                    return await load_target(target_interaction, target)
+
+                async def confirm(
+                    _confirm_interaction: discord.Interaction,
+                    view: game_ping_views.GamePingComposerView,
+                ):
+                    token = self._claim_game_ping_send(requester.discord_id)
+                    try:
+                        if view.draft is None:
+                            raise game_ping_workers.GamePingValidationError(
+                                'Add a message or file before sending.'
+                            )
+                        request = game_ping.build_commit_request(
+                            result=view.result,
+                            requester=requester,
+                            target=view.target,
+                            scope=view.scope,
+                            selected_game_id=view.selected_game_id,
+                            channel_facts=view.channel_facts,
+                            draft=view.draft,
+                            invoked_with='/game ping compose',
+                        )
+                        return await game_ping.confirm_and_deliver(
+                            request,
+                            guilds=self.bot.guilds,
+                            completion_destination=submit_interaction.channel,
+                            completion_on_success=False,
+                        )
+                    except Exception:
+                        self._release_game_ping_send(
+                            requester.discord_id,
+                            token,
+                        )
+                        raise
+
+                view = game_ping_views.GamePingComposerView(
+                    requester=requester,
+                    target=requester,
+                    result=loaded,
+                    channel_facts=facts,
+                    selected_game_id=selected_game_id,
+                    target_loader=reload_target,
+                    confirmer=confirm,
+                )
+                view.draft = draft
+                view.rebuild()
+                view.message = await submit_interaction.edit_original_response(
+                    view=view,
+                )
+
+            modal = game_ping_views.GamePingStartModal(
+                requester_id=requester.discord_id,
                 guild_id=int(interaction.guild.id),
-                requester=requester,
-                target_id=int(target.discord_id),
-                explicit_game_id=game_id,
-                channel_id=channel_id,
-                discover_all=True,
+                channel_id=int(interaction.channel_id or 0),
+                submitter=submit_draft,
+                initial_attachments=initial_attachments,
             )
-            loaded = await asyncio.wait_for(
-                game_ping_workers.run_ping_candidates(request),
-                timeout=20.0,
-            )
-            facts = game_ping.capture_channel_facts(interaction, loaded)
-            return loaded, facts
+            return await interaction.response.send_modal(modal)
 
+        await interaction.response.defer(ephemeral=True)
+        token = None
         try:
-            loaded, facts = await load_target(requester)
+            token = self._claim_game_ping_send(requester.discord_id)
+            delivered = await game_ping.run_native_single(
+                interaction,
+                message=parsed.message,
+                game_id=parsed.explicit_game_id,
+                attachment=attachment,
+                guilds=self.bot.guilds,
+            )
         except (
             game_ping_workers.GamePingValidationError,
             game_ping_workers.GamePingLookupError,
             game_ping_workers.GamePingPermissionError,
+            game_ping_workers.GamePingConflictError,
             peewee.PeeweeException,
             asyncio.TimeoutError,
             ValueError,
         ) as exc:
-            logger.warning('Native game-ping candidate load failed: %s', exc)
-            return await interaction.followup.send(str(exc), ephemeral=True)
+            if token is not None:
+                self._release_game_ping_send(requester.discord_id, token)
+            logger.warning('Native quick game ping failed: %s', exc)
+            return await interaction.edit_original_response(content=str(exc))
         except Exception:
-            logger.exception('Unexpected native game-ping candidate load failure')
-            return await interaction.followup.send(
-                'The game-ping composer could not load the eligible games. '
-                'Please try again later.',
-                ephemeral=True,
+            if token is not None:
+                self._release_game_ping_send(requester.discord_id, token)
+            logger.exception('Unexpected native quick game-ping failure')
+            return await interaction.edit_original_response(
+                content='The game ping could not be completed. Please try again later.',
             )
 
-        loaded_ids = {candidate.game_id for candidate in loaded.games}
-        selected_game_id = (
-            loaded.inferred_game_id
-            if loaded.inferred_game_id in loaded_ids
-            else game_id if game_id in loaded_ids else None
+        game_label = ', '.join(
+            str(value) for value in delivered.committed.game_ids
         )
-        if selected_game_id is None and loaded.games:
-            selected_game_id = loaded.games[0].game_id
-
-        async def reload_target(
-            target_interaction: discord.Interaction,
-            target: game_ping_workers.MemberSnapshot,
-        ):
-            # The interaction is requester-bound; use its current channel only
-            # as a primitive lookup fact and never pass the live object to the
-            # synchronous worker.
-            return await load_target(target)
-
-        async def confirm(
-            _confirm_interaction: discord.Interaction,
-            view: game_ping_views.GamePingComposerView,
-        ):
-            if view.draft is None:
-                raise game_ping_workers.GamePingValidationError(
-                    'Compose a message or attach a file before confirming.'
-                )
-            request = game_ping.build_commit_request(
-                result=view.result,
-                requester=requester,
-                target=view.target,
-                scope=view.scope,
-                selected_game_id=view.selected_game_id,
-                channel_facts=view.channel_facts,
-                draft=view.draft,
-                invoked_with='/game ping',
+        if delivered.failures:
+            content = (
+                f'The ping for game `{game_label}` committed, but some '
+                'delivery failed. See the public warning and do not retry it.'
             )
-            return await game_ping.confirm_and_deliver(
-                request,
-                guilds=self.bot.guilds,
-                completion_destination=interaction.channel,
-            )
-
-        view = game_ping_views.GamePingComposerView(
-            requester=requester,
-            target=requester,
-            result=loaded,
-            channel_facts=facts,
-            selected_game_id=selected_game_id,
-            target_loader=reload_target,
-            confirmer=confirm,
-        )
-        view.message = await interaction.edit_original_response(view=view)
+        else:
+            content = f'Ping sent for game `{game_label}`.'
+        return await interaction.edit_original_response(content=content)
 
     @game_group.command(
         name='start',

@@ -38,45 +38,120 @@ def _preview_chunks(content: str) -> tuple[str, ...]:
     return game_ping.split_message_chunks(content, max_length=3_800) or ('',)
 
 
-class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
-    """Three bounded long-form sections plus one native FileUpload field."""
+class GamePingStartModal(discord.ui.Modal, title='Compose game ping'):
+    """Initial one-field authoring modal opened directly by the slash command."""
 
-    section_one = discord.ui.Label(
-        text='Message section 1',
-        description='Up to 4,000 characters; sections are joined in order.',
+    message_input = discord.ui.Label(
+        text='Message',
+        description='Up to 4,000 characters; optional when files are attached.',
         component=discord.ui.TextInput(
             custom_id='game-ping-message-1',
             style=discord.TextStyle.paragraph,
             max_length=workers.MAX_TEXT_SECTION_LENGTH,
             required=False,
-            placeholder='First part of the notification',
-        ),
-    )
-    section_two = discord.ui.Label(
-        text='Message section 2',
-        description='Optional; blank sections are omitted.',
-        component=discord.ui.TextInput(
-            custom_id='game-ping-message-2',
-            style=discord.TextStyle.paragraph,
-            max_length=workers.MAX_TEXT_SECTION_LENGTH,
-            required=False,
-            placeholder='Optional second part',
-        ),
-    )
-    section_three = discord.ui.Label(
-        text='Message section 3',
-        description='Optional; total section input is at most 12,000 characters.',
-        component=discord.ui.TextInput(
-            custom_id='game-ping-message-3',
-            style=discord.TextStyle.paragraph,
-            max_length=workers.MAX_TEXT_SECTION_LENGTH,
-            required=False,
-            placeholder='Optional third part',
+            placeholder='What should the players know?',
         ),
     )
     attachments = discord.ui.Label(
-        text='Attachments (optional)',
-        description='Up to 10 Discord uploads; bodies are not stored or downloaded.',
+        text='Files (optional)',
+        description='Up to 10 Discord uploads, shared with players as links.',
+        component=discord.ui.FileUpload(
+            custom_id='game-ping-attachments',
+            required=False,
+            max_values=workers.MAX_ATTACHMENTS,
+        ),
+    )
+
+    def __init__(
+        self,
+        *,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+        submitter: Callable[
+            [discord.Interaction, game_ping.GamePingDraft],
+            Awaitable[None],
+        ],
+        initial_attachments: tuple[workers.AttachmentMetadata, ...] = (),
+    ):
+        super().__init__(timeout=300)
+        self.requester_id = int(requester_id)
+        self.guild_id = int(guild_id)
+        self.channel_id = int(channel_id)
+        self.submitter = submitter
+        self.initial_attachments = tuple(initial_attachments)
+        if self.initial_attachments:
+            self.attachments.description = (
+                'The file selected with the command is included; upload here '
+                'only to replace it.'
+            )
+        self._submitted = False
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if self._submitted:
+            await _private(
+                interaction,
+                'This composer submission was already handled. Use Edit on the '
+                'private draft if you need to change it.',
+            )
+            return
+        if int(getattr(getattr(interaction, 'user', None), 'id', 0)) != self.requester_id:
+            await _private(interaction, 'Only the member who opened this composer can submit it.')
+            return
+        if (
+            int(getattr(interaction, 'guild_id', 0) or 0) != self.guild_id
+            or int(getattr(interaction, 'channel_id', 0) or 0) != self.channel_id
+        ):
+            await _private(
+                interaction,
+                'This composer is limited to the server channel where it was opened.',
+            )
+            return
+        sections = (str(getattr(self.message_input.component, 'value', '') or ''),)
+        uploaded = getattr(self.attachments.component, 'values', ()) or ()
+        try:
+            frozen_attachments = (
+                game_ping.capture_attachments(tuple(uploaded))
+                if uploaded
+                else self.initial_attachments
+            )
+            draft = game_ping.build_draft(sections, frozen_attachments)
+        except workers.GamePingValidationError as exc:
+            self._submitted = True
+            self.stop()
+            await _private(interaction, str(exc))
+            return
+
+        self._submitted = True
+        try:
+            await interaction.response.defer(ephemeral=True)
+            await self.submitter(interaction, draft)
+        except Exception:
+            logger.exception('Could not create a game-ping draft from its modal')
+            await _private(
+                interaction,
+                'The private draft could not be created. Run `/game ping compose` '
+                'again if the problem persists.',
+            )
+
+
+class GamePingComposeModal(discord.ui.Modal, title='Edit game ping'):
+    """One-field editor for an existing requester-bound draft."""
+
+    message_input = discord.ui.Label(
+        text='Message',
+        description='Up to 4,000 characters; optional when files are attached.',
+        component=discord.ui.TextInput(
+            custom_id='game-ping-message-1',
+            style=discord.TextStyle.paragraph,
+            max_length=workers.MAX_TEXT_SECTION_LENGTH,
+            required=False,
+            placeholder='What should the players know?',
+        ),
+    )
+    attachments = discord.ui.Label(
+        text='Replace files (optional)',
+        description='Leave empty to keep existing files, or upload replacements.',
         component=discord.ui.FileUpload(
             custom_id='game-ping-attachments',
             required=False,
@@ -98,17 +173,14 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
         )
         self._submitted = False
         existing = view.draft.sections if view.draft is not None else ()
-        values = tuple(existing) + ('', '', '')
-        self.section_one.component.default = values[0]
-        self.section_two.component.default = values[1]
-        self.section_three.component.default = values[2]
+        self.message_input.component.default = existing[0] if existing else ''
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         if self._submitted:
             await _private(
                 interaction,
-                'This composer submission was already handled. Use Edit on the '
-                'private draft if you need to change it.',
+                'This editor submission was already handled. Choose Edit again '
+                'if you need another change.',
             )
             return
         if not await self.view.authorize(interaction):
@@ -116,7 +188,7 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
         if self.view.is_finished() or self.view.expired:
             await _private(
                 interaction,
-                'This game-ping draft expired. Run `/game ping` again.',
+                'This game-ping draft expired. Run `/game ping compose` again.',
             )
             return
         if not self.view.is_current_modal(self.generation):
@@ -124,24 +196,17 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
             self.stop()
             await _private(
                 interaction,
-                'This compose modal is stale because a newer draft modal was '
-                'opened. Use the newest modal or choose Edit again.',
+                'This editor is stale because a newer one was opened. Use the '
+                'newest editor or choose Edit again.',
             )
             return
 
-        sections = (
-            str(getattr(self.section_one.component, 'value', '') or ''),
-            str(getattr(self.section_two.component, 'value', '') or ''),
-            str(getattr(self.section_three.component, 'value', '') or ''),
-        )
+        sections = (str(getattr(self.message_input.component, 'value', '') or ''),)
         uploaded = getattr(self.attachments.component, 'values', ()) or ()
         try:
             if uploaded:
                 frozen_attachments = game_ping.capture_attachments(tuple(uploaded))
             elif self.view.draft is not None:
-                # FileUpload has no native "keep existing values" state when a
-                # modal is reopened. Preserve the frozen metadata unless the
-                # user supplies a replacement set explicitly.
                 frozen_attachments = self.view.draft.attachments
             else:
                 frozen_attachments = ()
@@ -159,34 +224,27 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
                 self.stop()
                 await _private(
                     interaction,
-                    'This compose modal became stale while it was being '
-                    'submitted. Use the newest modal or choose Edit again.',
+                    'This editor became stale while it was submitted. Use the '
+                    'newest editor or choose Edit again.',
                 )
                 return
             if self.view.is_finished() or self.view.expired:
                 self.stop()
                 await _private(
                     interaction,
-                    'This game-ping draft expired. Run `/game ping` again.',
+                    'This game-ping draft expired. Run `/game ping compose` again.',
                 )
                 return
             self.view.draft = draft
-            self.view.status = (
-                'Draft updated. Review the private preview, then Confirm once '
-                'to deliver it.'
-            )
+            self.view.status = 'Draft updated. Review it, then choose Send ping.'
             self.view.rebuild()
             await _edit_message(self.view.message, view=self.view)
-            await interaction.followup.send(
-                'Private draft updated. Check the preview before confirming.',
-                ephemeral=True,
-            )
         except Exception:
-            logger.exception('Could not update a game-ping draft from its modal')
+            logger.exception('Could not update a game-ping draft from its editor')
             await _private(
                 interaction,
-                'The private draft could not be updated. Run `/game ping` again '
-                'if the problem persists.',
+                'The private draft could not be updated. Run `/game ping compose` '
+                'again if the problem persists.',
             )
 
     async def on_timeout(self) -> None:
@@ -241,7 +299,7 @@ class GamePingComposerView(discord.ui.LayoutView):
         self.confirmer = confirmer
         self.message = None
         self.draft: game_ping.GamePingDraft | None = None
-        self.status = 'Compose a message, then review and confirm delivery.'
+        self.status = 'Review the draft, then choose Send ping.'
         self.expired = False
         self.committed = False
         self._busy = False
@@ -289,7 +347,7 @@ class GamePingComposerView(discord.ui.LayoutView):
         if self.expired or self.is_finished():
             await _private(
                 interaction,
-                'This game-ping draft expired. Run `/game ping` again.',
+                'This game-ping draft expired. Run `/game ping compose` again.',
             )
             return False
         return True
@@ -305,8 +363,54 @@ class GamePingComposerView(discord.ui.LayoutView):
 
     def _selected_game_exists(self) -> bool:
         return self.selected_game_id in {
-            game.game_id for game in self.result.games
+            game.game_id for game in self._selectable_games()
         }
+
+    def _selectable_games(self) -> tuple[workers.GamePingGame, ...]:
+        if self.requester.is_staff:
+            return tuple(self.result.games)
+        return tuple(
+            game for game in self.result.games
+            if self.target.discord_id in {
+                participant.discord_id for participant in game.participants
+            }
+        )
+
+    def _all_scope_games(self) -> tuple[workers.GamePingGame, ...]:
+        return tuple(
+            game for game in self.result.games
+            if game.guild_id == self.result.guild_id
+            and self.target.discord_id in {
+                participant.discord_id for participant in game.participants
+            }
+            and not game.is_confirmed
+        )
+
+    def _delivery_error(self) -> str | None:
+        _destinations, error = game_ping.preview_destinations(
+            self.result,
+            requester=self.requester,
+            target=self.target,
+            scope=self.scope,
+            selected_game_id=self.selected_game_id,
+            draft=self.draft,
+            channel_facts=self.channel_facts,
+        )
+        return error
+
+    def _all_scope_available(self) -> bool:
+        if not self.result.all_scope_allowed or len(self._all_scope_games()) < 2:
+            return False
+        _destinations, error = game_ping.preview_destinations(
+            self.result,
+            requester=self.requester,
+            target=self.target,
+            scope='all',
+            selected_game_id=None,
+            draft=self.draft,
+            channel_facts=self.channel_facts,
+        )
+        return error is None
 
     def _scope_text(self) -> str:
         if self.scope == 'all':
@@ -316,70 +420,87 @@ class GamePingComposerView(discord.ui.LayoutView):
         return f'game {self.selected_game_id}'
 
     def _controls(self):
-        scope_options = (
-            discord.SelectOption(
-                label='One game',
-                value='single',
-                description='Notify participants in one loaded incomplete game.',
-                default=self.scope == 'single',
-            ),
-            discord.SelectOption(
-                label='All incomplete games',
-                value='all',
-                description=(
-                    'Notify all loaded incomplete games for the target; bounded.'
+        rows = []
+        if self._all_scope_available():
+            scope_select = discord.ui.Select(
+                placeholder='Send to one game or all incomplete games',
+                options=(
+                    discord.SelectOption(
+                        label='This game',
+                        value='single',
+                        description='Notify participants in one selected game.',
+                        default=self.scope == 'single',
+                    ),
+                    discord.SelectOption(
+                        label=(
+                            'All my incomplete games'
+                            if self.target.discord_id == self.requester.discord_id
+                            else "All this player's incomplete games"
+                        ),
+                        value='all',
+                        description='Notify participants across every loaded game.',
+                        default=self.scope == 'all',
+                    ),
                 ),
-                default=self.scope == 'all',
-            ),
-        )
-        scope_select = discord.ui.Select(
-            placeholder='Choose notification scope',
-            options=scope_options,
-            custom_id=f'game-ping:{self.requester_id}:scope',
-            disabled=self.committed or self.expired or self._busy,
-        )
-        scope_select.callback = self._scope_changed
-        self.scope_select = scope_select
+                custom_id=f'game-ping:{self.requester_id}:scope',
+                disabled=self.committed or self.expired or self._busy,
+            )
+            scope_select.callback = self._scope_changed
+            self.scope_select = scope_select
+            rows.append(discord.ui.ActionRow(scope_select))
+        else:
+            self.scope = 'single'
+            self.scope_select = None
 
+        selectable_games = self._selectable_games()
         game_options = []
-        for game in self.result.games[:workers.MAX_GAME_CHOICES]:
+        visible_games = list(selectable_games[:workers.MAX_GAME_CHOICES])
+        if (
+            self.selected_game_id is not None
+            and self.selected_game_id not in {game.game_id for game in visible_games}
+        ):
+            selected = next(
+                (
+                    game for game in selectable_games
+                    if game.game_id == self.selected_game_id
+                ),
+                None,
+            )
+            if selected is not None:
+                visible_games = [selected, *visible_games[:workers.MAX_GAME_CHOICES - 1]]
+        for game in visible_games:
             title = f'Game {game.game_id}'
             if game.name:
                 title += f' · {game_ping._safe_name(game.name, fallback="game")}'
             game_options.append(discord.SelectOption(
                 label=title[:100],
                 value=str(game.game_id),
-                description=f'{len(game.participants)} resolved participant(s)'[:100],
+                description=f'{len(game.participants)} player(s)'[:100],
                 default=(
                     self.scope == 'single'
                     and game.game_id == self.selected_game_id
                 ),
             ))
-        if not game_options:
-            game_options = [discord.SelectOption(
-                label='No eligible incomplete games loaded',
-                value='none',
-                description='Run /game ping again after the game is available.',
-            )]
-        game_select = discord.ui.Select(
-            placeholder='Choose one loaded game',
-            options=game_options,
-            custom_id=f'game-ping:{self.requester_id}:game',
-            disabled=(
-                self.scope == 'all'
-                or self.committed
-                or self.expired
-                or self._busy
-                or not bool(self.result.games)
-            ),
-        )
-        game_select.callback = self._game_changed
-        self.game_select = game_select
-
-        rows = [discord.ui.ActionRow(scope_select), discord.ui.ActionRow(game_select)]
+        if len(selectable_games) > 1:
+            game_select = discord.ui.Select(
+                placeholder='Choose a game',
+                options=game_options,
+                custom_id=f'game-ping:{self.requester_id}:game',
+                disabled=(
+                    self.scope == 'all'
+                    or self.committed
+                    or self.expired
+                    or self._busy
+                ),
+            )
+            game_select.callback = self._game_changed
+            self.game_select = game_select
+            rows.append(discord.ui.ActionRow(game_select))
+        else:
+            self.game_select = None
         if self._target_select_allowed():
             target_select = discord.ui.UserSelect(
-                placeholder='Act for another player (optional)',
+                placeholder="Player whose games to load (optional)",
                 min_values=1,
                 max_values=1,
                 custom_id=f'game-ping:{self.requester_id}:target',
@@ -403,7 +524,7 @@ class GamePingComposerView(discord.ui.LayoutView):
         )
         compose.callback = self._compose_clicked
         confirm = discord.ui.Button(
-            label='Confirm',
+            label='Send ping',
             style=discord.ButtonStyle.success,
             custom_id=f'game-ping:{self.requester_id}:confirm',
             disabled=(
@@ -412,10 +533,19 @@ class GamePingComposerView(discord.ui.LayoutView):
                 or self._busy
                 or self.draft is None
                 or (self.scope == 'single' and not self._selected_game_exists())
-                or (self.scope == 'all' and not self.result.all_scope_allowed)
+                or self._delivery_error() is not None
             ),
         )
         confirm.callback = self._confirm_clicked
+        remove_files = None
+        if self.draft is not None and self.draft.attachments:
+            remove_files = discord.ui.Button(
+                label='Remove files',
+                style=discord.ButtonStyle.secondary,
+                custom_id=f'game-ping:{self.requester_id}:remove-files',
+                disabled=self.committed or self.expired or self._busy,
+            )
+            remove_files.callback = self._remove_files_clicked
         cancel = discord.ui.Button(
             label='Cancel',
             style=discord.ButtonStyle.danger,
@@ -425,8 +555,13 @@ class GamePingComposerView(discord.ui.LayoutView):
         cancel.callback = self._cancel_clicked
         self.compose_button = compose
         self.confirm_button = confirm
+        self.remove_files_button = remove_files
         self.cancel_button = cancel
-        rows.append(discord.ui.ActionRow(compose, confirm, cancel))
+        buttons = [compose, confirm]
+        if remove_files is not None:
+            buttons.append(remove_files)
+        buttons.append(cancel)
+        rows.append(discord.ui.ActionRow(*buttons))
         return rows
 
     def rebuild(self) -> None:
@@ -459,11 +594,11 @@ class GamePingComposerView(discord.ui.LayoutView):
         if not await self.authorize(interaction):
             return
         value = str(self.scope_select.values[0])
-        if value == 'all' and not self.result.all_scope_allowed:
+        if value == 'all' and not self._all_scope_available():
             return await _private(
                 interaction,
-                'This target cannot use the all-incomplete-games scope. Choose '
-                'one game or ask a staff member for help.',
+                'All incomplete games are not available for this player in '
+                'this channel.',
             )
         self.scope = value
         self.status = f'Scope changed to {self._scope_text()}.'
@@ -477,11 +612,11 @@ class GamePingComposerView(discord.ui.LayoutView):
             game_id = int(self.game_select.values[0])
         except (TypeError, ValueError):
             return await _private(interaction, 'Choose one of the loaded games.')
-        if game_id not in {game.game_id for game in self.result.games}:
-            return await _private(interaction, 'That game is not in this bounded draft.')
+        if game_id not in {game.game_id for game in self._selectable_games()}:
+            return await _private(interaction, 'That game is not available in this draft.')
         self.scope = 'single'
         self.selected_game_id = game_id
-        self.status = f'Selected game {game_id}. Compose a message to continue.'
+        self.status = f'Selected game {game_id}. Review the draft, then choose Send ping.'
         self.rebuild()
         await interaction.response.edit_message(view=self)
 
@@ -499,30 +634,44 @@ class GamePingComposerView(discord.ui.LayoutView):
                 interaction,
                 'Another game-ping action is already in progress. Try again shortly.',
             )
-        previous = (self.target, self.result, self.channel_facts, self.selected_game_id, self.scope)
+        previous = (
+            self.target,
+            self.result,
+            self.channel_facts,
+            self.selected_game_id,
+            self.scope,
+        )
         try:
             await interaction.response.defer(ephemeral=True)
             loaded, facts = await self.target_loader(interaction, target)
             self.target = target
             self.result = loaded
             self.channel_facts = facts
-            loaded_ids = {game.game_id for game in loaded.games}
-            self.selected_game_id = (
-                previous[3]
-                if previous[3] in loaded_ids
-                else loaded.inferred_game_id
-                or (loaded.games[0].game_id if loaded.games else None)
-            )
+            selectable = self._selectable_games()
+            if not selectable:
+                raise workers.GamePingValidationError(
+                    'No eligible games are available for that player.'
+                )
+            loaded_ids = {game.game_id for game in selectable}
+            if previous[3] in loaded_ids:
+                self.selected_game_id = previous[3]
+            elif loaded.inferred_game_id in loaded_ids:
+                self.selected_game_id = loaded.inferred_game_id
+            elif len(selectable) == 1:
+                self.selected_game_id = selectable[0].game_id
+            else:
+                self.selected_game_id = None
             self.scope = 'single'
-            self.draft = None
-            self.status = f'Target changed to {target.description}.'
-            await self._refresh(interaction)
-            await interaction.followup.send(
-                'Target changed. The previous message draft was cleared; compose '
-                'a fresh notification and review the destinations.',
-                ephemeral=True,
+            self.status = (
+                f'Loaded games for {target.description}. Review the game and '
+                'message before sending.'
             )
-        except workers.GamePingValidationError as exc:
+            await self._refresh(interaction)
+        except (
+            workers.GamePingValidationError,
+            workers.GamePingLookupError,
+            workers.GamePingPermissionError,
+        ) as exc:
             self.target, self.result, self.channel_facts, self.selected_game_id, self.scope = previous
             await _private(interaction, str(exc))
         except Exception:
@@ -539,10 +688,6 @@ class GamePingComposerView(discord.ui.LayoutView):
     async def _compose_clicked(self, interaction: discord.Interaction) -> None:
         if not await self.authorize(interaction):
             return
-        if self.scope == 'single' and not self._selected_game_exists():
-            return await _private(interaction, 'Choose one loaded game first.')
-        if self.scope == 'all' and not self.result.all_scope_allowed:
-            return await _private(interaction, 'The all-games scope is not permitted for this target.')
         generation = self.next_modal_generation()
         modal = GamePingComposeModal(self, generation)
         try:
@@ -550,20 +695,41 @@ class GamePingComposerView(discord.ui.LayoutView):
         except Exception:
             self.invalidate_modal_generation(generation)
             logger.exception('Could not open the game-ping compose modal')
-            await _private(interaction, 'The composer could not be opened. Run `/game ping` again.')
+            await _private(
+                interaction,
+                'The editor could not be opened. Run `/game ping compose` again.',
+            )
+
+    async def _remove_files_clicked(self, interaction: discord.Interaction) -> None:
+        if not await self.authorize(interaction):
+            return
+        if self.draft is None or not self.draft.attachments:
+            return await _private(interaction, 'This draft has no files to remove.')
+        if self.draft.text.strip():
+            self.draft = game_ping.GamePingDraft(
+                sections=self.draft.sections,
+                text=self.draft.text,
+                attachments=(),
+            )
+            self.status = 'Files removed. Review the draft, then choose Send ping.'
+        else:
+            self.draft = None
+            self.status = 'Files removed. Choose Edit to add a message or new files.'
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
 
     async def _confirm_clicked(self, interaction: discord.Interaction) -> None:
         if not await self.authorize(interaction):
             return
         if self.draft is None:
-            return await _private(interaction, 'Compose a message or attach a file before confirming.')
+            return await _private(interaction, 'Add a message or file before sending.')
         if not self._claim():
             return await _private(
                 interaction,
                 'Another game-ping action is already in progress. Try again shortly.',
             )
         self._confirmations += 1
-        self.status = 'Confirming privately; no notification is sent until the database commit succeeds.'
+        self.status = 'Sending ping…'
         self.rebuild()
         try:
             await interaction.response.defer(ephemeral=True)
@@ -587,17 +753,17 @@ class GamePingComposerView(discord.ui.LayoutView):
             await _private(
                 interaction,
                 'The notification was not committed. The exact draft was '
-                'restored; fix the issue or try Confirm again.',
+                'restored; fix the issue or choose Send ping again.',
             )
             return
 
         self.committed = True
-        self.status = (
-            'Committed and terminal. Public delivery/reconciliation completed '
-            'or was recorded below; do not retry.'
-        )
+        self.status = 'Ping sent. This draft is complete and cannot be sent again.'
         if result.failures:
-            self.status += f' {len(result.failures)} destination(s) failed after commit.'
+            self.status = (
+                f'Ping committed, but {len(result.failures)} destination(s) failed. '
+                'Do not send it again; see the public warning.'
+            )
         self.stop()
         self._release()
         self.rebuild()
@@ -627,7 +793,9 @@ class GamePingComposerView(discord.ui.LayoutView):
         if self.committed or self._busy:
             return
         self.expired = True
-        self.status = 'Expired. No notification was sent; run `/game ping` again.'
+        self.status = (
+            'Expired. No notification was sent; run `/game ping compose` again.'
+        )
         self.stop()
         self.rebuild()
         await _edit_message(self.message, view=self)
