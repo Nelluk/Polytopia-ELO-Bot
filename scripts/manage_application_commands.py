@@ -168,6 +168,20 @@ def _local_command_classes(module: ModuleType) -> Iterable[type[commands.Cog]]:
             yield candidate
 
 
+def _copy_command(command: Any) -> Any:
+    """Detach a command while preserving identity-sensitive Discord enums."""
+
+    # discord.py's enum values are identity-sensitive while serializing
+    # string ranges (min_length/max_length). A plain deepcopy duplicates those
+    # values and incorrectly emits numeric min_value/max_value fields, which
+    # Discord discards.
+    enum_memo = {
+        id(value): value
+        for value in discord.AppCommandOptionType
+    }
+    return copy.deepcopy(command, memo=enum_memo)
+
+
 def load_command_source() -> tuple[commands.Bot, tuple[Any, ...]]:
     """Return the loaded global command templates without opening PostgreSQL."""
 
@@ -186,7 +200,7 @@ def load_command_source() -> tuple[commands.Bot, tuple[Any, ...]]:
                             f'Duplicate loaded application-command root: '
                             f'{command.name!r}.'
                         )
-                    commands_by_root[command.name] = copy.deepcopy(command)
+                    commands_by_root[command.name] = _copy_command(command)
 
         for command in commands_by_root.values():
             client.tree.add_command(command)

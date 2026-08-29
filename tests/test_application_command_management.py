@@ -438,6 +438,21 @@ class ApplicationCommandManagementTests(unittest.TestCase):
             manager.load_command_source.__code__.co_names,
         )
 
+    def test_manager_source_preserves_string_range_metadata(self):
+        @app_commands.command()
+        async def ranged(
+                _interaction: discord.Interaction,
+                message: app_commands.Range[str, 1, 4000]):
+            pass
+
+        copied = manager._copy_command(ranged)
+        payload = copied._params['message'].to_dict()
+
+        self.assertEqual(payload['min_length'], 1)
+        self.assertEqual(payload['max_length'], 4000)
+        self.assertNotIn('min_value', payload)
+        self.assertNotIn('max_value', payload)
+
 
 if __name__ == '__main__':
     unittest.main()
