@@ -401,7 +401,7 @@ class MyBot(commands.Bot):
             )
         else:
             message = (
-                'Discord delivered the command, but the beta could not route '
+                'Discord delivered the command, but the bot could not complete '
                 'it. The failure has been logged for review.'
             )
         try:

@@ -516,7 +516,7 @@ class GameMapServiceTests(unittest.IsolatedAsyncioTestCase):
         await game_map.publish_mutation_result(
             self.result(),
             send=send,
-            guild=SimpleNamespace(),
+            guild=SimpleNamespace(id=300),
             bot=SimpleNamespace(),
             prefix='$',
             requester_id=100,
@@ -528,6 +528,31 @@ class GameMapServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[0][0], 'send')
         self.assertEqual(events[1], 'refresh')
         self.assertIn('announcement/card refresh failed', events[2][1])
+
+    async def test_cross_guild_refresh_uses_game_source_guild(self):
+        invocation_guild = SimpleNamespace(id=400)
+        source_guild = SimpleNamespace(id=300)
+        bot = SimpleNamespace(
+            get_guild=lambda guild_id: source_guild if guild_id == 300 else None,
+        )
+        loaded = SimpleNamespace()
+        load_card = mock.AsyncMock(return_value=loaded)
+        refresh = mock.AsyncMock()
+
+        await game_map.publish_mutation_result(
+            self.result(),
+            send=mock.AsyncMock(),
+            guild=invocation_guild,
+            bot=bot,
+            prefix='$',
+            requester_id=100,
+            channel_id=900,
+            load_card=load_card,
+            refresh_announcement=refresh,
+        )
+
+        self.assertIs(load_card.await_args.kwargs['guild'], source_guild)
+        self.assertIs(refresh.await_args.kwargs['guild'], source_guild)
 
 
 class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):

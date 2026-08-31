@@ -13,6 +13,19 @@ from modules import channels, game_detail_views, game_join_leave
 logger = logging.getLogger('polybot.' + __name__)
 
 
+def resolve_game_guild(*, game_guild_id: int, guild, bot):
+    """Resolve the source guild for a cross-guild game presentation."""
+
+    game_guild_id = int(game_guild_id)
+    if int(getattr(guild, 'id', 0) or 0) == game_guild_id:
+        return guild
+    get_guild = getattr(bot, 'get_guild', None)
+    source_guild = get_guild(game_guild_id) if callable(get_guild) else None
+    if source_guild is None:
+        raise LookupError(f'Game guild {game_guild_id} is unavailable.')
+    return source_guild
+
+
 async def load_card(
     *,
     game_id: int,

@@ -1039,6 +1039,52 @@ async def _record_success(events, value):
 
 
 class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_slash_attachment_uses_edit_attachments_keyword(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog.bot = SimpleNamespace(
+            guilds=[],
+            get_guild=lambda _guild_id: None,
+            get_user=lambda _discord_id: None,
+            get_channel=lambda _channel_id: None,
+            get_cog=lambda _name: None,
+        )
+        cog._load_game_detail = mock.AsyncMock(
+            return_value=card_snapshot(pending=False),
+        )
+        cog._game_detail_prefix = mock.Mock(return_value='!')
+        guild = SimpleNamespace(
+            id=10,
+            get_member=lambda _member_id: None,
+            get_role=lambda _role_id: None,
+        )
+        attached_file = object()
+        rendered = SimpleNamespace(
+            embed=object(),
+            content='game card',
+            new_file=mock.Mock(return_value=attached_file),
+        )
+        target = SimpleNamespace(
+            edit_original_response=mock.AsyncMock(return_value=FakeMessage()),
+        )
+
+        with mock.patch.object(
+            games.game_detail_views,
+            'render_classic_game_detail',
+            return_value=rendered,
+        ):
+            self.assertTrue(await cog._send_game_detail(
+                target,
+                guild=guild,
+                requester_id=900,
+                channel_id=500,
+                game_id=77,
+                slash=True,
+            ))
+
+        kwargs = target.edit_original_response.await_args.kwargs
+        self.assertEqual(kwargs['attachments'], [attached_file])
+        self.assertNotIn('file', kwargs)
+
     async def test_detail_sender_attaches_view_only_to_pending_cards(self):
         cog = games.polygames.__new__(games.polygames)
         cog.bot = SimpleNamespace(

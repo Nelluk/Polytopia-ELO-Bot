@@ -343,8 +343,8 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                         )
                     )
                     response.send_message.assert_awaited_once_with(
-                        'Discord delivered the command, but the beta could '
-                        'not route it. The failure has been logged for review.',
+                        'Discord delivered the command, but the bot could not '
+                        'complete it. The failure has been logged for review.',
                         ephemeral=True,
                     )
                 finally:

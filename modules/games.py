@@ -2380,7 +2380,10 @@ class polygames(commands.Cog):
         }
         file = classic.new_file()
         if file is not None:
-            kwargs['file'] = file
+            if slash:
+                kwargs['attachments'] = [file]
+            else:
+                kwargs['file'] = file
         view = (
             self._pending_game_card_view(
                 snapshot=snapshot,

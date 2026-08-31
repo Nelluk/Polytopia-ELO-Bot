@@ -384,9 +384,14 @@ async def reconcile_game_presentation(
     send_card = send_card or game_metadata_presentation.send_dense_card
 
     try:
+        game_guild = game_metadata_presentation.resolve_game_guild(
+            game_guild_id=result.guild_id,
+            guild=guild,
+            bot=bot,
+        )
         card = await load_card(
             game_id=result.game_id,
-            guild=guild,
+            guild=game_guild,
             bot=bot,
             prefix=prefix,
             presentation=presentation,
@@ -410,7 +415,7 @@ async def reconcile_game_presentation(
     try:
         await refresh_announcement(
             card,
-            guild=guild,
+            guild=game_guild,
             channel_id=result.announcement_channel_id,
             message_id=result.announcement_message_id,
         )

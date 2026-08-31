@@ -807,6 +807,45 @@ class GameTribePresentationTests(unittest.IsolatedAsyncioTestCase):
             for item in events[1:]
         ))
 
+    async def test_cross_guild_refresh_uses_source_and_keeps_destination(self):
+        result = game_workers.GameTribeMutationResult(
+            game_id=42,
+            guild_id=300,
+            changes=(),
+            announcement_channel_id=901,
+            announcement_message_id=902,
+        )
+        invocation_guild = SimpleNamespace(id=400)
+        source_guild = SimpleNamespace(id=300)
+        destination = SimpleNamespace(id=900)
+        card = SimpleNamespace()
+        load_card = mock.AsyncMock(return_value=card)
+        refresh = mock.AsyncMock()
+        send_card = mock.AsyncMock()
+
+        await game_tribe.publish_mutation_result(
+            result,
+            send=mock.AsyncMock(),
+            destination=destination,
+            guild=invocation_guild,
+            bot=SimpleNamespace(
+                get_guild=lambda guild_id: (
+                    source_guild if guild_id == 300 else None
+                ),
+            ),
+            prefix='$',
+            requester_id=100,
+            channel_id=900,
+            actor=game_tribe.capture_actor(member()),
+            load_card=load_card,
+            refresh_announcement=refresh,
+            send_card=send_card,
+        )
+
+        self.assertIs(load_card.await_args.kwargs['guild'], source_guild)
+        self.assertIs(refresh.await_args.kwargs['guild'], source_guild)
+        send_card.assert_awaited_once_with(destination, card)
+
 
 class GameTribeNativeAdapterTests(unittest.IsolatedAsyncioTestCase):
     def command(self):
