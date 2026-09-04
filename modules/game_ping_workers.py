@@ -469,12 +469,14 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
     with models.db.connection_context():
         _validate_requester_registered(request.requester)
         _validate_target_permission(request.requester, request.target_id)
-        target = _player_for_guild(request.target_id, request.guild_id)
-        if target is None:
-            raise GamePingLookupError(
-                f'User <@{request.target_id}> is not a registered ELO player '
-                'in this server.'
-            )
+        target = None
+        if request.discover_all:
+            target = _player_for_guild(request.target_id, request.guild_id)
+            if target is None:
+                raise GamePingLookupError(
+                    f'User <@{request.target_id}> is not a registered ELO player '
+                    'in this server.'
+                )
 
         inferred_game_id = None
         channel_game_ids = ()
@@ -557,10 +559,23 @@ def prepare_candidates(request: GamePingLoadRequest) -> GamePingLoadResult:
 
         if not request.discover_all:
             total_games = len(games)
+        target_name = (
+            _target_name(target, request.target_id)
+            if target is not None
+            else next(
+                (
+                    participant.display_name
+                    for game in games
+                    for participant in game.participants
+                    if participant.discord_id == request.target_id
+                ),
+                request.requester.display_name,
+            )
+        )
         return GamePingLoadResult(
             guild_id=int(request.guild_id),
             target_id=int(request.target_id),
-            target_name=_target_name(target, request.target_id),
+            target_name=target_name,
             games=tuple(games),
             total_games=int(total_games),
             truncated=bool(truncated),
@@ -749,14 +764,13 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
             request.target_id,
             scope=request.scope,
         )
-        target = _player_for_guild(request.target_id, request.guild_id)
-        if target is None:
-            raise GamePingLookupError(
-                f'User <@{request.target_id}> is not a registered ELO player '
-                'in this server.'
-            )
 
         if request.scope == 'all':
+            if _player_for_guild(request.target_id, request.guild_id) is None:
+                raise GamePingLookupError(
+                    f'User <@{request.target_id}> is not a registered ELO player '
+                    'in this server.'
+                )
             current_ids, _total, current_truncated = _all_target_game_ids(
                 request.guild_id,
                 request.target_id,

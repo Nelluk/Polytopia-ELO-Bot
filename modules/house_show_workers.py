@@ -249,16 +249,24 @@ def load_house_show(request: HouseShowRequest) -> HouseShowResult:
                 if team_name in member.role_names
                 and (not inactive_name or inactive_name not in member.role_names)
             ]
-            roster_truncated = len(team_members) > MAX_ROSTER_PER_TEAM
-            team_members = team_members[:MAX_ROSTER_PER_TEAM]
-            roster = tuple(
-                HouseRosterRow(
-                    discord_id=int(member.discord_id),
-                    display_name=str(member.display_name),
-                    elo=elo_by_discord_id.get(int(member.discord_id)),
-                )
-                for member in team_members
+            roster_rows = sorted(
+                (
+                    HouseRosterRow(
+                        discord_id=int(member.discord_id),
+                        display_name=str(member.display_name),
+                        elo=elo_by_discord_id.get(int(member.discord_id)),
+                    )
+                    for member in team_members
+                ),
+                key=lambda row: (
+                    row.elo is None,
+                    -(row.elo if row.elo is not None else 0),
+                    row.display_name.casefold(),
+                    row.discord_id,
+                ),
             )
+            roster_truncated = len(roster_rows) > MAX_ROSTER_PER_TEAM
+            roster = tuple(roster_rows[:MAX_ROSTER_PER_TEAM])
             house_id = int(team.house_id)
             teams_by_house.setdefault(house_id, []).append(
                 HouseTeamRow(

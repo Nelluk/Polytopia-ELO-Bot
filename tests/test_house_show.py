@@ -241,21 +241,31 @@ class RequestAndWorkerTests(unittest.TestCase):
             id=mock.MagicMock(),
         )
         team_model.house.in_.return_value = True
-        fake_player = SimpleNamespace(
-            discord_member=SimpleNamespace(discord_id=10),
-            elo_moonrise=1400,
+        fake_players = (
+            SimpleNamespace(
+                discord_member=SimpleNamespace(discord_id=10),
+                elo_moonrise=1400,
+            ),
+            SimpleNamespace(
+                discord_member=SimpleNamespace(discord_id=11),
+                elo_moonrise=1600,
+            ),
         )
         with mock.patch.object(workers.models, 'db', database), mock.patch.object(
             workers.models, 'House', house_model
         ), mock.patch.object(workers.models, 'Team', team_model), mock.patch.object(
-            workers, '_load_players', return_value=(fake_player,)
+            workers, '_load_players', return_value=fake_players
+        ), mock.patch.object(
+            workers, 'MAX_ROSTER_PER_TEAM', 1
         ):
             loaded = workers.load_house_show(request())
 
         self.assertEqual(database.opened, 1)
         self.assertEqual(database.closed, 1)
         self.assertEqual(loaded.selected_house_id, 1)
-        self.assertEqual(loaded.houses[0].teams[0].roster[0].elo, 1400)
+        roster = loaded.houses[0].teams[0].roster
+        self.assertEqual(tuple(row.elo for row in roster), (1600,))
+        self.assertTrue(loaded.houses[0].teams[0].roster_truncated)
         self.assertEqual(loaded.houses[0].leaders, ('Leader',))
         self.assertEqual(loaded.houses[1].teams, ())
 

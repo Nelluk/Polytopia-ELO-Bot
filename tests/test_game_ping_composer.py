@@ -367,6 +367,53 @@ class GamePingWorkerTests(unittest.TestCase):
         )
         write.assert_called_once()
 
+    def test_cross_guild_single_does_not_require_invoking_guild_player(self):
+        requester = snapshot(guild_id=1)
+        foreign_game = game_snapshot(42, guild_id=2)
+        load_request = workers.GamePingLoadRequest(
+            guild_id=1,
+            requester=requester,
+            target_id=10,
+            channel_id=100,
+            discover_all=False,
+        )
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild') as player_lookup, \
+                mock.patch.object(workers, '_game_ids_for_channel', return_value=(42,)), \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(foreign_game,)):
+            result = workers.prepare_candidates(load_request)
+
+        player_lookup.assert_not_called()
+        self.assertEqual(result.games, (foreign_game,))
+        self.assertEqual(result.target_name, 'User 10')
+
+        request = commit_request()
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild') as player_lookup, \
+                mock.patch.object(workers, '_load_games_by_ids', return_value=(foreign_game,)), \
+                mock.patch.object(workers, '_destinations_for_game', return_value=foreign_game.destinations), \
+                mock.patch.object(workers.models.GameLog, 'write'):
+            committed = workers.commit_notification(request)
+
+        player_lookup.assert_not_called()
+        self.assertEqual(committed.game_ids, (42,))
+
+    def test_all_scope_retains_invoking_guild_player_boundary(self):
+        request = commit_request(scope='all')
+        with mock.patch.object(workers.models, 'db', FakeDatabase()), \
+                mock.patch.object(workers, '_registered_member', return_value=object()), \
+                mock.patch.object(workers, '_player_for_guild', return_value=None), \
+                mock.patch.object(workers, '_all_target_game_ids') as load_ids:
+            with self.assertRaisesRegex(
+                workers.GamePingLookupError,
+                'not a registered ELO player in this server',
+            ):
+                workers.commit_notification(request)
+
+        load_ids.assert_not_called()
+
     def test_native_explicit_game_can_override_channel_inference(self):
         requester = snapshot()
         explicit_game = game_snapshot(99)
