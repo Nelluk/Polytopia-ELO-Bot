@@ -233,7 +233,7 @@ async def publish_mutation_result(
 
 
 def public_interaction_sender(interaction):
-    """Return a public sender that clears one private deferred response."""
+    """Return a display-only sender that clears one private deferred response."""
 
     cleared = False
 
@@ -258,6 +258,10 @@ def public_interaction_sender(interaction):
         channel_send = getattr(channel, 'send', None)
         if channel_send is None:
             raise RuntimeError('The interaction has no public channel sender.')
+        kwargs.setdefault(
+            'allowed_mentions',
+            discord.AllowedMentions.none(),
+        )
         return await channel_send(content, **kwargs)
 
     return send

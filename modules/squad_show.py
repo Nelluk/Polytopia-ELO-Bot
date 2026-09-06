@@ -166,6 +166,10 @@ def public_interaction_sender(interaction):
             raise RuntimeError('The interaction has no public channel sender.')
         if content is not None:
             kwargs = {'content': content, **kwargs}
+        kwargs.setdefault(
+            'allowed_mentions',
+            discord.AllowedMentions.none(),
+        )
         return await channel_send(**kwargs)
 
     return send

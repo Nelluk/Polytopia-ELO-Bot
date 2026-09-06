@@ -2855,7 +2855,10 @@ class polygames(commands.Cog):
                 'again later.'
             )
 
-        await ctx.send(player_registration.success_message(request, result))
+        await ctx.send(
+            player_registration.success_message(request, result),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     @commands.command(aliases=['code', 'getcode', 'name'], usage='player_name')
     async def getname(self, ctx, *, player_string: str = None):
@@ -3098,7 +3101,10 @@ class polygames(commands.Cog):
                 'The game could not be kept active. No database change was committed.'
             )
         try:
-            await ctx.send(game_keep_active.success_message(result))
+            await ctx.send(
+                game_keep_active.success_message(result),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         except Exception:
             logger.exception(
                 'Keep-active for game %s committed, but its prefix notice '

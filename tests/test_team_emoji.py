@@ -465,7 +465,12 @@ class TeamEmojiServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         sender = team_emoji.public_interaction_sender(interaction)
         await sender('visible')
-        self.assertEqual(events, ['delete-deferred', ('public', 'visible', {})])
+        self.assertEqual(events[0], 'delete-deferred')
+        self.assertEqual(events[1][:2], ('public', 'visible'))
+        mentions = events[1][2]['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
 
 
 class TeamEmojiAdapterTests(unittest.IsolatedAsyncioTestCase):

@@ -798,6 +798,10 @@ class PlayerRegistrationCommandTests(unittest.IsolatedAsyncioTestCase):
         build.assert_called_once()
         run.assert_awaited_once_with(request_value)
         self.assertIn('account-wide', ctx.send.await_args.args[0])
+        mentions = ctx.send.await_args.kwargs['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
 
         ctx.invoked_with = 'steamname'
         with mock.patch.object(

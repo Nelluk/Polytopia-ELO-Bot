@@ -171,8 +171,8 @@ class StrictChannel:
         self.id = 900
         self.events = events if events is not None else []
 
-    async def send(self, content, *, view):
-        self.events.append(('strict-channel', content, view))
+    async def send(self, content, *, view, **kwargs):
+        self.events.append(('strict-channel', content, view, kwargs))
         return Message()
 
 
@@ -502,15 +502,20 @@ class GameNotesServiceTests(unittest.IsolatedAsyncioTestCase):
         sender = game_notes.public_interaction_sender(interaction)
         await sender('Current notes for game 42: None')
         await sender('A second public message')
+        self.assertEqual(events[0], ('defer', True))
+        self.assertEqual(events[1], ('delete-original',))
         self.assertEqual(
-            events,
+            [event[:2] for event in events[2:]],
             [
-                ('defer', True),
-                ('delete-original',),
-                ('channel', 'Current notes for game 42: None', {}),
-                ('channel', 'A second public message', {}),
+                ('channel', 'Current notes for game 42: None'),
+                ('channel', 'A second public message'),
             ],
         )
+        for event in events[2:]:
+            mentions = event[2]['allowed_mentions']
+            self.assertFalse(mentions.everyone)
+            self.assertFalse(mentions.users)
+            self.assertFalse(mentions.roles)
         self.assertEqual(interaction.deleted_original, 1)
 
     async def test_post_commit_order_and_mention_warning(self):
@@ -731,6 +736,10 @@ class NativeGameNotesAdapterTests(unittest.IsolatedAsyncioTestCase):
             'Requested by <@100> / **Player** (`100`).',
         )
         self.assertIs(events[2][2], workspace)
+        mentions = events[2][3]['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
         self.assertEqual(len(workspace.children), 2)
         self.assertFalse(any(event[0] == 'followup' for event in events))
 

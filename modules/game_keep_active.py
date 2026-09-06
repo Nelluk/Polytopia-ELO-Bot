@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime
 import logging
 
+import discord
+
 from modules import game_keep_active_workers as workers
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -54,9 +56,17 @@ async def respond(interaction, result=None, error: Exception | None = None):
         ephemeral = False
     try:
         if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=ephemeral)
+            await interaction.followup.send(
+                message,
+                ephemeral=ephemeral,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         else:
-            await interaction.response.send_message(message, ephemeral=ephemeral)
+            await interaction.response.send_message(
+                message,
+                ephemeral=ephemeral,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
     except Exception:
         if error is None:
             logger.exception(
@@ -79,7 +89,10 @@ def _sendable_channel(interaction):
 async def _publish_success(interaction, result):
     channel = _sendable_channel(interaction)
     try:
-        await channel.send(success_message(result))
+        await channel.send(
+            success_message(result),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
     except Exception:
         logger.exception(
             'Committed keep-active game %s could not publish its public notice; '

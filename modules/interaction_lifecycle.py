@@ -90,14 +90,14 @@ async def _clear_private_original(interaction) -> None:
 
 
 def public_interaction_sender(interaction):
-    """Return an idempotent public sender after one private cleanup attempt.
+    """Return a display-only public sender after one private cleanup attempt.
 
-    This helper is intentionally limited to the registration/timezone
-    public-success paths. Cleanup is best effort: an already-cleared
-    ``Unknown Message`` placeholder is benign, while other cleanup failures
-    are logged and the public send still proceeds. A successful public send
-    is cached so one committed operation cannot publish two successes if its
-    caller accidentally invokes the sender twice.
+    Cleanup is best effort: an already-cleared ``Unknown Message`` placeholder
+    is benign, while other cleanup failures are logged and the public send
+    still proceeds. User and role mentions are rendered without notifying by
+    default; a caller must pass an explicit policy for an intentional alert.
+    A successful public send is cached so one committed operation cannot
+    publish two successes if its caller accidentally invokes the sender twice.
     """
 
     cleanup_done = False
@@ -119,6 +119,10 @@ def public_interaction_sender(interaction):
                 raise RuntimeError(
                     'The interaction has no public channel sender.'
                 )
+            kwargs.setdefault(
+                'allowed_mentions',
+                discord.AllowedMentions.none(),
+            )
             public_message = await channel_send(content, **kwargs)
             public_sent = True
             return public_message

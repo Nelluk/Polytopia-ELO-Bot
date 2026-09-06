@@ -210,7 +210,8 @@ class KeepActiveSurfaceTests(unittest.TestCase):
             def is_done(self): return self.done
             async def defer(self, **kwargs): events.append(('defer', kwargs)); self.done = True
         class Channel:
-            async def send(self, content): events.append(('public', content))
+            async def send(self, content, **kwargs):
+                events.append(('public', content, kwargs))
         class Followup:
             async def send(self, content, **kwargs): events.append(('followup', content, kwargs))
         user = SimpleNamespace(id=42)
@@ -225,6 +226,10 @@ class KeepActiveSurfaceTests(unittest.TestCase):
             asyncio.run(service.run_button(interaction, game_id=77, protected_through=TODAY))
         self.assertEqual(events[0][0], 'defer')
         self.assertEqual(events[1][0], 'public')
+        mentions = events[1][2]['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
         self.assertEqual(events[2][0], 'followup')
         self.assertTrue(events[2][2]['ephemeral'])
 
@@ -256,7 +261,8 @@ class KeepActiveSurfaceTests(unittest.TestCase):
         class Response:
             def is_done(self): return True
         class Channel:
-            async def send(self, _content): raise RuntimeError('gone')
+            async def send(self, _content, **_kwargs):
+                raise RuntimeError('gone')
         class Followup:
             async def send(self, content, **kwargs): events.append((content, kwargs))
         interaction = SimpleNamespace(

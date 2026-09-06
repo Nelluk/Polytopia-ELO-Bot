@@ -186,8 +186,8 @@ class Channel:
 
 
 class StrictChannel(Channel):
-    async def send(self, content, *, view):
-        self.events.append(('strict-channel', content, view))
+    async def send(self, content, *, view, **kwargs):
+        self.events.append(('strict-channel', content, view, kwargs))
         return Message()
 
 
@@ -734,6 +734,10 @@ class NativeGameNameAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Current tracked Polytopia game name for game 42: **None**', events[2][1])
         self.assertIn('Requested by <@100> / **Player** (`100`).', events[2][1])
         self.assertIs(events[2][2], workspace)
+        mentions = events[2][3]['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
         self.assertEqual(len(workspace.children), 2)
         self.assertFalse(any(event[0] == 'followup' for event in events))
 

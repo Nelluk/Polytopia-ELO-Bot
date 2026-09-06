@@ -344,6 +344,10 @@ def public_interaction_sender(interaction):
         channel_send = getattr(channel, 'send', None)
         if channel_send is None:
             raise RuntimeError('The interaction has no public channel sender.')
+        kwargs.setdefault(
+            'allowed_mentions',
+            discord.AllowedMentions.none(),
+        )
         return await channel_send(content, **kwargs)
 
     return send

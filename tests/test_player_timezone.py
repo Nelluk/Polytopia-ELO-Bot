@@ -533,6 +533,10 @@ class TimezoneAdapterAndCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         interaction.delete_original_response.assert_awaited_once()
         interaction.channel.send.assert_awaited_once()
+        mentions = interaction.channel.send.await_args.kwargs['allowed_mentions']
+        self.assertFalse(mentions.everyone)
+        self.assertFalse(mentions.users)
+        self.assertFalse(mentions.roles)
         interaction.followup.send.assert_not_awaited()
 
     async def test_registration_and_timezone_share_public_cleanup_helper(self):
