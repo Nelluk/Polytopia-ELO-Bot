@@ -2497,7 +2497,10 @@ class polygames(commands.Cog):
             ),
             avatar_url=self._player_avatar_url(ctx.guild, snapshot.discord_id),
         )
-        view.message = await ctx.send(view=view)
+        view.message = await ctx.send(
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
         return True
 
     @player_group.command(
@@ -2546,7 +2549,10 @@ class polygames(commands.Cog):
                 snapshot.discord_id,
             ),
         )
-        view.message = await interaction.edit_original_response(view=view)
+        view.message = await interaction.edit_original_response(
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     @player_group.command(
         name='register',

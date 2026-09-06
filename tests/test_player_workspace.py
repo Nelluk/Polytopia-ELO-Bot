@@ -809,7 +809,38 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(requests[0].requester_discord_id, 100)
             interaction.response.defer.assert_awaited_once()
             kwargs = interaction.edit_original_response.await_args.kwargs
-            self.assertEqual(set(kwargs), {'view'})
+            self.assertEqual(set(kwargs), {'view', 'allowed_mentions'})
+            self.assertFalse(kwargs['allowed_mentions'].everyone)
+            self.assertFalse(kwargs['allowed_mentions'].users)
+            self.assertFalse(kwargs['allowed_mentions'].roles)
+
+    async def test_prefix_player_workspace_suppresses_visible_user_mention(self):
+        ctx = SimpleNamespace(
+            author=SimpleNamespace(id=100),
+            guild=SimpleNamespace(id=300, get_member=lambda _member_id: None),
+            send=mock.AsyncMock(
+                return_value=SimpleNamespace(edit=mock.AsyncMock())
+            ),
+        )
+        cog = games.polygames.__new__(games.polygames)
+        cog._load_player_workspace = mock.AsyncMock(
+            return_value=snapshot(discord_id=200)
+        )
+        with mock.patch.object(games.settings, 'is_staff', return_value=False):
+            self.assertTrue(await cog._send_player_workspace(
+                ctx,
+                request=player_workers.PlayerWorkspaceRequest(
+                    guild_id=300,
+                    discord_id=200,
+                    requester_discord_id=100,
+                ),
+            ))
+
+        kwargs = ctx.send.await_args.kwargs
+        self.assertIn('<@200>', kwargs['view']._body())
+        self.assertFalse(kwargs['allowed_mentions'].everyone)
+        self.assertFalse(kwargs['allowed_mentions'].users)
+        self.assertFalse(kwargs['allowed_mentions'].roles)
 
     async def test_load_failure_is_ephemeral_and_has_no_view(self):
         command = app_group(games.polygames, 'player').get_command('show')
