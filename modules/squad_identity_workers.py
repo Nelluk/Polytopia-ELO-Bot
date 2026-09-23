@@ -55,6 +55,7 @@ class SquadNameMutationRequest:
     requester_is_staff: bool
     requester_description: str
     requester_role_names: tuple[str, ...] = ()
+    requester_role_ids: tuple[int, ...] = ()
     name: str | None = None
     clear: bool = False
     expected_name: str | None = None
@@ -167,6 +168,7 @@ def _has_authority(squad, request: SquadNameMutationRequest) -> bool:
                     request.guild_id,
                     request.requester_id,
                     request.requester_role_names,
+                    request.requester_role_ids,
                 )
             )
         except Exception:

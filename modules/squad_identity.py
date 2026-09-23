@@ -68,6 +68,16 @@ def _requester_role_names(member) -> tuple[str, ...]:
     )
 
 
+def _requester_role_ids(member) -> tuple[int, ...]:
+    return tuple(
+        sorted(
+            int(role.id)
+            for role in (getattr(member, 'roles', None) or ())
+            if getattr(role, 'id', None) is not None
+        )
+    )
+
+
 def build_mutation_request(
     *,
     member,
@@ -89,6 +99,7 @@ def build_mutation_request(
         requester_is_staff=_requester_is_staff(member),
         requester_description=actor.identity,
         requester_role_names=_requester_role_names(member),
+        requester_role_ids=_requester_role_ids(member),
         name=(str(name) if name is not None else None),
         clear=bool(clear),
         expected_name=(

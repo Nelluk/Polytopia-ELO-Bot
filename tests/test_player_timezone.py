@@ -39,13 +39,21 @@ def member(
     )
 
 
-def request(*, target_id=100, actor_roles=(), offset_minutes=330, clear=False):
+def request(
+    *,
+    target_id=100,
+    actor_roles=(),
+    actor_role_ids=(),
+    offset_minutes=330,
+    clear=False,
+):
     actor = workers.player_registration_workers.MemberSnapshot(
         discord_id=100,
         discord_name='Actor',
         discord_nick='Act',
         display_name='Actor Display',
         role_names=tuple(actor_roles),
+        role_ids=tuple(actor_role_ids),
     )
     target = workers.player_registration_workers.MemberSnapshot(
         discord_id=target_id,
@@ -348,20 +356,15 @@ class TimezoneWorkerTests(unittest.TestCase):
         self.assertEqual(self.database.connection_closed, 1)
 
     def test_worker_revalidates_staff_boundary_before_connection(self):
-        self.patches.close()
-        self.patches = ExitStack()
-        self.patches.enter_context(mock.patch.object(
-            workers.models,
-            'db',
-            self.database,
-        ))
-        self.patches.enter_context(mock.patch.object(
+        with mock.patch.object(
             workers.player_registration_workers,
             'is_staff_snapshot',
             return_value=False,
-        ))
-        with self.assertRaises(workers.PlayerTimezonePermissionError):
-            workers.write_timezone(request(target_id=200, actor_roles=('Member',)))
+        ):
+            with self.assertRaises(workers.PlayerTimezonePermissionError):
+                workers.write_timezone(
+                    request(target_id=200, actor_roles=('Member',))
+                )
         self.assertEqual(self.database.connection_opened, 0)
 
     def test_read_uses_effective_legacy_fallback_and_connection_without_commit(self):
@@ -450,6 +453,26 @@ class TimezoneAdapterAndCommandTests(unittest.IsolatedAsyncioTestCase):
                     guild_id=300,
                     offset='UTC+01:00',
                 )
+
+    def test_worker_staff_check_accepts_configured_mod_role_id(self):
+        request_value = request(
+            target_id=200,
+            actor_roles=('PolyChampions Mod',),
+            actor_role_ids=(555,),
+        )
+        settings_module = workers.player_registration_workers.settings
+        with (
+            mock.patch.object(settings_module, 'owner_id', 999),
+            mock.patch.object(settings_module, 'guild_setting', return_value=()),
+            mock.patch.object(
+                settings_module,
+                'configured_role_ids',
+                side_effect=lambda _guild_id, setting_name: (
+                    (555,) if setting_name == 'mod_roles' else ()
+                ),
+            ),
+        ):
+            workers._ensure_request_is_allowed(request_value)
 
     async def test_prefix_grammar_preserves_self_and_staff_target_forms(self):
         actor = member(100, roles=('Helper',))

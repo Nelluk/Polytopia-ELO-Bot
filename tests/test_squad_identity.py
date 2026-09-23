@@ -82,6 +82,8 @@ def request(**overrides):
         requester_id=999,
         requester_is_staff=False,
         requester_description='**Actor** (`999`)',
+        requester_role_names=(),
+        requester_role_ids=(),
     )
     values.update(overrides)
     return workers.SquadNameMutationRequest(**values)
@@ -232,6 +234,29 @@ class IdentityWorkerBoundaryTests(unittest.TestCase):
         ):
             with self.assertRaises(workers.SquadNamePermissionError):
                 workers.set_squad_name(staff_request)
+
+    def test_id_configured_mod_can_edit_squad_outside_their_roster(self):
+        squad = FakeSquad()
+        squad.member_ids.clear()
+        staff_request = request(
+            requester_id=123,
+            requester_is_staff=True,
+            requester_role_names=('PolyChampions Mod',),
+            requester_role_ids=(555,),
+        )
+        settings_module = workers.player_registration_workers.settings
+        with (
+            mock.patch.object(settings_module, 'owner_id', 999),
+            mock.patch.object(settings_module, 'guild_setting', return_value=()),
+            mock.patch.object(
+                settings_module,
+                'configured_role_ids',
+                side_effect=lambda _guild_id, setting_name: (
+                    (555,) if setting_name == 'mod_roles' else ()
+                ),
+            ),
+        ):
+            self.assertTrue(workers._has_authority(squad, staff_request))
 
     def test_missing_and_stale_squad_are_private_worker_errors(self):
         database = FakeDatabase()
@@ -400,6 +425,18 @@ class IdentityPresentationAndModalTests(unittest.IsolatedAsyncioTestCase):
             followup=SimpleNamespace(send=mock.AsyncMock()),
             delete_original_response=mock.AsyncMock(),
         )
+
+    def test_mutation_request_captures_role_ids_for_worker_recheck(self):
+        actor = self._interaction().user
+        actor.roles = (SimpleNamespace(id=555, name='PolyChampions Mod'),)
+        with mock.patch.object(service.settings, 'is_staff', return_value=True):
+            request_value = service.build_mutation_request(
+                member=actor,
+                guild_id=300,
+                squad_id=42,
+                name='Renamed',
+            )
+        self.assertEqual(request_value.requester_role_ids, (555,))
 
     async def _mark_done(self, *args, **kwargs):
         return None

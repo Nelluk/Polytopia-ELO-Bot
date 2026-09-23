@@ -82,6 +82,7 @@ def _is_staff_snapshot(request: PlayerTimezoneRequest) -> bool:
         request.guild_id,
         request.requester_id,
         request.actor.role_names,
+        request.actor.role_ids,
     )
 
 

@@ -128,7 +128,7 @@ def is_staff_snapshot(
     guild_id: int,
     requester_id: int,
     role_names: tuple[str, ...],
-    role_ids: tuple[int, ...] = (),
+    role_ids: tuple[int, ...],
 ) -> bool:
     """Apply the shared existing staff rule to primitive role snapshots."""
 
