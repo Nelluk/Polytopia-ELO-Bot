@@ -312,7 +312,10 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('## Squad #42 · Alpha Squad', view._body())
         self.assertIn('Confirmed ranked record', view._body())
         self.assertIn('/squad show squad_id:42', view._body())
-        interaction.response.edit_message.assert_awaited_once_with(view=view)
+        interaction.response.edit_message.assert_awaited_once()
+        edit_kwargs = interaction.response.edit_message.await_args.kwargs
+        self.assertIs(edit_kwargs['view'], view)
+        self.assertFalse(edit_kwargs['allowed_mentions'].users)
 
         view.squad_select._values = ['all']
         await view._select_squad(interaction)
@@ -484,6 +487,16 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
             'current.png',
         )
         self.assertIn('**3** – **2**', view._body())
+        self.assertIn('**Requester**', view._body())
+        self.assertIn('**Nelluk**', view._body())
+        self.assertNotIn('<@100>', view._body())
+        self.assertNotIn('<@200>', view._body())
+        first_allowed_mentions = (
+            first.edit_original_response.await_args.kwargs['allowed_mentions']
+        )
+        self.assertFalse(first_allowed_mentions.everyone)
+        self.assertFalse(first_allowed_mentions.users)
+        self.assertFalse(first_allowed_mentions.roles)
 
         second = self.analytics_interaction()
         view.history_era_select._values = ['all_time']
@@ -496,6 +509,12 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
         await view._select_history_era(third)
         self.assertEqual(loader.await_count, 2)
         third.response.edit_message.assert_awaited_once()
+        third_allowed_mentions = (
+            third.response.edit_message.await_args.kwargs['allowed_mentions']
+        )
+        self.assertFalse(third_allowed_mentions.everyone)
+        self.assertFalse(third_allowed_mentions.users)
+        self.assertFalse(third_allowed_mentions.roles)
 
     async def test_analytics_failure_is_private_and_preserves_public_view(self):
         loader = mock.AsyncMock(side_effect=RuntimeError('render failed'))
@@ -814,7 +833,7 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(kwargs['allowed_mentions'].users)
             self.assertFalse(kwargs['allowed_mentions'].roles)
 
-    async def test_prefix_player_workspace_suppresses_visible_user_mention(self):
+    async def test_prefix_player_workspace_does_not_render_pingable_mentions(self):
         ctx = SimpleNamespace(
             author=SimpleNamespace(id=100),
             guild=SimpleNamespace(id=300, get_member=lambda _member_id: None),
@@ -837,7 +856,8 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
             ))
 
         kwargs = ctx.send.await_args.kwargs
-        self.assertIn('<@200>', kwargs['view']._body())
+        self.assertIn('Nelluk', kwargs['view']._body())
+        self.assertNotIn('<@200>', kwargs['view']._body())
         self.assertFalse(kwargs['allowed_mentions'].everyone)
         self.assertFalse(kwargs['allowed_mentions'].users)
         self.assertFalse(kwargs['allowed_mentions'].roles)

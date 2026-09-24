@@ -74,7 +74,10 @@ class PageJumpModal(discord.ui.Modal):
             return
         view.page_index = page - 1
         view.rebuild()
-        await interaction.response.edit_message(view=view)
+        await interaction.response.edit_message(
+            view=view,
+            **view._message_edit_kwargs(),
+        )
 
 
 class RequesterLayoutView(discord.ui.LayoutView):
@@ -85,6 +88,7 @@ class RequesterLayoutView(discord.ui.LayoutView):
         'This interaction has expired. Run the command again for a fresh '
         'result.'
     )
+    edit_allowed_mentions: discord.AllowedMentions | None = None
 
     def __init__(self, *, requester_id: int, timeout: float = 300.0):
         super().__init__(timeout=timeout)
@@ -98,6 +102,11 @@ class RequesterLayoutView(discord.ui.LayoutView):
 
     def rebuild(self) -> None:
         raise NotImplementedError
+
+    def _message_edit_kwargs(self) -> dict[str, Any]:
+        if self.edit_allowed_mentions is None:
+            return {}
+        return {'allowed_mentions': self.edit_allowed_mentions}
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
         guild_id = getattr(interaction, 'guild_id', None)
@@ -140,7 +149,10 @@ class RequesterLayoutView(discord.ui.LayoutView):
     ) -> None:
         self.page_index -= 1
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(
+            view=self,
+            **self._message_edit_kwargs(),
+        )
 
     async def show_next(
         self,
@@ -148,13 +160,19 @@ class RequesterLayoutView(discord.ui.LayoutView):
     ) -> None:
         self.page_index += 1
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(
+            view=self,
+            **self._message_edit_kwargs(),
+        )
 
     async def on_timeout(self) -> None:
         disable_controls(self)
         if self.message is not None:
             try:
-                await self.message.edit(view=self)
+                await self.message.edit(
+                    view=self,
+                    **self._message_edit_kwargs(),
+                )
             except discord.HTTPException:
                 pass
 

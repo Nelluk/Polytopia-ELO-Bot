@@ -127,6 +127,7 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
     """Public player profile with database-free section navigation."""
 
     unauthorized_message = 'Only the requester can control this player view.'
+    edit_allowed_mentions = discord.AllowedMentions.none()
 
     def __init__(
         self,
@@ -184,7 +185,11 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.page_index = 0
         self.selected_squad_id = None
         self.rebuild()
-        await interaction.response.edit_message(view=self, attachments=[])
+        await interaction.response.edit_message(
+            view=self,
+            attachments=[],
+            **self._message_edit_kwargs(),
+        )
 
     async def _private_error(
         self,
@@ -237,11 +242,13 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 await interaction.edit_original_response(
                     view=self,
                     attachments=self.history_graph_files(),
+                    **self._message_edit_kwargs(),
                 )
             else:
                 await interaction.response.edit_message(
                     view=self,
                     attachments=self.history_graph_files(),
+                    **self._message_edit_kwargs(),
                 )
         except Exception:
             logger.exception(
@@ -273,13 +280,19 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
         self.completed_filter = self.result_select.values[0]
         self.page_index = 0
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(
+            view=self,
+            **self._message_edit_kwargs(),
+        )
 
     async def _select_season(self, interaction: discord.Interaction) -> None:
         self.season_filter = self.season_select.values[0]
         self.page_index = 0
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(
+            view=self,
+            **self._message_edit_kwargs(),
+        )
 
     async def _select_squad(self, interaction: discord.Interaction) -> None:
         selected = self.squad_select.values[0]
@@ -287,7 +300,10 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             None if selected == 'all' else int(selected)
         )
         self.rebuild()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(
+            view=self,
+            **self._message_edit_kwargs(),
+        )
 
     async def _profile_actions(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
@@ -329,8 +345,11 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 badge_block = f'\n\n**Badges:**\n{shown}'
                 if more > 0:
                     badge_block += f'\n…and {more} more — open Badges'
+            display_name = (
+                _safe_text(snapshot.display_name) or 'Unknown player'
+            )
             return (
-                f'## <@{snapshot.discord_id}>\n'
+                f'## {display_name}\n'
                 f'{polytopia_name_line}\n'
                 f'**Last-known team:** {team}\n'
                 f'{timezone_line}\n'
@@ -390,20 +409,28 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                     'No requester comparison is available. The requester may '
                     'not be registered in this server.'
                 )
-            elif snapshot.head_to_head.total_games == 0:
-                matchup = (
-                    f'No confirmed ranked local 1v1 games between '
-                    f'<@{snapshot.head_to_head.requester_discord_id}> and '
-                    f'<@{snapshot.head_to_head.target_discord_id}>.'
-                )
             else:
-                matchup = (
-                    f'<@{snapshot.head_to_head.requester_discord_id}> '
-                    f'**{snapshot.head_to_head.requester_wins}** – '
-                    f'**{snapshot.head_to_head.target_wins}** '
-                    f'<@{snapshot.head_to_head.target_discord_id}> '
-                    f'({snapshot.head_to_head.total_games} games)'
+                requester_name = (
+                    _safe_text(snapshot.head_to_head.requester_name)
+                    or 'Requester'
                 )
+                target_name = (
+                    _safe_text(snapshot.head_to_head.target_name)
+                    or 'Player'
+                )
+                if snapshot.head_to_head.total_games == 0:
+                    matchup = (
+                        'No confirmed ranked local 1v1 games between '
+                        f'**{requester_name}** and **{target_name}**.'
+                    )
+                else:
+                    matchup = (
+                        f'**{requester_name}** '
+                        f'**{snapshot.head_to_head.requester_wins}** – '
+                        f'**{snapshot.head_to_head.target_wins}** '
+                        f'**{target_name}** '
+                        f'({snapshot.head_to_head.total_games} games)'
+                    )
             era = (
                 'Current-reset'
                 if self.history_era == 'current'
@@ -551,10 +578,10 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             ],
         )
         self.section_select.callback = self._select_section
-        heading = (
-            f'# 👤 {self.snapshot.display_name}\n'
-            f'-# Player profile'
+        display_name = (
+            _safe_text(self.snapshot.display_name) or 'Unknown player'
         )
+        heading = f'# 👤 {display_name}\n-# Player profile'
         if self.section == 'overview' and self.avatar_url:
             profile_content = discord.ui.Section(
                 discord.ui.TextDisplay(heading),
