@@ -756,6 +756,15 @@ def get_matching_roles(discord_member, configured_roles):
     }
 
 
+def _is_guild_owner(member):
+    guild = getattr(member, 'guild', None)
+    return (
+        guild is not None
+        and getattr(guild, 'owner_id', None) is not None
+        and member.id == guild.owner_id
+    )
+
+
 def _permission_roles(guild_id: int, setting_name: str):
     role_ids = configured_role_ids(guild_id, setting_name)
     return role_ids or guild_setting(guild_id, setting_name)
@@ -808,7 +817,7 @@ def can_user_join_game(user_level: int, game_size: int, is_ranked: bool = True, 
 
 def is_staff(member):
 
-    if member.id == owner_id:
+    if member.id == owner_id or _is_guild_owner(member):
         return True
     helper_roles = _permission_roles(member.guild.id, 'helper_roles')
     mod_roles = _permission_roles(member.guild.id, 'mod_roles')
@@ -819,7 +828,7 @@ def is_staff(member):
 
 def is_mod(member):
 
-    if member.id == owner_id:
+    if member.id == owner_id or _is_guild_owner(member):
         return True
     mod_roles = _permission_roles(member.guild.id, 'mod_roles')
 
