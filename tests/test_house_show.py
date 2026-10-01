@@ -59,7 +59,7 @@ def request(**overrides):
     return workers.HouseShowRequest(**values)
 
 
-def team(team_id, name, *, archived=False, roster=()):
+def team(team_id, name, *, archived=False, roster=(), captains=()):
     return workers.HouseTeamRow(
         team_id=team_id,
         name=name,
@@ -71,6 +71,7 @@ def team(team_id, name, *, archived=False, roster=()):
         role_found=True,
         roster=tuple(roster),
         roster_truncated=False,
+        captains=tuple(captains),
     )
 
 
@@ -258,10 +259,27 @@ class RequestAndWorkerTests(unittest.TestCase):
         ), mock.patch.object(
             workers, 'MAX_ROSTER_PER_TEAM', 1
         ):
-            loaded = workers.load_house_show(request())
+            snapshot = guild_snapshot()
+            captain_snapshot = workers.HouseGuildSnapshot(
+                guild_id=snapshot.guild_id,
+                role_names=(*snapshot.role_names, 'Team Captain'),
+                members=(
+                    *snapshot.members,
+                    member(20, 'Zed', 'Ronin', 'Team Captain', 'Inactive'),
+                    member(21, 'Amy', 'Ronin', 'Team Captain'),
+                    member(22, 'Other team', 'The Jets', 'Team Captain'),
+                    member(23, 'House only', 'Ninjas', 'Team Captain'),
+                    member(24, 'Partial role', 'Ronin Junior', 'Team Captain'),
+                    member(25, 'Partial captain', 'Ronin', 'Team Captain Junior', 'Inactive'),
+                ),
+            )
+            loaded = workers.load_house_show(request(guild_snapshot=captain_snapshot))
+            no_captains = workers.load_house_show(request())
 
-        self.assertEqual(database.opened, 1)
-        self.assertEqual(database.closed, 1)
+        self.assertEqual(database.opened, 2)
+        self.assertEqual(database.closed, 2)
+        self.assertEqual(loaded.houses[0].teams[0].captains, ('Amy', 'Zed'))
+        self.assertEqual(no_captains.houses[0].teams[0].captains, ())
         self.assertEqual(loaded.selected_house_id, 1)
         roster = loaded.houses[0].teams[0].roster
         self.assertEqual(tuple(row.elo for row in roster), (1600,))
@@ -298,6 +316,38 @@ class AsyncBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PresentationTests(unittest.IsolatedAsyncioTestCase):
+    def test_captains_appear_in_prefix_and_native_lists_and_details(self):
+        for captains, expected in (
+            ((), 'Captain: None listed'),
+            (('Bob',), 'Captain: Bob'),
+            (('Amy', 'Zed'), 'Captains: Amy, Zed'),
+        ):
+            with self.subTest(captains=captains):
+                loaded = result(houses=(house(1, 'Ninjas', teams=(
+                    team(1, 'Ronin', captains=captains),
+                )),))
+                self.assertIn(expected, service.render_prefix_list(loaded))
+                self.assertIn(expected, service.render_prefix_house(loaded))
+                self.assertTrue(any(
+                    expected in field.value
+                    for field in service.render_list_embed(loaded, 0).fields
+                ))
+                self.assertTrue(any(
+                    expected in field.value
+                    for field in service.render_house_embed(loaded, 1).fields
+                ))
+
+    def test_captain_names_are_escaped_and_native_fields_are_bounded(self):
+        loaded = result(houses=(house(1, 'Ninjas', teams=(
+            team(1, 'Ronin', captains=('@everyone **Bob**',)),
+        )),))
+        prefix = service.render_prefix_list(loaded)
+        self.assertNotIn('@everyone', prefix)
+        self.assertIn(r'\*\*Bob\*\*', prefix)
+        long_team = team(1, 'Ronin', captains=('A' * 1000,))
+        self.assertLessEqual(len(service._team_value(long_team)), 500)
+        self.assertIn('No active role members', service._team_value(long_team))
+
     def test_dense_show_and_paginated_list_preserve_house_information(self):
         loaded = result()
         detail = service.render_house_embed(loaded, 1)
