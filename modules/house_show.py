@@ -134,12 +134,6 @@ def selected_house(result: house_show_workers.HouseShowResult):
     )
 
 
-def _captain_line(team: house_show_workers.HouseTeamRow) -> str:
-    label = 'Captains' if len(team.captains) > 1 else 'Captain'
-    names = ', '.join(_escape(name) for name in team.captains) or 'None listed'
-    return f'{label}: {names}'
-
-
 def _team_value(team: house_show_workers.HouseTeamRow) -> str:
     tier = f'{_escape(team.tier_name)} Tier' if team.tier_name else 'No tier'
     state = 'Archived' if team.archived else 'Active'
@@ -155,10 +149,7 @@ def _team_value(team: house_show_workers.HouseTeamRow) -> str:
         roster += ', …'
     if not team.role_found:
         roster = f':warning: Missing exact Discord role.\n{roster}'
-    value = (
-        f'{state} · {tier} · `{team.elo} ELO`\n'
-        f'{_captain_line(team)[:200]}\n{roster}'
-    )
+    value = f'{state} · {tier} · `{team.elo} ELO`\n{roster}'
     return value[:500]
 
 
@@ -179,6 +170,7 @@ def render_house_embed(
         ('Leaders', house.leaders),
         ('Co-Leaders', house.coleaders),
         ('Recruiters', house.recruiters),
+        ('Captains', house.captains),
     )
     for label, names in leadership:
         if names:
@@ -230,15 +222,18 @@ def render_list_embed(
     for house in visible:
         active = tuple(team for team in house.teams if not team.archived)
         leader_text = ', '.join(_escape(name) for name in house.leaders) or 'None listed'
-        team_text = '\n'.join(
-            f'{team.emoji} {_escape(team.name)}'.strip()
-            + f' — {_captain_line(team)[:200]}'
-            for team in active
+        captain_text = (
+            'Captains: ' + ', '.join(_escape(name) for name in house.captains) + '\n'
+            if house.captains else ''
+        )
+        team_text = ', '.join(
+            f'{team.emoji} {_escape(team.name)}'.strip() for team in active
         ) or 'No active teams'
         embed.add_field(
             name=f'{house.emoji} {_escape(house.name)}'.strip(),
             value=(
                 f'Leader: {leader_text}\n'
+                f'{captain_text}'
                 f'{team_text}\n'
                 f'`{house.league_tokens}` tokens'
             )[:1024],
@@ -438,9 +433,11 @@ def render_prefix_house(result: house_show_workers.HouseShowResult) -> str:
     lines = [
         f'{house.emoji} **House {_escape(house.name)}** {house.emoji}'.strip(),
         f'**Leaders**: {", ".join(_escape(name) for name in house.leaders)}',
-        f'**Co-Leaders**: {", ".join(_escape(name) for name in house.coleaders)}',
-        f'**Recruiters**: {", ".join(_escape(name) for name in house.recruiters)}',
+        f'\n**Co-Leaders**: {", ".join(_escape(name) for name in house.coleaders)}',
+        f'\n**Recruiters**: {", ".join(_escape(name) for name in house.recruiters)}',
     ]
+    if house.captains:
+        lines.append(f'\n**Captains**: {", ".join(_escape(name) for name in house.captains)}')
     for team in house.teams:
         tier = f'{team.tier_name} Tier' if team.tier_name else 'No tier'
         state = 'Archived ' if team.archived else ''
@@ -448,7 +445,6 @@ def render_prefix_house(result: house_show_workers.HouseShowResult) -> str:
             f'\n__{state}{tier} Team__ {_escape(team.name)} {team.emoji} '
             f'`{team.elo} ELO`'
         )
-        lines.append(_captain_line(team))
         lines.extend(
             f'{_escape(row.display_name)}'
             + (f' `{row.elo}`' if row.elo is not None else '')
@@ -465,12 +461,13 @@ def render_prefix_list(result: house_show_workers.HouseShowResult) -> str:
             lines.append(f'\n**House {_escape(house.name)}**\n**House Leader:** {leaders}')
         else:
             lines.append(f'\n**House {_escape(house.name)}**')
+        if house.captains:
+            lines.append(f'**Captains:** {", ".join(_escape(name) for name in house.captains)}')
         for team in house.teams:
             tier = f'{team.tier_name} Tier' if team.tier_name else 'No tier'
             lines.append(
                 f'- {_escape(team.name)} {team.emoji} - {tier} - ELO: {team.elo}'
             )
-            lines.append(f'  {_captain_line(team)}')
         if not house.teams:
             lines.append('*No related Teams*')
     return '\n'.join(lines)

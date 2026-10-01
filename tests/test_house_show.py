@@ -59,7 +59,7 @@ def request(**overrides):
     return workers.HouseShowRequest(**values)
 
 
-def team(team_id, name, *, archived=False, roster=(), captains=()):
+def team(team_id, name, *, archived=False, roster=()):
     return workers.HouseTeamRow(
         team_id=team_id,
         name=name,
@@ -71,11 +71,10 @@ def team(team_id, name, *, archived=False, roster=(), captains=()):
         role_found=True,
         roster=tuple(roster),
         roster_truncated=False,
-        captains=tuple(captains),
     )
 
 
-def house(house_id, name, *, teams=()):
+def house(house_id, name, *, teams=(), captains=()):
     return workers.HouseRow(
         house_id=house_id,
         name=name,
@@ -87,6 +86,7 @@ def house(house_id, name, *, teams=()):
         coleaders=(),
         recruiters=(),
         teams=tuple(teams),
+        captains=tuple(captains),
     )
 
 
@@ -265,12 +265,12 @@ class RequestAndWorkerTests(unittest.TestCase):
                 role_names=(*snapshot.role_names, 'Team Captain'),
                 members=(
                     *snapshot.members,
-                    member(20, 'Zed', 'Ronin', 'Team Captain', 'Inactive'),
+                    member(20, 'Zed', 'Ninjas', 'Team Captain', 'Inactive'),
                     member(21, 'Amy', 'Ronin', 'Team Captain'),
-                    member(22, 'Other team', 'The Jets', 'Team Captain'),
+                    member(22, 'Other house', 'Jets', 'Team Captain'),
                     member(23, 'House only', 'Ninjas', 'Team Captain'),
-                    member(24, 'Partial role', 'Ronin Junior', 'Team Captain'),
-                    member(25, 'Partial captain', 'Ronin', 'Team Captain Junior', 'Inactive'),
+                    member(24, 'Partial role', 'Ninjas Junior', 'Team Captain'),
+                    member(25, 'Partial captain', 'Ninjas', 'Team Captain Junior', 'Inactive'),
                 ),
             )
             loaded = workers.load_house_show(request(guild_snapshot=captain_snapshot))
@@ -278,8 +278,9 @@ class RequestAndWorkerTests(unittest.TestCase):
 
         self.assertEqual(database.opened, 2)
         self.assertEqual(database.closed, 2)
-        self.assertEqual(loaded.houses[0].teams[0].captains, ('Amy', 'Zed'))
-        self.assertEqual(no_captains.houses[0].teams[0].captains, ())
+        self.assertEqual(loaded.houses[0].captains, ('Zed', 'House only'))
+        self.assertEqual(loaded.houses[1].captains, ('Other house',))
+        self.assertEqual(no_captains.houses[0].captains, ())
         self.assertEqual(loaded.selected_house_id, 1)
         roster = loaded.houses[0].teams[0].roster
         self.assertEqual(tuple(row.elo for row in roster), (1600,))
@@ -317,36 +318,44 @@ class AsyncBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
 class PresentationTests(unittest.IsolatedAsyncioTestCase):
     def test_captains_appear_in_prefix_and_native_lists_and_details(self):
-        for captains, expected in (
-            ((), 'Captain: None listed'),
-            (('Bob',), 'Captain: Bob'),
-            (('Amy', 'Zed'), 'Captains: Amy, Zed'),
-        ):
+        for captains in ((), ('Bob',), ('Amy', 'Zed')):
             with self.subTest(captains=captains):
-                loaded = result(houses=(house(1, 'Ninjas', teams=(
-                    team(1, 'Ronin', captains=captains),
-                )),))
-                self.assertIn(expected, service.render_prefix_list(loaded))
-                self.assertIn(expected, service.render_prefix_house(loaded))
-                self.assertTrue(any(
-                    expected in field.value
-                    for field in service.render_list_embed(loaded, 0).fields
-                ))
-                self.assertTrue(any(
-                    expected in field.value
-                    for field in service.render_house_embed(loaded, 1).fields
-                ))
+                loaded = result(houses=(house(
+                    1, 'Ninjas', captains=captains, teams=(team(1, 'Ronin'),),
+                ),))
+                detail = service.render_house_embed(loaded, 1)
+                listing = service.render_list_embed(loaded, 0)
+                prefix_detail = service.render_prefix_house(loaded)
+                prefix_list = service.render_prefix_list(loaded)
+                fields = {field.name: field.value for field in detail.fields}
+                self.assertNotIn('Captain', service._team_value(loaded.houses[0].teams[0]))
+                if captains:
+                    names = ', '.join(captains)
+                    self.assertEqual(fields['Captains'], names)
+                    self.assertIn(f'Captains: {names}', listing.fields[0].value)
+                    self.assertIn(f'**Captains**: {names}', prefix_detail)
+                    self.assertIn(f'**Captains:** {names}', prefix_list)
+                    self.assertLess(prefix_detail.index('**Captains**'), prefix_detail.index('Tier Team'))
+                    self.assertLess(prefix_list.index('**Captains:**'), prefix_list.index('- Ronin'))
+                else:
+                    self.assertNotIn('Captains', fields)
+                    self.assertNotIn('Captains', listing.fields[0].value)
+                    self.assertNotIn('Captains', prefix_detail)
+                    self.assertNotIn('Captains', prefix_list)
 
     def test_captain_names_are_escaped_and_native_fields_are_bounded(self):
-        loaded = result(houses=(house(1, 'Ninjas', teams=(
-            team(1, 'Ronin', captains=('@everyone **Bob**',)),
-        )),))
+        loaded = result(houses=(house(
+            1, 'Ninjas', captains=('@everyone **Bob**',),
+        ),))
         prefix = service.render_prefix_list(loaded)
         self.assertNotIn('@everyone', prefix)
         self.assertIn(r'\*\*Bob\*\*', prefix)
-        long_team = team(1, 'Ronin', captains=('A' * 1000,))
-        self.assertLessEqual(len(service._team_value(long_team)), 500)
-        self.assertIn('No active role members', service._team_value(long_team))
+        loaded = result(houses=(house(1, 'Ninjas', captains=('A' * 1000,)),))
+        detail = service.render_house_embed(loaded, 1)
+        self.assertLessEqual(len(next(
+            field.value for field in detail.fields if field.name == 'Captains'
+        )), 500)
+        self.assertLessEqual(len(service.render_list_embed(loaded, 0).fields[0].value), 1024)
 
     def test_dense_show_and_paginated_list_preserve_house_information(self):
         loaded = result()

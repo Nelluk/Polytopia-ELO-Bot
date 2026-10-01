@@ -81,7 +81,6 @@ class HouseTeamRow:
     role_found: bool
     roster: tuple[HouseRosterRow, ...]
     roster_truncated: bool
-    captains: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -96,6 +95,7 @@ class HouseRow:
     coleaders: tuple[str, ...]
     recruiters: tuple[str, ...]
     teams: tuple[HouseTeamRow, ...]
+    captains: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -245,17 +245,6 @@ def load_house_show(request: HouseShowRequest) -> HouseShowResult:
         }
         for team in teams:
             team_name = str(team.name)
-            captains = tuple(
-                str(member.display_name)
-                for member in sorted(
-                    (
-                        member for member in members
-                        if team_name in member.role_names
-                        and 'Team Captain' in member.role_names
-                    ),
-                    key=lambda member: (member.display_name.casefold(), member.discord_id),
-                )
-            )
             team_members = [
                 member for member in members
                 if team_name in member.role_names
@@ -296,7 +285,6 @@ def load_house_show(request: HouseShowRequest) -> HouseShowResult:
                     role_found=team_name in role_names,
                     roster=roster,
                     roster_truncated=roster_truncated,
-                    captains=captains,
                 )
             )
 
@@ -330,6 +318,7 @@ def load_house_show(request: HouseShowRequest) -> HouseShowResult:
                     coleaders=leadership('House Co-Leader'),
                     recruiters=leadership('House Recruiter'),
                     teams=tuple(teams_by_house.get(int(house.id), ())),
+                    captains=leadership('Team Captain'),
                 )
             )
 
