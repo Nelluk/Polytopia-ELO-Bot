@@ -283,6 +283,51 @@ class BroadcastCreationDiscordTests(unittest.IsolatedAsyncioTestCase):
         message.delete.assert_not_awaited()
         self.assertEqual(result.warnings, ())
 
+    async def test_missing_guild_is_log_only_and_later_target_continues(self):
+        channel, _ = self.make_channel(channel_id=801)
+        with self.assertLogs(creation.logger, level='WARNING') as logs:
+            result = await self.run_case(
+                destinations=(plan(700), plan(701)),
+                bot=self.make_bot({701: channel}),
+            )
+
+        self.assertEqual(
+            [outcome.status for outcome in result.outcomes],
+            [creation.SKIPPED, creation.TRACKED],
+        )
+        self.assertEqual(result.warnings, ())
+        self.assertIn('external server 700', logs.output[0])
+        self.assertIn('not available in the bot guild cache', logs.output[0])
+        channel.send.assert_awaited_once_with('join 701')
+
+    async def test_missing_channel_is_log_only_but_send_failure_is_public(self):
+        missing_channel, _ = self.make_channel(channel_id=800)
+        missing_channel.name = 'another-channel'
+        failing_channel, _ = self.make_channel(
+            channel_id=801,
+            send_error=RuntimeError('timeout'),
+        )
+        with self.assertLogs(creation.logger, level='WARNING') as logs:
+            result = await self.run_case(
+                destinations=(plan(700), plan(701)),
+                bot=self.make_bot({700: missing_channel, 701: failing_channel}),
+            )
+
+        self.assertEqual(
+            [outcome.status for outcome in result.outcomes],
+            [creation.SKIPPED, creation.UNCERTAIN],
+        )
+        self.assertEqual(len(result.warnings), 1)
+        self.assertIn('external server 701', result.warnings[0])
+        self.assertIn('uncertain Discord send result', result.warnings[0])
+        self.assertTrue(any(
+            'external server 700' in entry
+            and 'has no #beta-bot-tests channel' in entry
+            for entry in logs.output
+        ))
+        missing_channel.send.assert_not_awaited()
+        failing_channel.send.assert_awaited_once_with('join 701')
+
     async def test_persistence_failure_deletes_concrete_message(self):
         channel, message = self.make_channel(channel_id=800)
         result = await self.run_case(

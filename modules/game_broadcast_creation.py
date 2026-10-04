@@ -387,11 +387,15 @@ async def create_external_broadcasts(*, bot, request):
                     detail=f'unexpected destination failure: {exc}',
                 ))
         warnings = list(_warning(item) for item in plan.warnings)
-        warnings.extend(
-            _warning(outcome.detail)
-            for outcome in outcomes
-            if outcome.status != TRACKED
-        )
+        for outcome in outcomes:
+            if outcome.status == TRACKED:
+                continue
+            if outcome.status == SKIPPED and outcome.channel_id is None:
+                # Missing guilds/channels were log-only before broadcast
+                # modernization; no Discord message needs reconciliation.
+                logger.warning('External game broadcast skipped: %s', outcome.detail)
+                continue
+            warnings.append(_warning(outcome.detail))
         return ExternalBroadcastCreationResult(
             game_id=request.game_id,
             outcomes=tuple(outcomes),
