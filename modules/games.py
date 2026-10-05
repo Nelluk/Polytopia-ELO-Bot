@@ -1,3 +1,5 @@
+import copy
+
 import discord
 from discord.ext import commands
 import modules.utilities as utilities
@@ -2555,14 +2557,20 @@ class polygames(commands.Cog):
             )
 
         async def selected(selection_interaction, discord_id):
-            selection_ctx = await commands.Context.from_interaction(
-                selection_interaction,
-            )
-            selection_ctx.prefix = ctx.prefix
-            selection_ctx.invoked_with = 'player'
+            # A component has no command data. Preserve the command context,
+            # but refresh its actor and response token for the permission check.
+            selection_ctx = copy.copy(ctx)
+            selection_ctx.message = copy.copy(ctx.message)
+            selection_ctx.message.author = selection_interaction.user
+            selection_ctx.author = selection_interaction.user
+            selection_ctx.interaction = selection_interaction
             if await self.player.can_run(selection_ctx):
                 await self._publish_player_profile(
                     selection_interaction, discord_id, public_followup=True,
+                )
+            else:
+                await selection_interaction.edit_original_response(
+                    content='You can no longer use this command here.', view=None,
                 )
 
         await interaction.edit_original_response(

@@ -66,7 +66,10 @@ class NameCommandTests(unittest.IsolatedAsyncioTestCase):
         cog = games.polygames.__new__(games.polygames)
         cog.player = SimpleNamespace(can_run=mock.AsyncMock(return_value=True))
         cog._publish_player_profile = mock.AsyncMock()
-        with (mock.patch.object(games.commands.Context, 'from_interaction', new=mock.AsyncMock(return_value=SimpleNamespace())),
+        with (mock.patch.object(games.commands.Context, 'from_interaction', new=mock.AsyncMock(return_value=games.commands.Context(
+                  message=SimpleNamespace(author=interaction.user, _state=None,
+                                          guild=interaction.guild, channel=SimpleNamespace(id=500)),
+                  bot=None, view=None, interaction=interaction))),
               mock.patch.object(games.settings, 'guild_setting', return_value='$'),
               mock.patch.object(player_workers, 'run_player_name_matches', new=mock.AsyncMock(return_value=matches))):
             await app_group(games.polygames, 'player').get_command('show').callback(cog, interaction, member, name)
@@ -103,6 +106,41 @@ class NameCommandTests(unittest.IsolatedAsyncioTestCase):
         await chooser.choose(interaction)
         chooser.on_select.assert_awaited_once_with(interaction, 201)
         self.assertTrue(chooser.select.disabled)
+
+    async def test_component_selection_reuses_command_context_and_publishes(self):
+        matches = (player_workers.PlayerNameMatch(200, 'Alpha', 'One'),
+                   player_workers.PlayerNameMatch(201, 'Alpha', 'Two'))
+        cog, original = await self.invoke(matches)
+        chooser = original.edit_original_response.await_args.kwargs['view']
+        chooser.select._values = ['201']
+        selection = self.interaction()
+        selection.command = None  # Real dropdown interactions have no command.
+        selection.user = SimpleNamespace(id=100, roles=['current roles'])
+        # This is the real chooser-to-command callback, not a mocked on_select.
+        with mock.patch.object(games.commands.Context, 'from_interaction',
+                               side_effect=ValueError('interaction does not have command data')) as factory:
+            await chooser.choose(selection)
+        factory.assert_not_called()
+        checked_ctx = cog.player.can_run.await_args.args[0]
+        self.assertIs(checked_ctx.author, selection.user)
+        self.assertIs(checked_ctx.message.author, selection.user)
+        self.assertIs(checked_ctx.interaction, selection)
+        cog._publish_player_profile.assert_awaited_once_with(
+            selection, 201, public_followup=True,
+        )
+
+    async def test_component_permission_change_resolves_private_status(self):
+        matches = (player_workers.PlayerNameMatch(200, 'Alpha', 'One'),
+                   player_workers.PlayerNameMatch(201, 'Alpha', 'Two'))
+        cog, original = await self.invoke(matches)
+        cog.player.can_run.return_value = False
+        chooser = original.edit_original_response.await_args.kwargs['view']
+        chooser.select._values = ['201']
+        selection = self.interaction()
+        await chooser.choose(selection)
+        cog._publish_player_profile.assert_not_awaited()
+        self.assertEqual(selection.edit_original_response.await_args.kwargs['content'],
+                         'You can no longer use this command here.')
 
     async def test_public_publish_and_stale_registration(self):
         cog = games.polygames.__new__(games.polygames)
