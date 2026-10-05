@@ -2509,25 +2509,75 @@ class polygames(commands.Cog):
     )
     @discord.app_commands.describe(
         member='Player to view; defaults to you.',
+        name='Registered Polytopia name; partial names accepted. Use member or name.',
     )
     async def player_show_slash(
         self,
         interaction: discord.Interaction,
         member: discord.Member | None = None,
+        name: str | None = None,
     ):
-        await interaction.response.defer()
-        ctx = await commands.Context.from_interaction(interaction)
-        ctx.prefix = settings.guild_setting(
-            interaction.guild.id,
-            'command_prefix',
+        if member is not None and name is not None:
+            return await interaction.response.send_message(
+                'Use either member or name, not both.', ephemeral=True,
+            )
+        await interaction.response.defer(
+            **({'ephemeral': True} if name is not None else {}),
         )
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(interaction.guild.id, 'command_prefix')
         ctx.invoked_with = 'player'
         if not await self.player.can_run(ctx):
             return
-        target = member or interaction.user
+        if name is None:
+            return await self._publish_player_profile(
+                interaction, (member or interaction.user).id,
+            )
+        try:
+            matches = await player_workers.run_player_name_matches(
+                interaction.guild.id, name,
+            )
+        except ValueError as exc:
+            return await interaction.edit_original_response(content=str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Player name lookup failed')
+            return await interaction.edit_original_response(
+                content='Player lookup is unavailable. Please try again later.',
+            )
+        if not matches:
+            return await interaction.edit_original_response(content='No registered player matches that Polytopia name.')
+        if len(matches) > 25:
+            return await interaction.edit_original_response(content='More than 25 players match. Enter more of the Polytopia name or select a member.')
+        if len(matches) == 1:
+            await interaction.edit_original_response(content='Opening player profile…')
+            return await self._publish_player_profile(
+                interaction, matches[0].discord_id, public_followup=True,
+            )
+
+        async def selected(selection_interaction, discord_id):
+            selection_ctx = await commands.Context.from_interaction(
+                selection_interaction,
+            )
+            selection_ctx.prefix = ctx.prefix
+            selection_ctx.invoked_with = 'player'
+            if await self.player.can_run(selection_ctx):
+                await self._publish_player_profile(
+                    selection_interaction, discord_id, public_followup=True,
+                )
+
+        await interaction.edit_original_response(
+            content=(f'{len(matches)} players match. Choose one to open their public profile. '
+                     'This chooser expires in two minutes.'),
+            view=player_views.PlayerNameChooser(
+                requester_id=interaction.user.id, guild_id=interaction.guild.id,
+                matches=matches, on_select=selected,
+            ),
+        )
+
+    async def _publish_player_profile(self, interaction, discord_id, *, public_followup=False):
         request = player_workers.PlayerWorkspaceRequest(
             guild_id=interaction.guild.id,
-            discord_id=target.id,
+            discord_id=discord_id,
             requester_discord_id=interaction.user.id,
         )
         try:
@@ -2536,6 +2586,8 @@ class polygames(commands.Cog):
                 player_workers.AmbiguousPlayer,
                 peewee.PeeweeException,
                 ValueError) as exc:
+            if public_followup:
+                return await interaction.edit_original_response(content=str(exc), view=None)
             return await interaction.followup.send(str(exc), ephemeral=True)
         view = player_views.PlayerWorkspace(
             requester_id=interaction.user.id,
@@ -2549,10 +2601,15 @@ class polygames(commands.Cog):
                 snapshot.discord_id,
             ),
         )
-        view.message = await interaction.edit_original_response(
+        sender = (interaction.followup.send if public_followup
+                  else interaction.edit_original_response)
+        view.message = await sender(
             view=view,
             allowed_mentions=discord.AllowedMentions.none(),
+            **({'ephemeral': False, 'wait': True} if public_followup else {}),
         )
+        if public_followup:
+            await interaction.edit_original_response(content='Player profile opened.', view=None)
 
     @player_group.command(
         name='register',

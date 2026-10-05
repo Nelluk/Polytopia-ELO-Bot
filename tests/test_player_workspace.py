@@ -773,7 +773,8 @@ class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [(parameter.name, parameter.type, parameter.required)
              for parameter in command.parameters],
-            [('member', discord.AppCommandOptionType.user, False)],
+            [('member', discord.AppCommandOptionType.user, False),
+             ('name', discord.AppCommandOptionType.string, False)],
         )
         prefix = {
             command.name: command

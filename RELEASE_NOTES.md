@@ -1,5 +1,22 @@
 # Release notes
 
+## Unreleased — Polytopia-name profile lookup
+
+- `/player show name:POLYTOPIA_NAME` searches registered players in the current
+  server. Case-insensitive exact matches take precedence over partial matches.
+  This option searches stored Polytopia names, while prefix commands retain
+  their existing Discord-name-first matching behavior.
+- A single match opens the existing public player profile. Multiple matches
+  open a private chooser showing Polytopia and Discord names. Only the requester
+  can select; the chooser expires after two minutes. More than 25 matches require
+  a narrower name. Selecting a player reloads their current server registration.
+- `/player show member:@MEMBER` and the default self-profile remain supported.
+  Supply either `member` or `name`; supplying both returns a private error.
+- No schema changes are required. Deploying this command change requires the
+  explicit guild-only command plan/apply process described in
+  `docs/APPLICATION_COMMAND_DEPLOYMENT_RUNBOOK.md`; startup does not synchronize
+  commands.
+
 ## Unreleased — adaptable Compose examples
 
 ### Operator action required

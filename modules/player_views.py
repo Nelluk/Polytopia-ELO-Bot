@@ -754,3 +754,46 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
             *components,
             accent_colour=components_v2.DEFAULT_ACCENT,
         ))
+
+
+class PlayerNameChooser(discord.ui.View):
+    """Private, short-lived selection of immutable registered-player identities."""
+
+    def __init__(self, *, requester_id: int, guild_id: int, matches, on_select):
+        super().__init__(timeout=120)
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.on_select = on_select
+        self.select = discord.ui.Select(
+            placeholder='Choose a player',
+            options=[discord.SelectOption(
+                label=player_registration_workers.safe_public_name(match.polytopia_name)[:100],
+                description=player_registration_workers.safe_public_name(match.discord_name)[:100],
+                value=str(match.discord_id),
+            ) for match in matches],
+        )
+        self.select.callback = self.choose
+        self.add_item(self.select)
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.requester_id or interaction.guild_id != self.guild_id:
+            await interaction.response.send_message(
+                'This player chooser belongs to another request.', ephemeral=True,
+            )
+            return False
+        return True
+
+    async def choose(self, interaction):
+        # Disable before awaiting to prevent repeated selections publishing twice.
+        if self.select.disabled:
+            return await interaction.response.send_message(
+                'This selection was already used. Run `/player show` again.', ephemeral=True,
+            )
+        selected = self.select.values[0]
+        if selected not in {option.value for option in self.select.options}:
+            return await interaction.response.send_message('Invalid player selection.', ephemeral=True)
+        self.select.disabled = True
+        await interaction.response.defer(ephemeral=True)
+        await interaction.edit_original_response(content='Opening player profile…', view=None)
+        self.stop()
+        await self.on_select(interaction, int(selected))

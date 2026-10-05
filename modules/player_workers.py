@@ -172,6 +172,42 @@ class PlayerWorkspaceSnapshot:
     head_to_head: PlayerHeadToHead | None = None
 
 
+@dataclass(frozen=True)
+class PlayerNameMatch:
+    discord_id: int
+    polytopia_name: str
+    discord_name: str
+
+
+def load_player_name_matches(guild_id: int, name: str) -> tuple[PlayerNameMatch, ...]:
+    """Read at most 26 identities; the extra row detects chooser overflow."""
+    name = name.strip()
+    if guild_id <= 0 or not name or len(name) > 200:
+        raise ValueError('Supply a Polytopia name between 1 and 200 characters.')
+    with models.db.connection_context():
+        base = (models.Player.select(
+            models.DiscordMember.discord_id,
+            models.DiscordMember.polytopia_name,
+            models.DiscordMember.name,
+        ).join(models.DiscordMember).where(models.Player.guild_id == guild_id))
+        field = models.DiscordMember.polytopia_name
+        # Equality avoids treating typed SQL wildcard characters as patterns.
+        exact = models.fn.LOWER(field) == name.lower()
+        query = base.where(exact).order_by(models.DiscordMember.discord_id).limit(26)
+        rows = tuple(query.tuples())
+        if not rows:
+            rows = tuple(base.where(field.contains(name)).order_by(
+                models.fn.LOWER(field), models.DiscordMember.discord_id,
+            ).limit(26).tuples())
+        return tuple(PlayerNameMatch(int(row[0]), str(row[1]), str(row[2])) for row in rows)
+
+
+async def run_player_name_matches(guild_id: int, name: str) -> tuple[PlayerNameMatch, ...]:
+    return await _run_bounded_player_call(
+        functools.partial(load_player_name_matches, guild_id, name)
+    )
+
+
 def _resolve_player(request: PlayerWorkspaceRequest):
     if request.guild_id <= 0:
         raise ValueError('guild_id must be a positive integer.')
