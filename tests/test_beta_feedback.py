@@ -217,13 +217,22 @@ class FeedbackStoreTests(unittest.TestCase):
         self.assertNotIn(result.records[0]['details'], '\n'.join(logs.output))
 
     def test_development_gate_and_symlink_escape_are_closed(self):
-        production = SimpleNamespace(
-            environment='production',
+        invalid = SimpleNamespace(
+            environment='staging',
             project_root=self.root,
             log_root=self.root / 'logs',
         )
         with self.assertRaises(beta_feedback.FeedbackRuntimeGateError):
-            beta_feedback.feedback_paths(production, create=True)
+            beta_feedback.feedback_paths(invalid, create=True)
+
+        invalid.environment = 'development'
+        with self.assertRaises(beta_feedback.FeedbackRuntimeGateError):
+            beta_feedback.feedback_paths(invalid, create=True)
+
+        invalid.environment = 'production'
+        invalid.log_root = self.profile.log_root
+        with self.assertRaises(beta_feedback.FeedbackRuntimeGateError):
+            beta_feedback.feedback_paths(invalid, create=True)
 
         paths = beta_feedback.feedback_paths(self.profile, create=True)
         outside = self.root / 'outside'

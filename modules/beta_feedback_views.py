@@ -192,7 +192,14 @@ class StaffHelpModal(discord.ui.Modal):
                 ephemeral=True,
             )
             return
-        except beta_feedback.FeedbackStorageError:
+        except beta_feedback.FeedbackStorageError as exc:
+            if exc.may_have_committed:
+                await interaction.followup.send(
+                    'Your report may have been recorded, but confirmation failed. '
+                    'Please contact staff before submitting it again.',
+                    ephemeral=True,
+                )
+                return
             await interaction.followup.send(
                 'Your report could not be recorded. No report ID was issued; please try again later.',
                 ephemeral=True,
@@ -241,7 +248,17 @@ class StaffHelpModal(discord.ui.Modal):
             )
             return
 
-        if result.environment == 'production':
+        if result.environment == 'production' and result.stored:
+            message = f'Your report was recorded as `{result.report_id}`. '
+            if result.delivered:
+                message += 'It was sent to the PolyELO maintainers for review.'
+            else:
+                message += (
+                    'The Discord notification is temporarily unavailable, '
+                    'but the PolyELO maintainers can review the saved report. '
+                    'You do not need to submit it again.'
+                )
+        elif result.environment == 'production':
             if result.destination == 'server_staff':
                 message = (
                     'Your message has been sent to server staff. '

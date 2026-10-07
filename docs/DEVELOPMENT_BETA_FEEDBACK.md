@@ -9,9 +9,10 @@ The development and production backends are deliberately different:
 
 - Development commits a local JSONL report and attachments before attempting
   its private Discord mirror.
-- Production relays local help to the configured guild staff route and bot
-  feedback to the configured maintainer route. It writes neither JSONL nor
-  `GameLog`.
+- Production relays local help to the configured guild staff route without
+  local storage. Bot bug reports and improvement suggestions commit to a
+  separate local JSONL store before the configured maintainer-channel post.
+  Neither backend writes `GameLog`.
 
 The `tools_support` capability is default-deny. Changing its guild assignment
 requires the explicit application-command workflow; startup never synchronizes
@@ -19,7 +20,7 @@ commands.
 
 ## Development store
 
-The store is available only under the exact development runtime profile:
+The development store requires the explicit development runtime profile:
 
 ```text
 <development log_root>/beta-feedback/reports.jsonl
@@ -84,6 +85,37 @@ retention or redaction operation. Treat the development log root as sensitive,
 use an approved filesystem retention procedure when needed, and never copy
 private report prose or requester identities into source, public notes, or
 general operational records.
+
+## Production feedback
+
+Production bug reports and improvement suggestions use the same durable
+append and attachment handling under the explicit production runtime profile:
+
+```text
+<production log_root>/production-feedback/reports.jsonl
+<production log_root>/production-feedback/attachments/<report-id>/
+```
+
+The default host location is `/srv/polyelo/PolyBot39/logs/production-feedback`.
+The existing persistent log bind mount contains this store. Creating the store
+preserves the shared log root's existing permissions; the feedback subtree
+uses directories with mode `0700` and files with mode `0600`, owned by the bot.
+SSH readers need filesystem permission to read it. JSONL records use the same
+schema described above and can be parsed with standard JSON tools. The beta
+operator utility remains development-only.
+
+The saved report is authoritative. Successful submissions return its report ID
+privately, and the maintainer-channel embed includes that ID. If Discord
+delivery fails after storage, the acknowledgement confirms the saved report
+and explicitly says there is no need to resubmit. A failed acknowledgement
+logs the committed ID for reconciliation. An uncertain storage failure tells
+the requester to contact staff before resubmitting. Local server-help requests
+continue using their guild staff destination without being stored here.
+
+The store is excluded from Git and Docker image builds. It captures new
+submissions only; it does not import historical Discord posts or schedule
+automated triage. Apply the existing report-data retention policy and verify
+host backup coverage when deploying.
 
 ## Triage and validation
 

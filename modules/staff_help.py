@@ -230,7 +230,8 @@ def _production_embed(
         *,
         destination: str,
         source_guild: Any,
-        related_game: staff_help_workers.RelatedGame | None) -> discord.Embed:
+        related_game: staff_help_workers.RelatedGame | None,
+        report_id: str | None = None) -> discord.Embed:
     titles = {
         'server_staff': 'Server staff request',
         'polyelo_bug': 'PolyELO bug report',
@@ -241,6 +242,8 @@ def _production_embed(
         description=draft.details,
     )
     embed.add_field(name='Category', value=draft.category, inline=True)
+    if report_id is not None:
+        embed.add_field(name='Report ID', value=f'`{report_id}`', inline=False)
     embed.add_field(
         name='Requester',
         value=(
@@ -331,8 +334,9 @@ async def relay_production(
         bot: Any,
         draft: beta_feedback.FeedbackReportDraft,
         *,
-        profile: RuntimeProfile | None = None) -> tuple[int | None, str]:
-    """Deliver one report to the invoking guild without local persistence."""
+        profile: RuntimeProfile | None = None,
+        report_id: str | None = None) -> tuple[int | None, str]:
+    """Deliver one already-captured submission to its Discord destination."""
 
     related_game = await staff_help_workers.run_find_related_game(
         channel_id=draft.channel_id,
@@ -370,6 +374,7 @@ async def relay_production(
                         destination=destination,
                         source_guild=source_guild,
                         related_game=related_game,
+                        report_id=report_id,
                     ),
                     files=files,
                     allowed_mentions=discord.AllowedMentions.none(),
@@ -441,15 +446,56 @@ async def submit(
             report_id=result.report.report_id,
         )
 
-    message_id, destination = await relay_production(
-        bot,
-        draft,
-        profile=selected,
-    )
+    if draft.category == 'help':
+        message_id, destination = await relay_production(
+            bot,
+            draft,
+            profile=selected,
+        )
+        return StaffHelpSubmission(
+            environment='production',
+            delivered=True,
+            stored=False,
+            destination=destination,
+            relay_message_id=message_id,
+        )
+
+    report = await beta_feedback.store_report(draft, profile=selected)
+    destination = 'polyelo_bug' if draft.category == 'bug' else 'polyelo_feature'
+    try:
+        message_id, destination = await relay_production(
+            bot,
+            draft,
+            profile=selected,
+            report_id=report.report_id,
+        )
+    except asyncio.CancelledError:
+        logger.warning(
+            'Cancelled production feedback submission committed a report; '
+            'no acknowledgement was sent (report_id=%s).',
+            report.report_id,
+        )
+        raise
+    except Exception as exc:
+        logger.warning(
+            'Production feedback recorded but maintainer relay failed '
+            '(report_id=%s guild=%s error=%s).',
+            report.report_id,
+            draft.guild_id,
+            type(exc).__name__,
+        )
+        return StaffHelpSubmission(
+            environment='production',
+            delivered=False,
+            stored=True,
+            destination=destination,
+            report_id=report.report_id,
+        )
     return StaffHelpSubmission(
         environment='production',
         delivered=True,
-        stored=False,
+        stored=True,
         destination=destination,
+        report_id=report.report_id,
         relay_message_id=message_id,
     )

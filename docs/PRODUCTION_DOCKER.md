@@ -160,3 +160,13 @@ docker compose up -d --build
 Database schema changes, Discord command synchronization, and one-writer
 cutover checks remain separately reviewed operations; they are not hidden in
 the update command.
+
+## Local bot feedback
+
+Production `/staffhelp` bug reports and improvement suggestions are saved
+before their maintainer-channel post. Records and attachments live under
+`<production log_root>/production-feedback/`, normally
+`/srv/polyelo/PolyBot39/logs/production-feedback/` on the existing log bind
+mount. See `docs/DEVELOPMENT_BETA_FEEDBACK.md` for the JSONL format,
+acknowledgements, and filesystem permissions. Verify backup coverage and
+reader access when deploying; the store is private bot-owned application data.

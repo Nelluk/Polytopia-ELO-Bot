@@ -1,7 +1,7 @@
-"""Development-only structured beta feedback capture for ``/staffhelp``.
+"""Structured local feedback capture for ``/staffhelp``.
 
-The JSONL file written by this module is the authoritative WB1 feedback
-stream.  Discord staff-channel messages are deliberately a later mirror and
+The environment-specific JSONL file is the authoritative feedback
+stream. Discord messages are deliberately a later mirror and
 are never part of the persistence transaction.
 """
 
@@ -90,12 +90,12 @@ class FeedbackStorageError(FeedbackError):
 
 
 class FeedbackRuntimeGateError(FeedbackStorageError):
-    """The beta store was requested outside a validated development profile."""
+    """The store was requested with an invalid environment or path."""
 
 
 @dataclass(frozen=True, slots=True)
 class FeedbackPaths:
-    """Validated paths for one development runtime."""
+    """Validated paths for one explicit runtime environment."""
 
     project_root: Path
     log_root: Path
@@ -432,22 +432,28 @@ async def capture_attachments(attachments: Sequence[Any]) -> tuple[AttachmentInp
 
 
 def _validate_profile(profile: RuntimeProfile) -> tuple[Path, Path]:
-    if getattr(profile, 'environment', None) != 'development':
+    environment = getattr(profile, 'environment', None)
+    if environment not in {'development', 'production'}:
         raise FeedbackRuntimeGateError(
-            'The beta feedback store is available only in the development runtime.'
+            'Feedback storage requires an explicit development or production runtime.'
         )
     project_root = Path(profile.project_root).resolve()
     log_root = Path(profile.log_root).resolve()
     production_log_root = (project_root / 'logs').resolve()
-    if log_root == production_log_root:
+    if environment == 'development' and log_root == production_log_root:
         raise FeedbackRuntimeGateError(
             'The development feedback store cannot use the production log root.'
+        )
+    if environment == 'production' and log_root.is_relative_to(
+            production_log_root / 'development'):
+        raise FeedbackRuntimeGateError(
+            'The production feedback store cannot use the development log root.'
         )
     try:
         log_root.relative_to(project_root)
     except ValueError as exc:
         raise FeedbackRuntimeGateError(
-            'The development feedback store must remain inside the checkout.'
+            'The feedback store must remain inside the checkout.'
         ) from exc
     return project_root, log_root
 
@@ -503,13 +509,22 @@ def feedback_paths(profile: RuntimeProfile | None = None, *, create: bool = Fals
 
     selected_profile = profile or get_runtime_profile()
     project_root, log_root = _validate_profile(selected_profile)
-    root = log_root / 'beta-feedback'
+    root = log_root / (
+        'beta-feedback' if selected_profile.environment == 'development'
+        else 'production-feedback'
+    )
     record_file = root / 'reports.jsonl'
     attachments_root = root / 'attachments'
     staging_root = attachments_root / '.staging'
 
     if create:
-        _ensure_directory_tree(log_root, 0o750)
+        # The shared log root is operator-owned. Protect our subtree without
+        # changing existing log-root permissions or requiring ownership of it.
+        log_info = _assert_not_symlink(log_root)
+        if log_info is None:
+            _ensure_directory_tree(log_root, 0o750)
+        elif not stat.S_ISDIR(log_info.st_mode):
+            raise FeedbackStorageError('Feedback log root is not a directory.')
         _ensure_directory(root, 0o700)
         _ensure_directory(attachments_root, 0o700)
         _ensure_directory(staging_root, 0o700)
@@ -623,7 +638,7 @@ def _append_record_line(path: Path, payload: bytes) -> None:
         file_descriptor = os.open(path, flags, 0o600)
     except OSError as exc:
         raise FeedbackStorageError(
-            'Could not open the beta feedback JSONL stream.'
+            'Could not open the feedback JSONL stream.'
         ) from exc
     bytes_written = 0
     try:
@@ -637,7 +652,7 @@ def _append_record_line(path: Path, payload: bytes) -> None:
         _fsync_directory(path.parent)
     except OSError as exc:
         raise FeedbackStorageError(
-            'The beta feedback JSONL append may not have completed.',
+            'The feedback JSONL append may not have completed.',
             may_have_committed=bytes_written > 0,
         ) from exc
     finally:
@@ -646,7 +661,7 @@ def _append_record_line(path: Path, payload: bytes) -> None:
         except OSError as exc:
             if bytes_written:
                 raise FeedbackStorageError(
-                    'The beta feedback JSONL close may not have completed.',
+                    'The feedback JSONL close may not have completed.',
                     may_have_committed=True,
                 ) from exc
 
@@ -772,7 +787,7 @@ class FeedbackStore:
                         _remove_controlled_directory(stage_directory)
                     except FeedbackStorageError:
                         logger.error(
-                            'Could not clean beta feedback staging directory; report not acknowledged.',
+                            'Could not clean feedback staging directory; report not acknowledged.',
                             exc_info=True,
                         )
                 if attachment_directory is not None and not exc.may_have_committed:
@@ -780,12 +795,12 @@ class FeedbackStore:
                         _remove_controlled_directory(attachment_directory)
                     except FeedbackStorageError:
                         logger.error(
-                            'Could not clean beta feedback attachment directory; report not acknowledged.',
+                            'Could not clean feedback attachment directory; report not acknowledged.',
                             exc_info=True,
                         )
                 if published_attachment_directory and exc.may_have_committed:
                     logger.warning(
-                        'Beta feedback append may be uncertain after attachment publication; '
+                        'Feedback append may be uncertain after attachment publication; '
                         'report was not acknowledged (report_id=%s).',
                         report_id,
                     )
@@ -796,7 +811,7 @@ class FeedbackStore:
                         _remove_controlled_directory(stage_directory)
                     except Exception:
                         logger.error(
-                            'Could not clean unexpected beta feedback staging failure.',
+                            'Could not clean unexpected feedback staging failure.',
                             exc_info=True,
                         )
                 if attachment_directory is not None and not published_attachment_directory:
@@ -804,11 +819,11 @@ class FeedbackStore:
                         _remove_controlled_directory(attachment_directory)
                     except Exception:
                         logger.error(
-                            'Could not clean unexpected beta feedback attachment failure.',
+                            'Could not clean unexpected feedback attachment failure.',
                             exc_info=True,
                         )
                 raise FeedbackStorageError(
-                    'The beta feedback record could not be stored.'
+                    'The feedback record could not be stored.'
                 ) from exc
 
     async def store(self, draft: FeedbackReportDraft) -> StoredReport:
@@ -838,23 +853,26 @@ class FeedbackStore:
             else:
                 if isinstance(completed, StoredReport):
                     logger.warning(
-                        'Cancelled beta feedback submission committed a report; '
+                        'Cancelled feedback submission committed a report; '
                         'no acknowledgement was sent (report_id=%s).',
                         completed.report_id,
                     )
             raise
 
 
-def _default_feedback_store() -> FeedbackStore:
+def _default_feedback_store(profile: RuntimeProfile | None = None) -> FeedbackStore:
     global _DEFAULT_STORE
-    profile = get_runtime_profile()
+    profile = profile or get_runtime_profile()
     if _DEFAULT_STORE is None or _DEFAULT_STORE.profile is not profile:
         _DEFAULT_STORE = FeedbackStore(profile)
     return _DEFAULT_STORE
 
 
-async def store_report(draft: FeedbackReportDraft) -> StoredReport:
-    return await _default_feedback_store().store(draft)
+async def store_report(
+        draft: FeedbackReportDraft,
+        *,
+        profile: RuntimeProfile | None = None) -> StoredReport:
+    return await _default_feedback_store(profile).store(draft)
 
 
 def staff_help_channel(bot: Any, guild_id: int) -> Any | None:
@@ -929,6 +947,10 @@ async def relay_native(channel: Any, report: StoredReport) -> None:
 async def submit_native_report(bot: Any, draft: FeedbackReportDraft) -> NativeSubmission:
     """Commit first, then attempt a best-effort staff-channel mirror."""
 
+    if get_runtime_profile().environment != 'development':
+        raise FeedbackRuntimeGateError(
+            'The beta Discord mirror requires the development runtime.'
+        )
     report = await store_report(draft)
     channel = staff_help_channel(bot, draft.guild_id)
     if channel is None:
