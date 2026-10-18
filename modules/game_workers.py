@@ -3263,6 +3263,18 @@ def unstart_game(
                     'related to the game.'
                 )
 
+            # Preserve the legacy cleanup exemptions without weakening the
+            # invocation-channel guard above. Retained references let a later
+            # start reuse the protected channels.
+            notes = (game.notes or '').upper()
+            if game.is_season_game() or (
+                'NOVA RED' in notes
+                and 'NOVA BLUE' in notes
+                and game.completed_ts
+                and game.completed_ts > now - datetime.timedelta(days=4)
+            ):
+                channel_targets = []
+
             tomorrow = now + datetime.timedelta(hours=24)
             if game.expiration is None or game.expiration < tomorrow:
                 game.expiration = tomorrow

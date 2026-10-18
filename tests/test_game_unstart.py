@@ -20,7 +20,10 @@ games = import_offline_runtime('modules.games')
 
 
 class GameUnstartWorkerTests(unittest.TestCase):
-    def run_worker(self, *, log_effect=None, snapshot_effect=None):
+    def run_worker(
+        self, *, log_effect=None, snapshot_effect=None, season=False,
+        notes=None, completed_days_ago=None, invocation_channel_id=None,
+    ):
         now = datetime.datetime(2026, 7, 29, 12)
         state = {
             'pending': False,
@@ -45,6 +48,12 @@ class GameUnstartWorkerTests(unittest.TestCase):
             announcement_message=701,
             game_chan=900,
             gamesides=(gameside,),
+            notes=notes,
+            completed_ts=(
+                now - datetime.timedelta(days=completed_days_ago)
+                if completed_days_ago is not None else None
+            ),
+            is_season_game=lambda: (23, 3, False) if season else (),
             mentions=lambda: ['<@1>', '<@2>'],
         )
 
@@ -104,9 +113,53 @@ class GameUnstartWorkerTests(unittest.TestCase):
                 result = raised.exception.result
             else:
                 result = game_workers.unstart_game(
-                    42, 300, 'Staff', '$unstart', now=now
+                    42, 300, 'Staff', '$unstart', now=now,
+                    invocation_channel_id=invocation_channel_id,
                 )
+        # Unstart must leave references intact until actual deletion succeeds.
+        self.assertEqual(game.game_chan, 900)
+        self.assertEqual(gameside.team_chan, 800)
+        self.assertEqual(gameside.team_chan_external_server, 301)
         return state, database, result
+
+    def test_season_unstart_commits_without_channel_deletion_targets(self):
+        state, database, result = self.run_worker(season=True)
+        self.assertTrue(state['pending'])
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(len(state['logs']), 1)
+        self.assertEqual(result.channel_targets, ())
+        self.assertIsNotNone(result.publication)
+
+    def test_nova_protection_requires_both_tags_and_recent_completion(self):
+        for notes, days, protected in (
+            ('Nova Red versus nOvA bLuE', 3, True),
+            ('NOVA RED NOVA BLUE', 4, False),
+            ('NOVA RED NOVA BLUE', 5, False),
+            ('NOVA RED NOVA BLUE', None, False),
+            ('NOVA RED', 3, False),
+            ('NOVA BLUE', 3, False),
+        ):
+            with self.subTest(notes=notes, days=days):
+                state, _, result = self.run_worker(
+                    notes=notes, completed_days_ago=days,
+                )
+                self.assertTrue(state['pending'])
+                self.assertEqual(len(result.channel_targets), 0 if protected else 2)
+
+    def test_protected_games_still_reject_invocation_inside_their_channels(self):
+        for protection in (
+            dict(season=True),
+            dict(notes='NOVA RED NOVA BLUE', completed_days_ago=3),
+        ):
+            for channel_id in (800, 900):
+                with self.subTest(protection=protection, channel_id=channel_id):
+                    with self.assertRaisesRegex(
+                        game_workers.GameUnstartValidationError,
+                        'channel that is not related',
+                    ):
+                        self.run_worker(
+                            **protection, invocation_channel_id=channel_id,
+                        )
 
     def test_worker_commits_pending_state_log_and_effect_snapshot(self):
         state, database, result = self.run_worker()
