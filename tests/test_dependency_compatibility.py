@@ -91,6 +91,40 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         )
         self.assertTrue(issubclass(DuplicateObject, Exception))
 
+    def test_google_oauth_client_flow_works_with_mocked_transport(self):
+        from google_auth_oauthlib.flow import Flow
+        import requests
+
+        flow = Flow.from_client_config(
+            {'web': {
+                'client_id': 'offline-client',
+                'client_secret': 'offline-secret',
+                'auth_uri': 'https://accounts.example/authorize',
+                'token_uri': 'https://accounts.example/token',
+            }},
+            scopes=['https://www.googleapis.com/auth/spreadsheets'],
+            redirect_uri='https://client.example/callback',
+        )
+        url, state = flow.authorization_url(state='offline-state')
+        self.assertIn('response_type=code', url)
+        self.assertEqual(state, 'offline-state')
+        response = requests.Response()
+        response.status_code = 200
+        response.request = requests.Request(
+            'POST', 'https://accounts.example/token',
+        ).prepare()
+        response._content = json.dumps({
+            'access_token': 'offline-token',
+            'token_type': 'Bearer',
+            'expires_in': 3600,
+        }).encode()
+        with mock.patch.object(
+            requests.Session, 'request', return_value=response,
+        ) as transport:
+            flow.fetch_token(code='offline-code')
+        transport.assert_called_once()
+        self.assertEqual(flow.credentials.token, 'offline-token')
+
     def test_group_four_elo_graph_pipeline_renders_offline(self):
         import matplotlib
         matplotlib.use('Agg')

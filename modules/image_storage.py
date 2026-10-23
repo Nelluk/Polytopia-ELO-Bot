@@ -198,7 +198,8 @@ def _normalise_image_bytes(
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with Image.open(BytesIO(data)) as probe:
+            # Restrict decoders before parsing any untrusted image headers.
+            with Image.open(BytesIO(data), formats=sorted(ALLOWED_FORMATS)) as probe:
                 image_format = (probe.format or '').upper()
                 width, height = probe.size
                 is_animated = (
@@ -251,7 +252,7 @@ def _normalise_image_bytes(
         raise ImageStorageError('Animated images are not supported.')
 
     try:
-        with Image.open(BytesIO(data)) as opened:
+        with Image.open(BytesIO(data), formats=sorted(ALLOWED_FORMATS)) as opened:
             image = ImageOps.exif_transpose(opened)
             image.load()
             image = image.convert('RGBA')

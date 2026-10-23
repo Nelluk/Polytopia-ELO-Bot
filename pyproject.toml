@@ -13,7 +13,7 @@ dependencies = [
     "matplotlib==3.11.1",
     "pandas==3.0.5",
     "peewee==3.19.0",
-    "pillow==12.3.0",
+    "pillow==13.0.0",
     "psycopg2-binary==2.9.12",
     "pydantic==2.13.4",
     "requests==2.34.2",
@@ -32,7 +32,7 @@ package = false
 # Preserve compatible production-baseline transitive versions until their
 # controlled upgrade groups. These constraints do not install packages.
 constraint-dependencies = [
-    "aiohttp==3.14.3",
+    "aiohttp==3.14.5",
     "anyio==4.14.2",
     "gspread==6.0.2",
     "numpy==2.5.1",

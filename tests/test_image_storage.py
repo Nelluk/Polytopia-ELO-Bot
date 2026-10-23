@@ -91,6 +91,26 @@ class ImageStorageTests(unittest.TestCase):
             self.assertEqual(stored.mode, 'RGBA')
             self.assertEqual(stored.size, (1024, 512))
 
+    def test_normalises_each_allowed_format(self):
+        for image_format in sorted(image_storage.ALLOWED_FORMATS):
+            with self.subTest(image_format=image_format):
+                data = image_bytes(image_format, mode='RGB')
+                normalised = image_storage._normalise_image_bytes(data)
+                with Image.open(BytesIO(normalised)) as stored:
+                    self.assertEqual(stored.format, 'PNG')
+                    self.assertEqual(stored.mode, 'RGBA')
+                    self.assertEqual(stored.size, (40, 30))
+
+    def test_rejects_unsupported_image_before_invoking_its_decoder(self):
+        data = image_bytes('BMP', mode='RGB')
+        Image.init()
+        factory, accept = Image.OPEN['BMP']
+        decoder = mock.Mock(wraps=factory)
+        with mock.patch.dict(Image.OPEN, {'BMP': (decoder, accept)}):
+            with self.assertRaises(image_storage.ImageStorageError):
+                image_storage._normalise_image_bytes(data)
+        decoder.assert_not_called()
+
     def test_staging_keeps_visible_image_until_publish_and_cleanup_is_idempotent(self):
         destination = image_storage.team_image_path(12)
         original = image_bytes('PNG', size=(20, 20))
