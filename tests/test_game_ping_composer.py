@@ -301,6 +301,42 @@ class GamePingDraftTests(unittest.TestCase):
 
 
 class GamePingWorkerTests(unittest.TestCase):
+    def test_committed_audit_preserves_clickable_attachment_urls(self):
+        attachments = (
+            workers.AttachmentMetadata(
+                'screen_one.png',
+                'https://cdn.discordapp.com/attachments/1/2/screen_one.png?ex=123&is=456&hm=abc',
+                'image/png', 100,
+            ),
+            workers.AttachmentMetadata(
+                'screen_two.jpg',
+                'https://cdn.discordapp.com/attachments/1/3/screen_two.jpg?ex=123&is=456&hm=def',
+                'image/jpeg', 200,
+            ),
+        )
+        for invoked_with in ('ping', '/game ping'):
+            with self.subTest(invoked_with=invoked_with):
+                database = FakeDatabase()
+                request = replace(
+                    commit_request(text='Screenshot attached'),
+                    attachments=attachments, invoked_with=invoked_with,
+                )
+                game = game_snapshot()
+                with (
+                    mock.patch.object(workers.models, 'db', database),
+                    mock.patch.object(workers, '_registered_member', return_value=object()),
+                    mock.patch.object(workers, '_player_for_guild', return_value=object()),
+                    mock.patch.object(workers, '_load_games_by_ids', return_value=(game,)),
+                    mock.patch.object(workers, '_destinations_for_game', return_value=game.destinations),
+                    mock.patch.object(workers.models.GameLog, 'write') as write,
+                ):
+                    workers.commit_notification(request)
+                message = write.call_args.kwargs['message']
+                for attachment in attachments:
+                    self.assertIn(f'{attachment.filename}: {attachment.url}', message)
+                self.assertIn('message=Screenshot attached', message)
+                self.assertEqual(database.commits, 1)
+
     def test_dtos_are_frozen_and_candidate_load_closes_worker_connection(self):
         requester = snapshot()
         request = workers.GamePingLoadRequest(

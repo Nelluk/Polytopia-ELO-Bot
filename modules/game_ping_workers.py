@@ -732,8 +732,9 @@ def _audit_message(
     game: GamePingGame,
 ) -> str:
     safe_text = utilities.escape_role_mentions(request.text)
-    attachment_names = ', '.join(
-        attachment.filename for attachment in request.attachments
+    attachment_details = ', '.join(
+        f'{attachment.filename}: {attachment.url}'
+        for attachment in request.attachments
     ) or 'none'
     target = (
         f' for target {request.target_description}'
@@ -744,7 +745,7 @@ def _audit_message(
         f'{request.requester.description} committed a game ping notification '
         f'request{target} using '
         f'`{request.invoked_with}`; scope={request.scope}; '
-        f'games={game.game_id}; attachments={attachment_names}; '
+        f'games={game.game_id}; attachments={attachment_details}; '
         f'message={safe_text}'
     )
 
