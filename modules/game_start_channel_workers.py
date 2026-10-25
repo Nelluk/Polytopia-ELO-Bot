@@ -66,6 +66,8 @@ class StartedChannelTarget:
     players: tuple[ChannelPlayer, ...]
     preferred_guild_id: int | None = None
     force_pcplus_guild: bool = False
+    channel_id: int | None = None
+    channel_guild_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,7 @@ class StartedGameChannelPlan:
     roster_names: str
     side_targets: tuple[StartedChannelTarget, ...]
     central_target: StartedChannelTarget | None
+    reused_targets: tuple[StartedChannelTarget, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,7 @@ def freeze_started_channel_plan(game) -> StartedGameChannelPlan | None:
         or 'PCPLUS' in game_snapshot.name.upper()
     )
     side_targets = []
+    reused_targets = []
     roster_lines = []
     all_players = []
 
@@ -188,10 +192,12 @@ def freeze_started_channel_plan(game) -> StartedGameChannelPlan | None:
         ):
             preferred_guild_id = external_servers[0]
 
-        if len(players) < 2 or getattr(side, 'team_chan', None) is not None:
+        existing_channel = getattr(side, 'team_chan', None)
+        if len(players) < 2 and existing_channel is None:
             continue
         team = getattr(side, 'team', None)
-        side_targets.append(
+        targets = reused_targets if existing_channel is not None else side_targets
+        targets.append(
             StartedChannelTarget(
                 kind='side',
                 side_id=int(side.id),
@@ -200,10 +206,25 @@ def freeze_started_channel_plan(game) -> StartedGameChannelPlan | None:
                 players=players,
                 preferred_guild_id=preferred_guild_id,
                 force_pcplus_guild=force_pcplus,
+                channel_id=int(existing_channel) if existing_channel is not None else None,
+                channel_guild_id=(
+                    int(getattr(side, 'team_chan_external_server', None) or game.guild_id)
+                    if existing_channel is not None else None
+                ),
             )
         )
 
     central_target = None
+    if getattr(game, 'game_chan', None) is not None:
+        reused_targets.append(StartedChannelTarget(
+            kind='central',
+            side_id=None,
+            side_name='',
+            team_name='',
+            players=tuple(all_players),
+            channel_id=int(game.game_chan),
+            channel_guild_id=int(game.guild_id),
+        ))
     if (
         getattr(game, 'game_chan', None) is None
         and (
@@ -224,6 +245,36 @@ def freeze_started_channel_plan(game) -> StartedGameChannelPlan | None:
         roster_names='\n'.join(roster_lines),
         side_targets=tuple(side_targets),
         central_target=central_target,
+        reused_targets=tuple(reused_targets),
+    )
+
+
+def validate_reused_channel(plan: StartedGameChannelPlan, target: StartedChannelTarget) -> None:
+    """Recheck the committed roster and retained reference before Discord edits."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                game = models.Game.load_full_game(plan.game.id)
+            except peewee.DoesNotExist as exc:
+                raise StartedChannelConflictError('The game no longer exists.') from exc
+            if (
+                game.guild_id != plan.game.guild_id
+                or game.is_pending or game.is_completed or game.is_confirmed
+            ):
+                raise StartedChannelConflictError('The game is no longer active in this server.')
+            current = freeze_started_channel_plan(game)
+            if (
+                current is None or current.game != plan.game
+                or current.roster_names != plan.roster_names
+                or target not in current.reused_targets
+            ):
+                raise StartedChannelConflictError('The retained channel or game roster changed.')
+
+
+async def run_validate_reused_channel(plan, target) -> None:
+    return await game_open_workers.pending_game_coordinator.run_worker(
+        validate_reused_channel, plan, target,
     )
 
 

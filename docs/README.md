@@ -32,6 +32,11 @@ and releases are kept in Git history instead of the current documentation tree.
 - [Development feedback](DEVELOPMENT_BETA_FEEDBACK.md) and
   [historical mirror](DEVELOPMENT_HISTORICAL_MIRROR.md) runbooks.
 
+## Game behavior
+
+- [Game-channel reuse](GAME_CHANNELS.md) — retained channels, roster topics,
+  participant access, and reconciliation warnings after a restart.
+
 ## Maintainer backlog
 
 - [Project TODO](TODO.md) — proposed work retained for review; entries are not

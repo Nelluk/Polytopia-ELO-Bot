@@ -148,7 +148,8 @@ async def add_member_to_channel(channel, member):
     await channel.edit(overwrites=overwrites)
 
 
-async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
+def game_channel_greeting(roster_names, game, player_list, full_game: bool = False):
+    """Build the current roster/topic text for both new and retained channels."""
 
     chan_mentions = [f'<@{p.discord_member.discord_id}>' for p in player_list]
 
@@ -165,11 +166,20 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
     else:
         match_content = ''
 
-    greeting_message = (f'This is the {chan_type_str} for game **{game.name}**, ID {game.id}.\n{allies_str}'
+    retention_message = (
+        '*This season-game channel is retained after the game concludes.*'
+        if game.is_season_game() else
+        '*This channel will self-destruct soon after the game is marked as concluded.*'
+    )
+    return (f'This is the {chan_type_str} for game **{game.name}**, ID {game.id}.\n{allies_str}'
             f'The teams for this game are:\n{roster_names}\n\n'
             f'{match_content}'
-            '*This channel will self-destruct soon after the game is marked as concluded.*')
-    
+            f'{retention_message}')
+
+
+async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
+    greeting_message = game_channel_greeting(roster_names, game, player_list, full_game)
+
     if (game.name and 'nova' in game.name.lower()) or (game.notes and  'nova' in game.notes.lower()):
         nova_message = "- ⏰ Don't just skip someone if they're timed out. We have rules for that. Read -https://discord.com/channels/447883341463814144/1326589982345003039/1326595096270995466"
         nova_message += "\n - 🛟 Have a bad spawn? You get one bonus restart per game. Just be sure to ask before the end of your third turn"
