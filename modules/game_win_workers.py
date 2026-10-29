@@ -98,6 +98,13 @@ def prepare_win(request: WinPreflightRequest) -> WinSideSelection:
 
         game = _load_game(request)
         if request.winning_side_id is None:
+            if not request.winner_text.strip():
+                sides = '\n'.join(game.list_gameside_membership())
+                raise elo_workers.WinValidationError(
+                    'Include the name of the winning side. Usage:\n'
+                    f'`{request.prefix}win {game.id} WINNER`\n'
+                    f'__Sides in this game are:__\n{sides}'
+                )
             _, winning_side = game.gameside_by_name(name=request.winner_text)
         else:
             winning_side = next(

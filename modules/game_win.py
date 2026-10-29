@@ -114,11 +114,11 @@ def _preflight_request(
     )
 
 
-def _usage(request: WinRequest) -> str:
+def usage(prefix: str) -> str:
     return (
         'Include both game ID and the name of the winning side. Example usage:\n'
-        f'`{request.prefix}win 422 Nelluk`\n'
-        f'`{request.prefix}win 425 Home` *For a team game*\n'
+        f'`{prefix}win 422 Nelluk`\n'
+        f'`{prefix}win 425 Home` *For a team game*\n'
     )
 
 
@@ -203,7 +203,7 @@ async def run_win(
         return await _send_error(
             send_error,
             'Games are always concluded using the '
-            f'`{request.prefix}win` command.\n{_usage(request)}',
+            f'`{request.prefix}win` command.\n{usage(request.prefix)}',
         )
 
     async def execute():

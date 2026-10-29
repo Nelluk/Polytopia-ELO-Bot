@@ -4652,7 +4652,7 @@ class polygames(commands.Cog):
         usage='game_id winner',
         aliases=['lose'],
     )
-    async def win(self, ctx, game_id: int, *, winner: str):
+    async def win(self, ctx, game_id: PolyGame = None, *, winner: str = None):
         """
         Declare winner of an existing game
 
@@ -4665,6 +4665,17 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
+        if game_id is None or ctx.invoked_with.lower() == 'lose':
+            usage = game_win.usage(ctx.prefix)
+            if ctx.invoked_with.lower() == 'lose':
+                return await ctx.send(
+                    f'Games are always concluded using the `{ctx.prefix}win` '
+                    f'command.\n{usage}'
+                )
+            return await ctx.send(
+                f'{usage}\nYou can use the command `{ctx.prefix}incomplete` '
+                'to view your unfinished games.'
+            )
         request = game_win.build_request(
             game_id=game_id,
             member=ctx.author,
@@ -4739,7 +4750,7 @@ class polygames(commands.Cog):
     @settings.in_bot_channel()
     @models.is_registered_member()
     @commands.command(usage='game_id')
-    async def unwin(self, ctx, game_id: int):
+    async def unwin(self, ctx, game_id: PolyGame = None):
         """Reset a completed game to incomplete
 
         **Staff usage**:
@@ -4753,6 +4764,10 @@ class polygames(commands.Cog):
         `[p]unwin 12500`
         """
 
+        if game_id is None:
+            return await ctx.send(
+                f'Game ID not provided. Usage: `{ctx.prefix}unwin GAME_ID`'
+            )
         if ctx.interaction is not None:
             await ctx.defer()
 
@@ -4797,7 +4812,7 @@ class polygames(commands.Cog):
         usage='game_id',
         aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'],
     )
-    async def delete(self, ctx, game_id: int):
+    async def delete(self, ctx, game_id: PolyGame = None):
         """Deletes a game
 
         You can delete a game if you are the host and is has not started yet.
@@ -4806,6 +4821,11 @@ class polygames(commands.Cog):
         `[p]deletegame 25`
         """
 
+        if game_id is None:
+            return await ctx.send(
+                f'Game ID not provided. Usage: `{ctx.prefix}'
+                f'{ctx.invoked_with} GAME_ID`'
+            )
         if ctx.interaction is not None:
             await ctx.defer()
         request = game_deletion.build_request(

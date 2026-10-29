@@ -44,6 +44,37 @@ async def handle_prefix_command_error(ctx, exc) -> None:
 
     if hasattr(ctx.command, 'on_error'):
         return
+    if (
+        isinstance(exc, commands.UserInputError)
+        and type(exc) is not commands.UserInputError
+    ):
+        # Bare UserInputError is used by legacy converters after they have
+        # already sent their own explanation. Parser failures need a reply.
+        if isinstance(exc, commands.MissingRequiredArgument):
+            explanation = f'Missing required argument: {exc.param.name}.'
+        elif isinstance(exc, commands.ArgumentParsingError):
+            explanation = 'Could not read those arguments. Check your quotation marks.'
+        elif isinstance(exc, commands.TooManyArguments):
+            explanation = 'Too many arguments were supplied.'
+        else:
+            parameter = getattr(ctx, 'current_parameter', None)
+            explanation = (
+                f'Invalid value for {parameter.name}.'
+                if parameter is not None else 'Invalid command arguments.'
+            )
+            if parameter is not None and parameter.annotation is int:
+                explanation += ' Use a whole number.'
+        command_name = ctx.command.qualified_name
+        invoked_name = str(ctx.invoked_with or ctx.command.name)
+        parent, _, _name = command_name.rpartition(' ')
+        invocation = f'{parent} {invoked_name}' if parent else invoked_name
+        await ctx.send(
+            f'{explanation}\nUsage: `{ctx.prefix}{invocation} '
+            f'{ctx.command.signature}`\n'
+            f'For examples, use `{ctx.prefix}help {command_name}`.',
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        return
     ignored = (
         commands.CommandNotFound,
         commands.UserInputError,

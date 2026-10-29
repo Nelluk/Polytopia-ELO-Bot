@@ -36,7 +36,7 @@ class PrefixErrorBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(log.call_args.kwargs['exc_info'][1], error)
         self.assertEqual(log.call_args.args[1], 'A1B2C3D4')
 
-    async def test_ignored_input_error_preserves_silent_public_behavior(self):
+    async def test_converter_error_already_explained_preserves_single_reply(self):
         ctx = SimpleNamespace(
             command=SimpleNamespace(name='legacy'),
             invoked_with='legacy',
@@ -50,6 +50,34 @@ class PrefixErrorBoundaryTests(unittest.IsolatedAsyncioTestCase):
             )
         ctx.send.assert_not_awaited()
         log.assert_called_once()
+
+    async def test_parser_error_does_not_publish_exception_details(self):
+        command = SimpleNamespace(
+            name='example', qualified_name='example', signature='count',
+        )
+        ctx = SimpleNamespace(
+            command=command, invoked_with='example', prefix='$',
+            current_parameter=SimpleNamespace(name='count', annotation=int),
+            send=mock.AsyncMock(),
+        )
+        await bot.handle_prefix_command_error(
+            ctx, commands.BadArgument('private exception details'),
+        )
+        message = ctx.send.await_args.args[0]
+        self.assertIn('Use a whole number.', message)
+        self.assertIn('$example count', message)
+        self.assertNotIn('private exception details', message)
+        self.assertFalse(ctx.send.await_args.kwargs['allowed_mentions'].everyone)
+
+    async def test_unknown_commands_and_checks_do_not_receive_usage_fallback(self):
+        ctx = SimpleNamespace(
+            command=None, invoked_with='unknown', prefix='$',
+            send=mock.AsyncMock(),
+        )
+        with mock.patch.object(bot.logger, 'warning'):
+            for error in (commands.CommandNotFound(), commands.CheckFailure()):
+                await bot.handle_prefix_command_error(ctx, error)
+        ctx.send.assert_not_awaited()
 
 
 if __name__ == '__main__':
