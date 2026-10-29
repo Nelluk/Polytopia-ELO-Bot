@@ -79,6 +79,21 @@ class PrefixErrorBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 await bot.handle_prefix_command_error(ctx, error)
         ctx.send.assert_not_awaited()
 
+    async def test_retired_commands_explain_replacement_using_the_guild_prefix(self):
+        for name, replacement in (
+            ('squad', '/squad show'),
+            ('pingsteam', '!pingall'),
+            ('dbb', 'host'),
+        ):
+            with self.subTest(name=name):
+                ctx = SimpleNamespace(
+                    command=None, invoked_with=name, prefix='!',
+                    send=mock.AsyncMock(),
+                )
+                await bot.handle_prefix_command_error(ctx, commands.CommandNotFound())
+                ctx.send.assert_awaited_once()
+                self.assertIn(replacement, ctx.send.await_args.args[0])
+
 
 if __name__ == '__main__':
     unittest.main()

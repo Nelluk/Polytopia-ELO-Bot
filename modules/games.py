@@ -2482,11 +2482,17 @@ class polygames(commands.Cog):
     ) -> bool:
         try:
             snapshot = await self._load_player_workspace(request)
-        except (player_workers.PlayerNotFound,
-                player_workers.AmbiguousPlayer,
+        except player_workers.PlayerNotFound as exc:
+            await ctx.send(
+                f'{exc}\nIf you are not registered, use '
+                f'`{ctx.prefix}setname YOUR POLYTOPIA NAME` or `/player register`.',
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return False
+        except (player_workers.AmbiguousPlayer,
                 peewee.PeeweeException,
                 ValueError) as exc:
-            await ctx.send(str(exc))
+            await ctx.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
             return False
         view = player_views.PlayerWorkspace(
             requester_id=ctx.author.id,
@@ -2846,7 +2852,16 @@ class polygames(commands.Cog):
         aliases=['steamname', 'setcode'],
     )
     async def setname(self, ctx, *, args=None):
-        """Compatibility adapter for the canonical registration service."""
+        """Register or update your Polytopia account name
+
+        **Examples:**
+        `[p]setname My Polytopia Name` - Use the actual name from your Polytopia profile
+        `[p]setname @Nelluk Nelluk` - Staff: register or update another member
+
+        Your Polytopia name is shared across servers. You can also use
+        `/player register`. The old `steamname` and `setcode` commands have
+        been retired; use `setname` for your current Polytopia account name.
+        """
 
         invoked_with = str(ctx.invoked_with or 'setname').lower()
         if invoked_with in ('steamname', 'setcode'):

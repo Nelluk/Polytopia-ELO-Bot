@@ -802,7 +802,16 @@ class matchmaking(commands.Cog):
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
     async def join(self, ctx, game_id: str = None, *args):
-        """Join an open game through the shared pending-game service."""
+        """Join an open game
+
+        **Examples:**
+        `[p]join 1025` - Join the first side with room
+        `[p]join 1025 2` - Join side 2
+        `[p]join 1025 Ronin` - Join a named side
+        `[p]join 1025 @Nelluk 2` - Add another player to side 2, if you have permission
+
+        Use `[p]opengames` to find games you can join.
+        """
 
         syntax = (
             f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game '
@@ -1070,7 +1079,13 @@ class matchmaking(commands.Cog):
     @settings.in_bot_channel()
     @commands.command(usage='game_id')
     async def leave(self, ctx, game_id: str = None):
-        """Leave a pending game through the shared lifecycle service."""
+        """Leave an open game you have joined
+
+        **Example:** `[p]leave 25`
+
+        Started games cannot be left. If you host the game, use `[p]delete 25`
+        to cancel it instead.
+        """
 
         if not game_id:
             return await ctx.send(

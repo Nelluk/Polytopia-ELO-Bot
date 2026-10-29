@@ -33,6 +33,52 @@ BOOTSTRAP_PENDING_INTERACTION_PATHS = frozenset({
 })
 
 
+RETIRED_PREFIX_GUIDANCE = {
+    'roleelo': 'Use `/leaderboard roles` to select roles, or `{prefix}freeagents`.',
+    'roleeloany': 'Use `/leaderboard roles` and select the ANY matching option.',
+    'squad': 'Use `/squad show`.',
+    'squads': 'Use `/squad show`.',
+    'squadname': 'Use `/squad name`.',
+    'staffhelp': 'Use `/staffhelp`.',
+    'helpstaff': 'Use `/staffhelp`.',
+    'gameside': 'Use `/game side`.',
+    'matchside': 'Use `/game side`.',
+    'sidename': 'Use `/game side`.',
+    'tokens': 'Use `/league tokens`.',
+    'tradeprice': 'Use `/league roster price`.',
+    'playerprice': 'Use `/league roster price`.',
+    'draft': 'Use `/league roster draft`.',
+    'house_add': 'Use `/house create`.',
+    'house_rename': 'Use `/house name`.',
+    'house_image': 'Use `/house image`.',
+    'team_add': 'Use `/team create`.',
+    'team_add_junior': 'Use `/team create` and choose the appropriate tier.',
+    'team_edit': 'Use `/team tier`, `/team house`, or `/team archive`.',
+    'team_house': 'Use `/team house`.',
+    'deactivate_players': 'Use `/league maintenance mark-inactive`.',
+    'deactivate': 'Use `/league maintenance mark-inactive`.',
+    'kick_inactive': 'Use `/league maintenance kick-inactive`.',
+    'migrate_player': 'Use `/operator player migrate`.',
+    'migrate': 'Use `/operator player migrate`.',
+    'delete_player': 'Use `/operator player delete`.',
+    'delplayer': 'Use `/operator player delete`.',
+    'tribe_emoji': 'Use `/operator tribe emoji`.',
+    'purge_game_channels': 'Use `/operator channels purge`.',
+    'restart': 'Use `/operator bot restart`.',
+    'restart_force': 'Use `/operator bot restart`.',
+    'quit': 'Use `/operator bot restart`.',
+    'pingmobile': 'Use `{prefix}pingall message`. Games now support cross-play.',
+    'pingsteam': 'Use `{prefix}pingall message`. Games now support cross-play.',
+    'backup_db': 'Backups are managed on the host. Contact the bot owner.',
+    'dbb': 'Backups are managed on the host. Contact the bot owner.',
+    'gtest': 'This obsolete diagnostic command was removed.',
+    'ptrophies': 'This obsolete trophy command was removed.',
+    'boost_from': 'This obsolete rating command was removed. Contact the bot owner for rating corrections.',
+    'boost_from_norole': 'This obsolete rating command was removed. Contact the bot owner for rating corrections.',
+    'reverse_duplicated_elo': 'Contact the bot owner for rating corrections.',
+}
+
+
 def prefix_error_reference() -> str:
     """Return a short, non-secret reference for one unexpected failure."""
 
@@ -44,6 +90,15 @@ async def handle_prefix_command_error(ctx, exc) -> None:
 
     if hasattr(ctx.command, 'on_error'):
         return
+    if isinstance(exc, commands.CommandNotFound):
+        retired = RETIRED_PREFIX_GUIDANCE.get(ctx.invoked_with)
+        if retired is not None:
+            await ctx.send(
+                f'`{ctx.prefix}{ctx.invoked_with}` has been retired. '
+                + retired.format(prefix=ctx.prefix),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
     if (
         isinstance(exc, commands.UserInputError)
         and type(exc) is not commands.UserInputError

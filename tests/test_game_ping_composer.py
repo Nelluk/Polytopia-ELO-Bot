@@ -4,12 +4,14 @@ import asyncio
 from contextlib import AbstractContextManager
 from dataclasses import FrozenInstanceError, replace
 import inspect
+import datetime
 from types import SimpleNamespace
 import time
 import unittest
 from unittest import mock
 
 import discord
+from discord.ext import commands
 
 from tests.test_newgame_worker import import_offline_runtime
 
@@ -1119,6 +1121,43 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_usage_errors_allow_an_immediate_corrected_ping(self):
+        async def ping(ctx):
+            pass
+
+        command = commands.Command(ping)
+        command._buckets = commands.CooldownMapping.from_cooldown(
+            1, 20, commands.BucketType.user,
+        )
+        author = SimpleNamespace(id=10)
+        for args in ('', '42', 'hello'):
+            with self.subTest(args=args):
+                ctx = self._context(author)
+                ctx.command = command
+                ctx.message.author = author
+                ctx.message.edited_at = None
+                ctx.message.created_at = datetime.datetime.now(datetime.timezone.utc)
+                command._prepare_cooldowns(ctx)
+                self.assertTrue(command.is_on_cooldown(ctx))
+                with (
+                    mock.patch.object(service, 'capture_member', return_value=snapshot()),
+                    mock.patch.object(
+                        workers, 'run_ping_candidates',
+                        new=mock.AsyncMock(
+                            return_value=load_result(inferred_game_id=None),
+                            side_effect=(
+                                workers.GamePingLookupError('Game ID missing')
+                                if args == 'hello' else None
+                            ),
+                        ),
+                    ),
+                    mock.patch.object(service, 'confirm_and_deliver', new=mock.AsyncMock()) as send,
+                ):
+                    await service.run_prefix_single(ctx, args)
+                self.assertFalse(command.is_on_cooldown(ctx))
+                self.assertIn('$ping', ctx.send.await_args.args[0])
+                send.assert_not_awaited()
+
     def _context(self, author, *, target=None):
         channel = SimpleNamespace(
             id=100,

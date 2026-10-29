@@ -11,6 +11,8 @@ from io import BytesIO
 import logging
 import uuid
 
+from discord.utils import escape_markdown, escape_mentions
+
 from modules import models
 from modules import player_timezone_values
 import settings
@@ -234,8 +236,14 @@ def _resolve_player(request: PlayerWorkspaceRequest):
     if not matches:
         raise PlayerNotFound(f'Could not find a player matching “{query}”.')
     if len(matches) > 1:
+        candidates = '\n'.join(
+            f'{escape_mentions(escape_markdown(str(player.name)[:60]))} '
+            f'(Discord ID: {player.discord_member.discord_id})'
+            for player in matches[:10]
+        )
         raise AmbiguousPlayer(
-            f'More than one player matches “{query}”. Use an @mention.'
+            f'More than one player matches “{escape_mentions(query[:80])}”. Use an @mention or '
+            f'Discord ID.\nMatches (up to 10):\n{candidates}'
         )
     return matches[0]
 

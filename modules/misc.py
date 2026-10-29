@@ -204,7 +204,16 @@ class misc(commands.Cog):
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
     async def pingall(self, ctx, *, message: str = None):
-        """Ping all incomplete games through the shared notification worker."""
+        """Send a message to everyone in your unfinished games
+
+        **Examples:**
+        `[p]pingall I will take my turns tomorrow`
+        `[p]pingall @Nelluk Nelluk is away until Sunday` - Staff: send on another player's behalf
+
+        You can also attach a file. Requires an advanced user level; ask staff
+        for help if you do not have permission. See `[p]help ping` to message
+        just one game.
+        """
 
         try:
             return await game_ping.run_prefix_all(
@@ -234,16 +243,16 @@ class misc(commands.Cog):
     @models.is_registered_member()
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, *, args=''):
-        """Ping one incomplete game through the shared notification worker."""
+        """Send a message to everyone in one unfinished game
 
-        if not str(args or '').strip() and not getattr(
-            getattr(ctx, 'message', None),
-            'attachments',
-            (),
-        ):
-            reset = getattr(getattr(ctx, 'command', None), 'reset_cooldown', None)
-            if callable(reset):
-                reset(ctx)
+        **Examples:**
+        `[p]ping 100 I will take my turn tomorrow`
+        `[p]ping I will take my turn tomorrow` - Omit the ID in a game-specific channel
+
+        You can also attach a file. You must be a participant or server staff.
+        See `[p]help pingall` to message all your unfinished games.
+        """
+
         try:
             result = await game_ping.run_prefix_single(
                 ctx,
@@ -448,7 +457,17 @@ class misc(commands.Cog):
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def freeagents(self, ctx: commands.Context, *, arg=None):
-        """List registered members with the configured Free Agent role."""
+        """List Free Agents and their ELO statistics
+
+        **Examples:**
+        `[p]freeagents` - Sort by global ELO
+        `[p]freeagents elo` - Sort by local ELO
+        `[p]freeagents games` - Sort by total games played
+        `[p]freeagents recent` - Sort by games played in the last 14 days
+
+        `g_elo` also selects global ELO. Inactive members are excluded.
+        Use `/leaderboard roles` to select other roles. CSV export is unavailable.
+        """
 
         try:
             request = role_leaderboard_service.request_for_prefix(ctx, arg)

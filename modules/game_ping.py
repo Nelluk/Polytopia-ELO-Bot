@@ -967,6 +967,10 @@ async def confirm_and_deliver(
 
 
 def _prefix_error(ctx, message: str):
+    # This helper is used only before a notification has been committed.
+    reset = getattr(getattr(ctx, 'command', None), 'reset_cooldown', None)
+    if callable(reset):
+        reset(ctx)
     return ctx.send(message)
 
 
@@ -975,57 +979,60 @@ async def run_prefix_single(ctx, args: str, *, attachments=()):
 
     requester = capture_member(ctx.author, ctx.guild.id)
     raw = str(args or '')
-    frozen_attachments = capture_attachments(attachments)
-    if not raw.strip() and not frozen_attachments:
-        usage = (
-            f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
-            'everyone in game 100.`\nYou can omit the game ID in an '
-            'unambiguous game channel, or attach a file.'
-        )
-        return await _prefix_error(ctx, usage)
-    tokens = raw.split()
-    explicit_game_id = None
-    if tokens:
-        try:
-            explicit_game_id = int(tokens[0])
-            tokens = tokens[1:]
-        except ValueError:
-            pass
-    text = ' '.join(tokens)
-    load = await workers.run_ping_candidates(workers.GamePingLoadRequest(
-        guild_id=int(ctx.guild.id),
-        requester=requester,
-        target_id=requester.discord_id,
-        explicit_game_id=explicit_game_id,
-        channel_id=int(ctx.channel.id),
-        discover_all=False,
-    ))
-    if load.inferred_game_id is not None and explicit_game_id is not None:
-        text = ' '.join(raw.split())
-    if not text.strip() and not frozen_attachments:
-        usage = (
-            f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
-            'everyone in game 100.`\nYou can omit the game ID in an '
-            'unambiguous game channel, or attach a file.'
-        )
-        return await _prefix_error(ctx, usage)
-    draft = build_draft((text,), frozen_attachments)
-    selected_game_id = (
-        load.inferred_game_id
-        if load.inferred_game_id is not None
-        else explicit_game_id
+    usage = (
+        f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a note for '
+        'everyone in game 100.`\nYou can omit the game ID in an '
+        'unambiguous game channel, or attach a file.'
     )
-    facts = capture_channel_facts(ctx, load)
-    request = build_commit_request(
-        result=load,
-        requester=requester,
-        target=requester,
-        scope='single',
-        selected_game_id=selected_game_id,
-        channel_facts=facts,
-        draft=draft,
-        invoked_with=getattr(ctx, 'invoked_with', 'ping') or 'ping',
-    )
+    try:
+        frozen_attachments = capture_attachments(attachments)
+        if not raw.strip() and not frozen_attachments:
+            return await _prefix_error(ctx, usage)
+        tokens = raw.split()
+        explicit_game_id = None
+        if tokens:
+            try:
+                explicit_game_id = int(tokens[0])
+                tokens = tokens[1:]
+            except ValueError:
+                pass
+        text = ' '.join(tokens)
+        load = await workers.run_ping_candidates(workers.GamePingLoadRequest(
+            guild_id=int(ctx.guild.id),
+            requester=requester,
+            target_id=requester.discord_id,
+            explicit_game_id=explicit_game_id,
+            channel_id=int(ctx.channel.id),
+            discover_all=False,
+        ))
+        if load.inferred_game_id is not None and explicit_game_id is not None:
+            text = ' '.join(raw.split())
+        if not text.strip() and not frozen_attachments:
+            return await _prefix_error(ctx, usage)
+        draft = build_draft((text,), frozen_attachments)
+        selected_game_id = (
+            load.inferred_game_id
+            if load.inferred_game_id is not None
+            else explicit_game_id
+        )
+        facts = capture_channel_facts(ctx, load)
+        request = build_commit_request(
+            result=load,
+            requester=requester,
+            target=requester,
+            scope='single',
+            selected_game_id=selected_game_id,
+            channel_facts=facts,
+            draft=draft,
+            invoked_with=getattr(ctx, 'invoked_with', 'ping') or 'ping',
+        )
+    except (
+        workers.GamePingValidationError,
+        workers.GamePingLookupError,
+        workers.GamePingPermissionError,
+        workers.GamePingConflictError,
+    ) as exc:
+        return await _prefix_error(ctx, f'{exc}\n{usage}')
     result = await confirm_and_deliver(
         request,
         guilds=getattr(getattr(ctx, 'bot', None), 'guilds', ())

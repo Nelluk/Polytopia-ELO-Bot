@@ -767,6 +767,16 @@ class PlayerWorkspaceWorkerTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PlayerWorkspaceCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unregistered_prefix_lookup_explains_how_to_register(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog._load_player_workspace = mock.AsyncMock(
+            side_effect=player_workers.PlayerNotFound('Not registered here.'),
+        )
+        ctx = SimpleNamespace(prefix='!', send=mock.AsyncMock())
+        self.assertFalse(await cog._send_player_workspace(ctx, request=object()))
+        self.assertIn('!setname', ctx.send.await_args.args[0])
+        self.assertFalse(ctx.send.await_args.kwargs['allowed_mentions'].users)
+
     def test_exact_slash_and_prefix_registration(self):
         group = app_group(games.polygames, 'player')
         command = group.get_command('show')
