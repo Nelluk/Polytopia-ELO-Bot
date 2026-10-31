@@ -212,6 +212,7 @@ def resolve_display(
     prefix: str = '$',
     join_emoji: str = '',
     presentation: str = 'prefix',
+    include_asset: bool = True,
 ) -> GameDetailDisplay:
     """Resolve Discord-only labels and media without touching Peewee."""
 
@@ -319,7 +320,7 @@ def resolve_display(
             winner_side,
             guilds,
             allow_player_avatar=not cross_guild,
-        ),
+        ) if include_asset else None,
         prefix=prefix or '$',
         join_emoji=join_emoji,
         presentation=presentation,

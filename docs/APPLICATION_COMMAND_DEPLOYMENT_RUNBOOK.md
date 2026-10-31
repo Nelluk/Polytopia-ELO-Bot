@@ -43,12 +43,16 @@ application_command_all_guild_capabilities = ('tools_support',)
 ```
 
 This setting is also default-deny when missing or empty. Production
-`tools_support` exposes only the public `/staffhelp` form: it directly relays
-to the invoking guild's configured channel with only its first helper role
-mentionable and writes no development feedback record. The development backend
-retains the durable JSONL record and fixed beta mirror. Do not assign any
-capability until its loaded root and environment-specific operational policy
-have been reviewed; planning rejects an assigned but unloaded root.
+`tools_support` exposes only the public `/staffhelp` form. Production server
+help records an accepted request in `GameLog`, posts it in the originating
+channel, and notifies the configured staff route with a direct message link.
+Related games retain game-guild staff routing; only the destination's first
+helper role is mentionable. Bot bug reports and suggestions remain private,
+using their durable production store and maintainer channel. The development
+backend retains the durable JSONL record and fixed beta mirror. See
+`DEVELOPMENT_BETA_FEEDBACK.md` for delivery and partial-failure behavior. Do not
+assign any capability until its loaded root and environment-specific operational
+policy have been reviewed; planning rejects an assigned but unloaded root.
 
 Discord can filter only top-level roots. A capability cannot hide an
 individual staff subcommand inside an otherwise-enabled public root. Use a

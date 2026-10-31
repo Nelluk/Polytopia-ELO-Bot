@@ -89,15 +89,19 @@ class StaffHelpBackendTests(unittest.TestCase):
             self.assertEqual(development.report_id, 'A' * 24)
             production_relay.assert_not_awaited()
 
-            production = asyncio.run(staff_help.submit(
-                object(), _draft(), profile=PRODUCTION,
-            ))
+            with mock.patch.object(staff_help, '_submit_server_help_safely', new=mock.AsyncMock(
+                    return_value=staff_help.StaffHelpSubmission(
+                        environment='production', delivered=True, stored=False, relay_message_id=600,
+                    ))):
+                production = asyncio.run(staff_help.submit(
+                    object(), _draft(), profile=PRODUCTION,
+                ))
             self.assertFalse(production.stored)
             self.assertTrue(production.delivered)
             self.assertEqual(production.relay_message_id, 600)
             self.assertEqual(production.destination, 'server_staff')
             self.assertEqual(development_submit.await_count, 1)
-            production_relay.assert_awaited_once()
+            production_relay.assert_not_awaited()
 
         with self.assertRaisesRegex(
                 staff_help.StaffHelpConfigurationError,
@@ -322,7 +326,7 @@ class StaffHelpBackendTests(unittest.TestCase):
                 ) as logs, self.assertRaisesRegex(
                     staff_help.StaffHelpDeliveryError,
                     'could not be delivered'):
-            asyncio.run(staff_help.submit(bot, _draft(), profile=PRODUCTION))
+            asyncio.run(staff_help.relay_production(bot, _draft(), profile=PRODUCTION))
 
         store.assert_not_awaited()
         self.assertNotIn('SECRET transport detail', '\n'.join(logs.output))

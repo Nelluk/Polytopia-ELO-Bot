@@ -11,8 +11,7 @@ from typing import Any, Mapping
 
 import discord
 
-from modules import beta_feedback
-from modules import staff_help_workers
+from modules import beta_feedback, game_detail_views, staff_help_workers
 from runtime_config import RuntimeProfile, get_runtime_profile
 
 
@@ -67,6 +66,8 @@ class StaffHelpSubmission:
     report_id: str | None = None
     relay_message_id: int | None = None
     destination: str = 'server_staff'
+    source_message_url: str | None = None
+    warning: str | None = None
 
 
 def _selected_profile(profile: RuntimeProfile | None) -> RuntimeProfile:
@@ -303,20 +304,28 @@ async def _send_production_relay(
         draft: beta_feedback.FeedbackReportDraft,
         *,
         source_guild: Any,
-        related_game: staff_help_workers.RelatedGame | None) -> Any:
+        related_game: staff_help_workers.RelatedGame | None,
+        source_message_url: str | None = None,
+        game_card: game_detail_views.ClassicGameDetailRender | None = None) -> Any:
     files = [
         discord.File(BytesIO(attachment.data), filename=attachment.filename)
         for attachment in draft.attachments
     ]
+    embed = _production_embed(
+        draft, destination='server_staff', source_guild=source_guild,
+        related_game=related_game,
+    )
+    if source_message_url:
+        embed.add_field(name='Request', value=f'[Reply to request]({source_message_url})', inline=False)
+    if len(embed) > 6000:
+        # The complete details remain in the public request; keep the notification valid.
+        description = embed.description or ''
+        available = max(0, 6000 - (len(embed) - len(description)) - 1)
+        embed.description = description[:available] + '…'
     try:
-        return await route.channel.send(
+        message = await route.channel.send(
             f'Attention {route.helper_role.mention} — new staff-help request.',
-            embed=_production_embed(
-                draft,
-                destination='server_staff',
-                source_guild=source_guild,
-                related_game=related_game,
-            ),
+            embed=embed,
             files=files,
             allowed_mentions=discord.AllowedMentions(
                 everyone=False,
@@ -325,6 +334,16 @@ async def _send_production_relay(
                 replied_user=False,
             ),
         )
+        if game_card is not None:
+            try:
+                # Separate cards avoid Discord's combined 6,000-character embed limit.
+                await route.channel.send(
+                    content=game_card.content, embed=game_card.embed,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except Exception:
+                logger.warning('Staff-help game card delivery failed (guild=%s).', route.guild_id)
+        return message
     finally:
         for file in files:
             file.close()
@@ -428,6 +447,108 @@ async def relay_production(
     return (int(message_id) if message_id is not None else None, destination)
 
 
+async def _submit_server_help(
+        bot: Any, draft: beta_feedback.FeedbackReportDraft) -> StaffHelpSubmission:
+    """Audit and publish one local request, preserving any successful delivery."""
+    related = await staff_help_workers.run_find_related_game(
+        channel_id=draft.channel_id, game_id=draft.game_id,
+    )
+    route = resolve_production_route(bot, related.guild_id if related else draft.guild_id)
+    try:
+        await staff_help_workers.run_record_request(
+            guild_id=draft.guild_id, game_id=related.game_id if related else draft.game_id,
+            requester_id=draft.requester_id, requester_name=draft.requester_display_name,
+            summary=draft.summary, details=draft.details, context=draft.context,
+        )
+    except Exception as exc:
+        raise StaffHelpDeliveryError('The staff-help request could not be recorded.') from exc
+
+    source_guild = bot.get_guild(draft.guild_id)
+    source_url = None
+    warnings = []
+    files = [discord.File(BytesIO(item.data), filename=item.filename) for item in draft.attachments]
+    public_embed = discord.Embed(title=draft.summary, description=draft.details)
+    if draft.context:
+        public_embed.add_field(name='Related context', value=draft.context, inline=False)
+    try:
+        source = source_guild.get_channel_or_thread(draft.channel_id)
+        public = await source.send(
+            content=(
+                f'Staff-help request from <@{draft.requester_id}>. '
+                'Reply here with further information. Staff: mention the requester when answering.'
+            ),
+            embed=public_embed,
+            files=files,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        source_url = public.jump_url
+    except Exception:
+        logger.warning('Staff-help public post failed (guild=%s channel=%s).', draft.guild_id, draft.channel_id)
+        warnings.append('I could not post the request in this channel.')
+    finally:
+        for file in files:
+            file.close()
+
+    game_card = None
+    if related is not None and related.snapshot is not None:
+        try:
+            # Reuse the full classic card, omitting decorative media and its filesystem work.
+            display = game_detail_views.resolve_display(
+                related.snapshot, guild=bot.get_guild(route.guild_id), bot=bot,
+                presentation='slash', include_asset=False,
+            )
+            game_card = game_detail_views.render_classic_game_detail(display)
+        except Exception:
+            logger.warning('Staff-help game card unavailable (game=%s).', related.game_id)
+
+    message_id = None
+    try:
+        message = await _send_production_relay(
+            route, draft, source_guild=source_guild, related_game=related,
+            source_message_url=source_url, game_card=game_card,
+        )
+        message_id = message.id
+    except Exception as exc:
+        if source_url is None:
+            raise StaffHelpDeliveryError('The staff-help message could not be delivered.') from exc
+        logger.warning('Staff-help notification failed (guild=%s channel=%s).', draft.guild_id, route.channel_id)
+        warnings.append(
+            'The staff notification failed. Please ping a staff member on the existing post; '
+            'do not submit it again.'
+        )
+    return StaffHelpSubmission(
+        environment='production', delivered=message_id is not None, stored=False,
+        relay_message_id=message_id, source_message_url=source_url,
+        warning=' '.join(warnings) or None,
+    )
+
+
+async def _submit_server_help_safely(
+        bot: Any, draft: beta_feedback.FeedbackReportDraft) -> StaffHelpSubmission:
+    # Drain the complete audit/post/notification sequence if its interaction is cancelled.
+    task = asyncio.create_task(_submit_server_help(bot, draft))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue
+            except Exception:
+                break
+        try:
+            result = task.result()
+        except Exception:
+            logger.warning('Cancelled staff-help submission failed (guild=%s requester=%s).', draft.guild_id, draft.requester_id)
+        else:
+            logger.warning(
+                'Cancelled staff-help submission completed (guild=%s requester=%s source=%s relay=%s); do not resubmit.',
+                draft.guild_id, draft.requester_id, result.source_message_url, result.relay_message_id,
+            )
+        raise
+
+
 async def submit(
         bot: Any,
         draft: beta_feedback.FeedbackReportDraft,
@@ -447,18 +568,7 @@ async def submit(
         )
 
     if draft.category == 'help':
-        message_id, destination = await relay_production(
-            bot,
-            draft,
-            profile=selected,
-        )
-        return StaffHelpSubmission(
-            environment='production',
-            delivered=True,
-            stored=False,
-            destination=destination,
-            relay_message_id=message_id,
-        )
+        return await _submit_server_help_safely(bot, draft)
 
     report = await beta_feedback.store_report(draft, profile=selected)
     destination = 'polyelo_bug' if draft.category == 'bug' else 'polyelo_feature'

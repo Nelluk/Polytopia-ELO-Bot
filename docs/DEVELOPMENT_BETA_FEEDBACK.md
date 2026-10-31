@@ -9,10 +9,11 @@ The development and production backends are deliberately different:
 
 - Development commits a local JSONL report and attachments before attempting
   its private Discord mirror.
-- Production relays local help to the configured guild staff route without
-  local storage. Bot bug reports and improvement suggestions commit to a
-  separate local JSONL store before the configured maintainer-channel post.
-  Neither backend writes `GameLog`.
+- Production records accepted local help in `GameLog`, posts the request in
+  its originating channel, then notifies the configured guild staff route
+  with an exact link to that post. Bot bug reports and improvement suggestions
+  commit to a separate local JSONL store before the configured maintainer-channel post.
+  Development reports and production bot feedback do not write `GameLog`.
 
 The `tools_support` capability is default-deny. Changing its guild assignment
 requires the explicit application-command workflow; startup never synchronizes
@@ -63,6 +64,34 @@ If Discord rejects the final follow-up after commit, the failure is logged with
 the report ID and the stored report remains authoritative. Operators must not
 tell the requester that no report exists merely because a post-commit Discord
 effect failed.
+
+## Production server-help conversations
+
+The form tells users that “Contact server staff” posts their request in the
+originating channel. The public post includes their identity, summary, details,
+related context, and attachments. It suppresses automatic mentions. Staff get
+an exact request-message link, the established helper-role ping, and a separate
+full game card when a related game is available. Related games retain their
+existing game-guild staff routing; the public post and audit retain the invoking
+guild. Threads use their own message destination.
+
+The private acknowledgement links to the public post and asks users to reply
+there with additional information. The post is bot-authored: staff must mention
+the requester in their answer to notify them. Channel permissions still control
+who can see the conversation.
+
+The worker commits the accepted request to `GameLog` before Discord publication.
+This records a request, not proof of successful delivery. No new schema or local
+JSONL store is introduced for server help. If the public post fails, staff still
+receive the request and the requester receives a private warning. If staff
+notification fails after the public post succeeds, confirmation links to the
+existing post and asks the requester to ping staff there rather than resubmit.
+Optional game-card failure does not invalidate successful request delivery.
+Cancellation drains the already-started audit/post/notification sequence.
+
+Bug reports and improvement suggestions keep their private maintainer delivery
+and durable feedback store; they are never automatically posted publicly.
+Development feedback keeps its existing private mirror behavior.
 
 ## Read-only operator utility
 

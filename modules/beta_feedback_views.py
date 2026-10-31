@@ -33,7 +33,7 @@ class StaffHelpModal(discord.ui.Modal):
 
     category = discord.ui.Label(
         text='Who should receive this?',
-        description='Server help stays local; bot feedback goes to PolyELO maintainers.',
+        description='Server help is posted in this channel; bot feedback goes to PolyELO maintainers.',
         component=discord.ui.RadioGroup(
             custom_id='staffhelp-category',
             required=True,
@@ -111,6 +111,8 @@ class StaffHelpModal(discord.ui.Modal):
         self.guild_id = int(guild_id)
         self.channel_id = int(channel_id)
         self._submitted = False
+        if self.profile.environment == 'development':
+            self.category.description = 'Beta reports go to the private feedback mirror.'
         if context_default:
             self.context.component.default = str(context_default)[
                 :beta_feedback.MAX_CONTEXT_LENGTH
@@ -261,9 +263,16 @@ class StaffHelpModal(discord.ui.Modal):
         elif result.environment == 'production':
             if result.destination == 'server_staff':
                 message = (
-                    'Your message has been sent to server staff. '
-                    'Please wait patiently or submit another report with additional information.'
+                    'Your message has been sent to server staff.'
+                    if result.delivered else 'Your request was posted.'
                 )
+                if result.source_message_url:
+                    message += (
+                        f' [Open your request]({result.source_message_url}). '
+                        'Add further information by replying there.'
+                    )
+                if result.warning:
+                    message += f' {result.warning}'
             elif result.destination == 'polyelo_bug':
                 message = 'Your bug report was sent to the PolyELO maintainers.'
             else:
