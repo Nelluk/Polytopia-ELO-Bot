@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from discord.ext import commands
+
 
 ELO_BANNED_ROLE_NAME = 'ELO Banned'
 ELO_BAN_DENIAL_MESSAGE = 'You are banned from using this bot. :kissing_heart:'
@@ -25,3 +27,12 @@ def elo_ban_denial(
     ):
         return ELO_BAN_DENIAL_MESSAGE
     return None
+
+
+async def prefix_command_can_run(command, ctx) -> bool:
+    """Reuse prefix permissions without turning an explained denial into an error."""
+
+    try:
+        return await command.can_run(ctx)
+    except commands.CheckFailure:
+        return False

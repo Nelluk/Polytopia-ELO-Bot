@@ -6,8 +6,9 @@ from collections.abc import Awaitable, Callable
 import logging
 
 import discord
+import settings
 
-from modules import game_ping, game_ping_workers as workers
+from modules import game_ping, game_ping_workers as workers, interaction_bans
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -20,6 +21,16 @@ async def _private(interaction, content: str) -> None:
         await interaction.followup.send(content, ephemeral=True)
     else:
         await interaction.response.send_message(content, ephemeral=True)
+
+
+async def _ban_denied(interaction) -> bool:
+    denial = interaction_bans.elo_ban_denial(
+        interaction.user, configured_discord_ids=settings.discord_id_ban_list,
+    )
+    if denial is None:
+        return False
+    await _private(interaction, denial)
+    return True
 
 
 async def _edit_message(message, **kwargs) -> None:
@@ -97,6 +108,8 @@ class GamePingStartModal(discord.ui.Modal, title='Compose game ping'):
             return
         if int(getattr(getattr(interaction, 'user', None), 'id', 0)) != self.requester_id:
             await _private(interaction, 'Only the member who opened this composer can submit it.')
+            return
+        if await _ban_denied(interaction):
             return
         if (
             int(getattr(interaction, 'guild_id', 0) or 0) != self.guild_id
@@ -331,6 +344,8 @@ class GamePingComposerView(discord.ui.LayoutView):
                 interaction,
                 'Only the member who opened this game-ping draft can use its controls.',
             )
+            return False
+        if await _ban_denied(interaction):
             return False
         interaction_guild_id = getattr(interaction, 'guild_id', None)
         if interaction_guild_id is None:

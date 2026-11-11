@@ -6,6 +6,7 @@ import logging
 import os
 import secrets
 import sys
+from types import SimpleNamespace
 from timeit import default_timer as timer
 from typing import Awaitable, Callable, List
 
@@ -15,7 +16,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import image_storage, operator_restart
+from modules import image_storage, interaction_bans, operator_restart
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -359,9 +360,20 @@ class PolyBotCommandTree(discord.app_commands.CommandTree):
                 )
         if owner_restart_recovery:
             return True
-        if not settings.maintenance_mode:
-            return True
-        return await deny('The bot is restarting. Try the command again in a moment.')
+        if settings.maintenance_mode:
+            return await deny('The bot is restarting. Try the command again in a moment.')
+        ban_denial = interaction_bans.elo_ban_denial(
+            interaction.user,
+            configured_discord_ids=settings.discord_id_ban_list,
+        )
+        if ban_denial is not None:
+            return await deny(ban_denial)
+        if interaction.type is discord.InteractionType.application_command:
+            retry_after = self.client.command_retry_after(interaction.user)
+            if retry_after:
+                return await deny("You're on cooldown. Slow down those commands!")
+            interaction.extras['global_command_cooldown_checked'] = True
+        return True
 
 
 class MyBot(commands.Bot):
@@ -381,6 +393,9 @@ class MyBot(commands.Bot):
                              type=discord.ActivityType.playing,
                          ))
         settings.bot = self
+        self._command_cooldown = commands.CooldownMapping.from_cooldown(
+            6, 30.0, commands.BucketType.user,
+        )
         # Auto-deleting task messages cleaned up before a planned restart.
         # Each item is a (guild_id, channel_id, message_id) tuple.
         self.purgable_messages = []
@@ -403,6 +418,16 @@ class MyBot(commands.Bot):
         # owner-confirmed database capability plan to one exact guild. Keep
         # dispatch failures observable and acknowledge delivered interactions.
         self.tree.on_error = self._on_application_command_error
+
+    def command_retry_after(self, member, *, current=None):
+        """Share the existing per-user allowance across prefix and slash commands."""
+
+        if member.id == settings.owner_id:
+            return None
+        bucket = self._command_cooldown.get_bucket(
+            SimpleNamespace(author=member), current=current,
+        )
+        return bucket.update_rate_limit(current=current)
 
     @staticmethod
     def _dispatched_guild_id(args) -> int | None:
@@ -860,8 +885,6 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     main(args)
     bot = MyBot()
 
-    cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
-
     @bot.check
     async def globally_block_dms(ctx):
         # Should prevent bot from being able to be controlled via DM
@@ -869,8 +892,11 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
 
     @bot.check
     async def restrict_banned_users(ctx):
-        if ctx.author.id in settings.discord_id_ban_list or discord.utils.get(ctx.author.roles, name='ELO Banned'):
-            await ctx.send('You are banned from using this bot. :kissing_heart:')
+        denial = interaction_bans.elo_ban_denial(
+            ctx.author, configured_discord_ids=settings.discord_id_ban_list,
+        )
+        if denial is not None:
+            await ctx.send(denial, ephemeral=ctx.interaction is not None)
             return False
         return True
 
@@ -879,12 +905,17 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         if ctx.invoked_with == 'help' and ctx.command.name != 'help':
             # otherwise check will run once for every command in the bot when someone invokes $help
             return True
-        if ctx.author.id == settings.owner_id:
+        if (
+            ctx.interaction is not None
+            and ctx.interaction.extras.get('global_command_cooldown_checked')
+        ):
             return True
-        bucket = cooldown.get_bucket(ctx.message)
-        retry_after = bucket.update_rate_limit()
+        retry_after = bot.command_retry_after(ctx.author)
         if retry_after:
-            await ctx.send('You\'re on cooldown. Slow down those commands!')
+            await ctx.send(
+                "You're on cooldown. Slow down those commands!",
+                ephemeral=ctx.interaction is not None,
+            )
             logger.warning(f'Cooldown limit reached for user {ctx.author.id}')
             return False
 

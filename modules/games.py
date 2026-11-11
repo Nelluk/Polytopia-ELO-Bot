@@ -979,7 +979,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'lb'
-        if not await self.lb.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.lb, ctx):
             return
 
         request = leaderboard_workers.PlayerLeaderboardRequest(
@@ -1252,7 +1252,7 @@ class polygames(commands.Cog):
             if view == 'global-all-time'
             else 'lbrecent'
         )
-        if not await self.lbrecent.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.lbrecent, ctx):
             return
 
         request = leaderboard_workers.ActivityLeaderboardRequest(
@@ -1419,7 +1419,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'lbsquad'
-        if not await self.lbsquad.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.lbsquad, ctx):
             return
 
         request = leaderboard_workers.SquadLeaderboardRequest(
@@ -2535,7 +2535,7 @@ class polygames(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(interaction.guild.id, 'command_prefix')
         ctx.invoked_with = 'player'
-        if not await self.player.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.player, ctx):
             return
         if name is None:
             return await self._publish_player_profile(
@@ -3649,7 +3649,7 @@ class polygames(commands.Cog):
             return await interaction.edit_original_response(
                 content='The open-game command handler is unavailable.',
             )
-        if not await open_command.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(open_command, ctx):
             return
 
         try:
@@ -4174,7 +4174,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'allgames'
-        if not await self.allgames.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.allgames, ctx):
             return
         requester_values = self._game_search_requester_values(
             interaction.user,
@@ -4582,7 +4582,7 @@ class polygames(commands.Cog):
 
         # Reuse the existing command checks so registration, configured bot
         # channels, and any global checks remain identical during transition.
-        if not await self.newgame.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.newgame, ctx):
             return
 
         async def build_preview(
@@ -4734,7 +4734,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'win'
-        if not await self.win.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.win, ctx):
             return
 
         request = game_win.build_request(
@@ -4817,7 +4817,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'unwin'
-        if not await self.unwin.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.unwin, ctx):
             return
         await self.unwin.callback(self, ctx, game_id)
 
@@ -4901,7 +4901,7 @@ class polygames(commands.Cog):
             'command_prefix',
         )
         ctx.invoked_with = 'delete'
-        if not await self.delete.can_run(ctx):
+        if not await interaction_bans.prefix_command_can_run(self.delete, ctx):
             return
         await self.delete.callback(self, ctx, game_id)
 
