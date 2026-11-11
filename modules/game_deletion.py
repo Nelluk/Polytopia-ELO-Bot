@@ -92,9 +92,8 @@ def _authorize(
     if not classification.registered:
         raise GameDeletionValidationError(
             'This command requires bot registration first. Type '
-            f'__`{request.prefix}setname Your Mobile Name`__ or  '
-            f'__`{request.prefix}steamname Your Steam Username`__ '
-            'to get started.'
+            f'__`{request.prefix}setname YOUR POLYTOPIA NAME`__ or '
+            '`/player register` to get started.'
         )
 
     if classification.state == game_deletion_workers.PENDING:

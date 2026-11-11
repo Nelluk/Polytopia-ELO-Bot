@@ -4238,6 +4238,7 @@ class polygames(commands.Cog):
                 guild_id=ctx.guild.id,
                 player_query=args,
                 requester_discord_id=ctx.author.id,
+                game_search_query=True,
             )
             try:
                 snapshot = await self._load_player_workspace(request)
@@ -4288,6 +4289,7 @@ class polygames(commands.Cog):
             discord_id=ctx.author.id if not args else None,
             player_query=args,
             requester_discord_id=ctx.author.id,
+            game_search_query=True,
         )
         try:
             snapshot = await self._load_player_workspace(request)
@@ -4344,6 +4346,7 @@ class polygames(commands.Cog):
             discord_id=ctx.author.id if not args else None,
             player_query=args,
             requester_discord_id=ctx.author.id,
+            game_search_query=True,
         )
         try:
             snapshot = await self._load_player_workspace(request)
@@ -5138,9 +5141,6 @@ class polygames(commands.Cog):
                 message = message.replace(
                     '__`setname ',
                     f'__`{ctx.prefix}setname ',
-                ).replace(
-                    '__`steamname ',
-                    f'__`{ctx.prefix}steamname ',
                 )
             return await ctx.send(message)
         except exceptions.RecordLocked as exc:
@@ -5213,9 +5213,6 @@ class polygames(commands.Cog):
                 message = message.replace(
                     '__`setname ',
                     f'__`{ctx.prefix}setname ',
-                ).replace(
-                    '__`steamname ',
-                    f'__`{ctx.prefix}steamname ',
                 )
             elif 'No matching map type found' in message:
                 raw_map_type = request.legacy_tokens[-1] if request.legacy_tokens else ''
@@ -6294,9 +6291,6 @@ class polygames(commands.Cog):
                 message = message.replace(
                     '__`setname ',
                     f'__`{ctx.prefix}setname ',
-                ).replace(
-                    '__`steamname ',
-                    f'__`{ctx.prefix}steamname ',
                 )
             elif message.startswith('Wrong number of arguments.'):
                 message = (

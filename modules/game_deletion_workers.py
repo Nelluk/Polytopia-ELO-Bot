@@ -152,9 +152,8 @@ def classify_game_deletion(request: DeletionRequest) -> DeletionClassification:
         if not _registered_author(request.requester_id):
             raise GameDeletionValidationError(
                 'This command requires bot registration first. Type '
-                f'__`{request.prefix}setname Your Mobile Name`__ or  '
-                f'__`{request.prefix}steamname Your Steam Username`__ '
-                'to get started.'
+                f'__`{request.prefix}setname YOUR POLYTOPIA NAME`__ or '
+                '`/player register` to get started.'
             )
         game = _load_game(request.game_id, request.guild_id)
         host = getattr(game, 'host', None)
@@ -358,9 +357,8 @@ def delete_pending_game(request: DeletionRequest) -> PendingDeletionResult:
             if not _registered_author(request.requester_id):
                 raise PendingGameDeletionValidationError(
                     'This command requires bot registration first. Type '
-                    f'__`{request.prefix}setname Your Mobile Name`__ or  '
-                    f'__`{request.prefix}steamname Your Steam Username`__ '
-                    'to get started.'
+                    f'__`{request.prefix}setname YOUR POLYTOPIA NAME`__ or '
+                    '`/player register` to get started.'
                 )
             game = _load_game(request.game_id, request.guild_id)
             if not game.is_pending:

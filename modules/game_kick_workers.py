@@ -133,9 +133,8 @@ def kick_game(request: KickRequest) -> KickResult:
             if not _registered_author(request.author.discord_id):
                 raise PendingGameKickValidationError(
                     'This command requires bot registration first. Type '
-                    f'__`{request.prefix}setname Your Mobile Name`__ or '
-                    f'__`{request.prefix}steamname Your Steam Username`__ '
-                    'to get started.'
+                    f'__`{request.prefix}setname YOUR POLYTOPIA NAME`__ or '
+                    '`/player register` to get started.'
                 )
 
             try:

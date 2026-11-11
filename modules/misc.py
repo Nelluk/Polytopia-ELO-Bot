@@ -60,7 +60,7 @@ class misc(commands.Cog):
         """
         bot_desc = ('This bot is designed to improve Polytopia multiplayer by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
                     # 'Its primary home is [PolyChampions](https://discord.gg/YcvBheSv), a server focused on team play organized into a league.\n'
-                    f'To register as a player with the bot use __`{ctx.prefix}setname Mobile User Name`__ or  __`{ctx.prefix}steamname Steam User Name`__')
+                    f'To register as a player with the bot use __`{ctx.prefix}setname YOUR POLYTOPIA NAME`__ or `/player register`.')
 
         embed = discord.Embed(title='PolyELO Bot Donation Link', url='https://www.buymeacoffee.com/nelluk', description=bot_desc)
 
@@ -508,7 +508,7 @@ class misc(commands.Cog):
                     bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                     elo_guide_channel = 533391050014720040
 
-                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setname Your Mobile Name`__')
+                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use __`{prefix}setname YOUR POLYTOPIA NAME`__ or `/player register`.')
                     broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
                     broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
@@ -540,7 +540,7 @@ class misc(commands.Cog):
                     prefix = settings.guild_setting(guild.id, 'command_prefix')
                     elo_guide_channel = 533391050014720040
 
-                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}steamname Your Steam Name`__')
+                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use __`{prefix}setname YOUR POLYTOPIA NAME`__ or `/player register`.')
                     broadcast_message += f'\nTo get started with joining an open game, type __`{prefix}games`__ or open your own with __`{prefix}opensteam`__'
                     broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 

@@ -201,8 +201,8 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
             if host is None:
                 raise OpenGameValidationError(
                     'You must be a registered player before hosting a match. '
-                    f'Try `{request.prefix}setname` or '
-                    f'`{request.prefix}steamname` to register a canonical '
+                    f'Try `{request.prefix}setname YOUR POLYTOPIA NAME` or '
+                    '`/player register` to register a canonical '
                     'Polytopia account name.'
                 )
 
@@ -241,8 +241,8 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                 raise OpenGameValidationError(
                     f'**{host.name}** does not have a canonical Polytopia '
                     'account name on file. Register one with '
-                    f'`{request.prefix}setname` or '
-                    f'`{request.prefix}steamname` before opening a game.'
+                    f'`{request.prefix}setname YOUR POLYTOPIA NAME` or '
+                    '`/player register` before opening a game.'
                 )
 
             total_players = sum(side.size for side in request.sides)

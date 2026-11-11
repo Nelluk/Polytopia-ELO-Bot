@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import datetime
 from io import BytesIO
 import logging
+import re
 import uuid
 
 from discord.utils import escape_markdown, escape_mentions
@@ -68,6 +69,7 @@ class PlayerWorkspaceRequest:
     discord_id: int | None = None
     player_query: str | None = None
     requester_discord_id: int | None = None
+    game_search_query: bool = False
 
 
 @dataclass(frozen=True)
@@ -229,9 +231,23 @@ def _resolve_player(request: PlayerWorkspaceRequest):
     query = (request.player_query or '').strip()
     if not query:
         raise PlayerNotFound('No player was supplied.')
+    if request.game_search_query:
+        # Preserve the prefix search grammar before choosing a player card.
+        if (
+            len(query.split()) != 1
+            or len(query) <= 2
+            or query.casefold() in ('all', 'the', 'and')
+            or query.isupper()
+            or '"' in query
+            or re.fullmatch(r'\d+(?:v\d+)+', query.lower().replace('vs', 'v'))
+        ):
+            raise PlayerNotFound('This input requires game search.')
+        if len(models.Team.get_by_name(query, request.guild_id)) == 1:
+            raise PlayerNotFound('This input matches a team search.')
     matches = models.Player.string_matches(
         player_string=query,
         guild_id=request.guild_id,
+        include_poly_info=not request.game_search_query,
     )
     if not matches:
         raise PlayerNotFound(f'Could not find a player matching “{query}”.')

@@ -648,8 +648,8 @@ _game_tribe_read_executor = ThreadPoolExecutor(
 def _game_tribe_registration_error() -> GameTribePermissionError:
     return GameTribePermissionError(
         'This command requires bot registration first. Type '
-        '__`setname Your Mobile Name`__ or  '
-        '__`steamname Your Steam Username`__ to get started.'
+        '__`setname YOUR POLYTOPIA NAME`__ or '
+        '`/player register` to get started.'
     )
 
 
@@ -1550,8 +1550,8 @@ def _registered_game_map_requester(requester_id: int) -> bool:
 def _game_map_registration_error() -> GameMapPermissionError:
     return GameMapPermissionError(
         'This command requires bot registration first. Type '
-        '__`setname Your Mobile Name`__ or  '
-        '__`steamname Your Steam Username`__ to get started.'
+        '__`setname YOUR POLYTOPIA NAME`__ or '
+        '`/player register` to get started.'
     )
 
 
@@ -2141,8 +2141,8 @@ def _registered_game_notes_requester(requester_id: int) -> bool:
 def _game_notes_registration_error() -> GameNotesPermissionError:
     return GameNotesPermissionError(
         'This command requires bot registration first. Type '
-        '__`setname Your Mobile Name`__ or  '
-        '__`steamname Your Steam Username`__ to get started.'
+        '__`setname YOUR POLYTOPIA NAME`__ or '
+        '`/player register` to get started.'
     )
 
 
@@ -2531,8 +2531,8 @@ def _registered_game_name_requester(requester_id: int) -> bool:
 def _game_name_registration_error() -> GameNamePermissionError:
     return GameNamePermissionError(
         'This command requires bot registration first. Type '
-        '__`setname Your Mobile Name`__ or  '
-        '__`steamname Your Steam Username`__ to get started.'
+        '__`setname YOUR POLYTOPIA NAME`__ or '
+        '`/player register` to get started.'
     )
 
 
