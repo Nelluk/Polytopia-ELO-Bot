@@ -495,24 +495,31 @@ class misc(commands.Cog):
             await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
-                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'newbie_message_channels')]
-                if not broadcast_channels:
-                    continue
+                try:
+                    if not settings.guild_configuration_allows_dispatch(guild.id):
+                        continue
+                    broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'newbie_message_channels')]
+                    if not broadcast_channels:
+                        continue
 
-                prefix = settings.guild_setting(guild.id, 'command_prefix')
-                # ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
-                # unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-                bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
-                elo_guide_channel = 533391050014720040
+                    prefix = settings.guild_setting(guild.id, 'command_prefix')
+                    # ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                    # unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
+                    bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                    elo_guide_channel = 533391050014720040
 
-                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setname Your Mobile Name`__')
-                broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
-                broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
+                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setname Your Mobile Name`__')
+                    broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
+                    broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
-                for broadcast_channel in broadcast_channels:
-                    if broadcast_channel:
-                        message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
-                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
+                    for broadcast_channel in broadcast_channels:
+                        if broadcast_channel:
+                            message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                            self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
+                except Exception:
+                    logger.exception(
+                        'Newbie broadcast cycle failed for guild %s', guild.id,
+                    )
 
             await asyncio.sleep(sleep_cycle)
 
@@ -523,19 +530,26 @@ class misc(commands.Cog):
             await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
-                broadcast_channel = guild.get_channel(settings.guild_setting(guild.id, 'steam_game_channel'))
-                if not broadcast_channel:
-                    continue
+                try:
+                    if not settings.guild_configuration_allows_dispatch(guild.id):
+                        continue
+                    broadcast_channel = guild.get_channel(settings.guild_setting(guild.id, 'steam_game_channel'))
+                    if not broadcast_channel:
+                        continue
 
-                prefix = settings.guild_setting(guild.id, 'command_prefix')
-                elo_guide_channel = 533391050014720040
+                    prefix = settings.guild_setting(guild.id, 'command_prefix')
+                    elo_guide_channel = 533391050014720040
 
-                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}steamname Your Steam Name`__')
-                broadcast_message += f'\nTo get started with joining an open game, type __`{prefix}games`__ or open your own with __`{prefix}opensteam`__'
-                broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
+                    broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}steamname Your Steam Name`__')
+                    broadcast_message += f'\nTo get started with joining an open game, type __`{prefix}games`__ or open your own with __`{prefix}opensteam`__'
+                    broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
-                message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
-                self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
+                    message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                    self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
+                except Exception:
+                    logger.exception(
+                        'Steam newbie broadcast cycle failed for guild %s', guild.id,
+                    )
 
             await asyncio.sleep(sleep_cycle)
 

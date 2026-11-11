@@ -1654,12 +1654,19 @@ class matchmaking(commands.Cog):
     async def task_purge_expired_games(self):
         await settings.wait_until_guild_configuration_ready(self.bot)
         for guild in self.bot.guilds:
-            logger.debug(f'Running task_purge_expired_games for guild {guild.name}')
-            await game_expiration.purge_expired_games_for_guild(
-                bot=self.bot,
-                guild=guild,
-                as_of=datetime.datetime.now(),
-            )
+            try:
+                if not settings.guild_configuration_allows_dispatch(guild.id):
+                    continue
+                logger.debug(f'Running task_purge_expired_games for guild {guild.name}')
+                await game_expiration.purge_expired_games_for_guild(
+                    bot=self.bot,
+                    guild=guild,
+                    as_of=datetime.datetime.now(),
+                )
+            except Exception:
+                logger.exception(
+                    'Expired-game purge cycle failed for guild %s', guild.id,
+                )
 
     @tasks.loop(hours=1)
     async def task_reconcile_started_broadcasts(self):
